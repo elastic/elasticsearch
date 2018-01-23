@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 
@@ -87,6 +89,29 @@ public final class IndicesClient {
     public void createAsync(CreateIndexRequest createIndexRequest, ActionListener<CreateIndexResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, Request::createIndex, CreateIndexResponse::fromXContent,
                 listener, Collections.emptySet(), headers);
+    }
+
+    /**
+     * Updates the mappings on an index using the Put Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     */
+    public PutMappingResponse putMapping(PutMappingRequest putMappingRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, Request::putMapping, PutMappingResponse::fromXContent,
+                Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates the mappings on an index using the Put Mapping API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-put-mapping.html">
+     * Put Mapping API on elastic.co</a>
+     */
+    public void putMappingAsync(PutMappingRequest putMappingRequest, ActionListener<PutMappingResponse> listener,
+                                       Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, Request::putMapping, PutMappingResponse::fromXContent,
+            listener, Collections.emptySet(), headers);
     }
 
     /**

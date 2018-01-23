@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -99,6 +101,35 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
+            Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
+            Map<String, Object> typeData = (Map) mappingsData.get("type_name");
+            Map<String, Object> properties = (Map) typeData.get("properties");
+            Map<String, Object> field = (Map) properties.get("field");
+
+            assertEquals("text", field.get("type"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutMapping() throws IOException {
+        {
+            // Add mappings to index
+            String indexName = "mapping_index";
+            createIndex(indexName);
+
+            PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
+            putMappingRequest.type("type_name");
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+            mappingBuilder.startObject().startObject("properties").startObject("field");
+            mappingBuilder.field("type", "text");
+            mappingBuilder.endObject().endObject().endObject();
+            putMappingRequest.source(mappingBuilder);
+
+            PutMappingResponse putMappingResponse =
+                execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
+            assertTrue(putMappingResponse.isAcknowledged());
+
+            Map<String, Object> indexMetaData = getIndexMetadata(indexName);
             Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
             Map<String, Object> typeData = (Map) mappingsData.get("type_name");
             Map<String, Object> properties = (Map) typeData.get("properties");

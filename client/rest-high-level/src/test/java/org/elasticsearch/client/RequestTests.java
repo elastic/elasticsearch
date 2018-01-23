@@ -28,6 +28,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -315,6 +316,39 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals("PUT", request.getMethod());
         assertToXContentBody(createIndexRequest, request.getEntity());
+    }
+
+    public void testPutMapping() throws IOException {
+        PutMappingRequest putMappingRequest = new PutMappingRequest();
+
+        int numIndices = randomIntBetween(0, 5);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        putMappingRequest.indices(indices);
+
+        String type = randomAlphaOfLengthBetween(3, 10);
+        putMappingRequest.type(type);
+
+        Map<String, String> expectedParams = new HashMap<>();
+
+        setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(putMappingRequest, expectedParams);
+
+        Request request = Request.putMapping(putMappingRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_mapping");
+        endpoint.add(type);
+        assertEquals(endpoint.toString(), request.getEndpoint());
+
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("PUT", request.getMethod());
+        assertToXContentBody(putMappingRequest, request.getEntity());
     }
 
     public void testDeleteIndex() {

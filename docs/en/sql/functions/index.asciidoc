@@ -326,7 +326,50 @@ include-tagged::{sql-specs}/datetime.csv-spec[minuteOfHour]
 include-tagged::{sql-specs}/datetime.csv-spec[secondOfMinute]
 --------------------------------------------------
 
+[[sql-functions-aggregate]]
+=== Aggregate Functions
 
-// aggregate
+==== Basic
 
-// geospatial
+* https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (`AVG`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.sql-spec[avg]
+--------------------------------------------------
+
+* Count the number of matching fields (`COUNT`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.sql-spec[countStar]
+--------------------------------------------------
+
+* Count the number of distinct values in matching documents (`COUNT(DISTINCT`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.sql-spec[countDistinct]
+--------------------------------------------------
+
+* Find the maximum value in matching documents (`MAX`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.sql-spec[max]
+--------------------------------------------------
+
+* Find the minimum value in matching documents (`MIN`)
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.sql-spec[min]
+--------------------------------------------------
+
+* https://en.wikipedia.org/wiki/Kahan_summation_algorithm[Sum]
+all values of matching documents (`SUM`).
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/agg.csv-spec[sum]
+--------------------------------------------------

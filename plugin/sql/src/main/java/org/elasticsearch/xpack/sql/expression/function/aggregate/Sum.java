@@ -11,6 +11,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * Sum all values of a field in matching documents.
+ */
 public class Sum extends NumericAggregate implements EnclosedAgg {
 
     public Sum(Location location, Expression field) {

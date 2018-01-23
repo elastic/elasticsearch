@@ -11,6 +11,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * Find the maximum value in matching documents.
+ */
 public class Max extends NumericAggregate implements EnclosedAgg {
 
     public Max(Location location, Expression field) {

@@ -11,6 +11,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * Find the minimum value in matched documents.
+ */
 public class Min extends NumericAggregate implements EnclosedAgg {
 
     public Min(Location location, Expression field) {

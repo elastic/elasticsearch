@@ -12,6 +12,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * Find the arithmatic mean of a field.
+ */
 public class Avg extends NumericAggregate implements EnclosedAgg {
 
     public Avg(Location location, Expression field) {

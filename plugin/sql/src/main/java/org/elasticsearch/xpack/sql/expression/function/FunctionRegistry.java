@@ -85,7 +85,7 @@ public class FunctionRegistry {
             def(Min.class, Min::new),
             def(Sum.class, Sum::new),
             // Statistics
-            def(Mean.class, Mean::new),
+            def(Mean.class, Mean::new), // TODO can we just use Avg?
             def(StddevPop.class, StddevPop::new),
             def(VarPop.class, VarPop::new),
             def(Percentile.class, Percentile::new),

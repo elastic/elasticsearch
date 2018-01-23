@@ -14,6 +14,11 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+/**
+ * Count the number of documents matched ({@code COUNT})
+ * <strong>OR</strong> count the number of distinct values
+ * for a field that matched ({@code COUNT(DISTINCT}.
+ */
 public class Count extends AggregateFunction {
 
     private final boolean distinct;

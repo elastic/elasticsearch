@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -113,8 +114,14 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private void executeWatch(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener,
                               Watch watch, boolean knownWatch) {
 
-        threadPool.executor(XPackField.WATCHER).submit(() -> {
-            try {
+        threadPool.executor(XPackField.WATCHER).submit(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
                 // ensure that the headers from the incoming request are used instead those of the stored watch
                 // otherwise the watch would run as the user who stored the watch, but it needs to be run as the user who
                 // executes this request
@@ -145,8 +152,6 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
 
                 record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
                 listener.onResponse(new ExecuteWatchResponse(record.id().value(), builder.bytes(), XContentType.JSON));
-            } catch (IOException e) {
-                listener.onFailure(e);
             }
         });
     }

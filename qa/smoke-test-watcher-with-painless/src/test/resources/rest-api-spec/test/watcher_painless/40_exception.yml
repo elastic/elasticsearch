@@ -34,3 +34,77 @@
 
   - is_true: error.script_stack
   - match: { status: 500 }
+
+---
+"Test painless exceptions are returned when logging a broken response":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      xpack.watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule": {
+                  "interval": "1d"
+                }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "actions": {
+                "my-logging": {
+                  "transform": {
+                    "script": {
+                      "source": "def x = [:] ; def y = [:] ; x.a = y ; y.a = x ; return x"
+                    }
+                  },
+                  "logging": {
+                    "text": "{{ctx}}"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.watch_id: "_inlined_" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.result.actions.0.status: "failure" }
+  - match: { watch_record.result.actions.0.error.caused_by.caused_by.type: "illegal_argument_exception" }
+  - match: { watch_record.result.actions.0.error.caused_by.caused_by.reason: "Iterable object is self-referencing itself" }
+
+  - do:
+      catch: bad_request
+      xpack.watcher.execute_watch:
+        body: >
+          {
+            "watch": {
+              "trigger": {
+                "schedule": {
+                  "interval": "10s"
+                }
+              },
+              "input": {
+                "simple": {
+                  "foo": "bar"
+                }
+              },
+              "actions": {
+                "my-logging": {
+                  "transform": {
+                    "script": {
+                      "source": "def x = [:] ; def y = [:] ; x.a = y ; y.a = x ; return x"
+                    }
+                  },
+                  "logging": {
+                    "text": "{{#join}}ctx.payload{{/join}}"
+                  }
+                }
+              }
+            }
+          }

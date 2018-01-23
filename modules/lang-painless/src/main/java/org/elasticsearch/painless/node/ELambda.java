@@ -192,11 +192,12 @@ public final class ELambda extends AExpression implements ILambda {
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                 Type from = interfaceMethod.arguments.get(i);
                 Type to = desugared.parameters.get(i + captures.size()).type;
-                locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
+                AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
             }
 
             if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                locals.getDefinition().caster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
+                AnalyzerCaster.getLegalCast(
+                    location, Definition.TypeToClass(desugared.rtnType), Definition.TypeToClass(interfaceMethod.rtn), false, true);
             }
 
             actual = expected;

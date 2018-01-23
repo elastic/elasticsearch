@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MLMetadataField;
@@ -83,8 +84,13 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
                     @Override
                     public void onFailure(Exception e) {
-                        listener.onFailure(
-                                ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
+                        if (e instanceof VersionConflictEngineException) {
+                            listener.onFailure(ExceptionsHelper.badRequestException("Cannot create calendar with id [" +
+                                    calendar.getId() + "] as it already exists"));
+                        } else {
+                            listener.onFailure(
+                                    ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
+                        }
                     }
                 });
     }

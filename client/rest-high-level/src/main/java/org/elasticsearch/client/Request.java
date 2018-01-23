@@ -134,7 +134,7 @@ public final class Request {
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
-        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(deleteIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
@@ -170,7 +170,7 @@ public final class Request {
     }
 
     static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
-        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(createIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(createIndexRequest.timeout());

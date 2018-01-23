@@ -358,7 +358,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
         assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 
-        client().performRequest("PUT", "/index");
+        createIndex("index");
         client().performRequest("PUT", "/index/_alias/alias");
         assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 

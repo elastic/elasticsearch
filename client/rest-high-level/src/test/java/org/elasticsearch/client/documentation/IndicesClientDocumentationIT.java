@@ -314,7 +314,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testOpenIndex() throws IOException {
+    public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -383,9 +383,15 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             // end::open-index-notfound
         }
+
+        assertBusy(() -> {
+            // TODO Use Indices Exist API instead once it exists
+            Response response = client.getLowLevelClient().performRequest("HEAD", "index");
+            assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+        });
     }
 
-    public void testCloseIndex() throws IOException {
+    public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -433,10 +439,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::close-index-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
     }
 
-    public void testExistsAlias() throws IOException {
+    public void testExistsAlias() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -485,6 +497,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::exists-alias-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
     }
 

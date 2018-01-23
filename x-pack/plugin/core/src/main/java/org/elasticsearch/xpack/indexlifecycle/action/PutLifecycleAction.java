@@ -116,7 +116,7 @@ public class PutLifecycleAction extends Action<PutLifecycleAction.Request, PutLi
             this.policy = policy;
         }
         
-        Request() {
+        public Request() {
         }
 
         public LifecyclePolicy getPolicy() {

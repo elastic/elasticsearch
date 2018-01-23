@@ -24,11 +24,15 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.indexlifecycle.action.DeleteLifecycleAction;
@@ -41,7 +45,6 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportPutLifecycleAction
 import org.elasticsearch.xpack.indexlifecycle.action.TransportGetLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifcycleAction;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,7 +55,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 
-public class IndexLifecycle extends Plugin {
+public class IndexLifecycle extends Plugin implements ActionPlugin {
     public static final String NAME = "index_lifecycle";
     public static final String BASE_PATH = "/_xpack/index_lifecycle/";
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
@@ -66,7 +69,12 @@ public class IndexLifecycle extends Plugin {
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
-    public Collection<Module> nodeModules() {
+    // overridable by tests
+    protected Clock getClock() {
+        return Clock.systemUTC();
+    }
+
+    public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
 
         if (transportClientMode) {
@@ -88,19 +96,17 @@ public class IndexLifecycle extends Plugin {
             LifecycleSettings.LIFECYCLE_ACTION_SETTING);
     }
 
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, Clock clock,
-            ThreadPool threadPool) {
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               NamedXContentRegistry xContentRegistry, Environment environment,
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
         indexLifecycleInitialisationService
-                .set(new IndexLifecycleService(settings, client, clusterService, clock, threadPool, System::currentTimeMillis));
+            .set(new IndexLifecycleService(settings, client, clusterService, getClock(), threadPool, System::currentTimeMillis));
         return Collections.singletonList(indexLifecycleInitialisationService.get());
-    }
-
-    @Override
-    public void close() throws IOException {
-        indexLifecycleInitialisationService.get().close();
     }
 
     @Override
@@ -142,6 +148,7 @@ public class IndexLifecycle extends Plugin {
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
     }
 
+    @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
@@ -151,6 +158,7 @@ public class IndexLifecycle extends Plugin {
                 new RestDeleteLifecycleAction(settings, restController));
     }
 
+    @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
@@ -158,4 +166,8 @@ public class IndexLifecycle extends Plugin {
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifcycleAction.class));
     }
 
+    @Override
+    public void close() {
+        indexLifecycleInitialisationService.get().close();
+    }
 }

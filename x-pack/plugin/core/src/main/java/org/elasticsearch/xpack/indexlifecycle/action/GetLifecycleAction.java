@@ -53,7 +53,7 @@ public class GetLifecycleAction
 
         private LifecyclePolicy policy;
 
-        Response() {
+        public Response() {
         }
 
         public Response(LifecyclePolicy policy) {
@@ -114,7 +114,7 @@ public class GetLifecycleAction
             this.policyName = policyName;
         }
 
-        Request() {
+        public Request() {
         }
 
         public String getPolicyName() {

@@ -98,6 +98,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return LifecyclePolicy::new;
     }
 
+    public void testDefaultLifecycleType() {
+        LifecyclePolicy policy = new LifecyclePolicy(null, randomAlphaOfLength(10), Collections.emptyMap());
+        assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
+    }
+
     @Before
     public void setupPolicy() {
         indexName = randomAlphaOfLengthBetween(1, 20);

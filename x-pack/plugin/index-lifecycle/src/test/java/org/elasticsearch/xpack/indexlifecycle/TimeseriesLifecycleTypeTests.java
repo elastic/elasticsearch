@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;

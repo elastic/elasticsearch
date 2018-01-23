@@ -34,7 +34,10 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     @Override
     protected Phase createTestInstance() {
-        TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+        TimeValue after = null;
+        if (randomBoolean()) {
+            after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+        }
         Map<String, LifecycleAction> actions = Collections.emptyMap();
         if (randomBoolean()) {
             actions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
@@ -84,6 +87,11 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             throw new AssertionError("Illegal randomisation branch");
         }
         return new Phase(name, after, actions);
+    }
+
+    public void testDefaultAfter() {
+        Phase phase = new Phase(randomAlphaOfLength(20), null, Collections.emptyMap());
+        assertEquals(TimeValue.ZERO, phase.getAfter());
     }
 
     public void testExecuteNewIndexCompleteActions() throws Exception {

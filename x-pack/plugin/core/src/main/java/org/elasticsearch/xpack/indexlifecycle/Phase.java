@@ -45,7 +45,7 @@ public class Phase implements ToXContentObject, Writeable {
             (a, name) -> new Phase(name, (TimeValue) a[0],
         convertListToMapValues(LifecycleAction::getWriteableName, (List<LifecycleAction>) a[1])));
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AFTER_FIELD.getPreferredName()), AFTER_FIELD, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
                 (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
@@ -75,7 +75,11 @@ public class Phase implements ToXContentObject, Writeable {
      */
     public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
         this.name = name;
-        this.after = after;
+        if (after == null) {
+            this.after = TimeValue.ZERO;
+        } else {
+            this.after = after;
+        }
         this.actions = actions;
     }
 

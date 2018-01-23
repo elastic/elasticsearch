@@ -28,8 +28,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 /**
  * Represents the lifecycle of an index from creation to deletion. A
  * {@link LifecyclePolicy} is made up of a set of {@link Phase}s which it will
@@ -54,9 +52,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                 return new LifecyclePolicy(type, name, phaseMap);
             });
     static {
-        PARSER.declareField(constructorArg(), (p, c) -> p.namedObject(LifecycleType.class, p.text(), null), TYPE_FIELD,
-                ValueType.STRING);
-        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.namedObject(LifecycleType.class, p.text(), null),
+                TYPE_FIELD, ValueType.STRING);
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
     }
@@ -73,10 +71,14 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            {@link LifecyclePolicy}.
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases) {
-        this.type = type;
+        if (type == null) {
+            this.type = TimeseriesLifecycleType.INSTANCE;
+        } else {
+            this.type = type;
+        }
         this.name = name;
         this.phases = phases;
-        type.validate(phases.values());
+        this.type.validate(phases.values());
     }
 
     /**
@@ -104,6 +106,13 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      */
     public String getName() {
         return name;
+    }
+
+    /**
+     * @return the type of this {@link LifecyclePolicy}
+     */
+    public LifecycleType getType() {
+        return type;
     }
 
     /**

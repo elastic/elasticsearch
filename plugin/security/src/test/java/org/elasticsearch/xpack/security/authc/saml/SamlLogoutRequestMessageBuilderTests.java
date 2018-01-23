@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 
-import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -67,8 +66,8 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
                 "http://idp.example.com/saml/logout/artifact");
         idpRole.getSingleLogoutServices().add(sloArtifact);
 
-        final DateTime now = DateTime.now(DateTimeZone.UTC);
-        final SamlLogoutRequestMessageBuilder builder = new SamlLogoutRequestMessageBuilder(new HaltedClock(now), sp, idp, nameId, session);
+        Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+        final SamlLogoutRequestMessageBuilder builder = new SamlLogoutRequestMessageBuilder(fixedClock, sp, idp, nameId, session);
         final LogoutRequest logoutRequest = builder.build();
         assertThat(logoutRequest, notNullValue());
         assertThat(logoutRequest.getReason(), nullValue());
@@ -82,7 +81,7 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
         assertThat(logoutRequest.getConsent(), nullValue());
         assertThat(logoutRequest.getNotOnOrAfter(), nullValue());
         assertThat(logoutRequest.getIssueInstant(), notNullValue());
-        assertThat(logoutRequest.getIssueInstant(), equalTo(now));
+        assertThat(logoutRequest.getIssueInstant().getMillis(), equalTo(fixedClock.millis()));
         assertThat(logoutRequest.getSessionIndexes(), iterableWithSize(1));
         assertThat(logoutRequest.getSessionIndexes().get(0).getSessionIndex(), equalTo(session));
         assertThat(logoutRequest.getDestination(), equalTo("http://idp.example.com/saml/logout/redirect"));

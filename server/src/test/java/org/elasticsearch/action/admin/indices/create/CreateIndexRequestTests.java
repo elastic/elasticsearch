@@ -91,7 +91,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(createIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
-        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest(createIndexRequest.index());
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         parsedCreateIndexRequest.source(originalBytes, xContentType);
 
         assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
@@ -177,7 +177,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         return builder;
     }
 
-    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
+    public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
         builder.startObject("properties");
 
         int fieldsNo = randomIntBetween(0, 5);

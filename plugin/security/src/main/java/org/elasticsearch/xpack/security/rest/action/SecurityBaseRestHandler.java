@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.XPackField.SECURITY;
+import static org.elasticsearch.xpack.core.XPackField.SECURITY;
 
 /**
  * Base class for security rest handlers. This handler takes care of ensuring that the license

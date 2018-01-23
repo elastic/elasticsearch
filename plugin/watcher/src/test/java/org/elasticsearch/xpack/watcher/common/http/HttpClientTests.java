@@ -23,9 +23,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.ssl.TestsSSLService;
-import org.elasticsearch.xpack.ssl.VerificationMode;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.TestsSSLService;
+import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
@@ -33,6 +33,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

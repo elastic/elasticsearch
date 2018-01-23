@@ -13,8 +13,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

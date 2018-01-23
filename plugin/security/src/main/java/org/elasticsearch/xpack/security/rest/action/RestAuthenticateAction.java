@@ -16,11 +16,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
-import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 

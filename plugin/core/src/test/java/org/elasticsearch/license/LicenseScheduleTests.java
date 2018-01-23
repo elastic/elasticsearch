@@ -7,7 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;

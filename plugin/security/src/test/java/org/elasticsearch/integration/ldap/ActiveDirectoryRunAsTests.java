@@ -5,25 +5,25 @@
  */
 package org.elasticsearch.integration.ldap;
 
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
-import org.elasticsearch.xpack.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 
 /**
  * This tests that "run-as" works on LDAP/AD realms

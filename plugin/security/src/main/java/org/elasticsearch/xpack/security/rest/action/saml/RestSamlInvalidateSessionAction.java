@@ -20,9 +20,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.saml.SamlInvalidateSessionAction;
-import org.elasticsearch.xpack.security.action.saml.SamlInvalidateSessionRequest;
-import org.elasticsearch.xpack.security.action.saml.SamlInvalidateSessionResponse;
+import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRequest;
+import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;

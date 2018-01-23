@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.action.saml;
 import java.io.IOException;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
 import org.hamcrest.Matchers;
 

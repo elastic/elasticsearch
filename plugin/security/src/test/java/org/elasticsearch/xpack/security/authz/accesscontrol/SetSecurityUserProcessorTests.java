@@ -9,10 +9,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor.Property;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.SetSecurityUserProcessor.Property;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.EnumSet;

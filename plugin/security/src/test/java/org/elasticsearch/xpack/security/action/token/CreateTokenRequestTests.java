@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;

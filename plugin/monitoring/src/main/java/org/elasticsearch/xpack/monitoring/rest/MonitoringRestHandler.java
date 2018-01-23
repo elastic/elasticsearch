@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.monitoring.rest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 public abstract class MonitoringRestHandler extends XPackRestHandler {
 

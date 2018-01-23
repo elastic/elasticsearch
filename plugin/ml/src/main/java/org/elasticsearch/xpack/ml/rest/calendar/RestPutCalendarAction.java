@@ -13,8 +13,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.PutCalendarAction;
-import org.elasticsearch.xpack.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
 import java.io.IOException;
 import java.util.Collections;

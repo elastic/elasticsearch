@@ -23,7 +23,7 @@ To create a custom roles provider:
 To package your custom roles provider as a plugin:
 
 . Implement an extension class for your roles provider that extends
-  `org.elasticsearch.xpack.extensions.XPackExtension`. There you need to
+  `org.elasticsearch.xpack.core.extensions.XPackExtension`. There you need to
   override one or more of the following methods:
 +
 [source,java]

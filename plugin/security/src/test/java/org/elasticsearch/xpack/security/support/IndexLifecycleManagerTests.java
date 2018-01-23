@@ -47,7 +47,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.template.TemplateUtils;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.net.InetAddress;

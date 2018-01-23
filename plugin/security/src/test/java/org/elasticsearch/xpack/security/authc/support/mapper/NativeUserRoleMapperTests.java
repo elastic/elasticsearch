@@ -17,11 +17,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.FieldExpression.FieldPredicate;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldPredicate;
 import org.hamcrest.Matchers;
 
 import static org.mockito.Mockito.mock;

@@ -25,15 +25,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.XPackClientActionPlugin;
-import org.elasticsearch.xpack.security.ScrollHelper;
+import org.elasticsearch.xpack.core.XPackClientActionPlugin;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.xpack.security.action.rolemapping.DeleteRoleMappingRequest;
-import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,9 +54,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ClientHelper.stashWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
@@ -347,7 +349,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * Indicates that the provided realm should have its cache cleared if this store is updated
      * (that is, {@link #putRoleMapping(PutRoleMappingRequest, ActionListener)} or
      * {@link #deleteRoleMapping(DeleteRoleMappingRequest, ActionListener)} are called).
-     * @see org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction
+     * @see ClearRealmCacheAction
      */
     @Override
     public void refreshRealmOnChange(CachingUsernamePasswordRealm realm) {

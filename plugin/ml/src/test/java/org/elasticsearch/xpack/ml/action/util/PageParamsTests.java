@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action.util;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
 import java.io.IOException;
 

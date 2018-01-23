@@ -9,7 +9,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.SecurityField;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

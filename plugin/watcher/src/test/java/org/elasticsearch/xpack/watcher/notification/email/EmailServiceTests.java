@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.email;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.junit.Before;
 
 import java.util.Collections;

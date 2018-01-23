@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.security.action.interceptor;
 
-import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.user.User;
 
 /**
  * A request interceptor can introspect a request and modify it.

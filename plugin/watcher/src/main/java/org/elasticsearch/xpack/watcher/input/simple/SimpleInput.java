@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.input.simple;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 import java.io.IOException;
 

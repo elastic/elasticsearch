@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.junit.Before;
 
 import java.util.Date;

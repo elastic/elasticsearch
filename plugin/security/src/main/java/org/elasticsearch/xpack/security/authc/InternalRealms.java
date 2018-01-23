@@ -5,6 +5,32 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.bootstrap.BootstrapCheck;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,30 +39,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealmSettings;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
-import org.elasticsearch.xpack.security.authc.saml.SamlRealmSettings;
-import org.elasticsearch.xpack.ssl.SSLService;
-
-import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.

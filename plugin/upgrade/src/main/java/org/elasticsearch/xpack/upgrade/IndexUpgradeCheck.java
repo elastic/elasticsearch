@@ -16,6 +16,8 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
+import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;

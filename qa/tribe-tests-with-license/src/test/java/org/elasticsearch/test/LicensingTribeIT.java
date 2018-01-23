@@ -16,10 +16,9 @@ import org.elasticsearch.license.LicensesStatus;
 import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.license.PutLicenseResponse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.AfterClass;
 
 import java.io.IOException;

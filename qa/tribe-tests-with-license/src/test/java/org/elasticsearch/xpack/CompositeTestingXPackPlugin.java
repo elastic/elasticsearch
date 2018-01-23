@@ -8,15 +8,15 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
-
 
 import java.nio.file.Path;
 

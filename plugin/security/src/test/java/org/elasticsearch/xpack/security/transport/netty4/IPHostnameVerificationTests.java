@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.xpack.ssl.SSLClientAuth;
+import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

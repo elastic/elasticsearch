@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.job.results.PartitionScore;
+import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
 import java.io.IOException;
 import java.util.Objects;

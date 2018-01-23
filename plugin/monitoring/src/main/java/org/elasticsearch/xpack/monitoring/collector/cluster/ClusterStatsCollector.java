@@ -25,18 +25,18 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.XPackSettings.SECURITY_ENABLED;
-import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 /**
  * Collector for cluster stats.

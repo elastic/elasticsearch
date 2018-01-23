@@ -18,7 +18,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.xpack.XPackClientPlugin;
+import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 
 import java.util.Collections;
 import java.util.List;

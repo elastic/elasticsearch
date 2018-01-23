@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
 import java.util.Arrays;

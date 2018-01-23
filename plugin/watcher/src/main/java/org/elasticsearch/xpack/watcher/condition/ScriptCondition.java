@@ -11,14 +11,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 
 /**
  * This class executes a script against the ctx payload and returns a boolean

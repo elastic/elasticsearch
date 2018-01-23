@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 
 import java.util.Collections;
 
@@ -18,7 +18,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.not;
 
 public class SecuritySettingsTests extends ESTestCase {
 

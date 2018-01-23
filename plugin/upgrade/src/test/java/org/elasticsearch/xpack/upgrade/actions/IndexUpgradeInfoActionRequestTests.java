@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.upgrade.actions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Request;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Request;
 
 public class IndexUpgradeInfoActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override

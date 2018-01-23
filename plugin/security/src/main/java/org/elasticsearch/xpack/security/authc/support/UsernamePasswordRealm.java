@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.authc.Realm;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 abstract class UsernamePasswordRealm extends Realm {
 

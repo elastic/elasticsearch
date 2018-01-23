@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
 import java.util.List;

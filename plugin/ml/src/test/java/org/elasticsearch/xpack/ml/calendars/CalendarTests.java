@@ -8,7 +8,8 @@ package org.elasticsearch.xpack.ml.calendars;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.ml.job.config.JobTests;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
 import java.util.ArrayList;

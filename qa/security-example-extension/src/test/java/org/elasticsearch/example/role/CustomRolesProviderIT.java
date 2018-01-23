@@ -15,9 +15,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.XPackClientPlugin;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -25,7 +25,7 @@ import java.util.Collections;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.INDEX;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_A;
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
 /**

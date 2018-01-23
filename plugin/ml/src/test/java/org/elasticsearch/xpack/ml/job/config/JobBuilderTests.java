@@ -9,11 +9,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfigTests;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimitsTests;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 
 import java.util.Collections;
 import java.util.Date;
 
-import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;
+import static org.elasticsearch.xpack.core.ml.job.config.JobTests.randomValidJobId;
 
 public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
     @Override

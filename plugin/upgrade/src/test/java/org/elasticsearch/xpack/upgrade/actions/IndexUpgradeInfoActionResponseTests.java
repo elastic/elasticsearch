@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.upgrade.actions;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.upgrade.UpgradeActionRequired;
-import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Response;
+import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeInfoAction.Response;
 
 import java.util.EnumSet;
 import java.util.HashMap;

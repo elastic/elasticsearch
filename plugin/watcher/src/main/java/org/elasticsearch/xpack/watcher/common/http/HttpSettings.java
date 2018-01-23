@@ -9,7 +9,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.ArrayList;
 import java.util.List;

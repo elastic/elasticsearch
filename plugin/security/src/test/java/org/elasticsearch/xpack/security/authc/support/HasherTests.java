@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import static org.hamcrest.Matchers.sameInstance;
 

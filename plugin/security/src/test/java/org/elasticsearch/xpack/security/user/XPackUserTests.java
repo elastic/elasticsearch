@@ -5,18 +5,19 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import java.util.function.Predicate;
-
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.audit.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
+
+import java.util.function.Predicate;
 
 public class XPackUserTests extends ESTestCase {
 

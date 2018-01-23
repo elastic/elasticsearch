@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.watcher.actions.slack;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
-import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 
 import java.io.IOException;
 

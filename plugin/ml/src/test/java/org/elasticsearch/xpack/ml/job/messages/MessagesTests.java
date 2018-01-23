@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.messages;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 public class MessagesTests extends ESTestCase {
 

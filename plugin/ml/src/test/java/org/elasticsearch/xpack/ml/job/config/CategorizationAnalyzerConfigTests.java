@@ -12,7 +12,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.ml.MlParserType;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.junit.Before;
 

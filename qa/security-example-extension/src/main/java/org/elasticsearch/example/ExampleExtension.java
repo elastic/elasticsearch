@@ -11,10 +11,10 @@ import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
 import org.elasticsearch.example.role.CustomInMemoryRolesProvider;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
-import org.elasticsearch.xpack.extensions.XPackExtension;
-import org.elasticsearch.xpack.security.authc.Realm;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.extensions.XPackExtension;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

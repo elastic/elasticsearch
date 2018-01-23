@@ -9,7 +9,8 @@ import java.nio.file.Path;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 
 /**
  * A BootstrapCheck that {@link DnRoleMapper} files exist and are valid (valid YAML and valid DNs)

@@ -9,8 +9,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.monitoring.MonitoringField;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

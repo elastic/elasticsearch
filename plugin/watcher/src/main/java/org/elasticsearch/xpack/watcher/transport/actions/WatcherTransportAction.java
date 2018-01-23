@@ -18,7 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.XPackField;
+import org.elasticsearch.xpack.core.XPackField;
 
 public abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
         extends HandledTransportAction<Request, Response> {

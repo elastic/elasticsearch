@@ -9,7 +9,7 @@ import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.watcher.transform.TransformFactory;
+import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 
 import java.io.IOException;
 

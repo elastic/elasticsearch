@@ -21,6 +21,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;

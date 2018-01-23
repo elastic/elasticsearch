@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.ml.action.GetBucketsAction.Request;
-import org.elasticsearch.xpack.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
+import org.elasticsearch.xpack.core.ml.action.GetBucketsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
 public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 

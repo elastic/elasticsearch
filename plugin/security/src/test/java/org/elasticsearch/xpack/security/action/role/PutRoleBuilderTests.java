@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 
 import java.nio.charset.Charset;
 import java.nio.file.Files;

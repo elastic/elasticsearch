@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 
 import java.io.IOException;
 import java.io.Writer;

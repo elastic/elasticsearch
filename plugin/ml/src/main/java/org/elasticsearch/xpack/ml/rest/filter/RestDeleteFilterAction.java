@@ -12,8 +12,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.DeleteFilterAction;
-import org.elasticsearch.xpack.ml.action.DeleteFilterAction.Request;
+import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteFilterAction.Request;
 
 import java.io.IOException;
 

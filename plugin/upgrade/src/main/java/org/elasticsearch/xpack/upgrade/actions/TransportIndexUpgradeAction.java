@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
 
 public class TransportIndexUpgradeAction extends TransportMasterNodeAction<IndexUpgradeAction.Request, BulkByScrollResponse> {

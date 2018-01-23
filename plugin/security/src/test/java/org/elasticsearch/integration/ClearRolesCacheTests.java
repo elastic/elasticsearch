@@ -10,13 +10,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
+import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
-import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
-import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
 import org.junit.BeforeClass;
 

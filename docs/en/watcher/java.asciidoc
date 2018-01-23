@@ -86,9 +86,9 @@ Elasticsearch `Client`:
 --------------------------------------------------
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.XPackClient;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.core.watcher.client.WatcherClient;
 ...
 
 TransportClient client = new PreBuiltXPackTransportClient(Settings.builder()

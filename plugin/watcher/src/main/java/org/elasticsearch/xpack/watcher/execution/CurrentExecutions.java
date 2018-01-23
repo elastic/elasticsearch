@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
+import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 
 public final class CurrentExecutions implements Iterable<ExecutionService.WatchExecution> {
 

@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.ml.action.DeleteCalendarEventAction.Request;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction.Request;
 
 public class DeleteCalendarEventActionRequestTests extends AbstractStreamableTestCase<DeleteCalendarEventAction.Request> {
 

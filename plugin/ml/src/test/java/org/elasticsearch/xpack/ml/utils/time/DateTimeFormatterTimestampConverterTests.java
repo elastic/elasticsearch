@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.utils.time;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.utils.time.DateTimeFormatterTimestampConverter;
+import org.elasticsearch.xpack.core.ml.utils.time.TimestampConverter;
 
 import java.text.ParseException;
 import java.time.LocalDate;

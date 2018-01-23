@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.job.results.OverallBucket;
-import org.elasticsearch.xpack.ml.utils.Intervals;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
 import java.util.ArrayList;
 import java.util.Date;

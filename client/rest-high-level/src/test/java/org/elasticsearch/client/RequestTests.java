@@ -310,14 +310,7 @@ public class RequestTests extends ESTestCase {
         setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(createIndexRequest, expectedParams);
         setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
-
-        if (randomBoolean()) {
-            boolean updateAllTypes = randomBoolean();
-            createIndexRequest.updateAllTypes(updateAllTypes);
-            if (updateAllTypes) {
-                expectedParams.put("update_all_types", Boolean.TRUE.toString());
-            }
-        }
+        setRandomUpdateAllTypes(createIndexRequest::updateAllTypes, expectedParams);
 
         Request request = Request.createIndex(createIndexRequest);
         assertEquals("/" + indexName, request.getEndpoint());
@@ -343,6 +336,7 @@ public class RequestTests extends ESTestCase {
 
         setRandomTimeout(putMappingRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(putMappingRequest, expectedParams);
+        setRandomUpdateAllTypes(putMappingRequest::updateAllTypes, expectedParams);
 
         Request request = Request.putMapping(putMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -1124,6 +1118,16 @@ public class RequestTests extends ESTestCase {
             setter.accept(activeShardCount);
             if (defaultActiveShardCount.equals(activeShardCount) == false) {
                 expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+            }
+        }
+    }
+
+    private static void setRandomUpdateAllTypes(Consumer<Boolean> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            boolean updateAllTypes = randomBoolean();
+            setter.accept(updateAllTypes);
+            if (updateAllTypes) {
+                expectedParams.put("update_all_types", Boolean.TRUE.toString());
             }
         }
     }

@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -122,8 +121,6 @@ public class DatafeedManagerTests extends ESTestCase {
         when(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME)).thenReturn(executorService);
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
 
-        PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
-
         datafeedJob = mock(DatafeedJob.class);
         when(datafeedJob.isRunning()).thenReturn(true);
         when(datafeedJob.stop()).thenReturn(true);
@@ -135,8 +132,7 @@ public class DatafeedManagerTests extends ESTestCase {
             return null;
         }).when(datafeedJobBuilder).build(any(), any(), any());
 
-        datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder, () -> currentTime, auditor,
-                persistentTasksService);
+        datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder, () -> currentTime, auditor);
 
         verify(clusterService).addListener(capturedClusterStateListener.capture());
     }

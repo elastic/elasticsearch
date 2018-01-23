@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -55,7 +54,6 @@ public class DatafeedManager extends AbstractComponent {
 
     private final Client client;
     private final ClusterService clusterService;
-    private final PersistentTasksService persistentTasksService;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
     private final Auditor auditor;
@@ -66,14 +64,13 @@ public class DatafeedManager extends AbstractComponent {
     private volatile boolean isolated;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
+                           Supplier<Long> currentTimeSupplier, Auditor auditor) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
-        this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
         clusterService.addListener(taskRunner);
     }
@@ -91,8 +88,7 @@ public class DatafeedManager extends AbstractComponent {
 
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
                 datafeedJob -> {
-                    Holder holder = new Holder(task.getPersistentTaskId(), task.getAllocationId(), datafeed, datafeedJob,
-                            task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), taskHandler);
+                    Holder holder = new Holder(task, datafeed, datafeedJob, new ProblemTracker(auditor, job.getId()), taskHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
                         @Override
@@ -279,7 +275,7 @@ public class DatafeedManager extends AbstractComponent {
 
     public class Holder {
 
-        private final String taskId;
+        private final TransportStartDatafeedAction.DatafeedTask task;
         private final long allocationId;
         private final DatafeedConfig datafeed;
         // To ensure that we wait until loopback / realtime search has completed before we stop the datafeed
@@ -291,13 +287,13 @@ public class DatafeedManager extends AbstractComponent {
         volatile Future<?> future;
         private volatile boolean isRelocating;
 
-        Holder(String taskId, long allocationId, DatafeedConfig datafeed, DatafeedJob datafeedJob, boolean autoCloseJob,
+        Holder(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeed, DatafeedJob datafeedJob,
                ProblemTracker problemTracker, Consumer<Exception> handler) {
-            this.taskId = taskId;
-            this.allocationId = allocationId;
+            this.task = task;
+            this.allocationId = task.getAllocationId();
             this.datafeed = datafeed;
             this.datafeedJob = datafeedJob;
-            this.autoCloseJob = autoCloseJob;
+            this.autoCloseJob = task.isLookbackOnly();
             this.problemTracker = problemTracker;
             this.handler = handler;
         }
@@ -397,7 +393,7 @@ public class DatafeedManager extends AbstractComponent {
                 return;
             }
 
-            persistentTasksService.waitForPersistentTaskStatus(taskId, Objects::isNull, TimeValue.timeValueSeconds(20),
+            task.waitForPersistentTaskStatus(Objects::isNull, TimeValue.timeValueSeconds(20),
                             new WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
                 @Override
                 public void onResponse(PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {

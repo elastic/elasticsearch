@@ -34,6 +34,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.indexlifecycle.LifecycleAction.Listener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -49,9 +50,27 @@ public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAct
 
     @Override
     protected AllocateAction createTestInstance() {
-        Map<String, String> includes = randomMap(0, 100);
-        Map<String, String> excludes = randomMap(0, 100);
-        Map<String, String> requires = randomMap(0, 100);
+        boolean hasAtLeastOneMap = false;
+        Map<String, String> includes;
+        if (randomBoolean()) {
+            includes = randomMap(0, 100);
+            hasAtLeastOneMap = true;
+        } else {
+            includes = randomBoolean() ? null : Collections.emptyMap();
+        }
+        Map<String, String> excludes;
+        if (randomBoolean()) {
+            hasAtLeastOneMap = true;
+            excludes = randomMap(0, 100);
+        } else {
+            excludes = randomBoolean() ? null : Collections.emptyMap();
+        }
+        Map<String, String> requires;
+        if (hasAtLeastOneMap == false || randomBoolean()) {
+            requires = randomMap(0, 100);
+        } else {
+            requires = randomBoolean() ? null : Collections.emptyMap();
+        }
         return new AllocateAction(includes, excludes, requires);
     }
 
@@ -82,6 +101,17 @@ public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAct
             throw new AssertionError("Illegal randomisation branch");
         }
         return new AllocateAction(include, exclude, require);
+    }
+
+    public void testAllMapsNullOrEmpty() {
+        Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> new AllocateAction(include, exclude, require));
+        assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
+                + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
+                + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
     }
 
     public void testExecuteNoExistingSettings() throws Exception {

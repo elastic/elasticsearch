@@ -52,9 +52,9 @@ public class AllocateAction implements LifecycleAction {
             a -> new AllocateAction((Map<String, String>) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INCLUDE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), EXCLUDE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), REQUIRE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), INCLUDE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), EXCLUDE_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), REQUIRE_FIELD);
     }
 
     private final Map<String, String> include;
@@ -67,9 +67,26 @@ public class AllocateAction implements LifecycleAction {
     }
 
     public AllocateAction(Map<String, String> include, Map<String, String> exclude, Map<String, String> require) {
-        this.include = include;
-        this.exclude = exclude;
-        this.require = require;
+        if (include == null) {
+            this.include = Collections.emptyMap();
+        } else {
+            this.include = include;
+        }
+        if (exclude == null) {
+            this.exclude = Collections.emptyMap();
+        } else {
+            this.exclude = exclude;
+        }
+        if (require == null) {
+            this.require = Collections.emptyMap();
+        } else {
+            this.require = require;
+        }
+        if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "At least one of " + INCLUDE_FIELD.getPreferredName() + ", " + EXCLUDE_FIELD.getPreferredName() + " or "
+                            + REQUIRE_FIELD.getPreferredName() + "must contain attributes for action " + NAME);
+        }
         FilterAllocationDecider decider = new FilterAllocationDecider(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         this.allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(decider));

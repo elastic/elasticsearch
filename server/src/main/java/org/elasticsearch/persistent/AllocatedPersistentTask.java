@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -32,6 +33,7 @@ import org.elasticsearch.tasks.TaskManager;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 /**
  * Represents a executor node operation that corresponds to a persistent task
@@ -116,6 +118,15 @@ public class AllocatedPersistentTask extends CancellableTask {
         STARTED,  // the task is currently running
         PENDING_CANCEL, // the task is cancelled on master, cancelling it locally
         COMPLETED     // the task is done running and trying to notify caller
+    }
+
+    /**
+     * Waits for this persistent task to have the desired state.
+     */
+    public void waitForPersistentTaskStatus(Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate,
+                                            @Nullable TimeValue timeout,
+                                            PersistentTasksService.WaitForPersistentTaskStatusListener<?> listener) {
+        persistentTasksService.waitForPersistentTaskStatus(persistentTaskId, predicate, timeout, listener);
     }
 
     public void markAsCompleted() {

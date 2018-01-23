@@ -29,6 +29,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -266,7 +267,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             @Override
                             public BytesRef get(int docID) {
                                 leafScript.setDocument(docID);
-                                spare.copyChars(leafScript.run().toString());
+                                final Object run = leafScript.run();
+                                CollectionUtils.ensureNoSelfReferences(run);
+                                spare.copyChars(run.toString());
                                 return spare.get();
                             }
                         };

@@ -114,10 +114,11 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
             } else {
                 ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
                 Object returned = executableScript.run();
+                // no need to check for self references since only numbers are valid
                 if (returned == null) {
                     newBuckets.add(bucket);
                 } else {
-                    if (!(returned instanceof Number)) {
+                    if ((returned instanceof Number) == false) {
                         throw new AggregationExecutionException("series_arithmetic script for reducer [" + name()
                                 + "] must return a Number");
                     }

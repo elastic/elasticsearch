@@ -20,6 +20,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -49,6 +50,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
             final Object value;
             try {
                 value = leafScript.unwrap(leafScript.run());
+                CollectionUtils.ensureNoSelfReferences(value);
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;

@@ -66,6 +66,10 @@ public class Netty4Utils {
     public static void setup() {
         // TODO remove this once we get a fix into Netty so we don't have to do this
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            // this is triggering class initialization which triggers the reflective retrieval of
+            // the Throwable#addSuppressed method. We need to do this to avoid
+            // AccessControlExceptions that this code would otherwise trigger without us wrapping
+            // it in a doPrivileged block
             ThrowableUtil.haveSuppressed();
             return null;
         });

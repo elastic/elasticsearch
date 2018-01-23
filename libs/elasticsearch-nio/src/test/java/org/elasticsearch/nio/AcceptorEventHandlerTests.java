@@ -38,7 +38,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     private AcceptorEventHandler handler;
     private SocketSelector socketSelector;
-    private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
+    private ChannelFactory channelFactory;
     private NioServerSocketChannel channel;
     private Consumer<NioSocketChannel> acceptor;
     private AcceptingSelector selector;
@@ -54,7 +54,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         handler = new AcceptorEventHandler(logger, new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()])));
 
         selector = mock(AcceptingSelector.class);
-        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class), channelFactory, selector);
+        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         channel.setContext(new DoNotRegisterContext(channel, selector, acceptor));
     }
 
@@ -81,8 +81,9 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
         childChannel.setContext(mock(SocketChannelContext.class));
         ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
-        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class), channelFactory, selector);
+        channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         channel.setContext(serverChannelContext);
+        when(serverChannelContext.getChannelFactory()).thenReturn(channelFactory);
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
@@ -94,7 +95,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
 
         DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor) {
-            super(channel, mock(ServerSocketChannel.class), selector,  acceptor, null);
+            super(channel, channelFactory, selector, acceptor, null);
         }
 
         @Override

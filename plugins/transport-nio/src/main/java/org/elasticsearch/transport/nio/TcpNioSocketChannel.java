@@ -45,7 +45,7 @@ public class TcpNioSocketChannel extends NioSocketChannel implements TcpChannel 
     @Override
     public void setSoLinger(int value) throws IOException {
         if (isOpen()) {
-            getContext().getChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+            getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
         }
     }
 

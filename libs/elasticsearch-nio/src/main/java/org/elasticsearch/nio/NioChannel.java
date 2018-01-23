@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.channels.NetworkChannel;
 import java.util.function.BiConsumer;
 
 public interface NioChannel {
@@ -34,6 +35,8 @@ public interface NioChannel {
     void closeFromSelector() throws IOException;
 
     ChannelContext getContext();
+
+    NetworkChannel getRawChannel();
 
     /**
      * Adds a close listener to the channel. Multiple close listeners can be added. There is no guarantee

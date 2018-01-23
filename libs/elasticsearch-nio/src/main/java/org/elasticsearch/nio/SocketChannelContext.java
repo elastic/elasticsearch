@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
  */
-public abstract class SocketChannelContext extends AbstractChannelContext<SocketChannel> {
+public abstract class SocketChannelContext extends AbstractChannelContext<NioSocketChannel> {
 
     protected final NioSocketChannel channel;
     private final SocketSelector selector;
@@ -41,9 +41,9 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
     private boolean ioException;
     private boolean peerClosed;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketChannel socketChannel, SocketSelector selector,
+    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
                                    BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
-        super(socketChannel);
+        super(channel);
         this.selector = selector;
         this.channel = channel;
         this.exceptionHandler = exceptionHandler;
@@ -86,7 +86,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         try {
-            int bytesRead = channel.read(buffer);
+            int bytesRead = channel.getRawChannel().read(buffer);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -100,7 +100,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
 
     protected int readFromChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            int bytesRead = channel.read(buffers);
+            int bytesRead = (int) channel.getRawChannel().read(buffers);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -114,7 +114,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
 
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         try {
-            return channel.write(buffer);
+            return channel.getRawChannel().write(buffer);
         } catch (IOException e) {
             ioException = true;
             throw e;
@@ -123,7 +123,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<Socket
 
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            return channel.write(buffers);
+            return (int) channel.getRawChannel().write(buffers);
         } catch (IOException e) {
             ioException = true;
             throw e;

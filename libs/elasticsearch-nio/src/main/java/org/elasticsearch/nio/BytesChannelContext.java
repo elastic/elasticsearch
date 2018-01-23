@@ -34,9 +34,9 @@ public class BytesChannelContext extends SocketChannelContext {
     private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-    public BytesChannelContext(NioSocketChannel channel, SocketChannel rawChannel, SocketSelector selector, BiConsumer<NioSocketChannel, Exception> exceptionHandler,
+    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, BiConsumer<NioSocketChannel, Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        super(channel, rawChannel, selector, exceptionHandler);
+        super(channel, selector, exceptionHandler);
         this.readConsumer = readConsumer;
         this.channelBuffer = channelBuffer;
     }

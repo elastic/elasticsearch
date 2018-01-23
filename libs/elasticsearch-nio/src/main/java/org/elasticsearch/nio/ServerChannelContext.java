@@ -26,18 +26,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public class ServerChannelContext extends AbstractChannelContext<ServerSocketChannel> {
+public class ServerChannelContext extends AbstractChannelContext<NioServerSocketChannel> {
 
     private final NioServerSocketChannel channel;
     private final AcceptingSelector selector;
     private final Consumer<NioSocketChannel> acceptor;
     private final BiConsumer<NioServerSocketChannel, Exception> exceptionHandler;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final ChannelFactory<?, ?> channelFactory;
 
-    public ServerChannelContext(NioServerSocketChannel channel, ServerSocketChannel rawChannel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor,
-                                BiConsumer<NioServerSocketChannel, Exception> exceptionHandler) {
-        super(rawChannel);
+    public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector,
+                                Consumer<NioSocketChannel> acceptor, BiConsumer<NioServerSocketChannel, Exception> exceptionHandler) {
+        super(channel);
         this.channel = channel;
+        this.channelFactory = channelFactory;
         this.selector = selector;
         this.acceptor = acceptor;
         this.exceptionHandler = exceptionHandler;
@@ -45,6 +47,10 @@ public class ServerChannelContext extends AbstractChannelContext<ServerSocketCha
 
     public void acceptChannel(NioSocketChannel acceptedChannel) {
         acceptor.accept(acceptedChannel);
+    }
+
+    public ChannelFactory<?, ?> getChannelFactory() {
+        return channelFactory;
     }
 
     @Override

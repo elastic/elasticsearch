@@ -164,7 +164,7 @@ public class MockNioTransport extends TcpTransport {
             };
             SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
-            BytesChannelContext context = new BytesChannelContext(nioChannel, channel, selector, MockNioTransport.this::exceptionCaught,
+            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, MockNioTransport.this::exceptionCaught,
                 nioReadConsumer, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
@@ -173,7 +173,7 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockServerChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, channel, selector, MockNioTransport.this::acceptChannel,
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
                 (c, e) -> {});
             nioServerChannel.setContext(context);
             return nioServerChannel;
@@ -186,7 +186,7 @@ public class MockNioTransport extends TcpTransport {
 
         MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
             throws IOException {
-            super(channel, channelFactory, selector);
+            super(channel);
             this.profile = profile;
         }
 
@@ -249,7 +249,7 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void setSoLinger(int value) throws IOException {
             if (isOpen()) {
-                getContext().getChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+                getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
             }
         }
 

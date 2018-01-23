@@ -64,8 +64,10 @@ public class NioServerSocketChannelTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         try (ServerSocketChannel rawChannel = ServerSocketChannel.open()) {
-            NioServerSocketChannel channel = new NioServerSocketChannel(rawChannel, mock(ChannelFactory.class), selector);
-            channel.setContext(new ServerChannelContext(channel, rawChannel, selector, mock(Consumer.class), mock(BiConsumer.class)));
+            NioServerSocketChannel channel = new NioServerSocketChannel(rawChannel);
+            ServerChannelContext context = new ServerChannelContext(channel, mock(ChannelFactory.class), selector, mock(Consumer.class),
+                mock(BiConsumer.class));
+            channel.setContext(context);
             channel.addCloseListener(ActionListener.toBiConsumer(new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void o) {

@@ -25,18 +25,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
 
-    private final ChannelFactory<?, ?> channelFactory;
     private ServerChannelContext context;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
 
-    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-        throws IOException {
+    public NioServerSocketChannel(ServerSocketChannel socketChannel) throws IOException {
         super(socketChannel);
-        this.channelFactory = channelFactory;
-    }
-
-    public ChannelFactory<?, ?> getChannelFactory() {
-        return channelFactory;
     }
 
     /**

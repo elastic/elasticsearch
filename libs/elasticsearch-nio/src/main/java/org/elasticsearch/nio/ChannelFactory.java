@@ -49,7 +49,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     }
 
     public Socket acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
-        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel.getContext());
+        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
@@ -109,7 +109,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
-            closeRawChannel(channel.getContext().getChannel(), e);
+            closeRawChannel(channel.getRawChannel(), e);
             throw e;
         }
     }
@@ -118,7 +118,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         try {
             selector.scheduleForRegistration(channel);
         } catch (IllegalStateException e) {
-            closeRawChannel(channel.getContext().getChannel(), e);
+            closeRawChannel(channel.getRawChannel(), e);
             throw e;
         }
     }
@@ -160,9 +160,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return socketChannel;
         }
 
-        SocketChannel acceptNioChannel(ServerChannelContext serverChannelContext) throws IOException {
-            ServerSocketChannel serverSocketChannel = serverChannelContext.getChannel();
-            SocketChannel socketChannel = accept(serverSocketChannel);
+        SocketChannel acceptNioChannel(NioServerSocketChannel serverSocketChannel) throws IOException {
+            ServerSocketChannel rawChannel = serverSocketChannel.getRawChannel();
+            SocketChannel socketChannel = accept(rawChannel);
             try {
                 configureSocketChannel(socketChannel);
             } catch (IOException e) {

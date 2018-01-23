@@ -24,7 +24,7 @@ import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 
-public abstract class AbstractChannelContext<S extends SelectableChannel & NetworkChannel> implements ChannelContext {
+public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> implements ChannelContext {
 
     private final S channel;
     private volatile SelectionKey selectionKey;
@@ -34,7 +34,7 @@ public abstract class AbstractChannelContext<S extends SelectableChannel & Netwo
     }
 
     public void register() throws IOException {
-        setSelectionKey(channel.register(getSelector().rawSelector(), 0));
+        setSelectionKey(channel.getRawChannel().register(getSelector().rawSelector(), 0));
     }
 
     public SelectionKey getSelectionKey() {

@@ -66,6 +66,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return localAddress;
     }
 
+    @Override
+    public S getRawChannel() {
+        return socketChannel;
+    }
+
     /**
      * Closes the channel synchronously. This method should only be called from the selector thread.
      * <p>

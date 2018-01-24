@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.HashMap;
 import java.util.List;

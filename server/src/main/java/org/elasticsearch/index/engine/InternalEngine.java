@@ -1464,7 +1464,14 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean shouldFlush() {
-        return translog.shouldFlush();
+        if (translog.shouldFlush() == false) {
+            return false;
+        }
+        // We should only flush iff the shouldFlush condition can become false after flushing.
+        final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+        final long translogGenFromLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
+        final long translogGenForNewCommit = translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
+        return translogGenForNewCommit > translogGenFromLastCommit;
     }
 
     @Override

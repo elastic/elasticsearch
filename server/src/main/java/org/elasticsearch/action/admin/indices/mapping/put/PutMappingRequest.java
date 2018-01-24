@@ -296,7 +296,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return updateAllTypes;
     }
 
-    /** See {@link #updateAllTypes()} */
+    /**
+     * True if all fields that span multiple types should be updated, false otherwise.
+     * @deprecated useless with 6.x indices which may only have one type
+     */
+    @Deprecated
     public PutMappingRequest updateAllTypes(boolean updateAllTypes) {
         this.updateAllTypes = updateAllTypes;
         return this;

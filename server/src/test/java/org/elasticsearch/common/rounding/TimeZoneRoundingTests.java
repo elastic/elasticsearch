@@ -655,15 +655,43 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
         assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
         assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));
-        assertThat("nextRounding value should be greater than date" + rounding, nextRoundingValue, greaterThan(unrounded));
         assertThat("nextRounding value should be a rounded date", rounding.round(nextRoundingValue), isDate(nextRoundingValue, tz));
         assertThat("values above nextRounding should round down there", rounding.round(nextRoundingValue + 1),
                 isDate(nextRoundingValue, tz));
 
-        long dateBetween = dateBetween(rounded, nextRoundingValue);
-        assertThat("dateBetween should round down to roundedDate", rounding.round(dateBetween), isDate(rounded, tz));
-        assertThat("dateBetween should round up to nextRoundingValue", rounding.nextRoundingValue(dateBetween),
-                isDate(nextRoundingValue, tz));
+        if (isTimeWithWellDefinedRounding(tz, unrounded)) {
+            assertThat("nextRounding value should be greater than date" + rounding, nextRoundingValue, greaterThan(unrounded));
+
+            long dateBetween = dateBetween(rounded, nextRoundingValue);
+            assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round down to roundedDate",
+                rounding.round(dateBetween), isDate(rounded, tz));
+            assertThat("dateBetween [" + new DateTime(dateBetween, tz) + "] should round up to nextRoundingValue",
+                rounding.nextRoundingValue(dateBetween), isDate(nextRoundingValue, tz));
+        }
+    }
+
+    private static boolean isTimeWithWellDefinedRounding(DateTimeZone tz, long t) {
+        if (tz.getID().equals("America/St_Johns")
+            || tz.getID().equals("America/Goose_Bay")
+            || tz.getID().equals("America/Moncton")
+            || tz.getID().equals("Canada/Newfoundland")) {
+
+            // Clocks went back at 00:01 between 1987 and 2010, causing overlapping days.
+            // These timezones are otherwise uninteresting, so just skip this period.
+
+            return t <= time("1987-10-01T00:00:00Z")
+                || t >= time("2010-12-01T00:00:00Z");
+        }
+
+        if (tz.getID().equals("Antarctica/Casey")) {
+
+            // Clocks went back 3 hours at 02:00 on 2010-03-05, causing overlapping days.
+
+            return t <= time("2010-03-03T00:00:00Z")
+                || t >= time("2010-03-07T00:00:00Z");
+        }
+
+        return true;
     }
 
     private static long dateBetween(long lower, long upper) {

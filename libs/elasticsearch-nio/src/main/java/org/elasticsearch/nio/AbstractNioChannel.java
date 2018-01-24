@@ -49,7 +49,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     final S socketChannel;
 
     private final InetSocketAddress localAddress;
-    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
 
     AbstractNioChannel(S socketChannel) throws IOException {
         this.socketChannel = socketChannel;
@@ -58,7 +57,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
 
     @Override
     public boolean isOpen() {
-        return closeContext.isDone() == false;
+        return getContext().isOpen();
     }
 
     @Override
@@ -71,27 +70,9 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         return socketChannel;
     }
 
-    /**
-     * Closes the channel synchronously. This method should only be called from the selector thread.
-     * <p>
-     * Once this method returns, the channel will be closed.
-     */
-    @Override
-    public void closeFromSelector() throws IOException {
-        if (closeContext.isDone() == false) {
-            try {
-                socketChannel.close();
-                closeContext.complete(null);
-            } catch (IOException e) {
-                closeContext.completeExceptionally(e);
-                throw e;
-            }
-        }
-    }
-
     @Override
     public void addCloseListener(BiConsumer<Void, Throwable> listener) {
-        closeContext.whenComplete(listener);
+        getContext().addCloseListener(listener);
     }
 
     @Override

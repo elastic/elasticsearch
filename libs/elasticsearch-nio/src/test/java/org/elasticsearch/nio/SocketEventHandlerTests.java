@@ -142,7 +142,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
         handler.postHandling(channel);
 
-        verify(channel, times(0)).closeFromSelector();
+        verify(context, times(0)).closeFromSelector();
     }
 
     public void testPostHandlingWillAddWriteIfNecessary() throws IOException {

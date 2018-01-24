@@ -123,7 +123,7 @@ public class BytesChannelContext extends SocketChannelContext {
         if (channel.isOpen()) {
             IOException channelCloseException = null;
             try {
-                channel.closeFromSelector();
+                super.closeFromSelector();
             } catch (IOException e) {
                 channelCloseException = e;
             }

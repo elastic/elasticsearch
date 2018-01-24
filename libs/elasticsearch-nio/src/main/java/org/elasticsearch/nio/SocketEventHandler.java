@@ -76,8 +76,10 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void handleConnect(NioSocketChannel channel) throws IOException {
         SocketChannelContext context = channel.getContext();
-        context.connect();
-        SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
+        if (context.connect()) {
+            SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
+        }
+
     }
 
     /**

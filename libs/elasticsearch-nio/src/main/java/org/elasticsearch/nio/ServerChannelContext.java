@@ -54,11 +54,6 @@ public class ServerChannelContext extends AbstractChannelContext<NioServerSocket
     }
 
     @Override
-    public void closeFromSelector() throws IOException {
-        channel.closeFromSelector();
-    }
-
-    @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             getSelector().queueChannelClose(channel);

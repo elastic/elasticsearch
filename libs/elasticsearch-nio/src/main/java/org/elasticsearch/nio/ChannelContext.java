@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.util.function.BiConsumer;
 
 public interface ChannelContext {
     /**
@@ -40,6 +41,10 @@ public interface ChannelContext {
      * channel or may involve reading and writing messages.
      */
     void closeChannel();
+
+    void addCloseListener(BiConsumer<Void, Throwable> listener);
+
+    boolean isOpen();
 
     void handleException(Exception e);
 

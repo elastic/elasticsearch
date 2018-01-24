@@ -81,9 +81,10 @@ public class AcceptingSelector extends ESSelector {
     private void setUpNewServerChannels() {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            assert newChannel.getContext().getSelector() == this : "The channel must be registered with the selector with which it was created";
+            ServerChannelContext context = newChannel.getContext();
+            assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
-                if (newChannel.isOpen()) {
+                if (context.isOpen()) {
                     eventHandler.handleRegistration(newChannel);
                 } else {
                     eventHandler.registrationException(newChannel, new ClosedChannelException());

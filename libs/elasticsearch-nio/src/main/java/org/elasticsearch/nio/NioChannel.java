@@ -32,8 +32,6 @@ public interface NioChannel {
 
     void close();
 
-    void closeFromSelector() throws IOException;
-
     ChannelContext getContext();
 
     NetworkChannel getRawChannel();

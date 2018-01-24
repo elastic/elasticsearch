@@ -23,10 +23,13 @@ import java.io.IOException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> implements ChannelContext {
 
     private final S channel;
+    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private volatile SelectionKey selectionKey;
 
     protected AbstractChannelContext(S channel) {
@@ -48,5 +51,33 @@ public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> im
 
     public S getChannel() {
         return channel;
+    }
+
+    /**
+     * Closes the channel synchronously. This method should only be called from the selector thread.
+     * <p>
+     * Once this method returns, the channel will be closed.
+     */
+    @Override
+    public void closeFromSelector() throws IOException {
+        if (closeContext.isDone() == false) {
+            try {
+                channel.getRawChannel().close();
+                closeContext.complete(null);
+            } catch (IOException e) {
+                closeContext.completeExceptionally(e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void addCloseListener(BiConsumer<Void, Throwable> listener) {
+        closeContext.whenComplete(listener);
+    }
+
+    @Override
+    public boolean isOpen() {
+        return closeContext.isDone() == false;
     }
 }

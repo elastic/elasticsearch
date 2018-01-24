@@ -214,7 +214,7 @@ public class SocketSelector extends ESSelector {
     private void attemptConnect(NioSocketChannel newChannel, boolean connectEvent) {
         try {
             eventHandler.handleConnect(newChannel);
-            if (connectEvent && newChannel.isConnectComplete() == false) {
+            if (connectEvent && newChannel.getContext().isConnectComplete() == false) {
                 eventHandler.connectException(newChannel, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {

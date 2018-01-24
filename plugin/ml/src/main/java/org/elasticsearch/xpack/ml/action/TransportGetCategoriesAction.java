@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 public class TransportGetCategoriesAction extends HandledTransportAction<GetCategoriesAction.Request, GetCategoriesAction.Response> {
 

@@ -39,12 +39,12 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -203,7 +203,7 @@ public class JobManager extends AbstractComponent {
                             }
 
                             @Override
-                            public ClusterState execute(ClusterState currentState) throws Exception {
+                            public ClusterState execute(ClusterState currentState) {
                                 return updateClusterState(job, false, currentState);
                             }
                         });
@@ -342,7 +342,7 @@ public class JobManager extends AbstractComponent {
     public void updateProcessOnCalendarChanged(List<String> calendarJobIds) {
         ClusterState clusterState = clusterService.state();
         Set<String> expandedJobIds = new HashSet<>();
-        calendarJobIds.stream().forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
+        calendarJobIds.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
         for (String jobId : expandedJobIds) {
             if (isJobOpen(clusterState, jobId)) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId));

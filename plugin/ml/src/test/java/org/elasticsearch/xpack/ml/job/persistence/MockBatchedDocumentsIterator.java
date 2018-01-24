@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.job.persistence.BatchedResultsIterator;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.util.Deque;

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -32,10 +31,13 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
+import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -95,7 +97,7 @@ public class JobStorageDeletionTask extends Task {
                     ConstantScoreQueryBuilder query =
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
                     searchRequest.source(new SearchSourceBuilder().query(query));
-                    searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+                    searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
                     request.setSlices(5);
                     request.setAbortOnVersionConflict(false);
                     request.setRefresh(true);
@@ -127,7 +129,7 @@ public class JobStorageDeletionTask extends Task {
                 // TODO: remove in 7.0
                 Quantiles.v54DocumentId(jobId));
         searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 
@@ -144,14 +146,15 @@ public class JobStorageDeletionTask extends Task {
     }
 
     private void deleteModelState(String jobId, Client client, ActionListener<BulkResponse> listener) {
-        JobProvider jobProvider = new JobProvider(client, Settings.EMPTY);
-        jobProvider.modelSnapshots(jobId, 0, 10000,
-                page -> {
-                    List<ModelSnapshot> deleteCandidates = page.results();
+        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
+        request.setPageParams(new PageParams(0, PageParams.MAX_FROM_SIZE_SUM));
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(
+                response -> {
+                    List<ModelSnapshot> deleteCandidates = response.getPage().results();
                     JobDataDeleter deleter = new JobDataDeleter(client, jobId);
                     deleter.deleteModelSnapshots(deleteCandidates, listener);
                 },
-                listener::onFailure);
+                listener::onFailure));
     }
 
     private void deleteCategorizerState(String jobId, Client client, int docNum, ActionListener<Boolean> finishedHandler) {
@@ -163,7 +166,7 @@ public class JobStorageDeletionTask extends Task {
                 // TODO: remove in 7.0
                 CategorizerState.v54DocumentId(jobId, docNum));
         searchRequest.source(new SearchSourceBuilder().query(query));
-        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.job.persistence;
+package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -79,7 +79,14 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.BucketsQueryBuilder;
+import org.elasticsearch.xpack.core.ml.job.persistence.CalendarQueryBuilder;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
+import org.elasticsearch.xpack.core.ml.job.persistence.RecordsQueryBuilder;
+import org.elasticsearch.xpack.core.ml.job.persistence.ResultsFilterBuilder;
+import org.elasticsearch.xpack.core.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -95,6 +102,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
@@ -491,11 +499,6 @@ public class JobProvider {
         }
     }
 
-    public static IndicesOptions addIgnoreUnavailable(IndicesOptions indicesOptions) {
-        return IndicesOptions.fromOptions(true, indicesOptions.allowNoIndices(), indicesOptions.expandWildcardsOpen(),
-                indicesOptions.expandWildcardsClosed(), indicesOptions);
-    }
-
     /**
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
      * Uses the internal client, so runs as the _xpack user
@@ -515,7 +518,7 @@ public class JobProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(query.build());
-        searchRequest.indicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(searchResponse -> {
@@ -635,7 +638,7 @@ public class JobProvider {
                 indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         if (categoryId != null) {
             sourceBuilder.query(QueryBuilders.termQuery(CategoryDefinition.CATEGORY_ID.getPreferredName(), categoryId));
@@ -677,7 +680,7 @@ public class JobProvider {
 
         SearchSourceBuilder searchSourceBuilder = recordsQueryBuilder.build();
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         searchRequest.source(recordsQueryBuilder.build());
 
         LOGGER.trace("ES API CALL: search all of records from index {} with query {}", indexName, searchSourceBuilder);
@@ -723,7 +726,7 @@ public class JobProvider {
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Influencer.RESULT_TYPE_VALUE));
 
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         FieldSortBuilder sb = query.getSortField() == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
                 : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
@@ -839,7 +842,7 @@ public class JobProvider {
                 indexName, sortField, from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.indicesOptions(addIgnoreUnavailable(searchRequest.indicesOptions()));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(searchRequest.indicesOptions()));
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.sort(sb);
         sourceBuilder.query(finalQuery);
@@ -866,7 +869,7 @@ public class JobProvider {
 
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
             searchResponse = client.prepareSearch(indexName)
-                    .setIndicesOptions(addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
+                    .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS))
                     .setQuery(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), ModelPlot.RESULT_TYPE_VALUE))
                     .setFrom(from).setSize(size)
                     .get();

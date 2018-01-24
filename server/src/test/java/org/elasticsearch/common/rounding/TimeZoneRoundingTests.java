@@ -600,6 +600,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
 
         assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
 
+        assertThat(rounding.round(time("2000-10-29T06:00:00-01:00")), isDate(time("2000-10-29T00:00:00Z"), tz));
+
         // Second case, dst happens at 0am local time, switching back one hour to 23pm local time.
         // We want the overlapping hour to count for the previous day here
 

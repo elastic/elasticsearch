@@ -32,6 +32,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 
 public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaData> {
 
@@ -91,6 +92,30 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         ScriptMetaData scriptMetaData = builder.build();
         assertEquals("_source", scriptMetaData.getStoredScript("script").getSource());
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("source_template").getSource());
+    }
+
+    public void testGetScripts() throws Exception {
+        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
+
+        XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
+        builder.storeScript("template", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().field("template", "value").endObject();
+        builder.storeScript("template_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
+        builder.storeScript("script", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        ScriptMetaData scriptMetaData = builder.build();
+        Map<String, StoredScriptSource> storedScripts = scriptMetaData.getStoredScripts();
+
+        assertEquals(3, storedScripts.size());
+        assertEquals("_source", storedScripts.get("script").getSource());
+        assertEquals("{\"field\":\"value\"}", storedScripts.get("template").getSource());
+        assertEquals("value", storedScripts.get("template_field").getSource());
     }
 
     public void testDiff() throws Exception {

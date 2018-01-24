@@ -128,6 +128,10 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptActio
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequestBuilder;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsAction;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsRequest;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptsResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequestBuilder;
@@ -1157,6 +1161,22 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetStoredScriptRequestBuilder prepareGetStoredScript(String id) {
             return prepareGetStoredScript().setId(id);
+        }
+
+        @Override
+        public ActionFuture<GetStoredScriptsResponse> getStoredScripts(GetStoredScriptsRequest request) {
+            return execute(GetStoredScriptsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getStoredScripts(GetStoredScriptsRequest request,
+                                     ActionListener<GetStoredScriptsResponse> listener) {
+            execute(GetStoredScriptsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public GetStoredScriptsRequestBuilder prepareGetStoredScripts() {
+            return new GetStoredScriptsRequestBuilder(this, GetStoredScriptsAction.INSTANCE);
         }
 
         @Override

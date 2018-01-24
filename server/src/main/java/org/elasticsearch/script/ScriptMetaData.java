@@ -366,6 +366,13 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
         return scripts.get(id);
     }
 
+    /**
+     * Retrieves all stored scripts
+     */
+    Map<String, StoredScriptSource> getStoredScripts() {
+        return scripts;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

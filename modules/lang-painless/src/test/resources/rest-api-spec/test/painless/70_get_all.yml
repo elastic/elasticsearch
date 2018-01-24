@@ -1,0 +1,25 @@
+---
+"Get all scripts":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  this uses a new API that has been added in 7.0
+
+  - do:
+      put_script:
+        id: "1"
+        body: { "script": {"lang": "painless", "source": "_score * doc['myParent.weight'].value" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "foo"
+        body: { "script": {"lang": "painless", "source": "_score * 9.9" } }
+  - match: { acknowledged: true }
+
+  - do:
+     get_scripts: {}
+
+  - length: {$body: 2}
+  - match: { 1.script: {"lang": "painless", "source": "_score * doc['myParent.weight'].value"} }
+  - match: { foo.script: {"lang": "painless", "source": "_score * 9.9"} }

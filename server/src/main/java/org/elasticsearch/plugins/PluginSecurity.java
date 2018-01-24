@@ -20,8 +20,10 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,10 +43,11 @@ import java.util.function.Supplier;
 class PluginSecurity {
 
     /**
-     * Reads plugin policy, prints/confirms exceptions
+     * prints/confirms policy exceptions with the user
      */
-    static void readPolicy(PluginInfo info, Path file, Terminal terminal, Supplier<Path> tmpFile, boolean batch) throws IOException {
-        PermissionCollection permissions = parsePermissions(terminal, file, tmpFile.get());
+    static void confirmPolicyExceptions(Terminal terminal, PermissionCollection permissions,
+                                        boolean needsNativeController, boolean batch) throws UserException {
+        //PermissionCollection permissions = parsePermissions(terminal, file, tmpFile.get());
         List<Permission> requested = Collections.list(permissions.elements());
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
@@ -93,7 +96,7 @@ class PluginSecurity {
             prompt(terminal, batch);
         }
 
-        if (info.hasNativeController()) {
+        if (needsNativeController) {
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             terminal.println(Verbosity.NORMAL, "@        WARNING: plugin forks a native controller        @");
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
@@ -103,12 +106,12 @@ class PluginSecurity {
         }
     }
 
-    private static void prompt(final Terminal terminal, final boolean batch) {
+    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
         if (!batch) {
             terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");
             if (!text.equalsIgnoreCase("y")) {
-                throw new RuntimeException("installation aborted by user");
+                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }
         }
     }
@@ -152,7 +155,7 @@ class PluginSecurity {
     /**
      * Parses plugin policy into a set of permissions
      */
-    static PermissionCollection parsePermissions(Terminal terminal, Path file, Path tmpDir) throws IOException {
+    public static PermissionCollection parsePermissions(Path file, Path tmpDir) throws IOException {
         // create a zero byte file for "comparison"
         // this is necessary because the default policy impl automatically grants two permissions:
         // 1. permission to exitVM (which we ignore)

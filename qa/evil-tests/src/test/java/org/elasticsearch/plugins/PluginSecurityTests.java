@@ -43,17 +43,16 @@ public class PluginSecurityTests extends ESTestCase {
 
     private final Supplier<Path> tmpFile = LuceneTestCase::createTempDir;
 
-    public void testHasNativeController() throws IOException {
+    public void testHasNativeController() throws Exception {
         assumeTrue(
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
-        final PluginInfo info =
-                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         terminal.addTextInput("y");
         final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false);
+        PermissionCollection permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, true, false);
         final String output = terminal.getOutput();
         assertThat(output, containsString("plugin forks a native controller"));
     }
@@ -62,19 +61,17 @@ public class PluginSecurityTests extends ESTestCase {
         assumeTrue(
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
-        final PluginInfo info =
-                new PluginInfo("fake", "fake", Version.CURRENT.toString(), "Fake", Collections.emptyList(), true, false);
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         terminal.addTextInput("n");
         final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        RuntimeException e = expectThrows(
-                RuntimeException.class,
-                () -> PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false));
+        PermissionCollection permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
+        RuntimeException e = expectThrows(RuntimeException.class,
+                () -> PluginSecurity.confirmPolicyExceptions(terminal, permissions, true, false));
         assertThat(e, hasToString(containsString("installation aborted by user")));
     }
 
-    public void testDoesNotHaveNativeController() throws IOException {
+    public void testDoesNotHaveNativeController() throws Exception {
         assumeTrue(
                 "test cannot run with security manager enabled",
                 System.getSecurityManager() == null);
@@ -83,7 +80,8 @@ public class PluginSecurityTests extends ESTestCase {
         final MockTerminal terminal = new MockTerminal();
         terminal.addTextInput("y");
         final Path policyFile = this.getDataPath("security/simple-plugin-security.policy");
-        PluginSecurity.readPolicy(info, policyFile, terminal, tmpFile, false);
+        PermissionCollection permissions = PluginSecurity.parsePermissions(policyFile, createTempDir());
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, false, false);
         final String output = terminal.getOutput();
         assertThat(output, not(containsString("plugin forks a native controller")));
     }
@@ -97,8 +95,7 @@ public class PluginSecurityTests extends ESTestCase {
         Path testFile = this.getDataPath("security/simple-plugin-security.policy");
         Permissions expected = new Permissions();
         expected.add(new RuntimePermission("queuePrintJob"));
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
+        PermissionCollection actual = PluginSecurity.parsePermissions(testFile, scratch);
         assertEquals(expected, actual);
     }
 
@@ -112,8 +109,7 @@ public class PluginSecurityTests extends ESTestCase {
         Permissions expected = new Permissions();
         expected.add(new RuntimePermission("getClassLoader"));
         expected.add(new RuntimePermission("closeClassLoader"));
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
+        PermissionCollection actual = PluginSecurity.parsePermissions(testFile, scratch);
         assertEquals(expected, actual);
     }
 
@@ -131,8 +127,7 @@ public class PluginSecurityTests extends ESTestCase {
                 System.getSecurityManager() == null);
         Path scratch = createTempDir();
         Path testFile = this.getDataPath("security/unresolved-plugin-security.policy");
-        PermissionCollection actual =
-                PluginSecurity.parsePermissions(Terminal.DEFAULT, testFile, scratch);
+        PermissionCollection actual = PluginSecurity.parsePermissions(testFile, scratch);
         List<Permission> permissions = Collections.list(actual.elements());
         assertEquals(1, permissions.size());
         assertEquals(
@@ -142,9 +137,7 @@ public class PluginSecurityTests extends ESTestCase {
 
     /** no guaranteed equals on these classes, we assert they contain the same set */
     private void assertEquals(PermissionCollection expected, PermissionCollection actual) {
-        assertEquals(
-                asSet(Collections.list(expected.elements())),
-                asSet(Collections.list(actual.elements())));
+        assertEquals(asSet(Collections.list(expected.elements())), asSet(Collections.list(actual.elements())));
     }
 
 }

@@ -72,6 +72,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -620,6 +621,55 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 assertEquals(2, topDocs.scoreDocs[1].doc);
             }
         }
+    }
+
+    public void testDuplicatedClauses() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        BooleanQuery.Builder builder1 = new BooleanQuery.Builder();
+        builder1.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
+        builder1.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder.add(builder1.build(), BooleanClause.Occur.MUST);
+        BooleanQuery.Builder builder2 = new BooleanQuery.Builder();
+        builder2.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder2.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        builder.add(builder2.build(), BooleanClause.Occur.MUST);
+        addQuery(builder.build(), docs);
+
+        builder = new BooleanQuery.Builder()
+                .setMinimumNumberShouldMatch(2);
+        builder1 = new BooleanQuery.Builder();
+        builder1.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
+        builder1.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder.add(builder1.build(), BooleanClause.Occur.SHOULD);
+        builder2 = new BooleanQuery.Builder();
+        builder2.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder2.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        builder.add(builder2.build(), BooleanClause.Occur.SHOULD);
+        BooleanQuery.Builder builder3 = new BooleanQuery.Builder();
+        builder3.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        builder3.add(new TermQuery(new Term("field", "value4")), BooleanClause.Occur.MUST);
+        builder.add(builder3.build(), BooleanClause.Occur.SHOULD);
+        addQuery(builder.build(), docs);
+
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        Version v = Version.CURRENT;
+        List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "value1 value2 value3", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        assertEquals(2L, topDocs.totalHits);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(1, topDocs.scoreDocs[1].doc);
     }
 
     private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.hipchatAction;
@@ -52,7 +53,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
 
     public void testParseActionUnknownAccount() throws Exception {
         hipchatService = new HipChatService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new HashSet<>(HipChatService.getSettings())));
         factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
         HipChatAction action = hipchatAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);

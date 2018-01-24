@@ -16,6 +16,7 @@ import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -41,7 +42,7 @@ public class ProfileTests extends ESTestCase {
                 .build();
 
         EmailService service = new EmailService(settings, null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         Session session = service.getAccount("foo").getConfig().createSession();
         MimeMessage mimeMessage = Profile.STANDARD.toMimeMessage(email, session);
 

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.EmailServiceTests;
 import org.elasticsearch.xpack.watcher.notification.email.Profile;
 
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
 
 @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/379")
@@ -122,6 +122,6 @@ public class ManualPublicSmtpServersTester {
     static EmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
         return new EmailService(settings, null,
-                new ClusterSettings(settings, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(settings, new HashSet<>(EmailService.getSettings())));
     }
 }

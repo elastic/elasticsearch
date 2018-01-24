@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -47,7 +48,7 @@ public class JiraAccountTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(JiraService.JIRA_ACCOUNT_SETTING));
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(JiraService.getSettings()));
     }
 
     public void testJiraAccountSettings() {

@@ -105,7 +105,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         this.client = client;
         this.clusterService = config.clusterService();
         this.licenseState = config.licenseState();
-        this.useIngest = config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true);
+        this.useIngest = USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         this.clusterAlertBlacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
         this.cleanerService = cleanerService;
         this.dateTimeFormatter = dateTimeFormatter(config);
@@ -478,8 +478,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @return {@code true} to use Cluster Alerts.
      */
     private boolean canUseWatcher() {
-        return XPackSettings.WATCHER_ENABLED.get(config.globalSettings()) &&
-               config.settings().getAsBoolean(CLUSTER_ALERTS_MANAGEMENT_SETTING, true);
+        return XPackSettings.WATCHER_ENABLED.get(config.settings()) &&
+                CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
     }
 
     @Override

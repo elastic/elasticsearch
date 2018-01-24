@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -23,7 +24,7 @@ public class AccountsTests extends ESTestCase {
                 .put("default_account", "account1");
         addAccountSettings("account1", builder);
         EmailService service = new EmailService(builder.build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -36,7 +37,7 @@ public class AccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
         EmailService service = new EmailService(builder.build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -52,7 +53,7 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account2", builder);
 
         EmailService service = new EmailService(builder.build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -71,7 +72,7 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account2", builder);
 
         EmailService service = new EmailService(builder.build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -87,7 +88,7 @@ public class AccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("xpack.notification.email.default_account", "unknown");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
         SettingsException e = expectThrows(SettingsException.class, () -> new EmailService(builder.build(), null, clusterSettings));
         assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
@@ -95,13 +96,13 @@ public class AccountsTests extends ESTestCase {
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
         EmailService service = new EmailService(builder.build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         expectThrows(IllegalArgumentException.class, () -> service.getAccount(null));
     }
 
     public void testNoAccountWithDefaultAccount() throws Exception {
         Settings settings = Settings.builder().put("xpack.notification.email.default_account", "unknown").build();
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
         SettingsException e = expectThrows(SettingsException.class, () -> new EmailService(settings, null, clusterSettings));
         assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }

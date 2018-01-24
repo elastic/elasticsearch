@@ -16,7 +16,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -142,7 +141,8 @@ public class ClusterAlertsUtil {
      * @throws SettingsException if an unknown cluster alert ID exists in the blacklist.
      */
     public static List<String> getClusterAlertsBlacklist(final Exporter.Config config) {
-        final List<String> blacklist = config.settings().getAsList(CLUSTER_ALERTS_BLACKLIST_SETTING, Collections.emptyList());
+        final List<String> blacklist =
+                CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // validate the blacklist only contains recognized IDs
         if (blacklist.isEmpty() == false) {
@@ -151,9 +151,8 @@ public class ClusterAlertsUtil {
 
             if (unknownIds.isEmpty() == false) {
                 throw new SettingsException(
-                    "[" + Exporter.settingFQN(config, CLUSTER_ALERTS_BLACKLIST_SETTING) + "] contains unrecognized Cluster Alert IDs [" +
-                    String.join(", ", unknownIds) + "]"
-                );
+                    "[" + CLUSTER_ALERTS_BLACKLIST_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + 
+                            "] contains unrecognized Cluster Alert IDs [" + String.join(", ", unknownIds) + "]");
             }
         }
 

@@ -115,6 +115,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                        .put(super.nodeSettings(nodeOrdinal))
                        .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters._http.type", "http")
+                       .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar")
                        .put("xpack.monitoring.exporters._http.enabled", false)
                        .build();
     }
@@ -554,9 +555,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private HttpExporter createHttpExporter(final Settings settings) throws Exception {
         final Exporter.Config config =
-                new Exporter.Config("_http", "http",
-                                    settings, settings.getAsSettings("xpack.monitoring.exporters._http"),
-                                    clusterService(), new XPackLicenseState());
+                new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState());
 
         return new HttpExporter(config, new SSLService(settings, environment), new ThreadContext(settings));
     }
@@ -627,7 +626,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private String resourceVersionQueryString() {
-        return "filter_path=" + FILTER_PATH_RESOURCE_VERSION;
+        return "master_timeout=10s&filter_path=" + FILTER_PATH_RESOURCE_VERSION;
     }
 
     private String watcherCheckQueryString() {
@@ -637,7 +636,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private String bulkQueryString() {
         final String pipelineName = MonitoringTemplateUtils.pipelineName(TEMPLATE_VERSION);
 
-        return "pipeline=" + pipelineName + "&filter_path=" + "errors,items.*.error";
+        return "master_timeout=10s&pipeline=" + pipelineName + "&filter_path=" + "errors,items.*.error";
     }
 
     private void enqueueGetClusterVersionResponse(Version v) throws IOException {

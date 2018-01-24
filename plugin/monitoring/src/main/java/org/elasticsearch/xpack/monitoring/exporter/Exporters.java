@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
@@ -33,15 +34,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 
 public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
-
-    /**
-     * Settings/Options per configured exporter
-     */
-    public static final Setting<Settings> EXPORTERS_SETTINGS =
-            groupSetting("xpack.monitoring.exporters.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final Map<String, Exporter.Factory> factories;
     private final AtomicReference<Map<String, Exporter>> exporters;
@@ -60,14 +54,15 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = Objects.requireNonNull(licenseState);
 
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(EXPORTERS_SETTINGS, this::setExportersSetting);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(this::setExportersSetting, getSettings());
+        // this ensures, that logging is happening by adding an empty consumer per affix setting
+        for (Setting.AffixSetting<?> affixSetting : getSettings()) {
+            clusterService.getClusterSettings().addAffixUpdateConsumer(affixSetting, (s, o) -> {}, (s, o) -> {});
+        }
     }
 
     private void setExportersSetting(Settings exportersSetting) {
-        if (this.lifecycleState() == Lifecycle.State.STARTED) {
-            if (exportersSetting.names().isEmpty()) {
-                return;
-            }
+        if (this.lifecycle.started()) {
             Map<String, Exporter> updated = initExporters(exportersSetting);
             closeExporters(logger, this.exporters.getAndSet(updated));
         }
@@ -75,7 +70,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
 
     @Override
     protected void doStart() {
-        exporters.set(initExporters(EXPORTERS_SETTINGS.get(settings)));
+        exporters.set(initExporters(settings));
     }
 
     @Override
@@ -129,10 +124,11 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks, threadContext);
     }
 
-    Map<String, Exporter> initExporters(Settings exportersSettings) {
+    Map<String, Exporter> initExporters(Settings settings) {
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
+        Settings exportersSettings = settings.getByPrefix("xpack.monitoring.exporters.");
         for (String name : exportersSettings.names()) {
             Settings exporterSettings = exportersSettings.getAsSettings(name);
             String type = exporterSettings.get("type");
@@ -143,7 +139,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, type, settings, exporterSettings, clusterService, licenseState);
+            Exporter.Config config = new Exporter.Config(name, type, settings, clusterService, licenseState);
             if (!config.enabled()) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
@@ -171,8 +167,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         //
         if (exporters.isEmpty() && !hasDisabled) {
             Exporter.Config config =
-                    new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, Settings.EMPTY,
-                                        clusterService, licenseState);
+                    new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, settings, clusterService, licenseState);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 
@@ -209,5 +204,15 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         } else {
             listener.onResponse(null);
         }
+    }
+
+    /**
+     * Return all the settings of all the exporters, no matter if HTTP or Local
+     */
+    public static List<Setting.AffixSetting<?>> getSettings() {
+        List<Setting.AffixSetting<?>> settings = new ArrayList<>();
+        settings.addAll(Exporter.getSettings());
+        settings.addAll(HttpExporter.getSettings());
+        return settings;
     }
 }

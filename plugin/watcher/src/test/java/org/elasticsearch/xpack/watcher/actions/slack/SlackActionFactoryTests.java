@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageTests.createRandomTemplate;
@@ -49,7 +50,7 @@ public class SlackActionFactoryTests extends ESTestCase {
 
     public void testParseActionUnknownAccount() throws Exception {
         SlackService service = new SlackService(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(SlackService.SLACK_ACCOUNT_SETTING)));
+                new HashSet<>(SlackService.getSettings())));
         factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
         SlackAction action = slackAction("_unknown", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);

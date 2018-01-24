@@ -71,6 +71,28 @@ public class StoredScriptsIT extends ESIntegTestCase {
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
 
+    public void testGetAllScripts() {
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+            .setId("foobar")
+            .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON));
+
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+            .setId("1")
+            .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"9.9\"} }"),
+                XContentType.JSON));
+
+        Map<String, StoredScriptSource> storedScripts = client().admin().cluster().prepareGetStoredScripts().get().getStoredScripts();
+        assertEquals(2, storedScripts.size());
+
+        StoredScriptSource source = storedScripts.get("foobar");
+        assertNotNull(source);
+        assertEquals(LANG, source.getLang());
+
+        source = storedScripts.get("1");
+        assertNotNull(source);
+        assertEquals("9.9", source.getSource());
+    }
+
     public void testMaxScriptSize() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setId("foobar")

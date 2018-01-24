@@ -1,0 +1,15 @@
+{
+  "get_scripts": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_scripts",
+      "paths": [ "/_scripts" ],
+      "parts": {
+      },
+      "params" : {
+      }
+    },
+    "body": null
+  }
+}

@@ -38,12 +38,6 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
         this.clusterService = clusterService;
         this.client = client;
         clusterService.addListener(this);
-        clusterService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void beforeStop() {
-                super.beforeStop();
-            }
-        });
     }
 
     @Override

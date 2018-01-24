@@ -20,10 +20,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction.Request;
-import org.elasticsearch.xpack.indexlifecycle.action.PutLifecycleAction.Response;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Request;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
 
 import java.util.SortedMap;
 import java.util.TreeMap;

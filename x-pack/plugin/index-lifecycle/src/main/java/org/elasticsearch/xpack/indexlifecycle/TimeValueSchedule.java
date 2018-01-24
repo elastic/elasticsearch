@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.scheduler.SchedulerEngine.Schedule;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Schedule;
 
 import java.util.Objects;
 

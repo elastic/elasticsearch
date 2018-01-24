@@ -10,9 +10,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.XPackField;
-import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Map;
 

@@ -186,7 +186,7 @@ public class BytesChannelContextTests extends ESTestCase {
         BytesWriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
-        assertSame(channel, writeOp.getChannel());
+        assertSame(context, writeOp.getChannel());
         assertEquals(buffers[0], writeOp.getBuffersToWrite()[0]);
     }
 
@@ -200,7 +200,7 @@ public class BytesChannelContextTests extends ESTestCase {
         BytesWriteOperation writeOp = writeOpCaptor.getValue();
 
         assertSame(listener, writeOp.getListener());
-        assertSame(channel, writeOp.getChannel());
+        assertSame(context, writeOp.getChannel());
         assertEquals(buffers[0], writeOp.getBuffersToWrite()[0]);
     }
 
@@ -208,7 +208,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-        context.queueWriteOperation(new BytesWriteOperation(channel, buffer, listener));
+        context.queueWriteOperation(new BytesWriteOperation(context, buffer, listener));
 
         assertTrue(context.hasQueuedWriteOps());
     }
@@ -217,7 +217,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-        context.queueWriteOperation(new BytesWriteOperation(channel,  buffer, listener));
+        context.queueWriteOperation(new BytesWriteOperation(context,  buffer, listener));
 
         assertTrue(context.hasQueuedWriteOps());
 

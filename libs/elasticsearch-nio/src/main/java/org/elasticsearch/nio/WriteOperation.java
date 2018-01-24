@@ -30,5 +30,5 @@ public interface WriteOperation {
 
     BiConsumer<Void, Throwable> getListener();
 
-    NioSocketChannel getChannel();
+    SocketChannelContext getChannel();
 }

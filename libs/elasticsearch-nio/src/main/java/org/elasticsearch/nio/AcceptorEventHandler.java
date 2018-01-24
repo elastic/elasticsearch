@@ -48,7 +48,7 @@ public class AcceptorEventHandler extends EventHandler {
         context.register();
         // TODO: Test attachment
         SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context.getChannel());
+        selectionKey.attach(context);
         SelectionKeyUtils.setAcceptInterested(selectionKey);
     }
 

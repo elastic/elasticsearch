@@ -72,7 +72,7 @@ public class BytesChannelContext extends SocketChannelContext {
             return;
         }
 
-        BytesWriteOperation writeOperation = new BytesWriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOperation = new BytesWriteOperation(this, buffers, listener);
         SocketSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);

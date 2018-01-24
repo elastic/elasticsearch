@@ -48,7 +48,7 @@ public class SocketEventHandler extends EventHandler {
         context.register();
         // TODO: Test attachment
         SelectionKey selectionKey = context.getSelectionKey();
-        selectionKey.attach(context.getChannel());
+        selectionKey.attach(context);
         if (context.hasQueuedWriteOps()) {
             SelectionKeyUtils.setConnectReadAndWriteInterested(selectionKey);
         } else {

@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
  */
 public class SocketSelector extends ESSelector {
 
-    private final ConcurrentLinkedQueue<NioSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SocketChannelContext> newChannels = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
@@ -49,24 +49,23 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void processKey(SelectionKey selectionKey) {
-        NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
-        SocketChannelContext context = nioSocketChannel.getContext();
+        SocketChannelContext channelContext = (SocketChannelContext) selectionKey.attachment();
         int ops = selectionKey.readyOps();
         if ((ops & SelectionKey.OP_CONNECT) != 0) {
-            attemptConnect(context, true);
+            attemptConnect(channelContext, true);
         }
 
-        if (context.isConnectComplete()) {
+        if (channelContext.isConnectComplete()) {
             if ((ops & SelectionKey.OP_WRITE) != 0) {
-                handleWrite(context);
+                handleWrite(channelContext);
             }
 
             if ((ops & SelectionKey.OP_READ) != 0) {
-                handleRead(context);
+                handleRead(channelContext);
             }
         }
 
-        eventHandler.postHandling(context);
+        eventHandler.postHandling(channelContext);
     }
 
     @Override
@@ -90,8 +89,9 @@ public class SocketSelector extends ESSelector {
      * @param nioSocketChannel the channel to register
      */
     public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
-        newChannels.offer(nioSocketChannel);
-        ensureSelectorOpenForEnqueuing(newChannels, nioSocketChannel);
+        SocketChannelContext channelContext = nioSocketChannel.getContext();
+        newChannels.offer(channelContext);
+        ensureSelectorOpenForEnqueuing(newChannels, channelContext);
         wakeup();
     }
 
@@ -122,8 +122,7 @@ public class SocketSelector extends ESSelector {
      */
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
         assertOnSelectorThread();
-        NioSocketChannel channel = writeOperation.getChannel();
-        SocketChannelContext context = channel.getContext();
+        SocketChannelContext context = writeOperation.getChannel();
         try {
             SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
             context.queueWriteOperation(writeOperation);
@@ -183,7 +182,7 @@ public class SocketSelector extends ESSelector {
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().getContext().isOpen()) {
+            if (writeOperation.getChannel().isOpen()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
                 executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
@@ -192,9 +191,9 @@ public class SocketSelector extends ESSelector {
     }
 
     private void setUpNewChannels() {
-        NioSocketChannel newChannel;
-        while ((newChannel = this.newChannels.poll()) != null) {
-            setupChannel(newChannel.getContext());
+        SocketChannelContext channelContext;
+        while ((channelContext = this.newChannels.poll()) != null) {
+            setupChannel(channelContext);
         }
     }
 

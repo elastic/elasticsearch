@@ -25,15 +25,15 @@ import java.util.function.BiConsumer;
 
 public class BytesWriteOperation implements WriteOperation {
 
-    private final NioSocketChannel channel;
+    private final SocketChannelContext channelContext;
     private final BiConsumer<Void, Throwable> listener;
     private final ByteBuffer[] buffers;
     private final int[] offsets;
     private final int length;
     private int internalIndex;
 
-    public BytesWriteOperation(NioSocketChannel channel, ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-        this.channel = channel;
+    public BytesWriteOperation(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
+        this.channelContext = channelContext;
         this.listener = listener;
         this.buffers = buffers;
         this.offsets = new int[buffers.length];
@@ -52,8 +52,8 @@ public class BytesWriteOperation implements WriteOperation {
     }
 
     @Override
-    public NioSocketChannel getChannel() {
-        return channel;
+    public SocketChannelContext getChannel() {
+        return channelContext;
     }
 
     public boolean isFullyFlushed() {

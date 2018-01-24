@@ -24,6 +24,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 /**
  * Selector implementation that handles {@link NioServerSocketChannel}. It's main piece of functionality is
@@ -46,13 +47,12 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void processKey(SelectionKey selectionKey) {
-        NioServerSocketChannel serverChannel = (NioServerSocketChannel) selectionKey.attachment();
-        ServerChannelContext context = serverChannel.getContext();
+        ServerChannelContext channelContext = (ServerChannelContext) selectionKey.attachment();
         if (selectionKey.isAcceptable()) {
             try {
-                eventHandler.acceptChannel(context);
+                eventHandler.acceptChannel(channelContext);
             } catch (IOException e) {
-                eventHandler.acceptException(context, e);
+                eventHandler.acceptException(channelContext, e);
             }
         }
     }
@@ -64,7 +64,7 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        channelsToClose.addAll(newChannels);
+        channelsToClose.addAll(newChannels.stream().map(NioServerSocketChannel::getContext).collect(Collectors.toList()));
     }
 
     /**

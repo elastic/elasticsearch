@@ -94,7 +94,7 @@ public abstract class EventHandler {
      * @param channel that caused the exception
      * @param exception that was thrown
      */
-    protected void genericChannelException(NioChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel), exception);
+    protected void genericChannelException(ChannelContext channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel.getChannel()), exception);
     }
 }

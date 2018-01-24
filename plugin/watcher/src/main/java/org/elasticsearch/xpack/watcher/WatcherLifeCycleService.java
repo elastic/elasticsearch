@@ -44,6 +44,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     private final ExecutorService executor;
     private AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
     private volatile WatcherMetaData watcherMetaData;
+    private volatile boolean shutDown = false; // indicates that the node has been shutdown and we should never start watcher after this.
+
 
     WatcherLifeCycleService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                             WatcherService watcherService) {
@@ -56,17 +58,25 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop("shutdown initiated");
+                shutDown();
             }
         });
         watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("xpack.watcher.start_immediately", true));
     }
 
-    public void stop(String reason) {
+    public synchronized void stop(String reason) {
         watcherService.stop(reason);
     }
 
+    synchronized void shutDown() {
+        shutDown = true;
+        stop("shutdown initiated");
+    }
+
     private synchronized void start(ClusterState state, boolean manual) {
+        if (shutDown) {
+            return;
+        }
         WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STOPPED) {
             logger.debug("not starting watcher. watcher can only start if its current state is [{}], but its current state now is [{}]",
@@ -109,7 +119,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || shutDown) {
             // wait until the gateway has recovered from disk, otherwise we think may not have .watches and
             // a .triggered_watches index, but they may not have been restored from the cluster state on disk
             return;

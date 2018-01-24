@@ -78,7 +78,7 @@ tags of the issues the user has commented on:
 --------------------------------------------------
 
 As you can see above, the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place
-in the dsl where the `reversed_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
+in the dsl where the `reverse_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
 up in the nested structure.
 
 <1> A `reverse_nested` aggregation that joins back to the root / main document level, because no `path` has been defined.

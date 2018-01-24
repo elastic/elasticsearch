@@ -587,9 +587,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
      * @param nextRoundingValue the expected upper end of the rounding interval
      * @param rounding the rounding instance
      */
-    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding,
-            DateTimeZone tz) {
-        assert rounded <= unrounded && unrounded <= nextRoundingValue;
+    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding, DateTimeZone tz) {
         assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));
         assertThat("rounded value smaller or equal than unrounded" + rounding, rounded, lessThanOrEqualTo(unrounded));
         assertThat("values less than rounded should round further down" + rounding, rounding.round(rounded - 1), lessThan(rounded));

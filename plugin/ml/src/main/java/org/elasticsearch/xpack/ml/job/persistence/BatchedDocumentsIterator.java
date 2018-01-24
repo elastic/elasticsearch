@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.job.persistence;
+package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
@@ -15,9 +15,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 
 import java.util.ArrayDeque;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -90,7 +92,7 @@ public abstract class BatchedDocumentsIterator<T>  {
         isScrollInitialised = true;
 
         SearchRequest searchRequest = new SearchRequest(index);
-        searchRequest.indicesOptions(JobProvider.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
         searchRequest.source(new SearchSourceBuilder()
                 .size(BATCH_SIZE)
@@ -116,7 +118,7 @@ public abstract class BatchedDocumentsIterator<T>  {
         count += hits.length;
 
         if (!hasNext() && scrollId != null) {
-            client.prepareClearScroll().setScrollIds(Arrays.asList(scrollId)).get();
+            client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
         }
         return results;
     }

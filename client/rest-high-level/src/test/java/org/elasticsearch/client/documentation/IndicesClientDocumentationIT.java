@@ -305,12 +305,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::put-mapping-execute-async
-
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "twitter");
-                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-            });
         }
     }
 
@@ -383,12 +377,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             // end::open-index-notfound
         }
-
-        assertBusy(() -> {
-            // TODO Use Indices Exist API instead once it exists
-            Response response = client.getLowLevelClient().performRequest("HEAD", "index");
-            assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-        });
     }
 
     public void testCloseIndex() throws Exception {
@@ -440,11 +428,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             });
             // end::close-index-execute-async
 
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
-                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-            });
         }
     }
 
@@ -497,12 +480,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::exists-alias-execute-async
-
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
-                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-            });
         }
     }
 

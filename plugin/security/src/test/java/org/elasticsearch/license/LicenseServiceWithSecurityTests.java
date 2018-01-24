@@ -11,7 +11,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.security.Security;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,7 +38,7 @@ public class LicenseServiceWithSecurityTests extends SecurityIntegTestCase {
         License license = licensingClient.prepareGetLicense().get().license();
         License prodLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(24));
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> licensingClient.preparePutLicense(prodLicense).get());
-        assertEquals("Can not upgrade to a production license unless TLS is configured or security is disabled", ise.getMessage());
+        assertEquals("Cannot install a [PLATINUM] license unless TLS is configured or security is disabled", ise.getMessage());
         assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
     }
 

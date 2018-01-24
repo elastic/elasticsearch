@@ -48,7 +48,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         // ensure acknowledgement message was part of the response
         IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
                 licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true)));
-        assertEquals("Can not upgrade to a production license unless TLS is configured or security is disabled", ise.getMessage());
+        assertEquals("Cannot install a [PLATINUM] license unless TLS is configured or security is disabled", ise.getMessage());
     }
 
     public void testUpgradeToProductionWithoutTLSAndSecurityDisabled() throws Exception {

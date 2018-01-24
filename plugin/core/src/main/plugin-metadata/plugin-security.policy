@@ -1,18 +1,4 @@
 grant {
-  // needed because of problems in unbound LDAP library
-  permission java.util.PropertyPermission "*", "read,write";
-
-  // required to configure the custom mailcap for watcher
-  permission java.lang.RuntimePermission "setFactory";
-
-  // needed when sending emails for javax.activation
-  // otherwise a classnotfound exception is thrown due to trying
-  // to load the class with the application class loader
-  permission java.lang.RuntimePermission "setContextClassLoader";
-  permission java.lang.RuntimePermission "getClassLoader";
-  // TODO: remove use of this jar as soon as possible!!!!
-  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.activation.registries";
-
   // bouncy castle
   permission java.security.SecurityPermission "putProviderProperty.BC";
 
@@ -20,20 +6,10 @@ grant {
   permission java.security.SecurityPermission "createPolicy.JavaPolicy";
   permission java.security.SecurityPermission "getPolicy";
   permission java.security.SecurityPermission "setPolicy";
+  permission java.util.PropertyPermission "*", "read,write";
 
   // needed for multiple server implementations used in tests
   permission java.net.SocketPermission "*", "accept,connect";
-
-  // needed for Windows named pipes in machine learning
-  permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
-};
-
-grant codeBase "${codebase.xmlsec-2.0.8.jar}" {
-  // needed during initialization of OpenSAML library where xml security algorithms are registered
-  // see https://github.com/apache/santuario-java/blob/e79f1fe4192de73a975bc7246aee58ed0703343d/src/main/java/org/apache/xml/security/utils/JavaUtils.java#L205-L220
-  // and https://git.shibboleth.net/view/?p=java-opensaml.git;a=blob;f=opensaml-xmlsec-impl/src/main/java/org/opensaml/xmlsec/signature/impl/SignatureMarshaller.java;hb=db0eaa64210f0e32d359cd6c57bedd57902bf811#l52
-  // which uses it in the opensaml-xmlsec-impl
-  permission java.security.SecurityPermission "org.apache.xml.security.register";
 };
 
 grant codeBase "${codebase.netty-common}" {

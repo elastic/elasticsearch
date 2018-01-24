@@ -171,7 +171,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /armenian_example
+PUT /basque_example
 {
   "settings": {
     "analysis": {
@@ -536,7 +536,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /detch_example
+PUT /dutch_example
 {
   "settings": {
     "analysis": {
@@ -1554,7 +1554,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
-PUT /swidish_example
+PUT /swedish_example
 {
   "settings": {
     "analysis": {

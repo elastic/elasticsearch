@@ -47,16 +47,6 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
 
-        // returns the <process id>@<host>
-        long pid;
-        String xPid = runtimeMXBean.getName();
-        try {
-            xPid = xPid.split("@")[0];
-            pid = Long.parseLong(xPid);
-        } catch (Exception e) {
-            pid = -1;
-        }
-
         long heapInit = memoryMXBean.getHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getHeapMemoryUsage().getInit();
         long heapMax = memoryMXBean.getHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getHeapMemoryUsage().getMax();
         long nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
@@ -160,7 +150,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
 
         }
 
-        INSTANCE = new JvmInfo(pid, System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
+        INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
                 runtimeMXBean.getVmVendor(), runtimeMXBean.getStartTime(), configuredInitialHeapSize, configuredMaxHeapSize,
                 mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError, onOutOfMemoryError,
                 useCompressedOops, useG1GC, useSerialGC);

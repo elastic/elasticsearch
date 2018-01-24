@@ -20,7 +20,6 @@
 package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.SuppressForbidden;
 
 /**
@@ -39,7 +38,7 @@ public class LocalCheckpointTracker {
      * A collection of bit sets representing pending sequence numbers. Each sequence number is mapped to a bit set by dividing by the
      * bit set size.
      */
-    final LongObjectHashMap<BitSet> processedSeqNo = new LongObjectHashMap<>();
+    final LongObjectHashMap<CountedBitSet> processedSeqNo = new LongObjectHashMap<>();
 
     /**
      * The current local checkpoint, i.e., all sequence numbers no more than this number have been completed.
@@ -96,7 +95,7 @@ public class LocalCheckpointTracker {
             // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
-        final BitSet bitSet = getBitSetForSeqNo(seqNo);
+        final CountedBitSet bitSet = getBitSetForSeqNo(seqNo);
         final int offset = seqNoToBitSetOffset(seqNo);
         bitSet.set(offset);
         if (seqNo == checkpoint + 1) {
@@ -170,7 +169,7 @@ public class LocalCheckpointTracker {
         try {
             // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
             long bitSetKey = getBitSetKey(checkpoint);
-            BitSet current = processedSeqNo.get(bitSetKey);
+            CountedBitSet current = processedSeqNo.get(bitSetKey);
             if (current == null) {
                 // the bit set corresponding to the checkpoint has already been removed, set ourselves up for the next bit set
                 assert checkpoint % BIT_SET_SIZE == BIT_SET_SIZE - 1;
@@ -184,7 +183,7 @@ public class LocalCheckpointTracker {
                  */
                 if (checkpoint == lastSeqNoInBitSet(bitSetKey)) {
                     assert current != null;
-                    final BitSet removed = processedSeqNo.remove(bitSetKey);
+                    final CountedBitSet removed = processedSeqNo.remove(bitSetKey);
                     assert removed == current;
                     current = processedSeqNo.get(++bitSetKey);
                 }
@@ -210,11 +209,11 @@ public class LocalCheckpointTracker {
         return seqNo / BIT_SET_SIZE;
     }
 
-    private BitSet getBitSetForSeqNo(final long seqNo) {
+    private CountedBitSet getBitSetForSeqNo(final long seqNo) {
         assert Thread.holdsLock(this);
         final long bitSetKey = getBitSetKey(seqNo);
         final int index = processedSeqNo.indexOf(bitSetKey);
-        final BitSet bitSet;
+        final CountedBitSet bitSet;
         if (processedSeqNo.indexExists(index)) {
             bitSet = processedSeqNo.indexGet(index);
         } else {

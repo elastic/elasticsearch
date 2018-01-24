@@ -41,6 +41,7 @@ import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 
@@ -271,4 +272,38 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         assertThat(maxSeqNo, lessThanOrEqualTo(globalCheckpoint));
         closeShards(primaryShard, replicaShard);
     }
+
+    public void testSequenceBasedRecoveryKeepsTranslog() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            final IndexShard replica = shards.getReplicas().get(0);
+            final int initDocs = scaledRandomIntBetween(0, 20);
+            int uncommittedDocs = 0;
+            for (int i = 0; i < initDocs; i++) {
+                shards.indexDocs(1);
+                uncommittedDocs++;
+                if (randomBoolean()) {
+                    shards.syncGlobalCheckpoint();
+                    shards.flush();
+                    uncommittedDocs = 0;
+                }
+            }
+            shards.removeReplica(replica);
+            final int moreDocs = shards.indexDocs(scaledRandomIntBetween(0, 20));
+            if (randomBoolean()) {
+                shards.flush();
+            }
+            replica.close("test", randomBoolean());
+            replica.store().close();
+            final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
+            shards.recoverReplica(newReplica);
+
+            try (Translog.Snapshot snapshot = newReplica.getTranslog().newSnapshot()) {
+                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+            }
+            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
+            assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
+        }
+    }
+
 }

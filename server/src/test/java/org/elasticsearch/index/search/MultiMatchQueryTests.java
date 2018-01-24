@@ -19,12 +19,16 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -43,7 +47,11 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,7 +87,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         this.indexService = indexService;
     }
 
@@ -219,5 +227,46 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
         assertThat(parsedQuery, equalTo(expectedQuery));
 
+    }
+
+    public void testMultiMatchCrossFieldsWithSynonymsPhrase() throws IOException {
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        parser.setAnalyzer(new MockSynonymAnalyzer());
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "guinea pig", null);
+
+        Term[] terms = new Term[2];
+        terms[0] = new Term("name.first", "cavy");
+        terms[1] = new Term("name.last", "cavy");
+        float[] boosts = new float[2];
+        Arrays.fill(boosts, 1.0f);
+
+        List<Query> phraseDisjuncts = new ArrayList<>();
+        phraseDisjuncts.add(
+            new PhraseQuery.Builder()
+                .add(new Term("name.first", "guinea"))
+                .add(new Term("name.first", "pig"))
+                .build()
+        );
+        phraseDisjuncts.add(
+            new PhraseQuery.Builder()
+                .add(new Term("name.last", "guinea"))
+                .add(new Term("name.last", "pig"))
+                .build()
+        );
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(
+                new BooleanQuery.Builder()
+                    .add(new DisjunctionMaxQuery(phraseDisjuncts, 0.0f), BooleanClause.Occur.SHOULD)
+                    .add(BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f), BooleanClause.Occur.SHOULD)
+                    .build(),
+                BooleanClause.Occur.SHOULD
+            )
+            .build();
+        assertEquals(expected, query);
     }
 }

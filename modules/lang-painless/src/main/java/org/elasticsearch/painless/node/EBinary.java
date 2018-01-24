@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
@@ -101,7 +102,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
@@ -145,7 +147,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply divide [/] to types " +
@@ -194,7 +197,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
@@ -243,7 +247,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteAdd(left.actual, right.actual);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteAdd(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply add [+] to types " +
@@ -303,7 +308,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
@@ -362,8 +368,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
-        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
+        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
@@ -411,8 +417,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
-        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
+        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
@@ -460,8 +466,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().caster.promoteNumeric(left.actual, false);
-        Type rhspromote = variables.getDefinition().caster.promoteNumeric(right.actual, false);
+        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
+        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
 
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
@@ -509,7 +515,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, false);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), false));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply and [&] to types " +
@@ -550,7 +557,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteXor(left.actual, right.actual);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteXor(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply xor [^] to types " +
@@ -592,7 +600,8 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, false);
+        promote = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), false));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply or [|] to types " +
@@ -640,13 +649,13 @@ public final class EBinary extends AExpression {
             left.write(writer, globals);
 
             if (!(left instanceof EBinary) || !((EBinary)left).cat) {
-                writer.writeAppendStrings(left.actual);
+                writer.writeAppendStrings(Definition.TypeToClass(left.actual));
             }
 
             right.write(writer, globals);
 
             if (!(right instanceof EBinary) || !((EBinary)right).cat) {
-                writer.writeAppendStrings(right.actual);
+                writer.writeAppendStrings(Definition.TypeToClass(right.actual));
             }
 
             if (!cat) {
@@ -675,9 +684,10 @@ public final class EBinary extends AExpression {
                 if (originallyExplicit) {
                     flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
                 }
-                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
+                writer.writeDynamicBinaryInstruction(location, Definition.TypeToClass(actual),
+                    Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), operation, flags);
             } else {
-                writer.writeBinaryInstruction(location, actual, operation);
+                writer.writeBinaryInstruction(location, Definition.TypeToClass(actual), operation);
             }
         }
     }

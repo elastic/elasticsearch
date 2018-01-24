@@ -144,7 +144,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
-                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY, false);
+                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY);
                             }
                             indices.put(action.getIndex(), indexService);
                         }

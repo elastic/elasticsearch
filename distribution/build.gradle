@@ -83,7 +83,7 @@ ext.restTestExpansions = [
 // we create the buildModules task above so the distribution subprojects can
 // depend on it, but we don't actually configure it until here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
-project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
   buildFullNotice {
     def defaultLicensesDir = new File(module.projectDir, 'licenses')
     if (defaultLicensesDir.exists()) {

@@ -32,17 +32,14 @@ import java.util.Map;
 class CompositeAggregationFactory extends AggregatorFactory<CompositeAggregationFactory> {
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
-    private final List<String> sourceNames;
     private final CompositeKey afterKey;
 
     CompositeAggregationFactory(String name, SearchContext context, AggregatorFactory<?> parent,
                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData,
-                                int size, CompositeValuesSourceConfig[] sources,
-                                List<String> sourceNames, CompositeKey afterKey) throws IOException {
+                                int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);
         this.size = size;
         this.sources = sources;
-        this.sourceNames = sourceNames;
         this.afterKey = afterKey;
     }
 
@@ -50,6 +47,6 @@ class CompositeAggregationFactory extends AggregatorFactory<CompositeAggregation
     protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
                                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         return new CompositeAggregator(name, factories, context, parent, pipelineAggregators, metaData,
-            size, sources, sourceNames, afterKey);
+            size, sources, afterKey);
     }
 }

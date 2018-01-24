@@ -324,8 +324,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             CompletionFieldType other = (CompletionFieldType)fieldType;
 
             if (preservePositionIncrements != other.preservePositionIncrements) {
@@ -607,8 +607,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         CompletionFieldMapper fieldMergeWith = (CompletionFieldMapper) mergeWith;
         this.maxInputLength = fieldMergeWith.maxInputLength;
     }

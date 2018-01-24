@@ -256,29 +256,6 @@ public class RangeFieldMapper extends FieldMapper {
             return rangeType.name;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
-            if (strict) {
-                RangeFieldType other = (RangeFieldType)fieldType;
-                if (this.rangeType != other.rangeType) {
-                    conflicts.add("mapper [" + name()
-                        + "] is attempting to update from type [" + rangeType.name
-                        + "] to incompatible type [" + other.rangeType.name + "].");
-                }
-                if (this.rangeType == RangeType.DATE) {
-                    if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
-                        conflicts.add("mapper [" + name()
-                            + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
-                    }
-                    if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                        conflicts.add("mapper [" + name()
-                            + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
-                    }
-                }
-            }
-        }
-
         public FormatDateTimeFormatter dateTimeFormatter() {
             return dateTimeFormatter;
         }
@@ -416,8 +393,8 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         RangeFieldMapper other = (RangeFieldMapper) mergeWith;
         if (other.coerce.explicit()) {
             this.coerce = other.coerce;

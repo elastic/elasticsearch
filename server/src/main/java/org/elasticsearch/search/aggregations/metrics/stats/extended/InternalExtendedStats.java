@@ -45,7 +45,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     private final double sigma;
 
     public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, double sigma,
-            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                                 DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
         this.sumOfSqrs = sumOfSqrs;
         this.sigma = sigma;
@@ -142,16 +142,25 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     @Override
     public InternalExtendedStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sumOfSqrs = 0;
+        double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
             if (stats.sigma != sigma) {
                 throw new IllegalStateException("Cannot reduce other stats aggregations that have a different sigma");
             }
-            sumOfSqrs += stats.getSumOfSquares();
+            double value = stats.getSumOfSquares();
+            if (Double.isFinite(value) == false) {
+                sumOfSqrs += value;
+            } else if (Double.isFinite(sumOfSqrs)) {
+                double correctedOfSqrs = value - compensationOfSqrs;
+                double newSumOfSqrs = sumOfSqrs + correctedOfSqrs;
+                compensationOfSqrs = (newSumOfSqrs - sumOfSqrs) - correctedOfSqrs;
+                sumOfSqrs = newSumOfSqrs;
+            }
         }
         final InternalStats stats = super.doReduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
-                format, pipelineAggregators(), getMetaData());
+            format, pipelineAggregators(), getMetaData());
     }
 
     static class Fields {

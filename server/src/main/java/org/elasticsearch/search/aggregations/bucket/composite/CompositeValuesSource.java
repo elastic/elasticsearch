@@ -23,8 +23,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -96,8 +98,9 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     /**
      * Creates a {@link CompositeValuesSource} that generates long values.
      */
-    static CompositeValuesSource<ValuesSource.Numeric, Long> wrapLong(ValuesSource.Numeric vs, int size, int reverseMul) {
-        return new LongValuesSource(vs, size, reverseMul);
+    static CompositeValuesSource<ValuesSource.Numeric, Long> wrapLong(ValuesSource.Numeric vs, DocValueFormat format,
+                                                                      int size, int reverseMul) {
+        return new LongValuesSource(vs, format, size, reverseMul);
     }
 
     /**
@@ -273,9 +276,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     private static class LongValuesSource extends CompositeValuesSource<ValuesSource.Numeric, Long> {
         private final long[] values;
+        // handles "format" for date histogram source
+        private final DocValueFormat format;
 
-        LongValuesSource(ValuesSource.Numeric vs, int size, int reverseMul) {
+        LongValuesSource(ValuesSource.Numeric vs, DocValueFormat format, int size, int reverseMul) {
             super(vs, size, reverseMul);
+            this.format = format;
             this.values = new long[size];
         }
 
@@ -304,7 +310,11 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
             if (value instanceof Number) {
                 topValue = ((Number) value).longValue();
             } else {
-                topValue = Long.parseLong(value.toString());
+                // for date histogram source with "format", the after value is formatted
+                // as a string so we need to retrieve the original value in milliseconds.
+                topValue = format.parseLong(value.toString(), false, () -> {
+                    throw new IllegalArgumentException("now() is not supported in [after] key");
+                });
             }
         }
 

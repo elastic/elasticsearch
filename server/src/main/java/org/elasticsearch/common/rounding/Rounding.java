@@ -175,8 +175,7 @@ public abstract class Rounding implements Streamable {
                 // later.
 
                 final long firstLocalStartOfDay = timeZone.convertLocalToUTC(utcFirstTimeOfTheDay, false);
-                // `firstLocalStartOfDay` is the Unix timestamp for the local time that looks like 'utcMidnight', ignoring its offset.
-                // midnight UTC on the day in question.
+                // `firstLocalStartOfDay` is the Unix timestamp for the actual start of the day in question in the time zone.
 
                 return firstLocalStartOfDay;
             } else {

@@ -15,24 +15,18 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-re
 --------------------------------------------------
 <1> Creates an `IndicesAliasesRequest`
 <2> Creates an `AliasActions` that aliases index `test1` with `alias1`
-<3> Add the alias action to the request
+<3> Adds the alias action to the request
 
 The following action types are supported: `add` - alias an index, `remove` - 
-remove the alias assosiated with the index and `remove_index` - deletes the 
+removes the alias associated with the index, and `remove_index` - deletes the
 index. 
-
-Defining an alias with filters provide an easy way to create different 
-"views" of the same index. The filter can be defined using Query DSL and is 
-applied to all Search, Count, Delete By Query and More Like This operations 
-with this alias.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-aliases-request2]
 --------------------------------------------------
-<1> Creates an alias `alias1` with optional filter on field `year`
-<2> Creates an alias `alias2` associated with two indices and with an optional routing -
-all operations using this alias are automatically modified to use value `1` for routing
+<1> Creates an alias `alias1` with an optional filter on field `year`
+<2> Creates an alias `alias2` associated with two indices and with an optional routing
 <3> Removes the associated alias `alias3`
 <4> `remove_index` is just like <<java-rest-high-delete-index>>
 

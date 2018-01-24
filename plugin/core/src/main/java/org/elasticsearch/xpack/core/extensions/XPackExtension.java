@@ -43,7 +43,6 @@ public abstract class XPackExtension implements SecurityExtension {
     }
 
     /**
-<<<<<<< HEAD:plugin/core/src/main/java/org/elasticsearch/xpack/core/extensions/XPackExtension.java
      * Returns authentication realm implementations added by this extension.
      *
      * The key of the returned {@link Map} is the type name of the realm, and the value
@@ -77,8 +76,6 @@ public abstract class XPackExtension implements SecurityExtension {
     }
 
     /**
-=======
->>>>>>> master:plugin/core/src/main/java/org/elasticsearch/xpack/extensions/XPackExtension.java
      * Returns a list of settings that should be filtered from API calls. In most cases,
      * these settings are sensitive such as passwords.
      *

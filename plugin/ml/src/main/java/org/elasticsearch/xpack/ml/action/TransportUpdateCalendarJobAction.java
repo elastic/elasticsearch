@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class TransportUpdateCalendarJobAction extends HandledTransportAction<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
 
     private final ClusterService clusterService;
@@ -39,7 +42,17 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
 
     @Override
     protected void doExecute(UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
-        jobProvider.updateCalendar(request.getCalendarId(), request.getJobIdsToAdd(), request.getJobIdsToRemove(), clusterService.state(),
+
+        Set<String> jobIdsToAdd = new HashSet<>();
+        if (request.getJobIdToAdd() != null && request.getJobIdToAdd().isEmpty() == false) {
+            jobIdsToAdd.add(request.getJobIdToAdd());
+        }
+        Set<String> jobIdsToRemove = new HashSet<>();
+        if (request.getJobIdToRemove() != null && request.getJobIdToRemove().isEmpty() == false) {
+            jobIdsToRemove.add(request.getJobIdToRemove());
+        }
+
+        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, clusterService.state(),
                 c -> {
                     jobManager.updateProcessOnCalendarChanged(c.getJobIds());
                     listener.onResponse(new PutCalendarAction.Response(c));

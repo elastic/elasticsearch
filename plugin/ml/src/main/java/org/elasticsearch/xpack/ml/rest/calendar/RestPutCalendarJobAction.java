@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class RestPutCalendarJobAction extends BaseRestHandler {
 
@@ -38,7 +37,7 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
         String jobId = restRequest.param(Job.ID.getPreferredName());
         UpdateCalendarJobAction.Request putCalendarRequest =
-                new UpdateCalendarJobAction.Request(calendarId, Collections.singleton(jobId), Collections.emptySet());
+                new UpdateCalendarJobAction.Request(calendarId, jobId, null);
         return channel -> client.execute(UpdateCalendarJobAction.INSTANCE, putCalendarRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -193,12 +193,6 @@ import static java.util.Collections.emptyList;
 
 public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
-    static {
-        // some classes need to have their own clinit blocks
-        BodyPartSource.init();
-        Account.init();
-    }
-
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
@@ -250,6 +244,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
+
+        // only initialize these classes if Watcher is enabled, and only after the plugin security policy for Watcher is in place
+        BodyPartSource.init();
+        Account.init();
 
         final CryptoService cryptoService;
         try {

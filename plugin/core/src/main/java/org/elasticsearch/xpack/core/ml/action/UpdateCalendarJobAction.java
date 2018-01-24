@@ -17,9 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Objects;
-import java.util.Set;
 
 public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Request, PutCalendarAction.Response,
         UpdateCalendarJobAction.RequestBuilder> {
@@ -43,28 +41,28 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
     public static class Request extends ActionRequest {
 
         private String calendarId;
-        private Set<String> jobIdsToAdd;
-        private Set<String> jobIdsToRemove;
+        private String jobIdToAdd;
+        private String jobIdToRemove;
 
         public Request() {
         }
 
-        public Request(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove) {
+        public Request(String calendarId, String jobIdToAdd, String jobIdToRemove) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
-            this.jobIdsToAdd = ExceptionsHelper.requireNonNull(jobIdsToAdd, "job_ids_to_add");
-            this.jobIdsToRemove = ExceptionsHelper.requireNonNull(jobIdsToRemove, "job_ids_to_remove");
+            this.jobIdToAdd = jobIdToAdd;
+            this.jobIdToRemove = jobIdToRemove;
         }
 
         public String getCalendarId() {
             return calendarId;
         }
 
-        public Set<String> getJobIdsToAdd() {
-            return jobIdsToAdd;
+        public String getJobIdToAdd() {
+            return jobIdToAdd;
         }
 
-        public Set<String> getJobIdsToRemove() {
-            return jobIdsToRemove;
+        public String getJobIdToRemove() {
+            return jobIdToRemove;
         }
 
         @Override
@@ -76,21 +74,21 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             calendarId = in.readString();
-            jobIdsToAdd = new HashSet<>(in.readList(StreamInput::readString));
-            jobIdsToRemove = new HashSet<>(in.readList(StreamInput::readString));
+            jobIdToAdd = in.readOptionalString();
+            jobIdToRemove = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeStringList(new ArrayList<>(jobIdsToAdd));
-            out.writeStringList(new ArrayList<>(jobIdsToRemove));
+            out.writeOptionalString(jobIdToAdd);
+            out.writeOptionalString(jobIdToRemove);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, jobIdsToAdd, jobIdsToRemove);
+            return Objects.hash(calendarId, jobIdToAdd, jobIdToRemove);
         }
 
         @Override
@@ -102,8 +100,8 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAdd, other.jobIdsToAdd)
-                    && Objects.equals(jobIdsToRemove, other.jobIdsToRemove);
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdToAdd, other.jobIdToAdd)
+                    && Objects.equals(jobIdToRemove, other.jobIdToRemove);
         }
     }
 

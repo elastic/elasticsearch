@@ -125,44 +125,80 @@ public abstract class Rounding implements Streamable {
             return ID;
         }
 
+        /**
+         * @return The latest timestamp T which is strictly before utcMillis
+         * and such that timeZone.getOffset(T) != timeZone.getOffset(utcMillis).
+         * If there is no such T, returns Long.MAX_VALUE.
+         */
+        private long previousTransition(long utcMillis) {
+            final int offsetAtInputTime = timeZone.getOffset(utcMillis);
+            do {
+                // Some timezones have transitions that do not change the offset, so we have to
+                // repeatedly call previousTransition until a nontrivial transition is found.
+
+                long previousTransition = timeZone.previousTransition(utcMillis);
+                if (previousTransition == utcMillis) {
+                    // There are no earlier transitions
+                    return Long.MAX_VALUE;
+                }
+                utcMillis = previousTransition;
+            } while (timeZone.getOffset(utcMillis) == offsetAtInputTime);
+
+            return utcMillis;
+        }
+
         @Override
         public long round(long utcMillis) {
-            long rounded = field.roundFloor(utcMillis);
-            if (timeZone.isFixed() == false) {
-                // special cases for non-fixed time zones with dst transitions
-                if (timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
-                    /*
-                     * the offset change indicates a dst transition. In some
-                     * edge cases this will result in a value that is not a
-                     * rounded value before the transition. We round again to
-                     * make sure we really return a rounded value. This will
-                     * have no effect in cases where we already had a valid
-                     * rounded value
-                     */
-                    rounded = field.roundFloor(rounded);
-                } else {
-                    /*
-                     * check if the current time instant is at a start of a DST
-                     * overlap by comparing the offset of the instant and the
-                     * previous millisecond. We want to detect negative offset
-                     * changes that result in an overlap
-                     */
-                    if (timeZone.getOffset(rounded) < timeZone.getOffset(rounded - 1)) {
-                        /*
-                         * we are rounding a date just after a DST overlap. if
-                         * the overlap is smaller than the time unit we are
-                         * rounding to, we want to add the overlapping part to
-                         * the following rounding interval
-                         */
-                        long previousRounded = field.roundFloor(rounded - 1);
-                        if (rounded - previousRounded < field.getDurationField().getUnitMillis()) {
-                            rounded = previousRounded;
-                        }
-                    }
-                }
+
+            // field.roundFloor() works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
+            // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
+            // of working in UTC.
+            if (timeZone.isFixed()) {
+                return field.roundFloor(utcMillis);
             }
-            assert rounded == field.roundFloor(rounded);
-            return rounded;
+
+            // When rounding to hours we consider any local time of the form 'xx:00:00' as rounded, even though this gives duplicate
+            // bucket names for the times when the clocks go back. Shorter units behave similarly. However, longer units round down to
+            // midnight, and on the days where there are two midnights we would rather pick the earlier one, so that buckets are
+            // uniquely identified by the date.
+            boolean roundingToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
+
+            if (roundingToMidnight) {
+                final long anyLocalStartOfDay = field.roundFloor(utcMillis);
+                // `anyLocalStartOfDay` is the Unix timestamp for "the" start of the day in question in the time zone.  On days with no
+                // local midnight, it's the first time that does occur on that day.  On days with >1 local midnight this is one of the
+                // midnights, but may not be the first.
+
+                final long utcFirstTimeOfTheDay = timeZone.convertUTCToLocal(anyLocalStartOfDay);
+                // `utcFirstTimeOfTheDay` is the Unix timestamp for the UTC time that looks like `anyLocalStartOfDay`, ignoring its
+                // offset.  On days with >= 1 local midnight, its time component is 00:00:00. On days with no local midnight, it is
+                // later.
+
+                final long firstLocalStartOfDay = timeZone.convertLocalToUTC(utcFirstTimeOfTheDay, false);
+                // `firstLocalStartOfDay` is the Unix timestamp for the local time that looks like 'utcMidnight', ignoring its offset.
+                // midnight UTC on the day in question.
+
+                return firstLocalStartOfDay;
+            } else {
+                do {
+                    long rounded = field.roundFloor(utcMillis);
+
+                    // field.roundFloor() mostly works as long as the offset hasn't changed in [rounded, utcMillis], so look at where
+                    // the offset most recently changed.
+
+                    final long previousTransition = previousTransition(utcMillis);
+
+                    if (previousTransition == Long.MAX_VALUE || previousTransition < rounded) {
+                        // The offset did not change in [rounded, utcMillis], so roundFloor() worked as expected.
+                        return rounded;
+                    }
+
+                    // The offset _did_ change in [rounded, utcMillis]. Put differently, this means that none of the times in
+                    // [previousTransition+1, utcMillis] were rounded, so the rounded time must be <= previousTransition.  This means
+                    // it's sufficient to try and round previousTransition down.
+                    utcMillis = previousTransition;
+                } while (true);
+            }
         }
 
         @Override

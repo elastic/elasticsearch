@@ -605,8 +605,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     private static long dateBetween(long lower, long upper) {
-        long dateBetween = lower + Math.abs((randomLong() % (upper - lower)));
-        assert lower <= dateBetween && dateBetween <= upper;
+        long dateBetween = randomLongBetween(lower, upper - 1);
+        assert lower <= dateBetween && dateBetween < upper;
         return dateBetween;
     }
 

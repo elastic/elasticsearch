@@ -26,8 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;

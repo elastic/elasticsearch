@@ -131,10 +131,13 @@ information, see {xpack-ref}/setting-up-authentication.html[Setting Up Authentic
 The type of the realm: `native, `ldap`, `active_directory`, `pki`, or `file`. Required.
 
 `order`::
-The priority of the realm within the realm chain. Defaults to `Integer.MAX_VALUE`.
+The priority of the realm within the realm chain. Realms with a lower order are
+consulted first. Although not required, use of this setting is strongly
+recommended when you configure multiple realms. Defaults to `Integer.MAX_VALUE`.
 
 `enabled`::
-Enable/disable the realm. Defaults to `true`.
+Indicates whether a realm is enabled. You can use this setting to disable a
+realm without removing its configuration information. Defaults to `true`.
 
 [[ref-users-settings]]
 
@@ -589,13 +592,14 @@ the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.ht
 `username_pattern`::
 The regular expression pattern used to extract the username from the
 certificate DN. The first match group is the used as the username.
-Defaults to `CN=(.*?)(?:,\|$)`
+Defaults to `CN=(.*?)(?:,\|$)`.
 
 `certificate_authorities`::
-List of PEM certificate files that should be used to authenticate a
-user's certificate as trusted. Defaults to the trusted certificates configured for SSL.
-See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
-This setting may not be used with `truststore.path`.
+List of paths to the PEM certificate files that should be used to authenticate a
+user's certificate as trusted. Defaults to the trusted certificates configured
+for SSL. See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings]
+section of the PKI realm documentation for more information.
+This setting cannot be used with `truststore.path`.
 
 `truststore.algorithm`::
 Algorithm for the truststore. Defaults to `SunX509`.
@@ -607,9 +611,11 @@ The password for the truststore. Must be provided if `truststore.path` is set.
 The password for the truststore.
 
 `truststore.path`::
-The path of a truststore to use. Defaults to the trusted certificates configured for SSL.
-See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
-This setting may not be used with `certificate_authorities`.
+The path of a truststore to use. Defaults to the trusted certificates configured
+for SSL. See the
+{xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm
+documentation for more information. This setting cannot be used with
+`certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the

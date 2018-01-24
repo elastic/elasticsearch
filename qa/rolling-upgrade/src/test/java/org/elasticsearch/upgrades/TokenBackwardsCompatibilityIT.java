@@ -28,9 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
 
@@ -140,7 +138,6 @@ public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
     public void testMixedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", clusterType == CLUSTER_TYPE.MIXED);
         assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
-        awaitIndexTemplateUpgrade();
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -188,7 +185,6 @@ public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
 
     public void testUpgradedCluster() throws Exception {
         assumeTrue("this test should only run against the mixed cluster", clusterType == CLUSTER_TYPE.UPGRADED);
-        awaitIndexTemplateUpgrade();
         Response getResponse = client().performRequest("GET", "token_backwards_compatibility_it/doc/old_cluster_token2");
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
@@ -263,28 +259,6 @@ public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         return Version.CURRENT.equals(Version.fromString(objectPath.evaluate("nodes." + masterNodeId + ".version")));
-    }
-
-    private void awaitIndexTemplateUpgrade() throws Exception {
-        assertTrue(awaitBusy(() -> {
-            try {
-                Response response = client().performRequest("GET", "/_cluster/state/metadata");
-                assertOK(response);
-                ObjectPath objectPath = ObjectPath.createFromResponse(response);
-                final String mappingsPath = "metadata.templates." + SECURITY_TEMPLATE_NAME + "" +
-                        ".mappings";
-                Map<String, Object> mappings = objectPath.evaluate(mappingsPath);
-                assertNotNull(mappings);
-                assertThat(mappings.size(), greaterThanOrEqualTo(1));
-                String key = mappings.keySet().iterator().next();
-                String templateVersion = objectPath.evaluate(mappingsPath + "." + key + "" + "._meta.security-version");
-                final Version tVersion = Version.fromString(templateVersion);
-                return Version.CURRENT.equals(tVersion);
-            } catch (IOException e) {
-                logger.warn("caught exception checking template version", e);
-                return false;
-            }
-        }));
     }
 
     private RestClient getRestClientForCurrentVersionNodesOnly() throws IOException {

@@ -44,6 +44,7 @@ public class AcceptingSelectorTests extends ESTestCase {
     private AcceptorEventHandler eventHandler;
     private TestSelectionKey selectionKey;
     private Selector rawSelector;
+    private ServerChannelContext context;
 
     @Before
     public void setUp() throws Exception {
@@ -58,39 +59,39 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);
-        ServerChannelContext context = mock(ServerChannelContext.class);
+        context = mock(ServerChannelContext.class);
         when(context.getSelectionKey()).thenReturn(selectionKey);
         when(context.getSelector()).thenReturn(selector);
+        when(context.isOpen()).thenReturn(true);
         when(serverChannel.getContext()).thenReturn(context);
-        when(serverChannel.isOpen()).thenReturn(true);
     }
 
-    public void testRegisteredChannel() throws IOException, PrivilegedActionException {
+    public void testRegisteredChannel() throws IOException {
         selector.scheduleForRegistration(serverChannel);
 
         selector.preSelect();
 
-        verify(eventHandler).handleRegistration(serverChannel);
+        verify(eventHandler).handleRegistration(context);
     }
 
-    public void testClosedChannelWillNotBeRegistered() throws Exception {
-        when(serverChannel.isOpen()).thenReturn(false);
+    public void testClosedChannelWillNotBeRegistered() {
+        when(context.isOpen()).thenReturn(false);
         selector.scheduleForRegistration(serverChannel);
 
         selector.preSelect();
 
-        verify(eventHandler).registrationException(same(serverChannel), any(ClosedChannelException.class));
+        verify(eventHandler).registrationException(same(context), any(ClosedChannelException.class));
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {
         selector.scheduleForRegistration(serverChannel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        doThrow(closedChannelException).when(eventHandler).handleRegistration(serverChannel);
+        doThrow(closedChannelException).when(eventHandler).handleRegistration(context);
 
         selector.preSelect();
 
-        verify(eventHandler).registrationException(serverChannel, closedChannelException);
+        verify(eventHandler).registrationException(context, closedChannelException);
     }
 
     public void testAcceptEvent() throws IOException {
@@ -98,18 +99,18 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selector.processKey(selectionKey);
 
-        verify(eventHandler).acceptChannel(serverChannel);
+        verify(eventHandler).acceptChannel(context);
     }
 
     public void testAcceptException() throws IOException {
         selectionKey.setReadyOps(SelectionKey.OP_ACCEPT);
         IOException ioException = new IOException();
 
-        doThrow(ioException).when(eventHandler).acceptChannel(serverChannel);
+        doThrow(ioException).when(eventHandler).acceptChannel(context);
 
         selector.processKey(selectionKey);
 
-        verify(eventHandler).acceptException(serverChannel, ioException);
+        verify(eventHandler).acceptException(context, ioException);
     }
 
     public void testCleanup() throws IOException {
@@ -123,6 +124,6 @@ public class AcceptingSelectorTests extends ESTestCase {
 
         selector.cleanupAndCloseChannels();
 
-        verify(eventHandler).handleClose(serverChannel);
+        verify(eventHandler).handleClose(context);
     }
 }

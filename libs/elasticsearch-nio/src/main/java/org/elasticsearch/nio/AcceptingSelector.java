@@ -47,11 +47,12 @@ public class AcceptingSelector extends ESSelector {
     @Override
     void processKey(SelectionKey selectionKey) {
         NioServerSocketChannel serverChannel = (NioServerSocketChannel) selectionKey.attachment();
+        ServerChannelContext context = serverChannel.getContext();
         if (selectionKey.isAcceptable()) {
             try {
-                eventHandler.acceptChannel(serverChannel);
+                eventHandler.acceptChannel(context);
             } catch (IOException e) {
-                eventHandler.acceptException(serverChannel, e);
+                eventHandler.acceptException(context, e);
             }
         }
     }
@@ -85,12 +86,12 @@ public class AcceptingSelector extends ESSelector {
             assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
                 if (context.isOpen()) {
-                    eventHandler.handleRegistration(newChannel);
+                    eventHandler.handleRegistration(context);
                 } else {
-                    eventHandler.registrationException(newChannel, new ClosedChannelException());
+                    eventHandler.registrationException(context, new ClosedChannelException());
                 }
             } catch (Exception e) {
-                eventHandler.registrationException(newChannel, e);
+                eventHandler.registrationException(context, e);
             }
         }
     }

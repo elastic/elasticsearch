@@ -241,7 +241,7 @@ public abstract class ESSelector implements Closeable {
     private void closePendingChannels() {
         NioChannel channel;
         while ((channel = channelsToClose.poll()) != null) {
-            eventHandler.handleClose(channel);
+            eventHandler.handleClose(channel.getContext());
         }
     }
 }

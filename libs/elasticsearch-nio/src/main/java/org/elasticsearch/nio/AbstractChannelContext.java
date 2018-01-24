@@ -49,6 +49,7 @@ public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> im
         this.selectionKey = selectionKey;
     }
 
+    @Override
     public S getChannel() {
         return channel;
     }

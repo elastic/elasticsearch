@@ -42,6 +42,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private NioServerSocketChannel channel;
     private Consumer<NioSocketChannel> acceptor;
     private AcceptingSelector selector;
+    private DoNotRegisterContext context;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -55,13 +56,14 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
         selector = mock(AcceptingSelector.class);
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
-        channel.setContext(new DoNotRegisterContext(channel, selector, acceptor));
+        context = new DoNotRegisterContext(channel, selector, acceptor);
+        channel.setContext(context);
     }
 
     public void testHandleRegisterSetsOP_ACCEPTInterest() throws IOException {
         assertNull(channel.getContext().getSelectionKey());
 
-        handler.handleRegistration(channel);
+        handler.handleRegistration(context);
 
         assertEquals(SelectionKey.OP_ACCEPT, channel.getContext().getSelectionKey().interestOps());
     }
@@ -70,7 +72,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
-        handler.acceptChannel(channel);
+        handler.acceptChannel(context);
 
         verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector));
 
@@ -79,14 +81,16 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-        childChannel.setContext(mock(SocketChannelContext.class));
+        SocketChannelContext childContext = mock(SocketChannelContext.class);
+        childChannel.setContext(childContext);
         ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         channel.setContext(serverChannelContext);
+        when(serverChannelContext.getChannel()).thenReturn(channel);
         when(serverChannelContext.getChannelFactory()).thenReturn(channelFactory);
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
-        handler.acceptChannel(channel);
+        handler.acceptChannel(serverChannelContext);
 
         verify(serverChannelContext).acceptChannel(childChannel);
     }

@@ -23,6 +23,9 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 
 public interface ChannelContext {
+
+    NioChannel getChannel();
+
     /**
      * This method cleans up any context resources that need to be released when a channel is closed. It
      * should only be called by the selector thread.

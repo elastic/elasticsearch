@@ -149,7 +149,7 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void postHandling(SocketChannelContext context) {
         if (context.selectorShouldClose()) {
-            handleClose(context.getChannel());
+            handleClose(context);
         } else {
             SelectionKey selectionKey = context.getSelectionKey();
             boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);

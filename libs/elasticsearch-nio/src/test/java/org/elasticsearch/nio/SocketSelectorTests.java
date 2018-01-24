@@ -269,14 +269,16 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testCleanup() throws Exception {
-        NioSocketChannel unRegisteredChannel = mock(NioSocketChannel.class);
+        NioSocketChannel unregisteredChannel = mock(NioSocketChannel.class);
+        SocketChannelContext unregisteredContext = mock(SocketChannelContext.class);
+        when(unregisteredChannel.getContext()).thenReturn(unregisteredContext);
 
         socketSelector.scheduleForRegistration(channel);
 
         socketSelector.preSelect();
 
         socketSelector.queueWrite(new BytesWriteOperation(mock(NioSocketChannel.class), buffers, listener));
-        socketSelector.scheduleForRegistration(unRegisteredChannel);
+        socketSelector.scheduleForRegistration(unregisteredChannel);
 
         TestSelectionKey testSelectionKey = new TestSelectionKey(0);
         testSelectionKey.attach(channel);
@@ -285,8 +287,8 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.cleanupAndCloseChannels();
 
         verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
-        verify(eventHandler).handleClose(channel);
-        verify(eventHandler).handleClose(unRegisteredChannel);
+        verify(eventHandler).handleClose(channelContext);
+        verify(eventHandler).handleClose(unregisteredContext);
     }
 
     public void testExecuteListenerWillHandleException() throws Exception {

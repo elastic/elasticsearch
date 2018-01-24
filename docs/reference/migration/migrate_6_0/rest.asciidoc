@@ -72,7 +72,7 @@ Previously it was possible to execute `GET /_aliases,_mappings` or `GET
 /myindex/_settings,_alias` by separating mulitple types of requests with commas
 in order to retrieve multiple types of information about one or more indices.
 This comma-separation for retrieving multiple pieces of information has been
-removed.. `GET /_all` can be used to retrieve all aliases, settings, and
+removed. `GET /_all` can be used to retrieve all aliases, settings, and
 mappings for all indices.
 
 In order to retrieve only the mapping for an index use:

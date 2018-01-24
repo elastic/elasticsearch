@@ -36,13 +36,13 @@ import java.util.Objects;
  * <tt>_remote/info</tt> requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
-    final List<TransportAddress> seedNodes;
-    final List<TransportAddress> httpAddresses;
-    final int connectionsPerCluster;
-    final TimeValue initialConnectionTimeout;
-    final int numNodesConnected;
-    final String clusterAlias;
-    final boolean skipUnavailable;
+    public final List<TransportAddress> seedNodes;
+    public final List<TransportAddress> httpAddresses;
+    public final int connectionsPerCluster;
+    public final TimeValue initialConnectionTimeout;
+    public final int numNodesConnected;
+    public final String clusterAlias;
+    public final boolean skipUnavailable;
 
     RemoteConnectionInfo(String clusterAlias, List<TransportAddress> seedNodes,
                          List<TransportAddress> httpAddresses,

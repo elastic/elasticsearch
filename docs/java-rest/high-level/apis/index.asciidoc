@@ -6,6 +6,8 @@ include::open_index.asciidoc[]
 
 include::close_index.asciidoc[]
 
+include::putmapping.asciidoc[]
+
 include::_index.asciidoc[]
 
 include::get.asciidoc[]

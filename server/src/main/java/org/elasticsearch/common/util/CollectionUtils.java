@@ -19,16 +19,20 @@
 
 package org.elasticsearch.common.util;
 
+import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
+import java.util.Set;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.util.BytesRef;
@@ -219,6 +223,40 @@ public class CollectionUtils {
     public static int[] toArray(Collection<Integer> ints) {
         Objects.requireNonNull(ints);
         return ints.stream().mapToInt(s -> s).toArray();
+    }
+
+    public static void ensureNoSelfReferences(Object value) {
+        Iterable<?> it = convert(value);
+        if (it != null) {
+            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+    }
+
+    private static Iterable<?> convert(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map) {
+            return ((Map<?,?>) value).values();
+        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
+            return (Iterable<?>) value;
+        } else if (value instanceof Object[]) {
+            return Arrays.asList((Object[]) value);
+        } else {
+            return null;
+        }
+    }
+
+    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors) {
+        if (value != null) {
+            if (ancestors.add(originalReference) == false) {
+                throw new IllegalArgumentException("Iterable object is self-referencing itself");
+            }
+            for (Object o : value) {
+                ensureNoSelfReferences(convert(o), o, ancestors);
+            }
+            ancestors.remove(originalReference);
+        }
     }
 
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {

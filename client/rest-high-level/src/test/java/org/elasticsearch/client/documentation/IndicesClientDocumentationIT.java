@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -157,15 +159,15 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::create-index-request-mappings
             request.mapping("tweet", // <1>
-                "  {\n" +
-                "    \"tweet\": {\n" +
-                "      \"properties\": {\n" +
-                "        \"message\": {\n" +
-                "          \"type\": \"text\"\n" +
-                "        }\n" +
+                "{\n" +
+                "  \"tweet\": {\n" +
+                "    \"properties\": {\n" +
+                "      \"message\": {\n" +
+                "        \"type\": \"text\"\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }", // <2>
+                "  }\n" +
+                "}", // <2>
                 XContentType.JSON);
             // end::create-index-request-mappings
 
@@ -219,6 +221,86 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::create-index-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "twitter");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
+        }
+    }
+
+    public void testPutMapping() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::put-mapping-request
+            PutMappingRequest request = new PutMappingRequest("twitter"); // <1>
+            request.type("tweet"); // <2>
+            // end::put-mapping-request
+
+            // tag::put-mapping-request-source
+            request.source(
+                "{\n" +
+                "  \"tweet\": {\n" +
+                "    \"properties\": {\n" +
+                "      \"message\": {\n" +
+                "        \"type\": \"text\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}", // <1>
+                XContentType.JSON);
+            // end::put-mapping-request-source
+
+            // tag::put-mapping-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::put-mapping-request-timeout
+            // tag::put-mapping-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::put-mapping-request-masterTimeout
+
+            // tag::put-mapping-execute
+            PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+            // end::put-mapping-execute
+
+            // tag::put-mapping-response
+            boolean acknowledged = putMappingResponse.isAcknowledged(); // <1>
+            // end::put-mapping-response
+            assertTrue(acknowledged);
+        }
+    }
+
+    public void testPutMappingAsync() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
+            // tag::put-mapping-execute-async
+            client.indices().putMappingAsync(request, new ActionListener<PutMappingResponse>() {
+                @Override
+                public void onResponse(PutMappingResponse putMappingResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::put-mapping-execute-async
 
             assertBusy(() -> {
                 // TODO Use Indices Exist API instead once it exists

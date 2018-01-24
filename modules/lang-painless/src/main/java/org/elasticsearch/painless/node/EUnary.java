@@ -90,7 +90,7 @@ public final class EUnary extends AExpression {
     void analyzeBWNot(Locals variables) {
         child.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(child.actual, false);
+        promote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(child.actual), false));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply not [~] to type [" + child.actual.name + "]."));
@@ -121,7 +121,7 @@ public final class EUnary extends AExpression {
     void analyzerAdd(Locals variables) {
         child.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(child.actual, true);
+        promote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(child.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply positive [+] to type [" + child.actual.name + "]."));
@@ -156,7 +156,7 @@ public final class EUnary extends AExpression {
     void analyzerSub(Locals variables) {
         child.analyze(variables);
 
-        promote = variables.getDefinition().caster.promoteNumeric(child.actual, true);
+        promote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(child.actual), true));
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply negative [-] to type [" + child.actual.name + "]."));

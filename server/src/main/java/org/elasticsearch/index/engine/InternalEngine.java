@@ -1463,6 +1463,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldFlush() {
+        return translog.shouldFlush() && indexWriter.hasUncommittedChanges();
+    }
+
+    @Override
     public CommitId flush() throws EngineException {
         return flush(false, false);
     }

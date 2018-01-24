@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.HashMap;
 import java.util.List;
@@ -306,4 +308,33 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    public void testShouldFlushAfterFileBasedRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            long translogSizeOnPrimary = 0;
+            int numDocs = shards.indexDocs(between(10, 100));
+            translogSizeOnPrimary += shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            shards.flush();
+
+            final IndexShard replica = shards.addReplica();
+            IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
+            long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, translogSizeOnPrimary);
+            builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
+            );
+            replica.indexSettings().updateIndexMetaData(builder.build());
+            replica.onSettingsChanged();
+            shards.recoverReplica(replica);
+            // Make sure there is no infinite loop of flushing.
+            assertBusy(() -> {
+                int tasks = 0;
+                for (ThreadPoolStats.Stats stats : replica.getThreadPool().stats()) {
+                    tasks += stats.getThreads();
+                }
+                assertThat(tasks, equalTo(0));
+            });
+            assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
+            shards.assertAllEqual(numDocs);
+        }
+    }
 }

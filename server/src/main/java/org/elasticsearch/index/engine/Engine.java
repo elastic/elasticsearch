@@ -818,6 +818,12 @@ public abstract class Engine implements Closeable {
     public abstract void writeIndexingBuffer() throws EngineException;
 
     /**
+     * Checks if this engine should be flushed.
+     * This check is mainly based the uncommitted translog size and the translog threshold flush size setting.
+     */
+    public abstract boolean shouldFlush();
+
+    /**
      * Flushes the state of the engine including the transaction log, clearing memory.
      *
      * @param force         if <code>true</code> a lucene commit is executed even if no changes need to be committed.

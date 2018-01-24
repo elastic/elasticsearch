@@ -23,7 +23,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     private final String type;
     // both are guarded by this
     private Map<String, Account> accounts;
-    protected Account defaultAccount;
+    private Account defaultAccount;
 
     public NotificationService(Settings settings, String type) {
         super(settings);
@@ -59,7 +59,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
     }
 
     private <A> Tuple<Map<String, A>, A> buildAccounts(Settings settings, BiFunction<String, Settings, A> accountFactory) {
-        Settings accountsSettings = settings.getAsSettings("account");
+        Settings accountsSettings = settings.getByPrefix("xpack.notification." + type + ".").getAsSettings("account");
         Map<String, A> accounts = new HashMap<>();
         for (String name : accountsSettings.names()) {
             Settings accountSettings = accountsSettings.getAsSettings(name);
@@ -67,7 +67,7 @@ public abstract class NotificationService<Account> extends AbstractComponent {
             accounts.put(name, account);
         }
 
-        final String defaultAccountName = settings.get("default_account");
+        final String defaultAccountName = settings.get("xpack.notification." + type + ".default_account");
         A defaultAccount;
         if (defaultAccountName == null) {
             if (accounts.isEmpty()) {

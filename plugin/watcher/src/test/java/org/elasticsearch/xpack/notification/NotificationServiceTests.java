@@ -15,9 +15,9 @@ import static org.hamcrest.Matchers.is;
 
 public class NotificationServiceTests extends ESTestCase {
 
-    public void testSingleAccount() throws Exception {
+    public void testSingleAccount() {
         String accountName = randomAlphaOfLength(10);
-        Settings settings = Settings.builder().put("account." + accountName, "bar").build();
+        Settings settings = Settings.builder().put("xpack.notification.test.account." + accountName, "bar").build();
 
         TestNotificationService service = new TestNotificationService(settings);
         assertThat(service.getAccount(accountName), is(accountName));
@@ -25,12 +25,12 @@ public class NotificationServiceTests extends ESTestCase {
         assertThat(service.getAccount("non-existing"), is(accountName));
     }
 
-    public void testMultipleAccountsWithExistingDefault() throws Exception {
+    public void testMultipleAccountsWithExistingDefault() {
         String accountName = randomAlphaOfLength(10);
         Settings settings = Settings.builder()
-                .put("account." + accountName, "bar")
-                .put("account.second", "bar")
-                .put("default_account", accountName)
+                .put("xpack.notification.test.account." + accountName, "bar")
+                .put("xpack.notification.test.account.second", "bar")
+                .put("xpack.notification.test.default_account", accountName)
                 .build();
 
         TestNotificationService service = new TestNotificationService(settings);
@@ -39,33 +39,33 @@ public class NotificationServiceTests extends ESTestCase {
         assertThat(service.getAccount("non-existing"), is(accountName));
     }
 
-    public void testMultipleAccountsWithNoDefault() throws Exception {
+    public void testMultipleAccountsWithNoDefault() {
         String accountName = randomAlphaOfLength(10);
         Settings settings = Settings.builder()
-                .put("account." + accountName, "bar")
-                .put("account.second", "bar")
-                .put("account.third", "bar")
+                .put("xpack.notification.test.account." + accountName, "bar")
+                .put("xpack.notification.test.account.second", "bar")
+                .put("xpack.notification.test.account.third", "bar")
                 .build();
 
         TestNotificationService service = new TestNotificationService(settings);
         assertThat(service.getAccount(null), anyOf(is(accountName), is("second"), is("third")));
     }
 
-    public void testMultipleAccountsUnknownDefault() throws Exception {
+    public void testMultipleAccountsUnknownDefault() {
         String accountName = randomAlphaOfLength(10);
         Settings settings = Settings.builder()
-                .put("account." + accountName, "bar")
-                .put("account.second", "bar")
-                .put("default_account", "non-existing")
+                .put("xpack.notification.test.account." + accountName, "bar")
+                .put("xpack.notification.test.account.second", "bar")
+                .put("xpack.notification.test.default_account", "non-existing")
                 .build();
 
         SettingsException e = expectThrows(SettingsException.class, () -> new TestNotificationService(settings));
         assertThat(e.getMessage(), is("could not find default account [non-existing]"));
     }
 
-    public void testNoSpecifiedDefaultAccount() throws Exception {
+    public void testNoSpecifiedDefaultAccount() {
         String accountName = randomAlphaOfLength(10);
-        Settings settings = Settings.builder().put("account." + accountName, "bar").build();
+        Settings settings = Settings.builder().put("xpack.notification.test.account." + accountName, "bar").build();
 
         TestNotificationService service = new TestNotificationService(settings);
         assertThat(service.getAccount(null), is(accountName));

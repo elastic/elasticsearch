@@ -6,36 +6,70 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
 
+    private static final Setting.AffixSetting<Boolean> ENABLED_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","enabled",
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> TYPE_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","type",
+                    (key) -> Setting.simpleString(key, (v, s) -> {
+                        switch (v) {
+                            case "":
+                            case "http":
+                            case "local":
+                                break;
+                            default:
+                                throw new IllegalArgumentException("only exporter types [http] and [local] are allowed [" + v +
+                                        "] is invalid");
+                        }
+                    }, Property.Dynamic, Property.NodeScope));
     /**
      * Every {@code Exporter} adds the ingest pipeline to bulk requests, but they should, at the exporter level, allow that to be disabled.
      * <p>
      * Note: disabling it obviously loses any benefit of using it, but it does allow clusters that don't run with ingest to not use it.
      */
-    public static final String USE_INGEST_PIPELINE_SETTING = "use_ingest";
+    public static final Setting.AffixSetting<Boolean> USE_INGEST_PIPELINE_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","use_ingest",
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
      */
-    public static final String CLUSTER_ALERTS_MANAGEMENT_SETTING = "cluster_alerts.management.enabled";
+    public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.enabled",
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
     /**
      * Every {@code Exporter} allows users to explicitly disable specific cluster alerts.
      * <p>
      * When cluster alerts management is enabled, this should delete anything blacklisted here in addition to not creating it.
      */
-    public static final String CLUSTER_ALERTS_BLACKLIST_SETTING = "cluster_alerts.management.blacklist";
+    public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting
+                .affixKeySetting("xpack.monitoring.exporters.", "cluster_alerts.management.blacklist",
+                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope));
+
     /**
      * Every {@code Exporter} allows users to use a different index time format.
      */
-    public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
+    private static final Setting.AffixSetting<String> INDEX_NAME_TIME_FORMAT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.name.time_format",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    private static final String INDEX_FORMAT = "YYYY.MM.dd";
 
     protected final Config config;
 
@@ -77,22 +111,20 @@ public abstract class Exporter implements AutoCloseable {
 
     protected abstract void doClose();
 
-    protected static String settingFQN(final Config config) {
-        return Exporters.EXPORTERS_SETTINGS.getKey() + config.name;
-    }
-
-    public static String settingFQN(final Config config, final String setting) {
-        return Exporters.EXPORTERS_SETTINGS.getKey() + config.name + "." + setting;
-    }
-
     protected static DateTimeFormatter dateTimeFormatter(final Config config) {
-        String format = config.settings().get(INDEX_NAME_TIME_FORMAT_SETTING, "YYYY.MM.dd");
+        Setting<String> setting = INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSettingForNamespace(config.name);
+        String format = setting.exists(config.settings()) ? setting.get(config.settings()) : INDEX_FORMAT;
         try {
             return DateTimeFormat.forPattern(format).withZoneUTC();
         } catch (IllegalArgumentException e) {
-            throw new SettingsException("[" + settingFQN(config, INDEX_NAME_TIME_FORMAT_SETTING)
-                    + "] invalid index name time format: [" + format + "]", e);
+            throw new SettingsException("[" + INDEX_NAME_TIME_FORMAT_SETTING.getKey() + "] invalid index name time format: ["
+                    + format + "]", e);
         }
+    }
+
+    public static List<Setting.AffixSetting<?>> getSettings() {
+        return Arrays.asList(USE_INGEST_PIPELINE_SETTING, CLUSTER_ALERTS_MANAGEMENT_SETTING, TYPE_SETTING, ENABLED_SETTING,
+                INDEX_NAME_TIME_FORMAT_SETTING, CLUSTER_ALERTS_BLACKLIST_SETTING);
     }
 
     public static class Config {
@@ -100,20 +132,18 @@ public abstract class Exporter implements AutoCloseable {
         private final String name;
         private final String type;
         private final boolean enabled;
-        private final Settings globalSettings;
         private final Settings settings;
         private final ClusterService clusterService;
         private final XPackLicenseState licenseState;
 
-        public Config(String name, String type, Settings globalSettings, Settings settings,
+        public Config(String name, String type, Settings settings,
                       ClusterService clusterService, XPackLicenseState licenseState) {
             this.name = name;
             this.type = type;
-            this.globalSettings = globalSettings;
             this.settings = settings;
             this.clusterService = clusterService;
             this.licenseState = licenseState;
-            this.enabled = settings.getAsBoolean("enabled", true);
+            this.enabled = ENABLED_SETTING.getConcreteSettingForNamespace(name).get(settings);
         }
 
         public String name() {
@@ -126,10 +156,6 @@ public abstract class Exporter implements AutoCloseable {
 
         public boolean enabled() {
             return enabled;
-        }
-
-        public Settings globalSettings() {
-            return globalSettings;
         }
 
         public Settings settings() {

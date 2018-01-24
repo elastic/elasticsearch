@@ -116,12 +116,12 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
     private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {
         final Settings settings = Settings.builder()
-                .putList(Exporter.CLUSTER_ALERTS_BLACKLIST_SETTING, blacklist)
+                .putList("xpack.monitoring.exporters." + name + ".cluster_alerts.management.blacklist", blacklist)
                 .build();
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new Exporter.Config(name, "fake", Settings.EMPTY, settings, clusterService, licenseState);
+        return new Exporter.Config(name, "local", settings, clusterService, licenseState);
     }
 
 }

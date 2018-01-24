@@ -71,6 +71,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putNull(MonitoringService.INTERVAL.getKey())
                                   .putNull("xpack.monitoring.exporters._local.enabled")
+                                  .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
 
@@ -87,7 +88,8 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }
 
             Settings.Builder exporterSettings = Settings.builder()
-                    .put("xpack.monitoring.exporters._local.enabled", true);
+                    .put("xpack.monitoring.exporters._local.enabled", true)
+                    .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
             if (indexTimeFormat != null) {
                 exporterSettings.put("xpack.monitoring.exporters._local.index.name.time_format", indexTimeFormat);

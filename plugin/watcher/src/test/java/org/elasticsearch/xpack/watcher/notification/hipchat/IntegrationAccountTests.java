@@ -36,12 +36,12 @@ public class IntegrationAccountTests extends ESTestCase {
         String host = HipChatServer.DEFAULT.host();
         if (randomBoolean()) {
             host = randomAlphaOfLength(10);
-            sb.put(HipChatServer.HOST_SETTING, host);
+            sb.put("host", host);
         }
         int port = HipChatServer.DEFAULT.port();
         if (randomBoolean()) {
             port = randomIntBetween(300, 400);
-            sb.put(HipChatServer.PORT_SETTING, port);
+            sb.put("port", port);
         }
 
         String room = randomAlphaOfLength(10);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -51,7 +53,7 @@ public class HipChatServiceTests extends ESTestCase {
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
         HipChatService service = new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings())));
 
         HipChatAccount account = service.getAccount(accountName);
         assertThat(account, notNullValue());
@@ -99,7 +101,7 @@ public class HipChatServiceTests extends ESTestCase {
         }
         buildMessageDefaults(accountName, settingsBuilder, null, null, defaultFrom, defaultColor, defaultFormat, defaultNotify);
         HipChatService service = new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings())));
 
         HipChatAccount account = service.getAccount(accountName);
         assertThat(account, notNullValue());
@@ -128,7 +130,7 @@ public class HipChatServiceTests extends ESTestCase {
                 .put("xpack.notification.hipchat.account." + accountName + ".auth_token", "_token");
         SettingsException e = expectThrows(SettingsException.class, () ->
             new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING))));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings()))));
         assertThat(e.getMessage(), containsString("missing required [room] setting for [integration] account profile"));
     }
 
@@ -152,7 +154,7 @@ public class HipChatServiceTests extends ESTestCase {
         }
         buildMessageDefaults(accountName, settingsBuilder, defaultRoom, defaultUser, null, defaultColor, defaultFormat, defaultNotify);
         HipChatService service = new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings())));
 
         HipChatAccount account = service.getAccount(accountName);
         assertThat(account, notNullValue());
@@ -213,7 +215,7 @@ public class HipChatServiceTests extends ESTestCase {
         }
 
         HipChatService service = new HipChatService(settingsBuilder.build(), httpClient,
-                new ClusterSettings(settingsBuilder.build(), Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new ClusterSettings(settingsBuilder.build(), new HashSet<>(HipChatService.getSettings())));
 
         for (int i = 0; i < 5; i++) {
             String name = "_a" + i;

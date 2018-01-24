@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -28,7 +29,7 @@ public class EmailServiceTests extends ESTestCase {
     public void init() throws Exception {
         account = mock(Account.class);
         service = new EmailService(Settings.builder().put("xpack.notification.email.account.account1.foo", "bar").build(), null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING))) {
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))) {
             @Override
             protected Account createAccount(String name, Settings accountSettings) {
                 return account;

@@ -520,8 +520,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public static class NoopEmailService extends EmailService {
 
         public NoopEmailService() {
-            super(Settings.EMPTY, null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
+            super(Settings.EMPTY, null, new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
         }
 
         @Override

@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -174,7 +173,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAliases() throws IOException {
+    public void testUpdateAliases() throws IOException {
         String index = "index";
         String alias = "alias";
 
@@ -186,8 +185,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
-        IndicesAliasesResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::aliases,
-                highLevelClient().indices()::aliasesAsync);
+        IndicesAliasesResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesAddResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(true));
         assertThat(aliasExists(index, alias), equalTo(true));
@@ -204,8 +203,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         aliasesAddRemoveRequest.addAliasAction(addAction);
         AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index(index).alias(alias);
         aliasesAddRemoveRequest.addAliasAction(removeAction);
-        IndicesAliasesResponse aliasesAddRemoveResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::aliases,
-                highLevelClient().indices()::aliasesAsync);
+        IndicesAliasesResponse aliasesAddRemoveResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesAddRemoveResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(false));
         assertThat(aliasExists(alias2), equalTo(true));
@@ -215,8 +214,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesAliasesRequest aliasesRemoveIndexRequest = new IndicesAliasesRequest();
         AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index(index);
         aliasesRemoveIndexRequest.addAliasAction(removeIndexAction);
-        IndicesAliasesResponse aliasesRemoveIndexResponse = execute(aliasesRemoveIndexRequest, highLevelClient().indices()::aliases,
-                highLevelClient().indices()::aliasesAsync);
+        IndicesAliasesResponse aliasesRemoveIndexResponse = execute(aliasesRemoveIndexRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
         assertTrue(aliasesRemoveIndexResponse.isAcknowledged());
         assertThat(aliasExists(alias), equalTo(false));
         assertThat(aliasExists(alias2), equalTo(false));
@@ -232,8 +231,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         IndicesAliasesRequest nonExistentIndexRequest = new IndicesAliasesRequest();
         nonExistentIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(nonExistentIndexRequest, highLevelClient().indices()::aliases, highLevelClient().indices()::aliasesAsync));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(nonExistentIndexRequest,
+                highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
@@ -243,7 +242,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).indices(index).aliases(alias));
         mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).indices(nonExistentIndex).alias(alias));
         exception = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(mixedRequest, highLevelClient().indices()::aliases, highLevelClient().indices()::aliasesAsync));
+                () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
@@ -254,8 +253,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         IndicesAliasesRequest removeIndexRequest = new IndicesAliasesRequest();
         removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
         removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE_INDEX).indices(nonExistentIndex));
-        exception = expectThrows(ElasticsearchException.class,
-                () -> execute(removeIndexRequest, highLevelClient().indices()::aliases, highLevelClient().indices()::aliasesAsync));
+        exception = expectThrows(ElasticsearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
         assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));

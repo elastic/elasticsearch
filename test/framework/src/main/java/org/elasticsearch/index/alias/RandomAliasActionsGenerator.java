@@ -83,7 +83,7 @@ public class RandomAliasActionsGenerator {
         return action;
     }
 
-    private static Map<String, Object> randomMap(int maxDepth) {
+    public static Map<String, Object> randomMap(int maxDepth) {
         int members = between(0, 5);
         Map<String, Object> result = new HashMap<>(members);
         for (int i = 0; i < members; i++) {
@@ -113,7 +113,7 @@ public class RandomAliasActionsGenerator {
         return result;
     }
 
-    private static Object randomRouting() {
+    public static Object randomRouting() {
         return randomBoolean() ? randomAlphaOfLength(5) : randomInt();
     }
 }

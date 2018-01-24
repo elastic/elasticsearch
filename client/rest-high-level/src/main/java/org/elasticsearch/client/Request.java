@@ -180,7 +180,7 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
     
-    static Request indicesAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
+    static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
         Params parameters = Params.builder();
         parameters.withTimeout(indicesAliasesRequest.timeout());
         parameters.withMasterTimeout(indicesAliasesRequest.masterNodeTimeout());

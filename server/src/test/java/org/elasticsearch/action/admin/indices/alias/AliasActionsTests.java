@@ -32,11 +32,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
+import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomMap;
+import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomRouting;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -337,39 +338,5 @@ public class AliasActionsTests extends ESTestCase {
             }
             assertThat(parsedAction, equalTo(action));
         }
-    }
-
-    private Map<String, Object> randomMap(int maxDepth) {
-        int members = between(0, 5);
-        Map<String, Object> result = new HashMap<>(members);
-        for (int i = 0; i < members; i++) {
-            Object value;
-            switch (between(0, 3)) {
-            case 0:
-                if (maxDepth > 0) {
-                    value = randomMap(maxDepth - 1);
-                } else {
-                    value = randomAlphaOfLength(5);
-                }
-                break;
-            case 1:
-                value = randomAlphaOfLength(5);
-                break;
-            case 2:
-                value = randomBoolean();
-                break;
-            case 3:
-                value = randomLong();
-                break;
-            default:
-                throw new UnsupportedOperationException();
-            }
-            result.put(randomAlphaOfLength(5), value);
-        }
-        return result;
-    }
-
-    private Object randomRouting() {
-        return randomBoolean() ? randomAlphaOfLength(5) : randomInt();
     }
 }

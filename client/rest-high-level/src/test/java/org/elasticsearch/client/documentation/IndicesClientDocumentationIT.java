@@ -488,7 +488,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::indices-aliases-request-masterTimeout
 
             // tag::indices-aliases-execute
-            IndicesAliasesResponse indicesAliasesResponse = client.indices().aliases(request);
+            IndicesAliasesResponse indicesAliasesResponse = client.indices().updateAliases(request);
             // end::indices-aliases-execute
 
             // tag::indices-aliases-response
@@ -497,7 +497,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::indices-aliases-execute-async
-            client.indices().aliasesAsync(request, new ActionListener<IndicesAliasesResponse>() {
+            client.indices().updateAliasesAsync(request, new ActionListener<IndicesAliasesResponse>() {
                 @Override
                 public void onResponse(IndicesAliasesResponse indciesAliasesResponse) {
                     // <1>

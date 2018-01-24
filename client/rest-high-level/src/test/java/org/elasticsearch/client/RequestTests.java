@@ -321,19 +321,16 @@ public class RequestTests extends ESTestCase {
         assertToXContentBody(createIndexRequest, request.getEntity());
     }
 
-    public void testIndicesAliases() throws IOException {
+    public void testUpdateAliases() throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        int numberOfAliasesRequests = 1;//randomIntBetween(0, 5);
-        for (int i = 0; i < numberOfAliasesRequests; i++) {
-            AliasActions aliasAction = randomAliasAction();
-            indicesAliasesRequest.addAliasAction(aliasAction);
-        }
+        AliasActions aliasAction = randomAliasAction();
+        indicesAliasesRequest.addAliasAction(aliasAction);
 
         Map<String, String> expectedParams = new HashMap<>();
         setRandomTimeout(indicesAliasesRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(indicesAliasesRequest, expectedParams);
 
-        Request request = Request.indicesAliases(indicesAliasesRequest);
+        Request request = Request.updateAliases(indicesAliasesRequest);
         assertEquals("/_aliases", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(indicesAliasesRequest, request.getEntity());

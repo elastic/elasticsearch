@@ -1,10 +1,10 @@
 [[java-rest-high-indices-aliases]]
-=== Index Aliases API
+=== Update Aliases API
 
 [[java-rest-high-indices-aliases-request]]
 ==== Index Aliases Request
 
-The index aliases API allows aliasing an index with a name, with all APIs 
+The Update Aliases API allows aliasing an index with a name, with all APIs
 automatically converting the alias name to the actual index name.
 
 An `IndicesAliasesRequest` must have at least one `AliasActions`:
@@ -25,10 +25,6 @@ Defining an alias with filters provide an easy way to create different
 "views" of the same index. The filter can be defined using Query DSL and is 
 applied to all Search, Count, Delete By Query and More Like This operations 
 with this alias.
-
-It is possible to associate routing values with aliases. This feature can be 
-used together with filtering aliases in order to avoid unnecessary shard 
-operations.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

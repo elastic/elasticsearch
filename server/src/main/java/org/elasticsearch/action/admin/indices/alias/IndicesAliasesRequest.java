@@ -426,10 +426,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             builder.startObject();
             builder.startObject(type.fieldName);
             if (null != indices && 0 != indices.length) {
-                builder.field(INDICES.getPreferredName(), indices);
+                builder.array(INDICES.getPreferredName(), indices);
             }
             if (0 != aliases.length) {
-                builder.field(ALIASES.getPreferredName(), aliases);
+                builder.array(ALIASES.getPreferredName(), aliases);
             }
             if (false == Strings.isEmpty(filter)) {
                 builder.rawField(FILTER.getPreferredName(), new BytesArray(filter), XContentType.JSON);

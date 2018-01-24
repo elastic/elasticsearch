@@ -123,8 +123,8 @@ public final class IndicesClient {
      * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Index Aliases API on elastic.co</a>
      */
-    public IndicesAliasesResponse aliases(IndicesAliasesRequest indicesAliasesRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(indicesAliasesRequest, Request::indicesAliases,
+    public IndicesAliasesResponse updateAliases(IndicesAliasesRequest indicesAliasesRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(indicesAliasesRequest, Request::updateAliases,
                 IndicesAliasesResponse::fromXContent, Collections.emptySet(), headers);
     }
 
@@ -135,9 +135,9 @@ public final class IndicesClient {
      * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Index Aliases API on elastic.co</a>
      */
-    public void aliasesAsync(IndicesAliasesRequest indicesAliasesRequestRequest, ActionListener<IndicesAliasesResponse> listener,
+    public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequestRequest, ActionListener<IndicesAliasesResponse> listener,
             Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequestRequest, Request::indicesAliases,
+        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequestRequest, Request::updateAliases,
                 IndicesAliasesResponse::fromXContent, listener, Collections.emptySet(), headers);
     }
 

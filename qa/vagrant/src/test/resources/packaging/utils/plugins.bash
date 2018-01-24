@@ -178,11 +178,6 @@ install_meta_plugin() {
 
     install_plugin $name "$(readlink -m $name-*.zip)"
     assert_module_or_plugin_directory "$ESPLUGINS/$name"
-
-    local user="$ESPLUGIN_COMMAND_USER"
-    local group="$ESPLUGIN_COMMAND_USER"
-
-    assert_file_exist "$ESPLUGINS/$name/meta-plugin-descriptor.properties" f $user $group 775
 }
 
 # Compare a list of plugin names to the plugins in the plugins pom and see if they are the same

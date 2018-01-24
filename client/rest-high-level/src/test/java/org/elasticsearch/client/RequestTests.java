@@ -1000,17 +1000,17 @@ public class RequestTests extends ESTestCase {
         setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
 
         Request request = Request.existsAlias(getAliasesRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
-            endpoint.add(index);
+            expectedEndpoint.add(index);
         }
-        endpoint.add("_alias");
+        expectedEndpoint.add("_alias");
         String alias = String.join(",", aliases);
         if (Strings.hasLength(alias)) {
-            endpoint.add(alias);
+            expectedEndpoint.add(alias);
         }
-        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
     }

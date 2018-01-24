@@ -20,7 +20,7 @@ The following arguments can optionally be provided:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[exists-alias-request-alias]
 --------------------------------------------------
-<1> One or more aliases  to look for
+<1> One or more aliases to look for
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -66,4 +66,4 @@ provided as an argument
 ==== Exists Alias Response
 
 The Exists Alias API returns a `boolean` that indicates whether the provided
-alias (or aliases) were found or not.
+alias (or aliases) was found or not.

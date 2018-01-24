@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
 
@@ -88,7 +89,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (ctx.limit != null && ctx.INTEGER_VALUE() != null) {
             plan = new Limit(source(ctx.limit), new Literal(source(ctx),
-                    Integer.parseInt(ctx.limit.getText()), DataTypes.INTEGER), plan);
+                    Integer.parseInt(ctx.limit.getText()), DataType.INTEGER), plan);
         }
 
         return plan;

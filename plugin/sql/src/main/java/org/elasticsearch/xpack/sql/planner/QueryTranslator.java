@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
@@ -553,7 +554,7 @@ abstract class QueryTranslator {
                     // no need to bind the wrapped/target agg - it is already available through the nested script
                     // (needed to create the script itself)
                     Params params = paramsBuilder().script(scriptTemplate.params()).variable(valueOf(bc.right())).build();
-                    ScriptTemplate script = new ScriptTemplate(template, params, DataTypes.BOOLEAN);
+                    ScriptTemplate script = new ScriptTemplate(template, params, DataType.BOOLEAN);
                     if (onAggs) {
                         aggFilter = new AggFilter(at.id().toString(), script);
                     }
@@ -580,7 +581,7 @@ abstract class QueryTranslator {
                         params = paramsBuilder().agg(fa).variable(valueOf(bc.right())).build();
                     }
 
-                    aggFilter = new AggFilter(at.id().toString(), new ScriptTemplate(template, params, DataTypes.BOOLEAN));
+                    aggFilter = new AggFilter(at.id().toString(), new ScriptTemplate(template, params, DataType.BOOLEAN));
                 }
 
                 //
@@ -675,7 +676,7 @@ abstract class QueryTranslator {
                             .variable(upper)
                             .build();
 
-                    ScriptTemplate script = new ScriptTemplate(template, params, DataTypes.BOOLEAN);
+                    ScriptTemplate script = new ScriptTemplate(template, params, DataType.BOOLEAN);
 
                     if (onAggs) {
                         aggFilter = new AggFilter(at.id().toString(), script);
@@ -708,7 +709,7 @@ abstract class QueryTranslator {
 
                     }
                     aggFilter = new AggFilter(((NamedExpression) r.value()).id().toString(),
-                            new ScriptTemplate(template, params, DataTypes.BOOLEAN));
+                            new ScriptTemplate(template, params, DataType.BOOLEAN));
                 }
                 //
                 // WHERE

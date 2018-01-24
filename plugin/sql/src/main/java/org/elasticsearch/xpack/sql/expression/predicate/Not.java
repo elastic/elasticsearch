@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Objects;
 
@@ -33,11 +32,11 @@ public class Not extends UnaryExpression {
     }
 
     protected TypeResolution resolveType() {
-        if (DataTypes.BOOLEAN.same(child().dataType())) {
+        if (DataType.BOOLEAN == child().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution("Cannot negate expression ([" + Expressions.name(child()) + "] of type ["
-                + child().dataType().esName() + "])");
+                + child().dataType().esType + "])");
     }
 
     @Override
@@ -56,6 +55,6 @@ public class Not extends UnaryExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 }

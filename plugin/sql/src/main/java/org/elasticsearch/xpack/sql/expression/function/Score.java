@@ -39,7 +39,7 @@ public class Score extends Function {
 
     @Override
     public DataType dataType() {
-        return DataTypes.FLOAT;
+        return DataType.FLOAT;
     }
 
     @Override

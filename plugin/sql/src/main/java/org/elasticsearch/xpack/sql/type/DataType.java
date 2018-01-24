@@ -6,58 +6,126 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
+import java.util.Locale;
 
-public interface DataType {
+/**
+ * Elasticsearch data types that supported by SQL interface
+ */
+public enum DataType {
+    // @formatter:off
+    //           jdbc type,          size,              defPrecision, dispSize, sig, int, rat, docvals
+    NULL(        JDBCType.NULL,      0,                 0,                 0),
+    UNSUPPORTED( JDBCType.OTHER,     0,                 0,                 0),
+    BOOLEAN(     JDBCType.BOOLEAN,   1,                 1,                 1),
+    BYTE(        JDBCType.TINYINT,   Byte.BYTES,        3,                 5,  true, true, false, true),
+    SHORT(       JDBCType.SMALLINT,  Short.BYTES,       5,                 6,  true, true, false, true),
+    INTEGER(     JDBCType.INTEGER,   Integer.BYTES,     10,                11, true, true, false, true),
+    LONG(        JDBCType.BIGINT,    Long.BYTES,        19,                20, true, true, false, true),
+    // 53 bits defaultPrecision ~ 16(15.95) decimal digits (53log10(2)),
+    DOUBLE(      JDBCType.DOUBLE,    Double.BYTES,      16,                25, true, false, true, true),
+    // 24 bits defaultPrecision - 24*log10(2) =~ 7 (7.22)
+    FLOAT(       JDBCType.REAL,      Float.BYTES,       7,                 15, true, false, true, true),
+    HALF_FLOAT(  JDBCType.FLOAT,     Double.BYTES,      16,                25, true, false, true, true),
+    // precision is based on long
+    SCALED_FLOAT(JDBCType.FLOAT,     Double.BYTES,      19,                25, true, false, true, true),
+    // 39 is maximum address in IPv6
+    IP(          JDBCType.VARCHAR,   -1,                39,                0),
+    KEYWORD(     JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               0),
+    TEXT(        JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, 0,  false, false, false, false),
+    OBJECT(      JDBCType.STRUCT,    -1,                0,                 0),
+    NESTED(      JDBCType.STRUCT,    -1,                0,                 0),
+    TOKEN_COUNT( JDBCType.INTEGER,   Integer.BYTES,     10,                11),
+    BINARY(      JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0),
+    GEO_POINT(   null,               -1,                Integer.MAX_VALUE, 0),
+    DATE(        JDBCType.TIMESTAMP, Long.BYTES,        19,                20);
+    // @formatter:on
 
-    String esName();
+    /**
+     * Elasticsearch type name
+     */
+    public final String esType;
 
-    default String sqlName() {
-        return sqlType().name();
+    /**
+     * Compatible JDBC type
+     */
+    public final JDBCType jdbcType;
+
+
+    /**
+     * Size of the type in bytes
+     * <p>
+     * -1 if the size can vary
+     */
+    public final int size;
+
+    /**
+     * Precision
+     * <p>
+     * Specified column size. For numeric data, this is the maximum precision. For character
+     * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
+     * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
+     */
+    public final int defaultPrecision;
+
+
+    /**
+     * Display Size
+     * <p>
+     * Normal maximum width in characters.
+     */
+    public final int displaySize;
+
+    /**
+     * True if the type represents a signed number
+     */
+    public final boolean isSigned;
+
+    /**
+     * True if the type represents an integer number
+     */
+    public final boolean isInteger;
+
+    /**
+     * True if the type represents a rational number
+     */
+    public final boolean isRational;
+
+    /**
+     * True if the type supports doc values by default
+     */
+    public final boolean defaultDocValues;
+
+    DataType(JDBCType jdbcType, int size, int defaultPrecision, int displaySize, boolean isSigned, boolean isInteger, boolean isRational,
+             boolean defaultDocValues) {
+        this.esType = name().toLowerCase(Locale.ROOT);
+        this.jdbcType = jdbcType;
+        this.size = size;
+        this.defaultPrecision = defaultPrecision;
+        this.displaySize = displaySize;
+        this.isSigned = isSigned;
+        this.isInteger = isInteger;
+        this.isRational = isRational;
+        this.defaultDocValues = defaultDocValues;
     }
 
-    JDBCType sqlType();
-    
-    boolean hasDocValues();
-
-    default Object defaultValue() {
-        return null;
+    DataType(JDBCType jdbcType, int size, int defaultPrecision, int displaySize) {
+        this(jdbcType, size, defaultPrecision, displaySize, false, false, false, true);
     }
 
-    default int size() {
-        return JdbcUtils.size(sqlType());
+    public String sqlName() {
+        return jdbcType.getName();
     }
 
-    default int precision() {
-        return JdbcUtils.precision(sqlType());
+    public boolean isNumeric() {
+        return isInteger || isRational;
     }
 
-    default int scale() {
-        return JdbcUtils.scale(sqlType());
+    public boolean isString() {
+        return this == KEYWORD || this == TEXT;
     }
 
-    default int displaySize() {
-        return JdbcUtils.displaySize(sqlType());
+    public boolean isPrimitive() {
+        return this != OBJECT && this != NESTED;
     }
 
-    default boolean isSigned() {
-        return JdbcUtils.isSigned(sqlType());
-    }
-
-    default boolean isInteger() {
-        return JdbcUtils.isInteger(sqlType());
-    }
-
-    default boolean isRational() {
-        return JdbcUtils.isRational(sqlType());
-    }
-
-    default boolean isNumeric() {
-        return isInteger() || isRational();
-    }
-
-    boolean isPrimitive();
-
-    default boolean same(DataType other) {
-        return getClass() == other.getClass();
-    }
 }

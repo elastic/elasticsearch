@@ -30,7 +30,7 @@ public abstract class BinaryComparison extends BinaryOperator {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

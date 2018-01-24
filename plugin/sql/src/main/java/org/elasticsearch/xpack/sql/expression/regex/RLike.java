@@ -48,7 +48,7 @@ public class RLike extends BinaryExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

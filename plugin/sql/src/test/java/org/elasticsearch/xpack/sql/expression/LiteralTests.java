@@ -70,17 +70,17 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
      * after a generators is its "native" type.
      */
     private static final List<ValueAndCompatibleTypes> GENERATORS = Arrays.asList(
-        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomByte, DataTypes.BYTE, DataTypes.SHORT, DataTypes.INTEGER, DataTypes.LONG,
-                DataTypes.FLOAT, DataTypes.DOUBLE, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomShort, DataTypes.SHORT, DataTypes.INTEGER, DataTypes.LONG,
-                DataTypes.FLOAT, DataTypes.DOUBLE, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomInt, DataTypes.INTEGER, DataTypes.LONG,
-                DataTypes.FLOAT, DataTypes.DOUBLE, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomLong, DataTypes.LONG, DataTypes.FLOAT, DataTypes.DOUBLE, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomFloat, DataTypes.FLOAT, DataTypes.LONG, DataTypes.DOUBLE, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DataTypes.DOUBLE, DataTypes.LONG, DataTypes.FLOAT, DataTypes.BOOLEAN),
-        new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), DataTypes.KEYWORD));
+        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomByte, DataType.BYTE, DataType.SHORT, DataType.INTEGER, DataType.LONG,
+                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomShort, DataType.SHORT, DataType.INTEGER, DataType.LONG,
+                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomInt, DataType.INTEGER, DataType.LONG,
+                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomLong, DataType.LONG, DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomFloat, DataType.FLOAT, DataType.LONG, DataType.DOUBLE, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DataType.DOUBLE, DataType.LONG, DataType.FLOAT, DataType.BOOLEAN),
+        new ValueAndCompatibleTypes(() -> randomAlphaOfLength(5), DataType.KEYWORD));
 
     public static Literal randomLiteral() {
         ValueAndCompatibleTypes gen = randomFrom(GENERATORS);
@@ -146,8 +146,8 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(DataTypes.BYTE, DataTypes.SHORT, DataTypes.INTEGER, DataTypes.LONG,
-                DataTypes.FLOAT, DataTypes.DOUBLE, DataTypes.BOOLEAN);
+        List<DataType> options = Arrays.asList(DataType.BYTE, DataType.SHORT, DataType.INTEGER, DataType.LONG,
+                DataType.FLOAT, DataType.DOUBLE, DataType.BOOLEAN);
         for (DataType candidate : options) {
             try {
                 DataTypeConversion.Conversion c = DataTypeConversion.conversionFor(type, candidate);

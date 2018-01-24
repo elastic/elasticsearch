@@ -855,7 +855,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (as.child() instanceof Cast) {
                         Cast c = (Cast) as.child();
 
-                        if (c.from().same(c.to())) {
+                        if (c.from() == c.to()) {
                             Alias newAs = new Alias(as.location(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
                             replacedCast.put(as.toAttribute(), newAs.toAttribute());
                             return newAs;
@@ -871,7 +871,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (e instanceof Cast) {
                     Cast c = (Cast) e;
 
-                    if (c.from().same(c.to())) {
+                    if (c.from() == c.to()) {
                         Expression argument = c.field();
                         if (argument instanceof NamedExpression) {
                             replacedCast.put(c.toAttribute(), ((NamedExpression) argument).toAttribute());

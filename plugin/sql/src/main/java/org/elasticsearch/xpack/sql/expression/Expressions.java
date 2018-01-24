@@ -97,6 +97,6 @@ public abstract class Expressions {
 
     public static TypeResolution typeMustBeNumeric(Expression e) {
         return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "Argument required to be numeric ('%s' of type '%s')", Expressions.name(e), e.dataType().esName());
+                "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')");
     }
 }

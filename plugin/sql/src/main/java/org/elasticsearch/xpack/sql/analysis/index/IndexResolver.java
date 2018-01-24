@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.Types;
 
 import java.util.ArrayList;
@@ -279,7 +279,7 @@ public class IndexResolver {
                     "[" + indexOrAlias + "] contains more than one type " + typeNames + " so it is incompatible with sql");
         } else {
             try {
-                Map<String, DataType> mapping = Types.fromEs(singleType.sourceAsMap());
+                Map<String, EsField> mapping = Types.fromEs(singleType.sourceAsMap());
                 return IndexResolution.valid(new EsIndex(indexOrAlias, mapping));
             } catch (MappingException ex) {
                 return IndexResolution.invalid(ex.getMessage());

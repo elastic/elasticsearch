@@ -47,7 +47,7 @@ public class Count extends AggregateFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.LONG;
+        return DataType.LONG;
     }
 
     @Override

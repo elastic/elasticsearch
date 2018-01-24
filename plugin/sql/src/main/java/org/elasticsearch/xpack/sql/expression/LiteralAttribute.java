@@ -36,9 +36,9 @@ public class LiteralAttribute extends TypedAttribute {
     }
 
     @Override
-    protected LiteralAttribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
-            ExpressionId id, boolean synthetic) {
-        return new LiteralAttribute(location, name, qualifier, nullable, id, synthetic, dataType, literal);
+    protected LiteralAttribute clone(Location location, String name, String qualifier, boolean nullable,
+                                     ExpressionId id, boolean synthetic) {
+        return new LiteralAttribute(location, name, qualifier, nullable, id, synthetic, dataType(), literal);
     }
 
     public ProcessorDefinition asProcessorDefinition() {

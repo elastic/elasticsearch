@@ -31,19 +31,19 @@ public abstract class Foldables {
     }
 
     public static String stringValueOf(Expression e) {
-        return valueOf(e, DataTypes.KEYWORD);
+        return valueOf(e, DataType.KEYWORD);
     }
 
     public static Integer intValueOf(Expression e) {
-        return valueOf(e, DataTypes.INTEGER);
+        return valueOf(e, DataType.INTEGER);
     }
 
     public static Long longValueOf(Expression e) {
-        return valueOf(e, DataTypes.LONG);
+        return valueOf(e, DataType.LONG);
     }
 
     public static double doubleValueOf(Expression e) {
-        return valueOf(e, DataTypes.DOUBLE);
+        return valueOf(e, DataType.DOUBLE);
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
@@ -55,6 +55,6 @@ public abstract class Foldables {
     }
 
     public static List<Double> doubleValuesOf(List<Expression> list) {
-        return valuesOf(list, DataTypes.DOUBLE);
+        return valuesOf(list, DataType.DOUBLE);
     }
 }

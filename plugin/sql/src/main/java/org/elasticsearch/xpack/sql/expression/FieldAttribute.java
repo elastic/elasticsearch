@@ -6,17 +6,12 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.KeywordType;
-import org.elasticsearch.xpack.sql.type.NestedType;
-import org.elasticsearch.xpack.sql.type.StringType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 
 /**
@@ -32,26 +27,28 @@ public class FieldAttribute extends TypedAttribute {
     private final FieldAttribute parent;
     private final FieldAttribute nestedParent;
     private final String path;
+    private final EsField field;
 
-    public FieldAttribute(Location location, String name, DataType dataType) {
-        this(location, null, name, dataType);
+    public FieldAttribute(Location location, String name, EsField field) {
+        this(location, null, name, field);
     }
 
-    public FieldAttribute(Location location, FieldAttribute parent, String name, DataType dataType) {
-        this(location, parent, name, dataType, null, true, null, false);
+    public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field) {
+        this(location, parent, name, field, null, true, null, false);
     }
 
-    public FieldAttribute(Location location, FieldAttribute parent, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic);
+    public FieldAttribute(Location location, FieldAttribute parent, String name, EsField field, String qualifier,
+                          boolean nullable, ExpressionId id, boolean synthetic) {
+        super(location, name, field.getDataType(), qualifier, nullable, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
+        this.field = field;
 
         // figure out the last nested parent
         FieldAttribute nestedPar = null;
         if (parent != null) {
             nestedPar = parent.nestedParent;
-            if (parent.dataType() instanceof NestedType) {
+            if (parent.dataType() == DataType.NESTED) {
                 nestedPar = parent;
             }
         }
@@ -60,8 +57,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new,
-            parent, name(), dataType(), qualifier(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parent, name(), field, qualifier(), nullable(), id(), synthetic());
     }
 
     public FieldAttribute parent() {
@@ -86,44 +82,29 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public boolean isInexact() {
-        return (dataType() instanceof StringType && ((StringType) dataType()).isInexact());
+        return field.isExact() == false;
     }
 
     public FieldAttribute exactAttribute() {
-        if (isInexact()) {
-            Map<String, KeywordType> exactFields = ((StringType) dataType()).exactKeywords();
-            if (exactFields.size() == 1) {
-                Entry<String, KeywordType> entry = exactFields.entrySet().iterator().next();
-                return innerField(entry.getKey(), entry.getValue());
-            }
-            if (exactFields.isEmpty()) {
-                throw new MappingException(
-                        "No keyword/multi-field defined exact matches for [%s]; define one or use MATCH/QUERY instead",
-                        name());
-            }
-            // pick the default - keyword
-            if (exactFields.size() > 1) {
-                throw new MappingException("Multiple exact keyword candidates %s available for [%s]; specify which one to use",
-                        exactFields.keySet(), name());
-            }
+        if (field.isExact() == false) {
+            return innerField(field.getExactField());
         }
         return this;
     }
 
-    private FieldAttribute innerField(String subFieldName, DataType type) {
-        return new FieldAttribute(location(), this, name() + "." + subFieldName, type, qualifier(), nullable(), id(), synthetic());
+    private FieldAttribute innerField(EsField type) {
+        return new FieldAttribute(location(), this, name() + "." + type.getName(), type, qualifier(), nullable(), id(), synthetic());
     }
 
     @Override
     protected Expression canonicalize() {
-        return new FieldAttribute(location(), null, "<none>", dataType(), null, true, id(), false);
+        return new FieldAttribute(location(), null, "<none>", field, null, true, id(), false);
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
-            ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(location, qualifiedParent, name, dataType, qualifier, nullable, id, synthetic);
+        return new FieldAttribute(location, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
     }
 
     @Override
@@ -139,5 +120,9 @@ public class FieldAttribute extends TypedAttribute {
     @Override
     protected String label() {
         return "f";
+    }
+
+    public EsField field() {
+        return field;
     }
 }

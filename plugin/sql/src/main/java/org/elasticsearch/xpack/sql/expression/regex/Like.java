@@ -53,7 +53,7 @@ public class Like extends BinaryExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

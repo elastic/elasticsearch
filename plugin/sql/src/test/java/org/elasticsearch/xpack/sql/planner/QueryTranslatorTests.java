@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
@@ -36,7 +36,7 @@ public class QueryTranslatorTests extends ESTestCase {
         parser = new SqlParser(DateTimeZone.UTC);
         functionRegistry = new FunctionRegistry();
 
-        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);

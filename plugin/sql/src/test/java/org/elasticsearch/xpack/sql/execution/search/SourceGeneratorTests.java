@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -94,12 +94,12 @@ public class SourceGeneratorTests extends ESTestCase {
 
     public void testSortFieldSpecified() {
         QueryContainer container = new QueryContainer()
-                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.ASC));
+                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.ASC));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(fieldSort("test").order(SortOrder.ASC)), sourceBuilder.sorts());
 
         container = new QueryContainer()
-                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", DataTypes.KEYWORD), Direction.DESC));
+                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.DESC));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(fieldSort("test").order(SortOrder.DESC)), sourceBuilder.sorts());
     }

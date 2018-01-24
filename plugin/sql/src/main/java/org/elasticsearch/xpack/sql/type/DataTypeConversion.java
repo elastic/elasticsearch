@@ -25,7 +25,7 @@ public abstract class DataTypeConversion {
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateTimeNoMillis().withZoneUTC();
 
     public static DataType commonType(DataType left, DataType right) {
-        if (left.same(right)) {
+        if (left == right) {
             return left;
         }
         if (DataTypes.isNull(left)) {
@@ -36,27 +36,27 @@ public abstract class DataTypeConversion {
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int
-            if (left.isInteger()) {
+            if (left.isInteger) {
                 // promote the highest int
-                if (right.isInteger()) {
-                    return left.size() > right.size() ? left : right;
+                if (right.isInteger) {
+                    return left.size > right.size ? left : right;
                 }
                 // promote the rational
                 return right;
             }
             // try the other side
-            if (right.isInteger()) {
+            if (right.isInteger) {
                 return left;
             }
             // promote the highest rational
-            return left.size() > right.size() ? left : right;
+            return left.size > right.size ? left : right;
         }
-        if (left instanceof StringType) {
+        if (left.isString()) {
             if (right.isNumeric()) {
                 return right;
             }
         }
-        if (right instanceof StringType) {
+        if (right.isString()) {
             if (left.isNumeric()) {
                 return left;
             }
@@ -74,25 +74,27 @@ public abstract class DataTypeConversion {
         if (from.getClass() == to.getClass()) {
             return true;
         }
-        if (from instanceof NullType) {
+        if (from == DataType.NULL) {
             return true;
         }
 
         // anything can be converted to String
-        if (to instanceof StringType) {
+        if (to.isString()) {
             return true;
         }
+
         // also anything can be converted into a bool
-        if (to instanceof BooleanType) {
+        if (to == DataType.BOOLEAN) {
             return true;
         }
 
         // numeric conversion
-        if ((from instanceof StringType || from instanceof BooleanType || from instanceof DateType || from.isNumeric()) && to.isNumeric()) {
+        if ((from.isString() || from == DataType.BOOLEAN || from == DataType.DATE || from.isNumeric()) && to.isNumeric()) {
             return true;
         }
+
         // date conversion
-        if ((from instanceof DateType || from instanceof StringType || from.isNumeric()) && to instanceof DateType) {
+        if ((from == DataType.DATE || from.isString() || from.isNumeric()) && to == DataType.DATE) {
             return true;
         }
 
@@ -103,150 +105,145 @@ public abstract class DataTypeConversion {
      * Get the conversion from one type to another.
      */
     public static Conversion conversionFor(DataType from, DataType to) {
-        if (to instanceof StringType) {
-            return conversionToString(from);
+        switch (to) {
+            case KEYWORD:
+            case TEXT:
+                return conversionToString(from);
+            case LONG:
+                return conversionToLong(from);
+            case INTEGER:
+                return conversionToInt(from);
+            case SHORT:
+                return conversionToShort(from);
+            case BYTE:
+                return conversionToByte(from);
+            case FLOAT:
+                return conversionToFloat(from);
+            case DOUBLE:
+                return conversionToDouble(from);
+            case DATE:
+                return conversionToDate(from);
+            case BOOLEAN:
+                return conversionToBoolean(from);
+            default:
+                throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
         }
-        if (to instanceof LongType) {
-            return conversionToLong(from);
-        }
-        if (to instanceof IntegerType) {
-            return conversionToInt(from);
-        }
-        if (to instanceof ShortType) {
-            return conversionToShort(from);
-        }
-        if (to instanceof ByteType) {
-            return conversionToByte(from);
-        }
-        if (to instanceof FloatType) {
-            return conversionToFloat(from);
-        }
-        if (to instanceof DoubleType) {
-            return conversionToDouble(from);
-        }
-        if (to instanceof DateType) {
-            return conversionToDate(from);
-        }
-        if (to instanceof BooleanType) {
-            return conversionToBoolean(from);
-        }
-        throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
     }
 
     private static Conversion conversionToString(DataType from) {
-        if (from instanceof DateType) {
+        if (from == DataType.DATE) {
             return Conversion.DATE_TO_STRING;
         }
         return Conversion.OTHER_TO_STRING;
     }
 
     private static Conversion conversionToLong(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_LONG;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_LONG;
         }
         throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [Long]");
     }
 
     private static Conversion conversionToInt(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_INT;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_INT;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_INT;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_INT;
         }
         throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [Integer]");
     }
 
     private static Conversion conversionToShort(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_SHORT;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_SHORT;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_SHORT;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_SHORT;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Short]");
     }
 
     private static Conversion conversionToByte(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_BYTE;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_BYTE;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_BYTE;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_BYTE;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Byte]");
     }
 
     private static Conversion conversionToFloat(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_FLOAT;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_FLOAT;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_FLOAT;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_FLOAT;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Float]");
     }
 
     private static Conversion conversionToDouble(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_DOUBLE;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_DOUBLE;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_DOUBLE;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_DOUBLE;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Double]");
     }
 
     private static Conversion conversionToDate(DataType from) {
-        if (from.isRational()) {
+        if (from.isRational) {
             return Conversion.RATIONAL_TO_LONG;
         }
-        if (from.isInteger()) {
+        if (from.isInteger) {
             return Conversion.INTEGER_TO_LONG;
         }
-        if (from instanceof BooleanType) {
+        if (from == DataType.BOOLEAN) {
             return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_DATE;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Date]");
@@ -256,7 +253,7 @@ public abstract class DataTypeConversion {
         if (from.isNumeric()) {
             return Conversion.NUMERIC_TO_BOOLEAN;
         }
-        if (from instanceof StringType) {
+        if (from.isString()) {
             return Conversion.STRING_TO_BOOLEAN;
         }
         throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Boolean]");
@@ -297,12 +294,10 @@ public abstract class DataTypeConversion {
         }
         return Booleans.parseBoolean(lowVal);
     }
+
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = DataTypes.fromJava(value);
-        if (detectedType.equals(dataType)) {
-            return value;
-        }
-        if (value == null) {
+        if (detectedType.equals(dataType) || value == null) {
             return value;
         }
         return conversionFor(detectedType, dataType).convert(value);
@@ -337,12 +332,11 @@ public abstract class DataTypeConversion {
         STRING_TO_FLOAT(fromString(Float::valueOf, "Float")),
         RATIONAL_TO_DOUBLE(fromDouble(value -> value)),
         INTEGER_TO_DOUBLE(fromLong(Double::valueOf)),
-        BOOL_TO_DOUBLE(fromBool(value -> value ? 1d: 0d)),
+        BOOL_TO_DOUBLE(fromBool(value -> value ? 1d : 0d)),
         STRING_TO_DOUBLE(fromString(Double::valueOf, "Double")),
         STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseMillis, "Date")),
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
-        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
-        ;
+        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),;
 
         private final Function<Object, Object> converter;
 
@@ -387,6 +381,6 @@ public abstract class DataTypeConversion {
             return dataType;
         }
 
-        return dataType.isInteger() ? dataType : DataTypes.LONG;
+        return dataType.isInteger ? dataType : DataType.LONG;
     }
 }

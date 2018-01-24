@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.type.DateType;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -29,6 +29,6 @@ public class DayOfYearTests extends ESTestCase {
     }
 
     private DayOfYear build(Object value, DateTimeZone timeZone) {
-        return new DayOfYear(null, new Literal(null, value, DateType.DEFAULT), timeZone);
+        return new DayOfYear(null, new Literal(null, value, DataType.DATE), timeZone);
     }
 }

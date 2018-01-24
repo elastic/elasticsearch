@@ -28,7 +28,7 @@ public class ScriptTemplate {
     private final DataType outputType;
 
     public ScriptTemplate(String template) {
-        this(template, Params.EMPTY, DataTypes.KEYWORD);
+        this(template, Params.EMPTY, DataType.KEYWORD);
     }
 
     public ScriptTemplate(String template, Params params, DataType outputType) {

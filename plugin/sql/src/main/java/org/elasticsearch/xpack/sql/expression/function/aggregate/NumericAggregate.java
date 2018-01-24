@@ -30,6 +30,6 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 }

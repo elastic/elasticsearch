@@ -73,9 +73,10 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
             if (request.mode() == JDBC) {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esName(), entry.type().sqlType(), entry.type().displaySize()));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().jdbcType,
+                        entry.type().displaySize));
             } else {
-                columns.add(new ColumnInfo("", entry.name(), entry.type().esName()));
+                columns.add(new ColumnInfo("", entry.name(), entry.type().esType));
             }
         }
         columns = unmodifiableList(columns);

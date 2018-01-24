@@ -21,14 +21,14 @@ public class ScoreAttribute extends FunctionAttribute {
      * Constructor for normal use.
      */
     public ScoreAttribute(Location location) {
-        this(location, "SCORE()", DataTypes.FLOAT, null, false, null, false);
+        this(location, "SCORE()", DataType.FLOAT, null, false, null, false);
     }
 
     /**
      * Constructor for {@link #clone()}
      */
     private ScoreAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
-            boolean synthetic) {
+                           boolean synthetic) {
         super(location, name, dataType, qualifier, nullable, id, synthetic, "SCORE");
     }
 
@@ -38,9 +38,8 @@ public class ScoreAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier, boolean nullable,
-            ExpressionId id, boolean synthetic) {
-        return new ScoreAttribute(location, name, dataType, qualifier, nullable, id, synthetic);
+    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+        return new ScoreAttribute(location, name, dataType(), qualifier, nullable, id, synthetic);
     }
 
     @Override

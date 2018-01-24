@@ -95,7 +95,7 @@ public class OptimizerTests extends ESTestCase {
 
         @Override
         public DataType dataType() {
-            return DataTypes.BOOLEAN;
+            return DataType.BOOLEAN;
         }
 
         @Override
@@ -264,14 +264,14 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataTypes.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
         assertEquals(2018, unwrapAlias(new ConstantFolding().rule(new Year(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(1, unwrapAlias(new ConstantFolding().rule(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfYear(EMPTY, cast, DateTimeZone.UTC))));
         assertEquals(3, unwrapAlias(new ConstantFolding().rule(new WeekOfYear(EMPTY, cast, DateTimeZone.UTC))));
         assertNull(unwrapAlias(new ConstantFolding().rule(
-            new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataTypes.NULL), DateTimeZone.UTC))));
+            new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), DateTimeZone.UTC))));
     }
 
     private Object unwrapAlias(Expression e) {

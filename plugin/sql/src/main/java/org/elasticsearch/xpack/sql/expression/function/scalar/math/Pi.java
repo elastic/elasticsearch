@@ -13,15 +13,16 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 public class Pi extends MathFunction {
 
-    private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.PI", Params.EMPTY, DataTypes.DOUBLE);
+    private static final ScriptTemplate TEMPLATE = new ScriptTemplate("Math.PI", Params.EMPTY, DataType.DOUBLE);
 
     public Pi(Location location) {
-        super(location, new Literal(location, Math.PI, DataTypes.DOUBLE));
+        super(location, new Literal(location, Math.PI, DataType.DOUBLE));
     }
 
     @Override

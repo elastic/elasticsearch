@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTempl
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
@@ -75,11 +74,11 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (field().dataType().same(DataTypes.DATE)) {
+        if (field().dataType() == DataType.DATE) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution("Function [" + functionName() + "] cannot be applied on a non-date expression (["
-                + Expressions.name(field()) + "] of type [" + field().dataType().esName() + "])");
+                + Expressions.name(field()) + "] of type [" + field().dataType().esType + "])");
     }
 
     @Override
@@ -137,7 +136,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.INTEGER;
+        return DataType.INTEGER;
     }
 
     // used for applying ranges

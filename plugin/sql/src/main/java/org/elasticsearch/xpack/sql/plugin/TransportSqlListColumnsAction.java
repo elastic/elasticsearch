@@ -15,7 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -57,16 +57,17 @@ public class TransportSqlListColumnsAction extends HandledTransportAction<SqlLis
             List<MetaColumnInfo> columns = new ArrayList<>();
             for (EsIndex esIndex : esIndices) {
                 int pos = 0;
-                for (Map.Entry<String, DataType> entry : esIndex.mapping().entrySet()) {
+                for (Map.Entry<String, EsField> entry : esIndex.mapping().entrySet()) {
                     String name = entry.getKey();
                     pos++; // JDBC is 1-based so we start with 1 here
                     if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
-                        DataType type = entry.getValue();
+                        EsField field = entry.getValue();
                         if (request.mode() == JDBC) {
                             // the column size it's actually its precision (based on the Javadocs)
-                            columns.add(new MetaColumnInfo(esIndex.name(), name, type.esName(), type.sqlType(), type.precision(), pos));
+                            columns.add(new MetaColumnInfo(esIndex.name(), name, field.getDataType().esType,
+                                    field.getDataType().jdbcType, field.getPrecision(), pos));
                         } else {
-                            columns.add(new MetaColumnInfo(esIndex.name(), name, type.esName(), pos));
+                            columns.add(new MetaColumnInfo(esIndex.name(), name, field.getDataType().esType, pos));
                         }
                     }
                 }

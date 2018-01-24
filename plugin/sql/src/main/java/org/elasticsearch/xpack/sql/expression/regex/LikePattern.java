@@ -82,7 +82,7 @@ public class LikePattern extends LeafExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.KEYWORD;
+        return DataType.KEYWORD;
     }
 
     @Override

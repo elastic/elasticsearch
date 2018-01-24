@@ -29,7 +29,7 @@ public class IsNotNull extends UnaryExpression {
     }
 
     public Object fold() {
-        return child().fold() != null && !DataTypes.NULL.same(child().dataType());
+        return child().fold() != null && !DataTypes.isNull(child().dataType());
     }
 
     @Override
@@ -39,7 +39,7 @@ public class IsNotNull extends UnaryExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

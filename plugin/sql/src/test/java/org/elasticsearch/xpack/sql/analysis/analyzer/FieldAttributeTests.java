@@ -18,16 +18,15 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.KeywordType;
-import org.elasticsearch.xpack.sql.type.TextType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.sql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.sql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -46,7 +45,7 @@ public class FieldAttributeTests extends ESTestCase {
         parser = new SqlParser(DateTimeZone.UTC);
         functionRegistry = new FunctionRegistry();
 
-        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
@@ -90,30 +89,30 @@ public class FieldAttributeTests extends ESTestCase {
         FieldAttribute attr = attribute("some.string");
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.string"));
-        assertThat(attr.dataType(), instanceOf(TextType.class));
+        assertThat(attr.dataType(), is(DataType.TEXT));
         assertThat(attr.isInexact(), is(true));
         FieldAttribute exact = attr.exactAttribute();
         assertThat(exact.isInexact(), is(false));
         assertThat(exact.name(), is("some.string.typical"));
-        assertThat(exact.dataType(), instanceOf(KeywordType.class));
+        assertThat(exact.dataType(), is(KEYWORD));
     }
 
     public void testAmbiguousExactKeyword() {
         FieldAttribute attr = attribute("some.ambiguous");
         assertThat(attr.path(), is("some"));
         assertThat(attr.name(), is("some.ambiguous"));
-        assertThat(attr.dataType(), instanceOf(TextType.class));
+        assertThat(attr.dataType(), is(DataType.TEXT));
         assertThat(attr.isInexact(), is(true));
         MappingException me = expectThrows(MappingException.class, () -> attr.exactAttribute());
         assertThat(me.getMessage(),
-                is("Multiple exact keyword candidates [one, two] available for [some.ambiguous]; specify which one to use"));
+                is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
     }
 
     public void testNormalizedKeyword() {
         FieldAttribute attr = attribute("some.string.normalized");
         assertThat(attr.path(), is("some.string"));
         assertThat(attr.name(), is("some.string.normalized"));
-        assertThat(attr.dataType(), instanceOf(KeywordType.class));
+        assertThat(attr.dataType(), is(KEYWORD));
         assertThat(attr.isInexact(), is(true));
     }
 

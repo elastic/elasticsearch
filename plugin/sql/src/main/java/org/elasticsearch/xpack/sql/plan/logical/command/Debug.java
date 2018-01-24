@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.util.Graphviz;
 
 import java.util.LinkedHashMap;
@@ -71,7 +71,7 @@ public class Debug extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", DataTypes.KEYWORD));
+        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
     }
 
     @Override

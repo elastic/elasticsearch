@@ -42,38 +42,6 @@ import static java.sql.Types.VARCHAR;
 
 public abstract class JdbcUtils {
 
-    public static Class<?> asPrimitive(Class<?> wrapperClass) {
-        if (Boolean.class == wrapperClass) {
-            return boolean.class;
-        }
-        if (Byte.class == wrapperClass) {
-            return byte.class;
-        }
-        if (Short.class == wrapperClass) {
-            return short.class;
-        }
-        if (Character.class == wrapperClass) {
-            return char.class;
-        }
-        if (Integer.class == wrapperClass) {
-            return int.class;
-        }
-        if (Long.class == wrapperClass) {
-            return long.class;
-        }
-        if (Double.class == wrapperClass) {
-            return double.class;
-        }
-        if (Float.class == wrapperClass) {
-            return float.class;
-        }
-        if (Void.class == wrapperClass) {
-            return void.class;
-        }
-
-        return wrapperClass;
-    }
-
     public static int fromClass(Class<?> clazz) throws JdbcSQLException {
         if (clazz == null) {
             return NULL;

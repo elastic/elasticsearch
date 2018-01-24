@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.tree.Node;
-import org.elasticsearch.xpack.sql.type.UnsupportedDataType;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -138,7 +138,7 @@ abstract class Verifier {
                                     for (Attribute a : p.intputSet()) {
                                         String nameCandidate = useQualifier ? a.qualifiedName() : a.name();
                                         // add only primitives (object types would only result in another error)
-                                        if (!(a.dataType() instanceof UnsupportedDataType) && a.dataType().isPrimitive()) {
+                                        if (!(a.dataType() == DataType.UNSUPPORTED) && a.dataType().isPrimitive()) {
                                             potentialMatches.add(nameCandidate);
                                         }
                                     }

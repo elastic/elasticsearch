@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTimeZone;
 
@@ -353,12 +354,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         if (named instanceof FieldAttribute) {
                             FieldAttribute fa = (FieldAttribute) named;
                             if (DataTypes.isUnsupported(fa.dataType())) {
+                                UnsupportedEsField unsupportedField = (UnsupportedEsField) fa.field();
                                 named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esName() + "] as is unsupported");
+                                        "Cannot use field [" + fa.name() + "] type [" + unsupportedField.getOriginalType() +
+                                                "] as is unsupported");
                             }
                             else if (!fa.dataType().isPrimitive()) {
                                 named = u.withUnresolvedMessage(
-                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esName() + "] only its subfields");
+                                        "Cannot use field [" + fa.name() + "] type [" + fa.dataType().esType + "] only its subfields");
                             }
                         }
 
@@ -543,7 +546,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Integer findOrdinal(Expression expression) {
             if (expression instanceof Literal) {
                 Literal l = (Literal) expression;
-                if (l.dataType().isInteger()) {
+                if (l.dataType().isInteger) {
                     Object v = l.value();
                     if (v instanceof Number) {
                         return Integer.valueOf(((Number) v).intValue());
@@ -1030,13 +1033,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (left != null) {
                 DataType l = left.dataType();
                 DataType r = right.dataType();
-                if (!l.same(r)) {
+                if (l != r) {
                     DataType common = DataTypeConversion.commonType(l, r);
                     if (common == null) {
                         return e;
                     }
-                    left = l.same(common) ? left : new Cast(left.location(), left, common);
-                    right = r.same(common) ? right : new Cast(right.location(), right, common);
+                    left = l == common ? left : new Cast(left.location(), left, common);
+                    right = r == common ? right : new Cast(right.location(), right, common);
                     return e.replaceChildren(Arrays.asList(left, right));
                 }
             }

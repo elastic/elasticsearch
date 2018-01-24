@@ -14,9 +14,12 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.type.TextEsField;
 import org.joda.time.DateTimeZone;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -27,11 +30,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private Planner planner = new Planner();
 
     private String verify(String sql) {
-        Map<String, DataType> mapping = new LinkedHashMap<>();
-        mapping.put("bool", DataTypes.BOOLEAN);
-        mapping.put("int", DataTypes.INTEGER);
-        mapping.put("text", DataTypes.TEXT);
-        mapping.put("keyword", DataTypes.KEYWORD);
+        Map<String, EsField> mapping = new LinkedHashMap<>();
+        mapping.put("bool", new EsField("bool", DataType.BOOLEAN, Collections.emptyMap(), true));
+        mapping.put("int", new EsField("int", DataType.INTEGER, Collections.emptyMap(), true));
+        mapping.put("text", new TextEsField("text", Collections.emptyMap(), true));
+        mapping.put("keyword", new KeywordEsField("keyword", Collections.emptyMap(), true, DataType.KEYWORD.defaultPrecision, true));
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, DateTimeZone.UTC);

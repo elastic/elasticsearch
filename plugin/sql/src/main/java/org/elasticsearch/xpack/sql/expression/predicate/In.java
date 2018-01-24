@@ -53,7 +53,7 @@ public class In extends Expression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

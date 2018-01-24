@@ -33,7 +33,7 @@ public class Mean extends NumericAggregate implements MatrixStatsEnclosed {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

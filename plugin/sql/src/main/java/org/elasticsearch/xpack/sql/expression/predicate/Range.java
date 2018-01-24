@@ -86,7 +86,7 @@ public class Range extends Expression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

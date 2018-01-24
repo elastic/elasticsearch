@@ -33,7 +33,7 @@ public class Exists extends SubQueryExpression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

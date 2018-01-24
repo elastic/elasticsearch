@@ -56,7 +56,7 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

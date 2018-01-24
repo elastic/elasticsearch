@@ -63,7 +63,7 @@ public abstract class FullTextPredicate extends Expression {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override

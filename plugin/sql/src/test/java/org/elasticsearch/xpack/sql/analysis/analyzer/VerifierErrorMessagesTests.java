@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
@@ -21,7 +21,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     private SqlParser parser = new SqlParser(DateTimeZone.UTC);
 
     private String verify(String sql) {
-        Map<String, DataType> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
         EsIndex test = new EsIndex("test", mapping);
         return verify(IndexResolution.valid(test), sql);
     }

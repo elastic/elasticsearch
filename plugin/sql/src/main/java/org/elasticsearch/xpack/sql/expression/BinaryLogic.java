@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public abstract class BinaryLogic extends BinaryOperator {
 
@@ -17,12 +16,12 @@ public abstract class BinaryLogic extends BinaryOperator {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataType.BOOLEAN;
     }
 
     @Override
     protected TypeResolution resolveInputType(DataType inputType) {
-        return DataTypes.BOOLEAN.equals(inputType) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "'%s' requires type %s not %s", symbol(), DataTypes.BOOLEAN.sqlName(), inputType.sqlName());
+        return DataType.BOOLEAN == inputType ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
+                "'%s' requires type %s not %s", symbol(), DataType.BOOLEAN.sqlName(), inputType.sqlName());
     }
 }

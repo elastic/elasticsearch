@@ -192,7 +192,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 e = new Like(loc, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataTypes.KEYWORD));
+                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataType.KEYWORD));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
@@ -335,31 +335,31 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "bit":
             case "bool":
             case "boolean":
-                return DataTypes.BOOLEAN;
+                return DataType.BOOLEAN;
             case "tinyint":
             case "byte":
-                return DataTypes.BYTE;
+                return DataType.BYTE;
             case "smallint":
             case "short":
-                return DataTypes.SHORT;
+                return DataType.SHORT;
             case "int":
             case "integer":
-                return DataTypes.INTEGER;
+                return DataType.INTEGER;
             case "long":
             case "bigint":
-                return DataTypes.LONG;
+                return DataType.LONG;
             case "real":
-                return DataTypes.FLOAT;
+                return DataType.FLOAT;
             case "float":
             case "double":
-                return DataTypes.DOUBLE;
+                return DataType.DOUBLE;
             case "date":
             case "timestamp":
-                return DataTypes.DATE;
+                return DataType.DATE;
             case "char":
             case "varchar":
             case "string":
-                return DataTypes.KEYWORD;
+                return DataType.KEYWORD;
             default:
                 throw new ParsingException(source(ctx), "Does not recognize type %s", type);
         }
@@ -433,12 +433,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitNullLiteral(NullLiteralContext ctx) {
-        return new Literal(source(ctx), null, DataTypes.NULL);
+        return new Literal(source(ctx), null, DataType.NULL);
     }
 
     @Override
     public Expression visitBooleanLiteral(BooleanLiteralContext ctx) {
-        return new Literal(source(ctx), Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false), DataTypes.BOOLEAN);
+        return new Literal(source(ctx), Booleans.parseBoolean(ctx.getText().toLowerCase(Locale.ROOT), false), DataType.BOOLEAN);
     }
 
     @Override
@@ -447,18 +447,18 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         for (TerminalNode node : ctx.STRING()) {
             sb.append(unquoteString(text(node)));
         }
-        return new Literal(source(ctx), sb.toString(), DataTypes.KEYWORD);
+        return new Literal(source(ctx), sb.toString(), DataType.KEYWORD);
     }
 
     @Override
     public Object visitDecimalLiteral(DecimalLiteralContext ctx) {
-        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataTypes.DOUBLE);
+        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
     }
 
     @Override
     public Object visitIntegerLiteral(IntegerLiteralContext ctx) {
         BigDecimal bigD = new BigDecimal(ctx.getText());
         // TODO: this can be improved to use the smallest type available
-        return new Literal(source(ctx), bigD.longValueExact(), DataTypes.INTEGER);
+        return new Literal(source(ctx), bigD.longValueExact(), DataType.INTEGER);
     }
 }

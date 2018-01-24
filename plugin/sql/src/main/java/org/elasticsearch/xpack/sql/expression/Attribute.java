@@ -66,32 +66,19 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Location location) {
-        return Objects.equals(location(), location) ? this : clone(location, name(), dataType(), qualifier(),
-                nullable(), id(), synthetic());
+        return Objects.equals(location(), location) ? this : clone(location, name(), qualifier(), nullable(), id(), synthetic());
     }
 
     public Attribute withQualifier(String qualifier) {
-        return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), dataType(), qualifier,
-                nullable(), id(), synthetic());
-    }
-
-    public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(location(), name, dataType(), qualifier(), nullable(),
-                id(), synthetic());
+        return Objects.equals(qualifier(), qualifier) ? this : clone(location(), name(), qualifier, nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(boolean nullable) {
-        return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), dataType(), qualifier(),
-                nullable, id(), synthetic());
+        return Objects.equals(nullable(), nullable) ? this : clone(location(), name(), qualifier(), nullable, id(), synthetic());
     }
 
-    public Attribute withId(ExpressionId id) {
-        return Objects.equals(id(), id) ? this : clone(location(), name(), dataType(), qualifier(), nullable(),
-                id, synthetic());
-    }
-
-    protected abstract Attribute clone(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic);
+    protected abstract Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id,
+                                       boolean synthetic);
 
     @Override
     public Attribute toAttribute() {

@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +46,8 @@ public class ShowColumns extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(location(), "column", DataTypes.KEYWORD),
-                new FieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new FieldAttribute(location(), "column", new KeywordEsField("column")),
+                new FieldAttribute(location(), "type", new KeywordEsField("type")));
     }
 
     @Override
@@ -66,15 +65,16 @@ public class ShowColumns extends Command {
                 ));
     }
 
-    private void fillInRows(Map<String, DataType> mapping, String prefix, List<List<?>> rows) {
-        for (Entry<String, DataType> e : mapping.entrySet()) {
-            DataType dt = e.getValue();
+    private void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {
+        for (Entry<String, EsField> e : mapping.entrySet()) {
+            EsField field = e.getValue();
+            DataType dt = field.getDataType();
             String name = e.getKey();
             if (dt != null) {
                 rows.add(asList(prefix != null ? prefix + "." + name : name, dt.sqlName()));
-                if (dt instanceof CompoundDataType) {
+                if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
-                    fillInRows(((CompoundDataType) dt).properties(), newPrefix, rows);
+                    fillInRows(field.getProperties(), newPrefix, rows);
                 }
             }
         }

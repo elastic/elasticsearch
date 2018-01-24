@@ -10,8 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.CompoundDataType;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -36,23 +35,23 @@ public class EsRelation extends LeafPlan {
         return NodeInfo.create(this, EsRelation::new, index);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, DataType> mapping) {
+    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping) {
         return flatten(location, mapping, null);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, DataType> mapping, FieldAttribute parent) {
+    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping, FieldAttribute parent) {
         List<Attribute> list = new ArrayList<>();
 
-        for (Entry<String, DataType> entry : mapping.entrySet()) {
+        for (Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
-            DataType t = entry.getValue();
+            EsField t = entry.getValue();
 
             if (t != null) {
                 FieldAttribute f = new FieldAttribute(location, parent, parent != null ? parent.name() + "." + name : name, t);
                 list.add(f);
                 // object or nested
-                if (t instanceof CompoundDataType) {
-                    list.addAll(flatten(location, ((CompoundDataType) t).properties(), f));
+                if (t.getProperties().isEmpty() == false) {
+                    list.addAll(flatten(location, t.getProperties(), f));
                 }
             }
         }

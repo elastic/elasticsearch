@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import static java.util.Collections.singletonList;
 
+import java.util.Collections;
 import java.util.List;
 
 public class Alias extends NamedExpression {
@@ -87,10 +89,13 @@ public class Alias extends NamedExpression {
 
             Attribute attr = Expressions.attribute(c);
             if (attr != null) {
-                return attr.clone(location(), name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
+                return attr.clone(location(), name(), qualifier, child.nullable(), id(), synthetic());
             }
             else {
-                return new FieldAttribute(location(), null, name(), child.dataType(), qualifier, child.nullable(), id(), synthetic());
+                // TODO: WE need to fix this fake Field
+                return new FieldAttribute(location(), null, name(),
+                        new EsField(name(), child.dataType(), Collections.emptyMap(), true),
+                        qualifier, child.nullable(), id(), synthetic());
             }
         }
 

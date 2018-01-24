@@ -46,11 +46,10 @@ public class AggregateFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Location location, String name, DataType dataType, String qualifier,
-            boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Location location, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new AggregateFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId(), propertyPath);
+        return new AggregateFunctionAttribute(location, name, dataType(), qualifier, nullable, id, synthetic, functionId(), propertyPath);
     }
 
     public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {

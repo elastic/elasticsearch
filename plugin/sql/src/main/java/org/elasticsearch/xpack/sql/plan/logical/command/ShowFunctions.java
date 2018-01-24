@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import java.util.Collection;
 import java.util.List;
@@ -45,8 +45,8 @@ public class ShowFunctions extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(location(), "name", DataTypes.KEYWORD),
-                new FieldAttribute(location(), "type", DataTypes.KEYWORD));
+        return asList(new FieldAttribute(location(), "name", new KeywordEsField("name")),
+                new FieldAttribute(location(), "type", new KeywordEsField("type")));
     }
 
     @Override

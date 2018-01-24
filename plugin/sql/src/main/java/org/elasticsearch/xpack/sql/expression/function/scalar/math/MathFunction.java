@@ -46,7 +46,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.analysis.index;
 
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.Map;
 
 public class EsIndex {
 
     private final String name;
-    private final Map<String, DataType> mapping;
+    private final Map<String, EsField> mapping;
 
-    public EsIndex(String name, Map<String, DataType> mapping) {
+    public EsIndex(String name, Map<String, EsField> mapping) {
         assert name != null;
         assert mapping != null;
         this.name = name;
@@ -25,7 +25,7 @@ public class EsIndex {
         return name;
     }
 
-    public Map<String, DataType> mapping() {
+    public Map<String, EsField> mapping() {
         return mapping;
     }
 

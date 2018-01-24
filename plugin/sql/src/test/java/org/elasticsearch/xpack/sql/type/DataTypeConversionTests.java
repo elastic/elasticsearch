@@ -13,11 +13,11 @@ import org.joda.time.DateTimeZone;
 
 public class DataTypeConversionTests extends ESTestCase {
     public void testConversionToString() {
-        Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), KeywordType.DEFAULT);
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.KEYWORD);
         assertNull(conversion.convert(null));
         assertEquals("10.0", conversion.convert(10.0));
 
-        conversion = DataTypeConversion.conversionFor(new DateType(true), KeywordType.DEFAULT);
+        conversion = DataTypeConversion.conversionFor(DataType.DATE, DataType.KEYWORD);
         assertNull(conversion.convert(null));
         assertEquals("1970-01-01T00:00:00.000Z", conversion.convert(new DateTime(0, DateTimeZone.UTC)));
     }
@@ -26,9 +26,9 @@ public class DataTypeConversionTests extends ESTestCase {
      * Test conversion to a date or long. These are almost the same.
      */
     public void testConversionToLongOrDate() {
-        DataType to = randomBoolean() ? new LongType(true) : new DateType(true);
+        DataType to = randomBoolean() ? DataType.LONG : DataType.DATE;
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), to);
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals(10L, conversion.convert(10.0));
             assertEquals(10L, conversion.convert(10.1));
@@ -37,20 +37,20 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Double.MAX_VALUE + "] out of [Long] range", e.getMessage());
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new IntegerType(true), to);
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(10L, conversion.convert(10));
             assertEquals(-134L, conversion.convert(-134));
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new BooleanType(true), to);
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
             assertNull(conversion.convert(null));
             assertEquals(1, conversion.convert(true));
             assertEquals(0, conversion.convert(false));
         }
-        Conversion conversion = DataTypeConversion.conversionFor(KeywordType.DEFAULT, to);
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
-        if (to instanceof LongType) {
+        if (to == DataType.LONG) {
             assertEquals(1L, conversion.convert("1"));
             assertEquals(0L, conversion.convert("-0"));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
@@ -67,26 +67,26 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToDouble() {
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new FloatType(true), new DoubleType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.FLOAT, DataType.DOUBLE);
             assertNull(conversion.convert(null));
             assertEquals(10.0, (double) conversion.convert(10.0f), 0.00001);
             assertEquals(10.1, (double) conversion.convert(10.1f), 0.00001);
             assertEquals(10.6, (double) conversion.convert(10.6f), 0.00001);
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new IntegerType(true), new DoubleType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, DataType.DOUBLE);
             assertNull(conversion.convert(null));
             assertEquals(10.0, (double) conversion.convert(10), 0.00001);
             assertEquals(-134.0, (double) conversion.convert(-134), 0.00001);
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new BooleanType(true), new DoubleType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, DataType.DOUBLE);
             assertNull(conversion.convert(null));
             assertEquals(1.0, (double) conversion.convert(true), 0);
             assertEquals(0.0, (double) conversion.convert(false), 0);
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(KeywordType.DEFAULT, new DoubleType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.DOUBLE);
             assertNull(conversion.convert(null));
             assertEquals(1.0, (double) conversion.convert("1"), 0);
             assertEquals(0.0, (double) conversion.convert("-0"), 0);
@@ -98,28 +98,28 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToBoolean() {
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new FloatType(true), new BooleanType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.FLOAT, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10.0f));
             assertEquals(true, conversion.convert(-10.0f));
             assertEquals(false, conversion.convert(0.0f));
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new IntegerType(true), new BooleanType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10));
             assertEquals(true, conversion.convert(-10));
             assertEquals(false, conversion.convert(0));
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new BooleanType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
             assertEquals(true, conversion.convert(10.0));
             assertEquals(true, conversion.convert(-10.0));
             assertEquals(false, conversion.convert(0.0));
         }
         {
-            Conversion conversion = DataTypeConversion.conversionFor(KeywordType.DEFAULT, new BooleanType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
             // We only handled upper and lower case true and false
             assertEquals(true, conversion.convert("true"));
@@ -144,7 +144,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToInt() {
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new IntegerType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.INTEGER);
             assertNull(conversion.convert(null));
             assertEquals(10, conversion.convert(10.0));
             assertEquals(10, conversion.convert(10.1));
@@ -156,7 +156,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToShort() {
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new ShortType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.SHORT);
             assertNull(conversion.convert(null));
             assertEquals((short) 10, conversion.convert(10.0));
             assertEquals((short) 10, conversion.convert(10.1));
@@ -168,7 +168,7 @@ public class DataTypeConversionTests extends ESTestCase {
 
     public void testConversionToByte() {
         {
-            Conversion conversion = DataTypeConversion.conversionFor(new DoubleType(true), new ByteType(true));
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BYTE);
             assertNull(conversion.convert(null));
             assertEquals((byte) 10, conversion.convert(10.0));
             assertEquals((byte) 10, conversion.convert(10.1));

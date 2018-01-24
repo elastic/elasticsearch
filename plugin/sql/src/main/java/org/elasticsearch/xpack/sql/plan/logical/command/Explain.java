@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.util.Graphviz;
 
 import java.util.HashMap;
@@ -82,7 +82,7 @@ public class Explain extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", DataTypes.KEYWORD));
+        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
     }
 
     @Override

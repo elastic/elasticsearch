@@ -167,7 +167,7 @@ public class FunctionRegistry {
     public Function resolveFunction(UnresolvedFunction ur, DateTimeZone timeZone) {
         FunctionDefinition def = defs.get(normalize(ur.name()));
         if (def == null) {
-            throw new SqlIllegalArgumentException("Cannot find function %s; this should have been caught during analysis", ur.name());
+            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", ur.name());
         }
         return def.builder().apply(ur, timeZone);
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.execution.ExecutionException;
+import org.elasticsearch.xpack.sql.SqlException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -173,7 +173,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
-        ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.get(hit));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.get(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -188,7 +188,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         source.endObject();
         BytesReference sourceRef = source.bytes();
         hit.sourceRef(sourceRef);
-        ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.get(hit));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.get(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -218,7 +218,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
-        ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.extractFromSource(map));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Cannot extract value [a.b.c.d] from source"));
     }
 
@@ -226,7 +226,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         FieldHitExtractor fe = new FieldHitExtractor("a", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
-        ExecutionException ex = expectThrows(ExecutionException.class, () -> fe.extractFromSource(map));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 

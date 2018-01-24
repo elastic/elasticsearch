@@ -67,7 +67,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
         for (SubQueryAlias namedQuery : namedQueries) {
             if (cteRelations.put(namedQuery.alias(), namedQuery) != null) {
-                throw new ParsingException(namedQuery.location(), "Duplicate alias %s", namedQuery.alias());
+                throw new ParsingException(namedQuery.location(), "Duplicate alias {}", namedQuery.alias());
             }
         }
 

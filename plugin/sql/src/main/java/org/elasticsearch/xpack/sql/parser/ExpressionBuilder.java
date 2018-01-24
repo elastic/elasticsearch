@@ -82,8 +82,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 
-import static java.lang.String.format;
-
 abstract class ExpressionBuilder extends IdentifierBuilder {
     /**
      * Time zone that we're executing in. Set on functions that deal
@@ -161,7 +159,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.GTE:
                 return new GreaterThanOrEqual(loc, left, right);
             default:
-                throw new ParsingException(loc, "Unknown operator %s", op.getSymbol().getText());
+                throw new ParsingException(loc, "Unknown operator {}", op.getSymbol().getText());
         }
     }
 
@@ -199,7 +197,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 e = new IsNotNull(loc, exp);
                 return pCtx.NOT() != null ? e : new Not(loc, e);
             default:
-                throw new ParsingException(loc, "Unknown predicate %s", pCtx.kind.getText());
+                throw new ParsingException(loc, "Unknown predicate {}", pCtx.kind.getText());
         }
 
         return pCtx.NOT() != null ? new Not(loc, e) : e;
@@ -215,7 +213,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         int pos = pattern.indexOf('*');
         if (pos >= 0) {
             throw new ParsingException(source(ctx.value),
-                    "Invalid char [*] found in pattern [%s] at position %d; use [%%] or [_] instead",
+                    "Invalid char [*] found in pattern [{}] at position {}; use [%] or [_] instead",
                     pattern, pos);
         }
 
@@ -225,12 +223,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (Strings.hasText(escapeString)) {
             // shouldn't happen but adding validation in case the string parsing gets wonky
             if (escapeString.length() > 1) {
-                throw new ParsingException(source(ctx.escape), "A character not a string required for escaping; found [%s]", escapeString);
+                throw new ParsingException(source(ctx.escape), "A character not a string required for escaping; found [{}]", escapeString);
             } else if (escapeString.length() == 1) {
                 escape = escapeString.charAt(0);
                 // these chars already have a meaning
                 if (escape == '*' || escape == '%' || escape == '_') {
-                    throw new ParsingException(source(ctx.escape), "Char [%c] cannot be used for escaping", escape);
+                    throw new ParsingException(source(ctx.escape), "Char [{}] cannot be used for escaping", escape);
                 }
                 // lastly validate that escape chars (if present) are followed by special chars
                 for (int i = 0; i < pattern.length(); i++) {
@@ -238,13 +236,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (current == escape) {
                         if (i + 1 == pattern.length()) {
                             throw new ParsingException(source(ctx.value),
-                                    "Pattern [%s] is invalid as escape char [%c] at position %d does not escape anything", pattern, escape,
+                                    "Pattern [{}] is invalid as escape char [{}] at position {} does not escape anything", pattern, escape,
                                     i);
                         }
                         char next = pattern.charAt(i + 1);
                         if (next != '%' && next != '_') {
                             throw new ParsingException(source(ctx.value),
-                                    "Pattern [%s] is invalid as escape char [%c] at position %d can only escape wildcard chars; found [%c]",
+                                    "Pattern [{}] is invalid as escape char [{}] at position {} can only escape wildcard chars; found [{}]",
                                     pattern, escape, i, next);
                         }
                     }
@@ -270,7 +268,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Neg(source(ctx.operator), value);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic %s", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
         }
     }
 
@@ -293,7 +291,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Sub(loc, left, right);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic %s", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
         }
     }
 
@@ -361,7 +359,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "string":
                 return DataType.KEYWORD;
             default:
-                throw new ParsingException(source(ctx), "Does not recognize type %s", type);
+                throw new ParsingException(source(ctx), "Does not recognize type {}", type);
         }
     }
 
@@ -384,7 +382,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             extract = Extract.valueOf(fieldString.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw new ParsingException(source, format(Locale.ROOT, "Invalid EXTRACT field %s", fieldString));
+            throw new ParsingException(source, "Invalid EXTRACT field {}", fieldString);
         }
         return extract.toFunction(source, expression(ctx.valueExpression()), timeZone);
     }
@@ -422,7 +420,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (type == SqlBaseParser.OR) {
             return new Or(loc, left, right);
         }
-        throw new ParsingException(loc, format(Locale.ROOT, "Don't know how to parse %s", ctx));
+        throw new ParsingException(loc, "Don't know how to parse {}", ctx);
     }
 
 

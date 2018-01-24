@@ -55,7 +55,7 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
         int maxDepth = 0;
         if (!innerHits.isEmpty()) {
             if (innerHits.size() > 1) {
-                throw new SqlIllegalArgumentException("Multi-nested docs not yet supported %s", innerHits);
+                throw new SqlIllegalArgumentException("Multi-nested docs not yet supported {}", innerHits);
             }
             maxDepth = 1;
 

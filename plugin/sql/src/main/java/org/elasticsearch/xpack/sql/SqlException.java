@@ -7,11 +7,7 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.ElasticsearchException;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
-public abstract class SqlException extends ElasticsearchException {
+public class SqlException extends ElasticsearchException {
     public SqlException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }
@@ -21,11 +17,11 @@ public abstract class SqlException extends ElasticsearchException {
     }
 
     public SqlException(String message, Object... args) {
-        this(null, message, args);
+        super(message, args);
     }
 
     public SqlException(Throwable cause, String message, Object... args) {
-        super(format(Locale.ROOT, message, args), cause);
+        super(message, cause, args);
     }
 
     public SqlException(Throwable cause) {

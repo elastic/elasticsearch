@@ -284,7 +284,7 @@ public class QueryContainer {
             return new Tuple<>(this, new ComputedRef(new ScoreProcessorDefinition(attr.location(), attr)));
         }
 
-        throw new SqlIllegalArgumentException("Unknown output attribute %s", attr);
+        throw new SqlIllegalArgumentException("Unknown output attribute {}", attr);
     }
 
     public QueryContainer addColumn(FieldExtraction ref) {

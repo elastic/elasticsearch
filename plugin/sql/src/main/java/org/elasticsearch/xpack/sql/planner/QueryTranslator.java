@@ -231,7 +231,7 @@ abstract class QueryTranslator {
             if (exp instanceof NamedExpression) {
                 return groupMap.get(((NamedExpression) exp).id());
             }
-            throw new SqlIllegalArgumentException("Don't know how to find group for expression %s", exp);
+            throw new SqlIllegalArgumentException("Don't know how to find group for expression {}", exp);
         }
 
         @Override
@@ -284,7 +284,7 @@ abstract class QueryTranslator {
                         agg = new GroupByScriptAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), sf.asScript());
                     }
                     else {
-                        throw new SqlIllegalArgumentException("Cannot GROUP BY function %s", exp);
+                        throw new SqlIllegalArgumentException("Cannot GROUP BY function {}", exp);
                     }
                 }
                 else {
@@ -294,7 +294,7 @@ abstract class QueryTranslator {
                 aggMap.put(ne.id(), agg);
             }
             else {
-                throw new SqlIllegalArgumentException("Don't know how to group on %s", exp.nodeString());
+                throw new SqlIllegalArgumentException("Don't know how to group on {}", exp.nodeString());
             }
         }
         return new GroupingContext(aggMap, propertyPath);
@@ -396,14 +396,14 @@ abstract class QueryTranslator {
         if (e instanceof Literal) {
             return String.valueOf(e.fold());
         }
-        throw new SqlIllegalArgumentException("Cannot determine name for %s", e);
+        throw new SqlIllegalArgumentException("Cannot determine name for {}", e);
     }
 
     static String idOf(Expression e) {
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).id().toString();
         }
-        throw new SqlIllegalArgumentException("Cannot determine id for %s", e);
+        throw new SqlIllegalArgumentException("Cannot determine id for {}", e);
     }
 
     static String dateFormat(Expression e) {

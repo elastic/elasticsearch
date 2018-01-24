@@ -5,25 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
+/**
+ * A general-purpose exception to be used on the client-side code. Does not support var-args formatting.
+ */
 public class ClientException extends RuntimeException {
-    public ClientException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
+
+    public ClientException(String message, Throwable cause) {
+        super(message, cause);
     }
 
     public ClientException(String message) {
         super(message);
-    }
-
-    public ClientException(String message, Object... args) { // TODO remove these ctors
-        super(format(Locale.ROOT, message, args));
-    }
-
-    public ClientException(Throwable cause, String message, Object... args) {
-        super(format(Locale.ROOT, message, args), cause);
     }
 
     public ClientException(Throwable cause) {

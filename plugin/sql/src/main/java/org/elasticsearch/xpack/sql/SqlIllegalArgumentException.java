@@ -15,7 +15,7 @@ public class SqlIllegalArgumentException extends ServerSqlException {
     }
 
     public SqlIllegalArgumentException(String message, Object... args) {
-        this(null, message, args);
+        super(message, args);
     }
 
     public SqlIllegalArgumentException(Throwable cause, String message, Object... args) {

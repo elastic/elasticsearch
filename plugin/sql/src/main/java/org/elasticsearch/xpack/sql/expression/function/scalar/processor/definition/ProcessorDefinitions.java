@@ -27,6 +27,6 @@ public abstract class ProcessorDefinitions {
         if (ex instanceof NamedExpression) {
             return new AttributeInput(ex.location(), ex, ((NamedExpression) ex).toAttribute());
         }
-        throw new SqlIllegalArgumentException("Cannot extract processor from %s", ex);
+        throw new SqlIllegalArgumentException("Cannot extract processor from {}", ex);
     }
 }

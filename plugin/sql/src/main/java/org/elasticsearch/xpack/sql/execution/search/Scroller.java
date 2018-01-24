@@ -23,8 +23,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.ExecutionException;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
@@ -198,7 +198,7 @@ public class Scroller {
 
                 return arr;
             }
-            throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; %s", col.getClass());
+            throw new SqlIllegalArgumentException("Unexpected non-agg/grouped column specified; {}", col.getClass());
         }
 
         private static Object getAggProperty(Aggregations aggs, String path) {
@@ -206,7 +206,7 @@ public class Scroller {
             String aggName = list.get(0);
             InternalAggregation agg = aggs.get(aggName);
             if (agg == null) {
-                throw new ExecutionException("Cannot find an aggregation named %s", aggName);
+                throw new SqlException("Cannot find an aggregation named {}", aggName);
             }
             return agg.getProperty(list.subList(1, list.size()));
         }
@@ -285,7 +285,7 @@ public class Scroller {
                     hitNames.add(he.hitName());
 
                     if (hitNames.size() > 1) {
-                        throw new SqlIllegalArgumentException("Multi-level nested fields [%s] not supported yet", hitNames);
+                        throw new SqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
                     }
 
                     return new HitExtractorInput(l.location(), l.expression(), he);
@@ -297,7 +297,7 @@ public class Scroller {
                 return new ComputingHitExtractor(proc.asProcessor(), hitName);
             }
 
-            throw new SqlIllegalArgumentException("Unexpected ValueReference %s", ref.getClass());
+            throw new SqlIllegalArgumentException("Unexpected ValueReference {}", ref.getClass());
         }
     }
 
@@ -323,7 +323,7 @@ public class Scroller {
             try {
                 ShardSearchFailure[] failure = response.getShardFailures();
                 if (!CollectionUtils.isEmpty(failure)) {
-                    cleanupScroll(response, new ExecutionException(failure[0].reason(), failure[0].getCause()));
+                    cleanupScroll(response, new SqlException(failure[0].reason(), failure[0].getCause()));
                 } else {
                     handleResponse(response, ActionListener.wrap(listener::onResponse, e -> cleanupScroll(response, e)));
                 }

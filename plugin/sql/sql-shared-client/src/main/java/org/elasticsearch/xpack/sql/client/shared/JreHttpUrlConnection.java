@@ -50,7 +50,7 @@ public class JreHttpUrlConnection implements Closeable {
             url = new URI(uriPath.getScheme(), null, uriPath.getHost(), uriPath.getPort(), uriPath.getPath(), uriQuery,
                     uriPath.getFragment()).toURL();
         } catch (URISyntaxException | MalformedURLException ex) {
-            throw new ClientException(ex, "Cannot build url using base: [" + uriPath + "] query: [" + query + "] path: [" + path + "]");
+            throw new ClientException("Cannot build url using base: [" + uriPath + "] query: [" + query + "] path: [" + path + "]", ex);
         }
         try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
             return handler.apply(con);
@@ -69,7 +69,7 @@ public class JreHttpUrlConnection implements Closeable {
             Proxy p = cfg.proxyConfig().proxy();
             con = (HttpURLConnection) (p != null ? url.openConnection(p) : url.openConnection());
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot setup connection to %s (%s)", url, ex.getMessage());
+            throw new ClientException("Cannot setup connection to " + url + " (" + ex.getMessage() + ")", ex);
         }
 
         // the rest of the connection setup
@@ -122,7 +122,7 @@ public class JreHttpUrlConnection implements Closeable {
             int responseCode = con.getResponseCode();
             return responseCode == HttpURLConnection.HTTP_OK;
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot HEAD address %s (%s)", url, ex.getMessage());
+            throw new ClientException("Cannot HEAD address " + url + " (" + ex.getMessage() + ")", ex);
         }
     }
 
@@ -151,7 +151,7 @@ public class JreHttpUrlConnection implements Closeable {
             }
             return parserError();
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
+            throw new ClientException("Cannot POST address " + url + " (" + ex.getMessage() + ")", ex);
         }
     }
 
@@ -214,7 +214,7 @@ public class JreHttpUrlConnection implements Closeable {
         try {
             con.connect();
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot open connection to %s (%s)", url, ex.getMessage());
+            throw new ClientException("Cannot open connection to " + url + " (" + ex.getMessage() + ")", ex);
         }
     }
 

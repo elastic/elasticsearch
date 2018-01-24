@@ -16,8 +16,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static java.lang.String.format;
-
 public class BinaryArithmeticProcessor extends BinaryProcessor {
     
     public enum BinaryArithmeticOperation {
@@ -80,10 +78,10 @@ public class BinaryArithmeticProcessor extends BinaryProcessor {
             return null;
         }
         if (!(left instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received %s", left);
+            throw new SqlIllegalArgumentException("A number is required; received {}", left);
         }
         if (!(right instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received %s", right);
+            throw new SqlIllegalArgumentException("A number is required; received {}", right);
         }
 
         return operation.apply((Number) left, (Number) right);
@@ -112,6 +110,6 @@ public class BinaryArithmeticProcessor extends BinaryProcessor {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "(%s %s %s)", left(), operation, right());
+        return String.format(Locale.ROOT, "(%s %s %s)", left(), operation, right());
     }
 }

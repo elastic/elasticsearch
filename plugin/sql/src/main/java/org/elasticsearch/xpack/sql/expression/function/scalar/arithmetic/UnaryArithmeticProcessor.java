@@ -65,7 +65,7 @@ public class UnaryArithmeticProcessor implements Processor {
         if (input instanceof Number) {
             return operation.apply((Number) input);
         }
-        throw new SqlIllegalArgumentException("A number is required; received %s", input);
+        throw new SqlIllegalArgumentException("A number is required; received {}", input);
     }
 
 

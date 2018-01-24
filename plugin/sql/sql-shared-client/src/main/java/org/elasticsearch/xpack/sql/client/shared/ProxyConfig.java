@@ -61,7 +61,7 @@ class ProxyConfig {
             Object[] results = { uri.getHost(), uri.getPort() > 0 ? uri.getPort() : defaultPort };
             return results;
         } catch (URISyntaxException ex) {
-            throw new ClientException("Unrecognized address format %s", address);
+            throw new ClientException("Unrecognized address format " + address, ex);
         }
     }
 }

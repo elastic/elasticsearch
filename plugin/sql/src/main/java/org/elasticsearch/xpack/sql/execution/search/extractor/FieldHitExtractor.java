@@ -10,8 +10,8 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.ExecutionException;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class FieldHitExtractor implements HitExtractor {
 
         if (hitName != null) {
             if (!name.contains(hitName)) {
-                throw new SqlIllegalArgumentException("Hitname [%s] specified but not part of the name [%s]", hitName, name);
+                throw new SqlIllegalArgumentException("Hitname [{}] specified but not part of the name [{}]", hitName, name);
             }
         }
 
@@ -111,18 +111,18 @@ public class FieldHitExtractor implements HitExtractor {
                 if (ARRAYS_LENIENCY || list.size() == 1) {
                     return unwrapMultiValue(list.get(0));
                 } else {
-                    throw new ExecutionException("Arrays (returned by [%s]) are not supported", fieldName);
+                    throw new SqlException("Arrays (returned by [{}]) are not supported", fieldName);
                 }
             }
         }
         if (values instanceof Map) {
-            throw new ExecutionException("Objects (returned by [%s]) are not supported", fieldName);
+            throw new SqlException("Objects (returned by [{}]) are not supported", fieldName);
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean
                 || values instanceof ReadableDateTime) {
             return values;
         }
-        throw new ExecutionException("Type %s (returned by [%s]) is not supported", values.getClass().getSimpleName(), fieldName);
+        throw new SqlException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -137,7 +137,7 @@ public class FieldHitExtractor implements HitExtractor {
                 first = false;
                 value = ((Map<String, Object>) value).get(node);
             } else {
-                throw new ExecutionException("Cannot extract value [%s] from source", fieldName);
+                throw new SqlException("Cannot extract value [{}] from source", fieldName);
             }
         }
         return unwrapMultiValue(value);

@@ -115,7 +115,7 @@ public class Aggs {
             }
         }
 
-        throw new SqlIllegalArgumentException("Does not know how to handle type %s", agg);
+        throw new SqlIllegalArgumentException("Does not know how to handle type {}", agg);
     }
 
     public Aggs addAgg(PipelineAgg pipelineAgg) {
@@ -147,7 +147,7 @@ public class Aggs {
                 return with(groups);
             }
         }
-        throw new SqlIllegalArgumentException("Could not find group named %s", groupId);
+        throw new SqlIllegalArgumentException("Could not find group named {}", groupId);
     }
 
     public Aggs addAgg(String groupId, PipelineAgg child) {
@@ -165,7 +165,7 @@ public class Aggs {
                 return with(groups);
             }
         }
-        throw new SqlIllegalArgumentException("Could not find group named %s", groupId);
+        throw new SqlIllegalArgumentException("Could not find group named {}", groupId);
     }
 
     public GroupingAgg findGroupForAgg(String groupOrAggId) {
@@ -199,7 +199,7 @@ public class Aggs {
                 return with(groups);
             }
         }
-        throw new SqlIllegalArgumentException("Could not find group named %s", group.id());
+        throw new SqlIllegalArgumentException("Could not find group named {}", group.id());
     }
 
     public Aggs with(List<GroupingAgg> groups) {

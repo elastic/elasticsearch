@@ -120,7 +120,7 @@ public class Params {
                     flatten.add(p);
                 }
                 else {
-                    throw new SqlIllegalArgumentException("Unsupported field %s", p);
+                    throw new SqlIllegalArgumentException("Unsupported field {}", p);
                 }
             }
         }

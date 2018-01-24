@@ -23,7 +23,7 @@ public class ReflectionUtils {
         if (t instanceof ParameterizedType) {
             Type[] typeArguments = ((ParameterizedType) t).getActualTypeArguments();
             if (typeArguments.length != 1) {
-                throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments), t);
+                throw new SqlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments), t);
             }
 
             return detectType(typeArguments[0]);
@@ -36,7 +36,7 @@ public class ReflectionUtils {
             Type[] upperBounds = wt.getUpperBounds();
 
             if (upperBounds.length != 1) {
-                throw new SqlIllegalArgumentException("Unexpected number of upper bounds %s for %s", Arrays.toString(upperBounds), t);
+                throw new SqlIllegalArgumentException("Unexpected number of upper bounds {} for {}", Arrays.toString(upperBounds), t);
             }
 
             return detectType(upperBounds[0]);
@@ -45,7 +45,7 @@ public class ReflectionUtils {
             return detectType(((GenericArrayType) t).getGenericComponentType());
         }
 
-        throw new SqlIllegalArgumentException("Unrecognized type %s", t);
+        throw new SqlIllegalArgumentException("Unrecognized type {}", t);
     }
     
     @SuppressWarnings("unchecked")
@@ -55,7 +55,7 @@ public class ReflectionUtils {
             if (type instanceof ParameterizedType) {
                 Type[] typeArguments = ((ParameterizedType) type).getActualTypeArguments();
                 if (typeArguments.length != 2 && typeArguments.length != 1) {
-                    throw new SqlIllegalArgumentException("Unexpected number of type arguments %s for %s", Arrays.toString(typeArguments),
+                    throw new SqlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments),
                             c);
                 }
 
@@ -63,7 +63,7 @@ public class ReflectionUtils {
             }
             clazz = clazz.getSuperclass();
         }
-        throw new SqlIllegalArgumentException("Unexpected class structure for class %s", c);
+        throw new SqlIllegalArgumentException("Unexpected class structure for class {}", c);
     }
     
     // remove packaging from the name - strategy used for naming rules by default  

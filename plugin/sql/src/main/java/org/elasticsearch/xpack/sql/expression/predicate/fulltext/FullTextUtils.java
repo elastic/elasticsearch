@@ -31,12 +31,12 @@ abstract class FullTextUtils {
         for (String entry : list) {
             String[] split = splitInTwo(entry, "=");
             if (split == null) {
-                throw new ParsingException(location, "Cannot parse entry %s in options %s", entry, options);
+                throw new ParsingException(location, "Cannot parse entry {} in options {}", entry, options);
             }
 
             String previous = op.put(split[0], split[1]);
             if (previous != null) {
-                throw new ParsingException(location, "Duplicate option %s detected in options %s", entry, options);
+                throw new ParsingException(location, "Duplicate option {} detected in options {}", entry, options);
             }
 
         }
@@ -66,7 +66,7 @@ abstract class FullTextUtils {
                     try {
                         fields.put(split[0], Float.parseFloat(split[1]));
                     } catch (NumberFormatException nfe) {
-                        throw new ParsingException(location, "Cannot parse boosting for %s", fieldName);
+                        throw new ParsingException(location, "Cannot parse boosting for {}", fieldName);
                     }
                 }
             }

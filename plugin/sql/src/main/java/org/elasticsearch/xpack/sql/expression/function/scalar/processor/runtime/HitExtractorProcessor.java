@@ -45,7 +45,7 @@ public class HitExtractorProcessor implements Processor {
     @Override
     public Object process(Object input) {
         if (!(input instanceof SearchHit)) {
-            throw new SqlIllegalArgumentException("Expected a SearchHit but received %s", input);
+            throw new SqlIllegalArgumentException("Expected a SearchHit but received {}", input);
         }
         return extractor.get((SearchHit) input);
     }

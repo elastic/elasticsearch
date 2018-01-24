@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.Locale;
 
-import static java.lang.String.format;
-
 public class AnalysisException extends ClientSqlException {
 
     private final int line;
@@ -56,6 +54,6 @@ public class AnalysisException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), super.getMessage());
+        return String.format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), super.getMessage());
     }
 }

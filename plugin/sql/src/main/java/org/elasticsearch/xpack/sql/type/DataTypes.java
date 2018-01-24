@@ -49,6 +49,6 @@ public abstract class DataTypes {
         if (value instanceof String) {
             return DataType.KEYWORD;
         }
-        throw new SqlIllegalArgumentException("No idea what's the DataType for %s", value.getClass());
+        throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
 }

@@ -78,7 +78,7 @@ public class DateTimeProcessor implements Processor {
         }
 
         if (!(l instanceof ReadableDateTime)) {
-            throw new SqlIllegalArgumentException("A date/time is required; received %s", l);
+            throw new SqlIllegalArgumentException("A date/time is required; received {}", l);
         }
 
         ReadableDateTime dt = (ReadableDateTime) l;

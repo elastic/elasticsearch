@@ -52,7 +52,7 @@ public class PlanExecutor {
                 EsQueryExec e = (EsQueryExec) exec;
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), settings.filter(), settings.pageSize()));
             } else {
-                listener.onFailure(new PlanningException("Cannot generate a query DSL for %s", sql));
+                listener.onFailure(new PlanningException("Cannot generate a query DSL for {}", sql));
             }
         }, listener::onFailure));
     }

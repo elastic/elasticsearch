@@ -12,10 +12,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Collection;
-import java.util.Locale;
 import java.util.stream.Collectors;
-
-import static java.lang.String.format;
 
 public class PlanningException extends ClientSqlException {
     public PlanningException(String message, Object... args) {

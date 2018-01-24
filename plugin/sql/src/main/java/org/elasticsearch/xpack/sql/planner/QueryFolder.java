@@ -339,7 +339,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             });
 
                             if (!proc.resolved()) {
-                                throw new FoldingException(child, "Cannot find grouping for '%s'", Expressions.name(child));
+                                throw new FoldingException(child, "Cannot find grouping for '{}'", Expressions.name(child));
                             }
 
                             // add the computed column
@@ -486,7 +486,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                     qContainer = qContainer.sort(new AttributeSort(at, direction));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant
-                                    throw new PlanningException("does not know how to order by expression %s", sfa.orderBy());
+                                    throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
                                 }
                             } else {
                                 // nope, use scripted sorting

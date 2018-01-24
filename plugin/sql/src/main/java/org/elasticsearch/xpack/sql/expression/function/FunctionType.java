@@ -28,6 +28,6 @@ public enum FunctionType {
                 return type;
             }
         }
-        throw new SqlIllegalArgumentException("Cannot identify the function type for %s", clazz);
+        throw new SqlIllegalArgumentException("Cannot identify the function type for {}", clazz);
     }
 }

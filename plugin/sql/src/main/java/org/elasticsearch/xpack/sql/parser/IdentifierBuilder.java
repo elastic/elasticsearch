@@ -28,10 +28,10 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         for (int i = 0; i < index.length(); i++) {
             char c = index.charAt(i);
             if (Character.isUpperCase(c)) {
-                throw new ParsingException(source, "Invalid index name (needs to be lowercase) %s", index);
+                throw new ParsingException(source, "Invalid index name (needs to be lowercase) {}", index);
             }
             if (c == '\\' || c == '/' || c == '<' || c == '>' || c == '|' || c == ',' || c == ' ') {
-                throw new ParsingException(source, "Invalid index name (illegal character %c) %s", c, index);
+                throw new ParsingException(source, "Invalid index name (illegal character {}) {}", c, index);
             }
         }
     }

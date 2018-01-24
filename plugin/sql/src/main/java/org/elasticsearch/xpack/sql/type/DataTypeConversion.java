@@ -357,9 +357,9 @@ public abstract class DataTypeConversion {
                 try {
                     return converter.apply(value.toString());
                 } catch (NumberFormatException e) {
-                    throw new SqlIllegalArgumentException("cannot cast [%s] to [%s]", value, to, e);
+                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]", value, to);
                 } catch (IllegalArgumentException e) {
-                    throw new SqlIllegalArgumentException("cannot cast [%s] to [%s]:%s", value, to, e.getMessage(), e);
+                    throw new SqlIllegalArgumentException(e, "cannot cast [{}] to [{}]:{}", value, to, e.getMessage());
                 }
             };
         }

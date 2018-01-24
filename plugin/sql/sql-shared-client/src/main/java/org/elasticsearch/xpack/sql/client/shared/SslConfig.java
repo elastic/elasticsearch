@@ -90,7 +90,7 @@ public class SslConfig {
             ctx = SSLContext.getInstance(protocol);
             ctx.init(loadKeyManagers(), loadTrustManagers(), null);
         } catch (Exception ex) {
-            throw new ClientException(ex, "Failed to initialize SSL - %s", ex.getMessage());
+            throw new ClientException("Failed to initialize SSL - " + ex.getMessage(), ex);
         }
 
         return ctx;
@@ -115,13 +115,13 @@ public class SslConfig {
 
         if (!Files.exists(path)) {
            throw new ClientException(
-                   "Expected to find keystore file at [%s] but was unable to. Make sure you have specified a valid URI.", location);
+                   "Expected to find keystore file at [" + location + "] but was unable to. Make sure you have specified a valid URI.");
         }
 
         try (InputStream in = Files.newInputStream(Paths.get(location), StandardOpenOption.READ)) {
             keyStore.load(in, pass);
         } catch (Exception ex) {
-            throw new ClientException(ex, "Cannot open keystore [%s] - %s", location, ex.getMessage());
+            throw new ClientException("Cannot open keystore [" + location + "] - " + ex.getMessage(), ex);
         } finally {
 
         }

@@ -65,7 +65,7 @@ public abstract class ScalarFunction extends Function {
             // fall-back to
             return asScriptFrom((FieldAttribute) attr);
         }
-        throw new SqlIllegalArgumentException("Cannot evaluate script for expression %s", exp);
+        throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }
 
     protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {

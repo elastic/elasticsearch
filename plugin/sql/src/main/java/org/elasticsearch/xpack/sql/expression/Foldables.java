@@ -20,14 +20,14 @@ public abstract class Foldables {
         if (e.foldable()) {
             return (T) DataTypeConversion.conversionFor(e.dataType(), to).convert(e.fold());
         }
-        throw new SqlIllegalArgumentException("Cannot determine value for %s", e);
+        throw new SqlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static Object valueOf(Expression e) {
         if (e.foldable()) {
             return e.fold();
         }
-        throw new SqlIllegalArgumentException("Cannot determine value for %s", e);
+        throw new SqlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
     public static String stringValueOf(Expression e) {

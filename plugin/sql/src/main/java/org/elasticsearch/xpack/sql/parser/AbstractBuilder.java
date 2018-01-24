@@ -31,7 +31,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     @Override
     public Object visit(ParseTree tree) {
         Object result = super.visit(tree);
-        Check.notNull(result, "Don't know how to handle context [%s] with value [%s]", tree.getClass(), tree.getText());
+        Check.notNull(result, "Don't know how to handle context [{}] with value [{}]", tree.getClass(), tree.getText());
         return result;
     }
 
@@ -42,7 +42,7 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
             return (T) result;
         }
 
-        throw new ParsingException(source(ctx), "Invalid query '%s'[%s] given; expected %s but found %s",
+        throw new ParsingException(source(ctx), "Invalid query '{}'[{}] given; expected {} but found {}",
                         ctx.getText(), ctx.getClass().getSimpleName(),
                         type.getSimpleName(), (result != null ? result.getClass().getSimpleName() : "null"));
     }
@@ -106,6 +106,6 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
 
     @Override
     public Object visitTerminal(TerminalNode node) {
-        throw new ParsingException(source(node), "Does not know how to handle %s", node.getText());
+        throw new ParsingException(source(node), "Does not know how to handle {}", node.getText());
     }
 }

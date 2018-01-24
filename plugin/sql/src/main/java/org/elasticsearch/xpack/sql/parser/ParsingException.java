@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.RecognitionException;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Locale;
-
-import static java.lang.String.format;
 
 public class ParsingException extends ClientSqlException {
     private final int line;
@@ -20,7 +19,6 @@ public class ParsingException extends ClientSqlException {
 
     public ParsingException(String message, Exception cause, int line, int charPositionInLine) {
         super(message, cause);
-
         this.line = line;
         this.charPositionInLine = charPositionInLine;
     }
@@ -30,7 +28,9 @@ public class ParsingException extends ClientSqlException {
     }
 
     public ParsingException(Location nodeLocation, String message, Object... args) {
-        this(format(Locale.ROOT, message, args), null, nodeLocation.getLineNumber(), nodeLocation.getColumnNumber());
+        super(message, args);
+        this.line = nodeLocation.getLineNumber();
+        this.charPositionInLine = nodeLocation.getColumnNumber();
     }
 
     public int getLineNumber() {
@@ -52,6 +52,6 @@ public class ParsingException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
+        return String.format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), getErrorMessage());
     }
 }

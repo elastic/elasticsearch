@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,7 +58,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
@@ -317,5 +318,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeBoolean(true); // updateAllTypes
         }
         out.writeOptionalWriteable(concreteIndex);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (source != null) {
+            builder.rawValue(new BytesArray(source), XContentType.JSON);
+        } else {
+            builder.startObject().endObject();
+        }
+        return builder;
     }
 }

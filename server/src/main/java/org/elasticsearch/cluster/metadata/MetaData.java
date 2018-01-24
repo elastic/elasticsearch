@@ -276,11 +276,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             if (!filteredValues.isEmpty()) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
-            } else if (matchAllAliases) {
-                // in case all aliases are requested then it is desired to return the concrete index with no aliases (#25114):
-                mapBuilder.put(index, Collections.emptyList());
             }
+            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
     }

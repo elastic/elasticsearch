@@ -82,11 +82,12 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
                         Definition.Type from = ref.interfaceMethod.arguments.get(i);
                         Definition.Type to = ref.delegateMethod.arguments.get(i);
-                        locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
+                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
                     }
 
                     if (ref.interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                        locals.getDefinition().caster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
+                        AnalyzerCaster.getLegalCast(location,
+                            Definition.TypeToClass(ref.delegateMethod.rtn), Definition.TypeToClass(ref.interfaceMethod.rtn), false, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);

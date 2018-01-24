@@ -79,7 +79,8 @@ public final class EConditional extends AExpression {
         right.analyze(locals);
 
         if (expected == null) {
-            final Type promote = locals.getDefinition().caster.promoteConditional(left.actual, right.actual, left.constant, right.constant);
+            Type promote = locals.getDefinition().ClassToType(AnalyzerCaster.promoteConditional(
+                Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), left.constant, right.constant));
 
             left.expected = promote;
             right.expected = promote;

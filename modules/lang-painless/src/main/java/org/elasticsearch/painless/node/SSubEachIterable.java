@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -85,7 +86,7 @@ final class SSubEachIterable extends AStatement {
             }
         }
 
-        cast = locals.getDefinition().caster.getLegalCast(location, locals.getDefinition().DefType, variable.type, true, true);
+        cast = AnalyzerCaster.getLegalCast(location, def.class, Definition.TypeToClass(variable.type), true, true);
     }
 
     @Override

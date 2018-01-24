@@ -819,7 +819,7 @@ public abstract class Engine implements Closeable {
 
     /**
      * Checks if this engine should be flushed.
-     * This check is mainly based the uncommitted translog size and the translog threshold flush size setting.
+     * This check is mainly based on the uncommitted translog size and the translog flush threshold setting.
      */
     public abstract boolean shouldFlush();
 

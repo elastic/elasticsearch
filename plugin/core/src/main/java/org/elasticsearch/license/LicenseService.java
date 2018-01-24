@@ -216,8 +216,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
                     && "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)) == false) {
                 // security is on but TLS is not configured we gonna fail the entire request and throw an exception
-                throw new IllegalStateException("Can not upgrade to a production license unless TLS is configured or " +
-                        "security is disabled");
+                throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
+                        "] license unless TLS is configured or security is disabled");
                 // TODO we should really validate that all nodes have xpack installed and are consistently configured but this
                 // should happen on a different level and not in this code
             } else {

@@ -308,7 +308,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    public void testShouldFlushAfterFileBasedRecovery() throws Exception {
+    public void testShouldFlushAfterPeerRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             long translogSizeOnPrimary = 0;
@@ -325,14 +325,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
-            // Make sure there is no infinite loop of flushing.
-            assertBusy(() -> {
-                int tasks = 0;
-                for (ThreadPoolStats.Stats stats : replica.getThreadPool().stats()) {
-                    tasks += stats.getThreads();
-                }
-                assertThat(tasks, equalTo(0));
-            });
+            assertBusy(() -> assertThat(getEngine(replica).shouldFlush(), equalTo(false)));
             assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }

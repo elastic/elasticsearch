@@ -1464,7 +1464,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean shouldFlush() {
-        return translog.shouldFlush() && indexWriter.hasUncommittedChanges();
+        return translog.shouldFlush();
     }
 
     @Override
@@ -1497,7 +1497,7 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (indexWriter.hasUncommittedChanges() || force) {
+                if (indexWriter.hasUncommittedChanges() || force || shouldFlush()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

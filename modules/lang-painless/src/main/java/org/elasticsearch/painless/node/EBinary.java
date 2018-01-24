@@ -649,13 +649,13 @@ public final class EBinary extends AExpression {
             left.write(writer, globals);
 
             if (!(left instanceof EBinary) || !((EBinary)left).cat) {
-                writer.writeAppendStrings(left.actual);
+                writer.writeAppendStrings(Definition.TypeToClass(left.actual));
             }
 
             right.write(writer, globals);
 
             if (!(right instanceof EBinary) || !((EBinary)right).cat) {
-                writer.writeAppendStrings(right.actual);
+                writer.writeAppendStrings(Definition.TypeToClass(right.actual));
             }
 
             if (!cat) {
@@ -684,9 +684,10 @@ public final class EBinary extends AExpression {
                 if (originallyExplicit) {
                     flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
                 }
-                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
+                writer.writeDynamicBinaryInstruction(location, Definition.TypeToClass(actual),
+                    Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), operation, flags);
             } else {
-                writer.writeBinaryInstruction(location, actual, operation);
+                writer.writeBinaryInstruction(location, Definition.TypeToClass(actual), operation);
             }
         }
     }

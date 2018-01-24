@@ -25,6 +25,7 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -274,12 +275,12 @@ public final class EAssignment extends AExpression {
             writer.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                             // before concat helper on stack
             lhs.load(writer, globals);                                      // read the current lhs's value
-            writer.writeAppendStrings(lhs.actual);                          // append the lhs's value using the StringBuilder
+            writer.writeAppendStrings(Definition.TypeToClass(lhs.actual));  // append the lhs's value using the StringBuilder
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) { // check to see if the rhs has already done a concatenation
-                writer.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
+            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
+                writer.writeAppendStrings(Definition.TypeToClass(rhs.actual)); // append the rhs's value since it's hasn't already
             }
 
             writer.writeToStrings(); // put the value for string concat onto the stack
@@ -313,9 +314,9 @@ public final class EAssignment extends AExpression {
         // write the operation instruction for compound assignment
             if (promote.dynamic) {
                 writer.writeDynamicBinaryInstruction(
-                    location, promote, DefType, DefType, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                    location, Definition.TypeToClass(promote), def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
-                writer.writeBinaryInstruction(location, promote, operation);
+                writer.writeBinaryInstruction(location, Definition.TypeToClass(promote), operation);
             }
 
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type

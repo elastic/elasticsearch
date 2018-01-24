@@ -1298,8 +1298,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert commitInfo.localCheckpoint >= globalCheckpoint :
                 "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
                     + globalCheckpoint + "]";
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            // This assertion is only guaranteed if all nodes are on 6.2+.
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
+                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+                assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            }
         }
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);

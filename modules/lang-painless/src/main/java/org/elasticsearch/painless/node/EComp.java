@@ -89,7 +89,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteEquality(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply equals [==] to types " +
@@ -140,7 +141,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteEquality(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference equals [===] to types " +
@@ -182,7 +184,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteEquality(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply not equals [!=] to types " +
@@ -233,7 +236,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteEquality(left.actual, right.actual);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteEquality(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply reference not equals [!==] to types " +
@@ -275,7 +279,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than or equals [>=] to types " +
@@ -316,7 +321,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply greater than [>] to types " +
@@ -357,7 +363,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than or equals [<=] to types " +
@@ -398,7 +405,8 @@ public final class EComp extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promotedType = variables.getDefinition().caster.promoteNumeric(left.actual, right.actual, true);
+        promotedType = variables.getDefinition().ClassToType(
+            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
 
         if (promotedType == null) {
             throw createError(new ClassCastException("Cannot apply less than [>=] to types " +

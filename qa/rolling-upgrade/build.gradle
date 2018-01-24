@@ -276,7 +276,7 @@ subprojects {
   // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
   task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(':x-pack-elasticsearch:plugin:core').sourceSets.test.resources
+    from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
   }

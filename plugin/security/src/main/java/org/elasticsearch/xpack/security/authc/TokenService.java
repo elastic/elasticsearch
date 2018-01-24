@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -62,8 +63,10 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -97,6 +100,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -106,8 +110,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -815,7 +818,7 @@ public final class TokenService extends AbstractComponent {
      * Find all stored refresh and access tokens that have not been invalidated or expired, and were issued against
      *  the specified realm.
      */
-    public void findActiveTokensForRealm(String realmName, ActionListener<List<Tuple<UserToken, String>>> listener) {
+    public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
 
         if (Strings.isNullOrEmpty(realmName)) {
@@ -835,32 +838,30 @@ public final class TokenService extends AbstractComponent {
                         .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
                 );
 
-        SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+        final SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+                .setScroll(TimeValue.timeValueSeconds(10L))
                 .setQuery(boolQuery)
                 .setVersion(false)
+                .setSize(1000)
+                .setFetchSource(true)
                 .request();
 
+        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
         lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        ActionListener.<SearchResponse>wrap(searchResponse -> {
-                            if (searchResponse.isTimedOut()) {
-                                listener.onFailure(new ElasticsearchSecurityException("Failed to find user tokens"));
-                            } else {
-                                listener.onResponse(parseDocuments(searchResponse));
-                            }
-                        }, listener::onFailure),
-                        client::search));
+            ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), this::parseHit));
     }
 
-    private List<Tuple<UserToken, String>> parseDocuments(SearchResponse searchResponse) {
-        return StreamSupport.stream(searchResponse.getHits().spliterator(), false).map(hit -> {
-            final Map<String, Object> source = hit.getSourceAsMap();
-            try {
-                return parseTokensFromDocument(source);
-            } catch (IOException e) {
-                throw invalidGrantException("cannot read token from document");
-            }
-        }).collect(Collectors.toList());
+    private Tuple<UserToken, String> parseHit(SearchHit hit) {
+        final Map<String, Object> source = hit.getSourceAsMap();
+        if (source == null) {
+            throw new IllegalStateException("token document did not have source but source should have been fetched");
+        }
+
+        try {
+            return parseTokensFromDocument(source);
+        } catch (IOException e) {
+            throw invalidGrantException("cannot read token from document");
+        }
     }
 
     /**

@@ -81,8 +81,8 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         SearchRequest request = new SearchRequest();
 
         String scrollId = randomAlphaOfLength(5);
-        SearchHit[] hits = new SearchHit[] {new SearchHit(1)};
-        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits, 1, 1), null, null, null, false, false, 1);
+        SearchHit[] hits = new SearchHit[] {new SearchHit(1), new SearchHit(2)};
+        InternalSearchResponse internalResponse = new InternalSearchResponse(new SearchHits(hits, 3, 1), null, null, null, false, false, 1);
         SearchResponse response = new SearchResponse(internalResponse, scrollId, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
 
@@ -112,7 +112,7 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
         }, Function.identity());
 
         assertNotNull("onFailure wasn't called", failure.get());
-        assertEquals("scrolling returned more hits [2] than expected [1] so bailing out to prevent unbounded memory consumption.",
+        assertEquals("scrolling returned more hits [4] than expected [3] so bailing out to prevent unbounded memory consumption.",
                 failure.get().getMessage());
     }
 }

@@ -12,26 +12,72 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * A component to store hipchat credentials.
  */
 public class HipChatService extends NotificationService<HipChatAccount> {
 
+    private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
+            Setting.simpleString("xpack.notification.hipchat.default_account", Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    static final Setting<String> SETTING_DEFAULT_HOST =
+            Setting.simpleString("xpack.notification.hipchat.host", Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    static final Setting<Integer> SETTING_DEFAULT_PORT =
+            Setting.intSetting("xpack.notification.hipchat.port", 443, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    private static final Setting.AffixSetting<String> SETTING_AUTH_TOKEN =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "auth_token",
+                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered));
+
+    private static final Setting.AffixSetting<String> SETTING_PROFILE =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "profile",
+                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_ROOM =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "room",
+                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_HOST =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "host",
+                    (key) -> Setting.simpleString(key, Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private static final Setting.AffixSetting<Integer> SETTING_PORT =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "port",
+                    (key) -> Setting.intSetting(key, 443, Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private static final Setting.AffixSetting<Settings> SETTING_MESSAGE_DEFAULTS =
+            Setting.affixKeySetting("xpack.notification.hipchat.account.", "message",
+                    (key) -> Setting.groupSetting(key + ".", Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+
     private final HttpClient httpClient;
-    public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
-        Setting.groupSetting("xpack.notification.hipchat.", Setting.Property.Dynamic, Setting.Property.NodeScope);
     private HipChatServer defaultServer;
 
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings, "hipchat");
         this.httpClient = httpClient;
-        clusterSettings.addSettingsUpdateConsumer(HIPCHAT_ACCOUNT_SETTING, this::setAccountSetting);
-        setAccountSetting(HIPCHAT_ACCOUNT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
+        // ensure logging of setting changes
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_HOST, (s) -> {});
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_PORT, (s) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_AUTH_TOKEN, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_PROFILE, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_ROOM, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_HOST, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_PORT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_MESSAGE_DEFAULTS, (s, o) -> {}, (s, o) -> {});
+
+        setAccountSetting(settings);
     }
 
     @Override
     protected synchronized void setAccountSetting(Settings settings) {
-        defaultServer = new HipChatServer(settings);
+        defaultServer = new HipChatServer(settings.getByPrefix("xpack.notification.hipchat."));
         super.setAccountSetting(settings);
     }
 
@@ -42,5 +88,10 @@ public class HipChatService extends NotificationService<HipChatAccount> {
             throw new SettingsException("missing [profile] setting for hipchat account [" + name + "]");
         }
         return profile.createAccount(name, accountSettings, defaultServer, httpClient, logger);
+    }
+
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_AUTH_TOKEN, SETTING_PROFILE, SETTING_ROOM, SETTING_MESSAGE_DEFAULTS,
+                SETTING_DEFAULT_HOST, SETTING_DEFAULT_PORT, SETTING_HOST, SETTING_PORT);
     }
 }

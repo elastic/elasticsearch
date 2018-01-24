@@ -8,26 +8,73 @@ package org.elasticsearch.xpack.watcher.notification.email;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
 import javax.mail.MessagingException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A component to store email credentials and handle sending email notifications.
  */
 public class EmailService extends NotificationService<Account> {
 
+    private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
+        Setting.simpleString("xpack.notification.email.default_account", Property.Dynamic, Property.NodeScope);
+
+    private static final Setting.AffixSetting<String> SETTING_PROFILE =
+            Setting.affixKeySetting("xpack.notification.email.account.", "profile",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Settings> SETTING_EMAIL_DEFAULTS =
+            Setting.affixKeySetting("xpack.notification.email.account.", "email_defaults",
+                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Boolean> SETTING_SMTP_AUTH =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.auth",
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Boolean> SETTING_SMTP_STARTTLS_ENABLE =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.starttls.enable",
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_SMTP_HOST =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.host",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Integer> SETTING_SMTP_PORT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.port",
+                    (key) -> Setting.intSetting(key, 587, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_SMTP_USER =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.user",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_SMTP_PASSWORD =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.password",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+
     private final CryptoService cryptoService;
-    public static final Setting<Settings> EMAIL_ACCOUNT_SETTING =
-        Setting.groupSetting("xpack.notification.email.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
         super(settings, "email");
         this.cryptoService = cryptoService;
-        clusterSettings.addSettingsUpdateConsumer(EMAIL_ACCOUNT_SETTING, this::setAccountSetting);
-        setAccountSetting(EMAIL_ACCOUNT_SETTING.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
+        // ensure logging of setting changes
+        clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_PROFILE, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_EMAIL_DEFAULTS, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_AUTH, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_STARTTLS_ENABLE, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_HOST, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PORT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_USER, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PASSWORD, (s, o) -> {}, (s, o) -> {});
+        // do an initial load
+        setAccountSetting(settings);
     }
 
     @Override
@@ -73,6 +120,11 @@ public class EmailService extends NotificationService<Account> {
         public Email email() {
             return email;
         }
+    }
+
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_EMAIL_DEFAULTS, SETTING_SMTP_AUTH, SETTING_SMTP_HOST,
+                SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER);
     }
 
 }

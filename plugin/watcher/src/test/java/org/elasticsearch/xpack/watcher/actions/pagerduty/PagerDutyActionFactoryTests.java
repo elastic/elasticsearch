@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.triggerPagerDutyAction;
@@ -50,7 +51,7 @@ public class PagerDutyActionFactoryTests extends ESTestCase {
 
     public void testParseActionUnknownAccount() throws Exception {
         factory = new PagerDutyActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), new PagerDutyService(Settings.EMPTY, null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING))));
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(PagerDutyService.getSettings()))));
         PagerDutyAction action = triggerPagerDutyAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
         XContentParser parser = createParser(jsonBuilder);

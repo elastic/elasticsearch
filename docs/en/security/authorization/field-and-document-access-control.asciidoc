@@ -11,37 +11,23 @@ read-only privileged accounts. Users with document and field level
 security enabled for an index should not perform write operations.
 
 A role can define both field and document level permissions on a per-index basis.
-A role that doesn’t specify field level permissions grants access to ALL fields. 
-Similarly, a role that doesn't specify document level permissions grants access 
-to ALL documents in the index. 
+A role that doesn’t specify field level permissions grants access to ALL fields.
+Similarly, a role that doesn't specify document level permissions grants access
+to ALL documents in the index.
 
 [IMPORTANT]
 =====================================================================
 When assigning users multiple roles, be careful that you don't inadvertently
-grant wider access than intended. Each user has a single set of field level and 
-document level permissions per index. When you assign a user multiple roles, 
-the permissions are ORed together. This means if you assign one role that 
-restricts access to  particular fields in an index, and another that doesn't 
-specify any field level access restrictions for that index, the user will have 
-access to all fields. The same is true for document level permissions.
-
-For example, let's say `role_a` only grants access to the `address` 
-field of the documents in `index1`, but doesn't specify any document 
-restrictions. Conversely, `role_b` limits access to a subset of the documents 
-in `index1`, but doesn't specify any field restrictions. If you assign a user
-both roles, `role_a` gives the user access to all documents and `role_b` gives 
-the user access to all fields. 
-
-If you need to restrict access to both documents and fields, consider splitting 
-documents by index instead.
+grant wider access than intended. Each user has a single set of field level and
+document level permissions per index. See <<multiple-roles-dls-fls>>.
 =====================================================================
 
 [[field-level-security]]
 ==== Field Level Security
 
-To enable field level security, you specify the fields that each role can access
-as part of the indices permissions in a role definition. This binds field level
-security to a well defined set of indices (and potentially a set of
+To enable field level security, specify the fields that each role can access
+as part of the indices permissions in a role definition. Field level security is
+thus bound to a well-defined set of indices (and potentially a set of
 <<document-level-security, documents>>).
 
 The following role definition grants read access only to the `category`,
@@ -69,7 +55,7 @@ you specify an empty list of fields, only these meta fields are accessible.
 NOTE: Omitting the fields entry entirely disables field-level security.
 
 You can also specify field expressions. For example, the following
-example grants read access to all fields starting with `event_` prefix:
+example grants read access to all fields that start with an `event_` prefix:
 
 [source,js]
 --------------------------------------------------
@@ -100,7 +86,8 @@ example, assuming the following document:
 }
 --------------------------------------------------
 
-The following role definition only allows access to the customer `handle` field:
+The following role definition enables only read access to the customer `handle`
+field:
 
 [source,js]
 --------------------------------------------------
@@ -117,8 +104,8 @@ The following role definition only allows access to the customer `handle` field:
 }
 --------------------------------------------------
 
-This is where wildcard support shines. For example, use `customer.*` to only
-enable read access to the `customer` data:
+This is where wildcard support shines. For example, use `customer.*` to enable
+only read access to the `customer` data:
 
 [source,js]
 --------------------------------------------------
@@ -135,8 +122,7 @@ enable read access to the `customer` data:
 }
 --------------------------------------------------
 
-Similar to granting field permissions the permission to access fields can be denied with the following syntax:
-
+You can deny permission to access fields with the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -157,11 +143,14 @@ Similar to granting field permissions the permission to access fields can be den
 
 The following rules apply:
 
-Absence of "field_security" in a role is equivalent to * access.
-Denied fields may only be provided if permission has been granted explicitly to other fields. The exceptions given must be a subset of the
-fields that permissions have been granted to.
-Denied and granted fields defined implies access to all granted fields except those which match the pattern in denied fields. Example:
+* The absence of `field_security` in a role is equivalent to * access.
+* If permission has been granted explicitly to some fields, you can specify
+denied fields. The denied fields must be a subset of the fields to which
+permissions were granted.
+* Defining denied and granted fields implies access to all granted fields except
+those which match the pattern in the denied fields.
 
+For example:
 
 [source,js]
 --------------------------------------------------
@@ -179,15 +168,17 @@ Denied and granted fields defined implies access to all granted fields except th
 }
 --------------------------------------------------
 
-In the above example all fields with the prefix "customer." are allowed except for "customer.handle".
+In the above example, users can read all fields with the prefix "customer."
+except for "customer.handle".
 
-An empty array for grant (eg. "grant" : []) means that no fields are granted access to.
+An empty array for `grant` (for example, `"grant" : []`) means that access has
+not been granted to any fields.
 
 ===== Field Level Security and Roles
 
-When a user has several roles that specify field level permissions then the resulting field level permissions per index are the union
-of the individual role permissions.
-For example if these two roles are merged:
+When a user has several roles that specify field level permissions, the
+resulting field level permissions per index are the union of the individual role
+permissions. For example, if these two roles are merged:
 
 [source,js]
 --------------------------------------------------
@@ -222,7 +213,7 @@ For example if these two roles are merged:
 }
 --------------------------------------------------
 
-Then the resulting permission would be equal to:
+The resulting permission is equal to:
 
 [source,js]
 --------------------------------------------------
@@ -247,17 +238,19 @@ Then the resulting permission would be equal to:
 ==== Document Level Security
 
 Document level security restricts the documents that users have read access to.
-To enable document level security, you specify a query that matches all the
+To enable document level security, specify a query that matches all the
 accessible documents as part of the indices permissions within a role definition.
-This binds document level security to a well defined set of indices.
+Document level security is thus bound to a well defined set of indices.
 
-Enabling document level security restricts which documents can be accessed from any document based read API.
-To enable document level security, you use a query to specify the documents that each role can access in the `roles.yml` file.
-You specify the document query with the `query` option. The document query is associated with a particular index or index pattern and
-operates in conjunction with the privileges specified for the indices.
+Enabling document level security restricts which documents can be accessed from
+any document-based read API. To enable document level security, you use a query
+to specify the documents that each role can access in the `roles.yml` file.
+You specify the document query with the `query` option. The document query is
+associated with a particular index or index pattern and operates in conjunction
+with the privileges specified for the indices.
 
 The following role definition grants read access only to documents that
-belong to the `click` category within all the `events-*` indices.
+belong to the `click` category within all the `events-*` indices:
 
 [source,js]
 --------------------------------------------------
@@ -276,10 +269,10 @@ NOTE: Omitting the `query` entry entirely disables document level security for
       the respective indices permission entry.
 
 The specified `query` expects the same format as if it was defined in the
-search request and supports ELasticsearch's full {ref}/query-dsl.html[Query DSL].
+search request and supports the full {es} {ref}/query-dsl.html[Query DSL].
 
-For example, the following role grants read access to all indices, but restricts
-access to documents whose `department_id` equals `12`.
+For example, the following role grants read access only to the documents whose
+`department_id` equals `12`:
 
 [source,js]
 --------------------------------------------------
@@ -296,16 +289,16 @@ access to documents whose `department_id` equals `12`.
 }
 --------------------------------------------------
 
-NOTE: `query` also accepts queries written as string values
+NOTE: `query` also accepts queries written as string values.
 
 [[templating-role-query]]
 ===== Templating a Role Query
 
 You can use Mustache templates in a role query to insert the username of the
-current authenticated user into the role. Like other places in Elasticsearch
-that support templating or scripting, you can specify inline, stored,
-or file based templates and define custom parameters. You access the current
-authenticated user's details through the `_user` parameter. 
+current authenticated user into the role. Like other places in {es} that support
+templating or scripting, you can specify inline, stored, or file-based templates
+and define custom parameters. You access the details for the current
+authenticated user through the `_user` parameter.
 
 For example, the following role query uses a template to insert the username
 of the current authenticated user:
@@ -367,21 +360,24 @@ based on the `group.id` field in your documents:
 [[set-security-user-processor]]
 ===== Set Security User Ingest Processor
 
-If an index is being shared by many small users it makes sense put all these users into the same index as having a
-dedicated index or shard per user is too wasteful. In order to guarantee that a user only read its own documents it
-makes sense to set up document level security. In order to use document level security for this each document must have
-the username or role name associated with it, so that it can be queried by the document level security's role query.
-This is where the `set_security_user` ingest processor can help.
+If an index is shared by many small users it makes sense to put all these users
+into the same index.  Having a dedicated index or shard per user is wasteful.
+To guarantee that a user reads only their own documents, it makes sense to set up
+document level security. In this scenario, each document must have the username
+or role name associated with it, so that this information can be used by the
+role query for document level security. This is a situation where the
+`set_security_user` ingest processor can help.
 
-NOTE: You need to make sure to use unique ids for each user that uses the same index, because document level security
-      doesn't apply on write APIs and you can overwrite other users' documents. This ingest processor just adds
-      properties of the current authenticated user to the documents being indexed.
+NOTE: Document level security doesn't apply to write APIs. You must use unique
+ids for each user that uses the same index, otherwise they might overwrite other
+users' documents. The ingest processor just adds properties for the current
+authenticated user to the documents that are being indexed.
 
-
-The `set_security_user` processor attaches user related details (`username`, `roles`, `email`, `full_name` and `metadata` )
-from the current authenticated user to the current document by pre-processed by ingest.
-
-So when indexing data with an ingest pipeline then user details get automatically attached with the document:
+The `set_security_user` processor attaches user-related details (such as
+`username`,  `roles`, `email`, `full_name` and `metadata` ) from the current
+authenticated user to the current document by pre-processing the ingest. When
+you index data with an ingest pipeline, user details are automatically attached
+to the document. For example:
 
 [source,js]
 --------------------------------------------------
@@ -403,8 +399,8 @@ about setting up a pipeline and other processors.
 | `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
 |======
 
-Example config that adds all user details of the current authenticated user to the `user` field to  all documents being
-processed by this pipeline:
+The following example adds all user details for the current authenticated user
+to the `user` field for all documents that are processed by this pipeline:
 
 [source,js]
 --------------------------------------------------
@@ -423,20 +419,30 @@ processed by this pipeline:
 ==== Multiple Roles with Document and Field Level Security
 
 A user can have many roles and each role can define different permissions on the
-same index. It is important to understand the behavior of Document and Field Level
-security in this scenario.
+same index. It is important to understand the behavior of document and field
+level security in this scenario.
 
-Document level security will take into account each role held by the user, and
-combine each document level security query for a given index with an "OR". This
+Document level security takes into account each role held by the user and
+combines each document level security query for a given index with an "OR". This
 means that only one of the role queries must match for a document to be returned.
 For example, if a role grants access to an index without document level security
 and another grants access with document level security, document level security
-will not be applied; the user with both roles will have access to all of the
-documents in the index.
+is not applied; the user with both roles has access to all of the documents in
+the index.
 
-Field level security will take into account each role the user has and combine
+Field level security takes into account each role the user has and combines
 all of the fields listed into a single set for each index. For example, if a
 role grants access to an index without field level security and another grants
-access with field level security, field level security will not be applied for
-that index; the user with both roles will have access to all of the fields in
-in the index.
+access with field level security, field level security is not be applied for
+that index; the user with both roles has access to all of the fields in the
+index.
+
+For example, let's say `role_a` grants access to only the `address` field of the
+documents in `index1`; it doesn't specify any document restrictions. Conversely,
+`role_b` limits access to a subset of the documents in `index1`; it doesn't
+specify any field restrictions. If you assign a user both roles, `role_a` gives
+the user access to all documents and `role_b` gives the user access to all
+fields.
+
+If you need to restrict access to both documents and fields, consider splitting
+documents by index instead.

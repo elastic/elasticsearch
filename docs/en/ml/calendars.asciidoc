@@ -21,10 +21,7 @@ events appropriately.
 
 If you want to add multiple scheduled events at once, you can import an
 iCalendar (`.ics`) file in {kib} or a JSON file in the
-//{ref}/ml-post-calendar-event.html[
-add events to calendar API
-//]
-.
+{ref}/ml-post-calendar-event.html[add events to calendar API].
 
 [NOTE]
 --

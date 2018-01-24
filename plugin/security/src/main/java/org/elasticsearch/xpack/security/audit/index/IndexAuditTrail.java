@@ -44,6 +44,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
@@ -961,7 +962,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
     // method for testing to allow different plugins such as mock transport...
     List<Class<? extends Plugin>> remoteTransportClientPlugins() {
-         return Arrays.asList(Security.class, XPackPlugin.class);
+         return Arrays.asList(XPackClientPlugin.class);
     }
 
     public static void registerSettings(List<Setting<?>> settings) {

@@ -81,7 +81,7 @@ public class HttpExporterTests extends ESTestCase {
 
     public void testExporterWithBlacklistedHeaders() {
         final String blacklistedHeader = randomFrom(HttpExporter.BLACKLISTED_HEADERS);
-        final String expected = "[" + blacklistedHeader + "] cannot be overwritten via [xpack.monitoring.exporters._http.headers]";
+        final String expected = "header cannot be overwritten via [xpack.monitoring.exporters._http.headers." + blacklistedHeader + "]";
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
                 .put("xpack.monitoring.exporters._http.host", "http://localhost:9200")
@@ -417,6 +417,8 @@ public class HttpExporterTests extends ESTestCase {
 
         if (bulkTimeout != null) {
             assertThat(parameters.remove("master_timeout"), equalTo(bulkTimeout.toString()));
+        } else {
+            assertThat(parameters.remove("master_timeout"), equalTo("10s"));
         }
 
         if (useIngest) {
@@ -504,7 +506,7 @@ public class HttpExporterTests extends ESTestCase {
      * @return Never {@code null}.
      */
     private Config createConfig(final Settings settings) {
-        return new Config("_http", HttpExporter.TYPE, settings, settings.getAsSettings(exporterName()), clusterService, licenseState);
+        return new Config("_http", HttpExporter.TYPE, settings, clusterService, licenseState);
     }
 
     private static String exporterName() {

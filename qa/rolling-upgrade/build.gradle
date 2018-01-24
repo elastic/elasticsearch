@@ -69,8 +69,6 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
  * configuration options based on their name.
  */
 subprojects {
-  // TODO remove after backport
-  ext.bwc_tests_enabled = false
   Matcher m = project.name =~ /with(out)?-system-key/
   if (false == m.matches()) {
     throw new InvalidUserDataException("Invalid project name [${project.name}]")

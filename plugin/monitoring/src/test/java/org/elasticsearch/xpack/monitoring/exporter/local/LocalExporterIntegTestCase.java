@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import static org.elasticsearch.xpack.monitoring.exporter.Exporter.CLUSTER_ALERTS_MANAGEMENT_SETTING;
-
 /**
  * {@code LocalExporterIntegTestCase} offers a basis for integration tests for the {@link LocalExporter}.
  */
@@ -50,7 +48,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
                        .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
-                       .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, false)
+                       .put("xpack.monitoring.exporters." + exporterName +  ".cluster_alerts.management.enabled", false)
                        .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                        .build();
@@ -78,10 +76,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
     protected LocalExporter createLocalExporter() {
         final Settings settings = localExporterSettings();
         final XPackLicenseState licenseState = new XPackLicenseState();
-        final Exporter.Config config =
-                new Exporter.Config(exporterName, "local",
-                                    settings, settings.getAsSettings("xpack.monitoring.exporters." + exporterName),
-                                    clusterService(), licenseState);
+        final Exporter.Config config = new Exporter.Config(exporterName, "local", settings, clusterService(), licenseState);
         final CleanerService cleanerService =
                 new CleanerService(settings, clusterService().getClusterSettings(), THREADPOOL, licenseState);
 

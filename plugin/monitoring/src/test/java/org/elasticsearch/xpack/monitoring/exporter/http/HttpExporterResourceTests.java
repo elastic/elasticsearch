@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
-import static org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.EXISTS;
 import static org.hamcrest.Matchers.hasSize;
@@ -73,11 +72,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final List<String> pipelineNames = new ArrayList<>(EXPECTED_PIPELINES);
     private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
 
-    private final Settings exporterSettings = Settings.builder().put(TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, createOldTemplates).build();
+    private final Settings exporterSettings = Settings.builder()
+            .put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", createOldTemplates)
+            .build();
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState));
+                    new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
 
     @Before
     public void setupResources() {
@@ -557,7 +558,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         final MultiHttpResource resources =
                 HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState));
+                        new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState));
 
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;

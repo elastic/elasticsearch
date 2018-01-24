@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -37,7 +38,7 @@ public class HipChatAccountsTests extends ESTestCase {
                 .put("xpack.notification.hipchat.default_account", "account1");
         addAccountSettings("account1", builder);
         HipChatService service = new HipChatService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(HipChatService.HIPCHAT_ACCOUNT_SETTING)));
+                new HashSet<>(HipChatService.getSettings())));
         HipChatAccount account = service.getAccount("account1");
 
         HipChatMessage.Template template = new HipChatMessage.Template.Builder(new TextTemplate("foo"))

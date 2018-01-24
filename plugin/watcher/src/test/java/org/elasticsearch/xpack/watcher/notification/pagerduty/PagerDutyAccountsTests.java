@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessageDe
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Collections;
+import java.util.HashSet;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -40,7 +40,7 @@ public class PagerDutyAccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
         PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+                new HashSet<>(PagerDutyService.getSettings())));
         PagerDutyAccount account = service.getAccount("account1");
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -60,7 +60,7 @@ public class PagerDutyAccountsTests extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("xpack.notification.pagerduty.default_account", "account1");
         addAccountSettings("account1", builder);
         PagerDutyService service = new PagerDutyService(builder.build(), httpClient, new ClusterSettings(Settings.EMPTY,
-                Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING)));
+                new HashSet<>(PagerDutyService.getSettings())));
         PagerDutyAccount account = service.getAccount("account1");
 
         ArgumentCaptor<HttpRequest> argumentCaptor = ArgumentCaptor.forClass(HttpRequest.class);

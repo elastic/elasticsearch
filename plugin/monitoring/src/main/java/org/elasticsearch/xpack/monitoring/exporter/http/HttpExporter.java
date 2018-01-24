@@ -22,9 +22,12 @@ import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer.Scheme;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,12 +44,14 @@ import javax.net.ssl.SSLContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -71,45 +76,66 @@ public class HttpExporter extends Exporter {
     /**
      * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
      */
-    public static final String HOST_SETTING = "host";
+    public static final Setting.AffixSetting<List<String>> HOST_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","host",
+                    (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
+                            Property.Dynamic, Property.NodeScope));
     /**
      * Master timeout associated with bulk requests.
      */
-    public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
+    public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
     /**
      * Timeout used for initiating a connection.
      */
-    public static final String CONNECTION_TIMEOUT_SETTING = "connection.timeout";
+    public static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(6), Property.Dynamic, Property.NodeScope));
     /**
      * Timeout used for reading from the connection.
      */
-    public static final String CONNECTION_READ_TIMEOUT_SETTING = "connection.read_timeout";
+    public static final Setting.AffixSetting<TimeValue> CONNECTION_READ_TIMEOUT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","connection.read_timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Property.Dynamic, Property.NodeScope));
     /**
      * Username for basic auth.
      */
-    public static final String AUTH_USERNAME_SETTING = "auth.username";
+    public static final Setting.AffixSetting<String> AUTH_USERNAME_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.username",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
     /**
      * Password for basic auth.
      */
-    public static final String AUTH_PASSWORD_SETTING = "auth.password";
+    public static final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
     /**
      * The SSL settings.
      *
      * @see SSLService
      */
-    public static final String SSL_SETTING = "ssl";
+    public static final Setting.AffixSetting<Settings> SSL_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","ssl",
+                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope, Property.Filtered));
     /**
      * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
      */
-    public static final String PROXY_BASE_PATH_SETTING = "proxy.base_path";
+    public static final Setting.AffixSetting<String> PROXY_BASE_PATH_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","proxy.base_path",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
     /**
      * A boolean setting to enable or disable sniffing for extra connections.
      */
-    public static final String SNIFF_ENABLED_SETTING = "sniff.enabled";
+    public static final Setting.AffixSetting<Boolean> SNIFF_ENABLED_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","sniff.enabled",
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
-    public static final String HEADERS_SETTING = "headers";
+    public static final Setting.AffixSetting<Settings> HEADERS_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","headers",
+                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
@@ -119,15 +145,21 @@ public class HttpExporter extends Exporter {
     /**
      * ES level timeout used when checking and writing templates (used to speed up tests)
      */
-    public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
+    public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
-    public static final String TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING = "index.template.create_legacy_templates";
+    public static final Setting.AffixSetting<Boolean> TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.create_legacy_templates",
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
     /**
      * ES level timeout used when checking and writing pipelines (used to speed up tests)
      */
-    public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
+    public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
@@ -234,14 +266,15 @@ public class HttpExporter extends Exporter {
      */
     static RestClient createRestClient(final Config config, final SSLService sslService, final NodeFailureListener listener) {
         final RestClientBuilder builder = RestClient.builder(createHosts(config)).setFailureListener(listener);
-        final String proxyBasePath = config.settings().get(PROXY_BASE_PATH_SETTING);
+        Setting<String> concreteSetting = PROXY_BASE_PATH_SETTING.getConcreteSettingForNamespace(config.name());
+        final String proxyBasePath = concreteSetting.get(config.settings());
 
         // allow the user to configure proxies
-        if (proxyBasePath != null) {
+        if (Strings.isNullOrEmpty(proxyBasePath) == false) {
             try {
                 builder.setPathPrefix(proxyBasePath);
             } catch (final IllegalArgumentException e) {
-                throw new SettingsException("[" + settingFQN(config, "proxy.base_path") + "] is malformed [" + proxyBasePath + "]", e);
+                throw new SettingsException("[" + concreteSetting.getKey() + "] is malformed [" + proxyBasePath + "]", e);
             }
         }
 
@@ -265,12 +298,12 @@ public class HttpExporter extends Exporter {
      * @throws IndexOutOfBoundsException if no {@linkplain #HOST_SETTING hosts} are set
      */
     static Sniffer createSniffer(final Config config, final RestClient client, final NodeFailureListener listener) {
-        final Settings settings = config.settings();
         Sniffer sniffer = null;
 
         // the sniffer is allowed to be ENABLED; it's disabled by default until we think it's ready for use
-        if (settings.getAsBoolean(SNIFF_ENABLED_SETTING, false)) {
-            final List<String> hosts = config.settings().getAsList(HOST_SETTING);
+        boolean sniffingEnabled = SNIFF_ENABLED_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        if (sniffingEnabled) {
+            final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
             // createHosts(config) ensures that all schemes are the same for all hosts!
             final Scheme scheme = hosts.get(0).startsWith("https") ? Scheme.HTTPS : Scheme.HTTP;
             final ElasticsearchHostsSniffer hostsSniffer =
@@ -281,7 +314,7 @@ public class HttpExporter extends Exporter {
             // inform the sniffer whenever there's a node failure
             listener.setSniffer(sniffer);
 
-            logger.debug("[" + settingFQN(config) + "] using host sniffing");
+            logger.debug("exporter [{}] using host sniffing", config.name());
         }
 
         return sniffer;
@@ -294,7 +327,7 @@ public class HttpExporter extends Exporter {
      * @return Never {@code null}.
      */
     static MultiHttpResource createResources(final Config config) {
-        final String resourceOwnerName = settingFQN(config);
+        final String resourceOwnerName = "xpack.monitoring.exporters." + config.name();
         // order controls the order that each is checked; more direct checks should always happen first (e.g., version checks)
         final List<HttpResource> resources = new ArrayList<>();
 
@@ -319,10 +352,11 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting is malformed or if no host is set
      */
     private static HttpHost[] createHosts(final Config config) {
-        final List<String> hosts = config.settings().getAsList(HOST_SETTING);
+        final List<String> hosts = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
+        String configKey = HOST_SETTING.getConcreteSettingForNamespace(config.name()).getKey();
 
         if (hosts.isEmpty()) {
-            throw new SettingsException("missing required setting [" + settingFQN(config, HOST_SETTING) + "]");
+            throw new SettingsException("missing required setting [" + configKey + "]");
         }
 
         final List<HttpHost> httpHosts = new ArrayList<>(hosts.size());
@@ -336,7 +370,7 @@ public class HttpExporter extends Exporter {
             try {
                 httpHost = HttpHostBuilder.builder(host).build();
             } catch (IllegalArgumentException e) {
-                throw new SettingsException("[" + settingFQN(config, HOST_SETTING) + "] invalid host: [" + host + "]", e);
+                throw new SettingsException("[" + configKey + "] invalid host: [" + host + "]", e);
             }
 
             if ("http".equals(httpHost.getSchemeName())) {
@@ -347,16 +381,13 @@ public class HttpExporter extends Exporter {
 
             // fail if we find them configuring the scheme/protocol in different ways
             if (httpHostFound && httpsHostFound) {
-                throw new SettingsException(
-                        "[" + settingFQN(config, HOST_SETTING) + "] must use a consistent scheme: http or https");
+                throw new SettingsException("[" + configKey + "] must use a consistent scheme: http or https");
             }
 
             httpHosts.add(httpHost);
         }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("[{}] using hosts {}", settingFQN(config), hosts);
-        }
+        logger.debug("exporter [{}] using hosts {}", config.name(), hosts);
 
         return httpHosts.toArray(new HttpHost[httpHosts.size()]);
     }
@@ -369,7 +400,8 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any header is {@linkplain #BLACKLISTED_HEADERS blacklisted}
      */
     private static void configureHeaders(final RestClientBuilder builder, final Config config) {
-        final Settings headerSettings = config.settings().getAsSettings(HEADERS_SETTING);
+        Setting<Settings> concreteSetting = HEADERS_SETTING.getConcreteSettingForNamespace(config.name());
+        final Settings headerSettings = concreteSetting.get(config.settings());
         final Set<String> names = headerSettings.names();
 
         // Most users won't define headers
@@ -382,14 +414,13 @@ public class HttpExporter extends Exporter {
         // record and validate each header as best we can
         for (final String name : names) {
             if (BLACKLISTED_HEADERS.contains(name)) {
-                throw new SettingsException("[" + name + "] cannot be overwritten via [" + settingFQN(config, "headers") + "]");
+                throw new SettingsException("header cannot be overwritten via [" + concreteSetting.getKey() + name + "]");
             }
 
             final List<String> values = headerSettings.getAsList(name);
 
             if (values.isEmpty()) {
-                final String settingName = settingFQN(config, "headers." + name);
-                throw new SettingsException("headers must have values, missing for setting [" + settingName + "]");
+                throw new SettingsException("headers must have values, missing for setting [" + concreteSetting.getKey() + name + "]");
             }
 
             // add each value as a separate header; they literally appear like:
@@ -414,16 +445,19 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting causes issues
      */
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
-        final Settings sslSettings = config.settings().getAsSettings(SSL_SETTING);
+        final Settings sslSettings = SSL_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         final SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
-        List<String> hostList = config.settings().getAsList(HOST_SETTING);
+        List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
         // sending credentials in plaintext!
         if (credentialsProvider != null && hostList.stream().findFirst().orElse("").startsWith("https") == false) {
-            logger.warn("[" + settingFQN(config) + "] is not using https, but using user authentication with plaintext username/password!");
+            logger.warn("exporter [{}] is not using https, but using user authentication with plaintext " +
+                    "username/password!", config.name());
         }
 
-        builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
+        if (sslStrategy != null) {
+            builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
+        }
     }
 
     /**
@@ -433,10 +467,10 @@ public class HttpExporter extends Exporter {
      * @param config The exporter's configuration
      */
     private static void configureTimeouts(final RestClientBuilder builder, final Config config) {
-        final Settings settings = config.settings();
-        final TimeValue connectTimeout = settings.getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
-        final TimeValue socketTimeout = settings.getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
-                                                           TimeValue.timeValueMillis(connectTimeout.millis() * 10));
+        final TimeValue connectTimeout =
+                CONNECTION_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        final TimeValue socketTimeout =
+                CONNECTION_READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // if the values could ever be null, then we should only set it if they're not null
         builder.setRequestConfigCallback(new TimeoutRequestConfigCallback(connectTimeout, socketTimeout));
@@ -452,15 +486,15 @@ public class HttpExporter extends Exporter {
      */
     @Nullable
     private static CredentialsProvider createCredentialsProvider(final Config config) {
-        final Settings settings = config.settings();
-        final String username = settings.get(AUTH_USERNAME_SETTING);
-        final String password = settings.get(AUTH_PASSWORD_SETTING);
+        final String username = AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        final String password = AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // username is required for any auth
-        if (username == null) {
-            if (password != null) {
+        if (Strings.isNullOrEmpty(username)) {
+            if (Strings.isNullOrEmpty(password) == false) {
                 throw new SettingsException(
-                        "[" + settingFQN(config, AUTH_PASSWORD_SETTING) + "] without [" + settingFQN(config, AUTH_USERNAME_SETTING) + "]");
+                        "[" + AUTH_PASSWORD_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "] without [" +
+                                AUTH_USERNAME_SETTING.getConcreteSettingForNamespace(config.name()).getKey() + "]");
             }
             // nothing to configure; default situation for most users
             return null;
@@ -479,8 +513,7 @@ public class HttpExporter extends Exporter {
      * @return Never {@code null}. Can be empty.
      */
     static Map<String, String> createDefaultParams(final Config config) {
-        final Settings settings = config.settings();
-        final TimeValue bulkTimeout = settings.getAsTime(BULK_TIMEOUT_SETTING, null);
+        final TimeValue bulkTimeout = BULK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         final MapBuilder<String, String> params = new MapBuilder<>();
 
@@ -489,7 +522,7 @@ public class HttpExporter extends Exporter {
         }
 
         // allow the use of ingest pipelines to be completely optional
-        if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
+        if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
             params.put("pipeline", MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
         }
 
@@ -509,8 +542,8 @@ public class HttpExporter extends Exporter {
     private static void configureTemplateResources(final Config config,
                                                    final String resourceOwnerName,
                                                    final List<HttpResource> resources) {
-        final Settings settings = config.settings();
-        final TimeValue templateTimeout = settings.getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
+        final TimeValue templateTimeout =
+                TEMPLATE_CHECK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
         // add templates not managed by resolvers
         for (final String templateId : MonitoringTemplateUtils.TEMPLATE_IDS) {
@@ -521,7 +554,9 @@ public class HttpExporter extends Exporter {
         }
 
         // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
-        if (settings.getAsBoolean(TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, true)) {
+        boolean createLegacyTemplates =
+                TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
+        if (createLegacyTemplates) {
             for (final String templateId : MonitoringTemplateUtils.OLD_TEMPLATE_IDS) {
                 final String templateName = MonitoringTemplateUtils.oldTemplateName(templateId);
                 final Supplier<String> templateLoader = () -> MonitoringTemplateUtils.createEmptyTemplate(templateId);
@@ -540,11 +575,10 @@ public class HttpExporter extends Exporter {
      */
     private static void configurePipelineResources(final Config config, final String resourceOwnerName,
                                                    final List<HttpResource> resources) {
-        final Settings settings = config.settings();
-
         // don't require pipelines if we're not using them
-        if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
-            final TimeValue pipelineTimeout = settings.getAsTime(PIPELINE_CHECK_TIMEOUT_SETTING, null);
+        if (USE_INGEST_PIPELINE_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
+            final TimeValue pipelineTimeout =
+                    PIPELINE_CHECK_TIMEOUT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
 
             // add all pipelines
             for (final String pipelineId : MonitoringTemplateUtils.PIPELINE_IDS) {
@@ -567,10 +601,8 @@ public class HttpExporter extends Exporter {
      */
     private static void configureClusterAlertsResources(final Config config, final String resourceOwnerName,
                                                         final List<HttpResource> resources) {
-        final Settings settings = config.settings();
-
         // don't create watches if we're not using them
-        if (settings.getAsBoolean(CLUSTER_ALERTS_MANAGEMENT_SETTING, true)) {
+        if (CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())) {
             final ClusterService clusterService = config.clusterService();
             final List<HttpResource> watchResources = new ArrayList<>();
             final List<String> blacklist = ClusterAlertsUtil.getClusterAlertsBlacklist(config);
@@ -612,7 +644,8 @@ public class HttpExporter extends Exporter {
     public HttpExportBulk openBulk() {
         // block until all resources are verified to exist
         if (isExporterReady()) {
-            return new HttpExportBulk(settingFQN(config), client, defaultParams, dateTimeFormatter, threadContext);
+            String name = "xpack.monitoring.exporters." + config.name();
+            return new HttpExportBulk(name, client, defaultParams, dateTimeFormatter, threadContext);
         }
 
         return null;
@@ -633,5 +666,11 @@ public class HttpExporter extends Exporter {
                 logger.error("an error occurred while closing the internal client", e);
             }
         }
+    }
+
+    public static List<Setting.AffixSetting<?>> getSettings() {
+        return Arrays.asList(HOST_SETTING, TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, AUTH_PASSWORD_SETTING, AUTH_USERNAME_SETTING,
+                BULK_TIMEOUT_SETTING, CONNECTION_READ_TIMEOUT_SETTING, CONNECTION_TIMEOUT_SETTING, PIPELINE_CHECK_TIMEOUT_SETTING,
+                PROXY_BASE_PATH_SETTING, SNIFF_ENABLED_SETTING, TEMPLATE_CHECK_TIMEOUT_SETTING, SSL_SETTING);
     }
 }

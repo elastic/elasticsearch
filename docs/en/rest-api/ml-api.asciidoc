@@ -12,7 +12,8 @@ machine learning APIs and in advanced job configuration options in Kibana.
 
 * <<ml-put-calendar,Create calendar>>, <<ml-delete-calendar,Delete calendar>>
 * <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
-* <<ml-get-calendar,Get calendars>>
+* <<ml-post-calendar-event,Add scheduled events to calendar>>, <<ml-delete-calendar-event,Delete scheduled events from calendar>>
+* <<ml-get-calendar,Get calendars>>, <<ml-get-calendar-event,Get scheduled events>>
 
 [float]
 [[ml-api-datafeed-endpoint]]
@@ -61,6 +62,7 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-record,Get records>>
 
 //ADD
+include::ml/post-calendar-event.asciidoc[]
 include::ml/put-calendar-job.asciidoc[]
 //CLOSE
 include::ml/close-job.asciidoc[]
@@ -71,6 +73,7 @@ include::ml/put-job.asciidoc[]
 //DELETE
 include::ml/delete-calendar.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
+include::ml/delete-calendar-event.asciidoc[]
 include::ml/delete-job.asciidoc[]
 include::ml/delete-calendar-job.asciidoc[]
 include::ml/delete-snapshot.asciidoc[]
@@ -89,6 +92,7 @@ include::ml/get-influencer.asciidoc[]
 include::ml/get-job.asciidoc[]
 include::ml/get-job-stats.asciidoc[]
 include::ml/get-snapshot.asciidoc[]
+include::ml/get-calendar-event.asciidoc[]
 include::ml/get-record.asciidoc[]
 //OPEN
 include::ml/open-job.asciidoc[]

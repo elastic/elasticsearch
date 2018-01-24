@@ -123,6 +123,36 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
+    public void testShutdown() throws Exception {
+        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(new Index(Watch.INDEX, "foo")).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
+                .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+                .metaData(MetaData.builder()
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .build())
+                .build();
+
+        when(watcherService.validate(clusterState)).thenReturn(true);
+
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, clusterState));
+        verify(watcherService, times(1)).start(any(ClusterState.class));
+        verify(watcherService, never()).stop(anyString());
+
+        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+        lifeCycleService.shutDown();
+        verify(watcherService, times(1)).start(any(ClusterState.class));
+        verify(watcherService, times(1)).stop(eq("shutdown initiated"));
+
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        verify(watcherService, times(1)).start(any(ClusterState.class));
+        verify(watcherService, times(1)).stop(eq("shutdown initiated"));
+    }
+
     public void testManualStartStop() throws Exception {
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(new Index(Watch.INDEX, "foo")).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))

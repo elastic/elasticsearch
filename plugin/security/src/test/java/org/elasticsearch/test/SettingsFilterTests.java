@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
 import org.hamcrest.Matcher;
 
@@ -38,7 +39,7 @@ public class SettingsFilterTests extends ESTestCase {
     private Map<String, Matcher> settingsMatcherMap = new HashMap<>();
     private MockSecureSettings mockSecureSettings = new MockSecureSettings();
 
-    public void testFiltering() throws OperatorCreationException, GeneralSecurityException, DestroyFailedException, IOException {
+    public void testFiltering() throws Exception {
         configureUnfilteredSetting("xpack.security.authc.realms.file.type", "file");
 
         // ldap realm filtering
@@ -103,17 +104,15 @@ public class SettingsFilterTests extends ESTestCase {
                 .setSecureSettings(mockSecureSettings)
                 .build();
 
-        XPackPlugin xPackPlugin = new XPackPlugin(settings, null);
-        Security securityPlugin = new Security(settings, null);
+        LocalStateSecurity securityPlugin = new LocalStateSecurity(settings, null);
+
         List<Setting<?>> settingList = new ArrayList<>();
         settingList.add(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("foo.baz", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("bar.baz", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("baz.foo", Setting.Property.NodeScope));
-        settingList.addAll(xPackPlugin.getSettings());
         settingList.addAll(securityPlugin.getSettings());
         List<String> settingsFilterList = new ArrayList<>();
-        settingsFilterList.addAll(xPackPlugin.getSettingsFilter());
         settingsFilterList.addAll(securityPlugin.getSettingsFilter());
         // custom settings, potentially added by a plugin
         SettingsModule settingsModule = new SettingsModule(settings, settingList, settingsFilterList);

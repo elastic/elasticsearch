@@ -171,24 +171,24 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(
-                Arrays.asList(MonitoringField.HISTORY_DURATION,
-                              CLEAN_WATCHER_HISTORY,
-                              MonitoringService.INTERVAL,
-                              Exporters.EXPORTERS_SETTINGS,
-                              Collector.INDICES,
-                              ClusterStatsCollector.CLUSTER_STATS_TIMEOUT,
-                              IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT,
-                              IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY,
-                              IndexStatsCollector.INDEX_STATS_TIMEOUT,
-                              JobStatsCollector.JOB_STATS_TIMEOUT,
-                              NodeStatsCollector.NODE_STATS_TIMEOUT)
-        );
+        List<Setting<?>> settings = new ArrayList<>();
+        settings.add(MonitoringField.HISTORY_DURATION);
+        settings.add(CLEAN_WATCHER_HISTORY);
+        settings.add(MonitoringService.INTERVAL);
+        settings.add(Collector.INDICES);
+        settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
+        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
+        settings.add(IndexRecoveryCollector.INDEX_RECOVERY_ACTIVE_ONLY);
+        settings.add(IndexStatsCollector.INDEX_STATS_TIMEOUT);
+        settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
+        settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
+        settings.addAll(Exporters.getSettings());
+        return Collections.unmodifiableList(settings);
     }
 
     @Override
     public List<String> getSettingsFilter() {
-        final String exportersKey = Exporters.EXPORTERS_SETTINGS.getKey();
+        final String exportersKey = "xpack.monitoring.exporters.";
         return Collections.unmodifiableList(Arrays.asList(exportersKey + "*.auth.*", exportersKey + "*.ssl.*"));
     }
 }

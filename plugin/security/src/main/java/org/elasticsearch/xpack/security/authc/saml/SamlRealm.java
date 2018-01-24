@@ -9,6 +9,7 @@ import net.shibboleth.utilities.java.support.component.ComponentInitializationEx
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
+import org.apache.http.client.HttpClient;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -457,7 +458,7 @@ public final class SamlRealm extends Realm implements Releasable {
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
         builder.setSSLSocketFactory(factory);
 
-        HTTPMetadataResolver resolver = new HTTPMetadataResolver(builder.build(), metadataUrl);
+        HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
         TimeValue refresh = IDP_METADATA_HTTP_REFRESH.get(config.settings());
         resolver.setMinRefreshDelay(refresh.millis());
         resolver.setMaxRefreshDelay(refresh.millis());
@@ -474,6 +475,24 @@ public final class SamlRealm extends Realm implements Releasable {
                 throw ExceptionsHelper.convertToRuntime((Exception) ExceptionsHelper.unwrapCause(e));
             }
         });
+    }
+
+    private static final class PrivilegedHTTPMetadataResolver extends HTTPMetadataResolver {
+
+        PrivilegedHTTPMetadataResolver(final HttpClient client, final String metadataURL) throws ResolverException {
+            super(client, metadataURL);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            try {
+                return AccessController.doPrivileged(
+                        (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata());
+            } catch (final PrivilegedActionException e) {
+                throw (ResolverException) e.getCause();
+            }
+        }
+
     }
 
     @SuppressForbidden(reason = "uses toFile")

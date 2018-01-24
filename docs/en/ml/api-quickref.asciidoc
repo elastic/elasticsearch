@@ -33,6 +33,19 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * {ref}/ml-delete-job.html[DELETE /anomaly_detectors/<job_id+++>+++]: Delete a job
 
 [float]
+[[ml-api-calendars]]
+=== /calendars/
+
+* {ref}/ml-put-calendar.html[PUT /calendars/<calendar_id+++>+++]: Create a calendar
+* {ref}/ml-post-calendar-event.html[POST /calendars/<calendar_id+++>+++/events]: Add a scheduled event to a calendar
+* {ref}/ml-put-calendar-job.html[PUT /calendars/<calendar_id+++>+++/jobs/<job_id+++>+++]: Associate a job with a calendar
+* {ref}/ml-get-calendar.html[GET /calendars/<calendar_id+++>+++]: Get calendar details
+* {ref}/ml-get-calendar-event.html[GET /calendars/<calendar_id+++>+++/events]: Get scheduled event details
+* {ref}/ml-delete-calendar-event.html[DELETE /calendars/<calendar_id+++>+++/events/<event_id+++>+++]: Remove a scheduled event from a calendar
+* {ref}/ml-delete-calendar-job.html[DELETE /calendars/<calendar_id+++>+++/jobs/<job_id+++>+++]: Disassociate a job from a calendar
+* {ref}/ml-delete-calendar.html[DELETE /calendars/<calendar_id+++>+++]: Delete a calendar
+
+[float]
 [[ml-api-datafeeds]]
 === /datafeeds/
 

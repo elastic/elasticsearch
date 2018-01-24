@@ -5,26 +5,21 @@
 <titleabbrev>Add Jobs to Calendar</titleabbrev>
 ++++
 
-This API enables you to add jobs to a calendar.
+This API enables you to add a job to a calendar.
 
 ==== Request
 
 `PUT _xpack/ml/calendars/<calendar_id>/jobs/<job_id>`
 
-//===== Description
 
 ==== Path Parameters
 
 `calendar_id` (required)::
   (string) Identifier for the calendar.
 
-//==== Request Body
-
 `job_id` (required)::
   (string) Identifier for the job.
 
-`description`::
-  (string) A description of the calendar.
 
 ==== Authorization
 
@@ -33,4 +28,27 @@ For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
 
 
-//==== Examples
+==== Examples
+
+The following example associates the `planned-outages` calendar with the
+`total-requests` job:
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/ml/calendars/planned-outages/jobs/total-requests
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:calendar_outages_openjob]
+
+The API returns the following results:
+
+[source,js]
+----
+{
+  "calendar_id": "planned-outages",
+  "job_ids": [
+    "total-requests"
+  ]
+}
+----
+//TESTRESPONSE

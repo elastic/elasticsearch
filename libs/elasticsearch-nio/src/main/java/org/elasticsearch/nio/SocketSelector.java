@@ -50,22 +50,23 @@ public class SocketSelector extends ESSelector {
     @Override
     void processKey(SelectionKey selectionKey) {
         NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
+        SocketChannelContext context = nioSocketChannel.getContext();
         int ops = selectionKey.readyOps();
         if ((ops & SelectionKey.OP_CONNECT) != 0) {
-            attemptConnect(nioSocketChannel, true);
+            attemptConnect(context, true);
         }
 
-        if (nioSocketChannel.getContext().isConnectComplete()) {
+        if (context.isConnectComplete()) {
             if ((ops & SelectionKey.OP_WRITE) != 0) {
-                handleWrite(nioSocketChannel);
+                handleWrite(context);
             }
 
             if ((ops & SelectionKey.OP_READ) != 0) {
-                handleRead(nioSocketChannel);
+                handleRead(context);
             }
         }
 
-        eventHandler.postHandling(nioSocketChannel);
+        eventHandler.postHandling(context);
     }
 
     @Override
@@ -163,26 +164,26 @@ public class SocketSelector extends ESSelector {
         }
     }
 
-    private void handleWrite(NioSocketChannel nioSocketChannel) {
+    private void handleWrite(SocketChannelContext context) {
         try {
-            eventHandler.handleWrite(nioSocketChannel);
+            eventHandler.handleWrite(context);
         } catch (Exception e) {
-            eventHandler.writeException(nioSocketChannel, e);
+            eventHandler.writeException(context, e);
         }
     }
 
-    private void handleRead(NioSocketChannel nioSocketChannel) {
+    private void handleRead(SocketChannelContext context) {
         try {
-            eventHandler.handleRead(nioSocketChannel);
+            eventHandler.handleRead(context);
         } catch (Exception e) {
-            eventHandler.readException(nioSocketChannel, e);
+            eventHandler.readException(context, e);
         }
     }
 
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isOpen()) {
+            if (writeOperation.getChannel().getContext().isOpen()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
                 executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
@@ -193,32 +194,32 @@ public class SocketSelector extends ESSelector {
     private void setUpNewChannels() {
         NioSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            setupChannel(newChannel);
+            setupChannel(newChannel.getContext());
         }
     }
 
-    private void setupChannel(NioSocketChannel newChannel) {
-        assert newChannel.getContext().getSelector() == this : "The channel must be registered with the selector with which it was created";
+    private void setupChannel(SocketChannelContext context) {
+        assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
         try {
-            if (newChannel.isOpen()) {
-                eventHandler.handleRegistration(newChannel);
-                attemptConnect(newChannel, false);
+            if (context.isOpen()) {
+                eventHandler.handleRegistration(context);
+                attemptConnect(context, false);
             } else {
-                eventHandler.registrationException(newChannel, new ClosedChannelException());
+                eventHandler.registrationException(context, new ClosedChannelException());
             }
         } catch (Exception e) {
-            eventHandler.registrationException(newChannel, e);
+            eventHandler.registrationException(context, e);
         }
     }
 
-    private void attemptConnect(NioSocketChannel newChannel, boolean connectEvent) {
+    private void attemptConnect(SocketChannelContext context, boolean connectEvent) {
         try {
-            eventHandler.handleConnect(newChannel);
-            if (connectEvent && newChannel.getContext().isConnectComplete() == false) {
-                eventHandler.connectException(newChannel, new IOException("Received OP_CONNECT but connect failed"));
+            eventHandler.handleConnect(context);
+            if (connectEvent && context.isConnectComplete() == false) {
+                eventHandler.connectException(context, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {
-            eventHandler.connectException(newChannel, e);
+            eventHandler.connectException(context, e);
         }
     }
 }

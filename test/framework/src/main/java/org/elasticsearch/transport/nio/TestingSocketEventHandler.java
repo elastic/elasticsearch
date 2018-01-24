@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketEventHandler;
 
 import java.io.IOException;
@@ -36,36 +37,21 @@ public class TestingSocketEventHandler extends SocketEventHandler {
 
     private Set<NioSocketChannel> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 
-    public void handleConnect(NioSocketChannel channel) throws IOException {
+    public void handleConnect(SocketChannelContext context) throws IOException {
+        NioSocketChannel channel = context.getChannel();
         assert hasConnectedMap.contains(channel) == false : "handleConnect should only be called is a channel is not yet connected";
-        super.handleConnect(channel);
-        if (channel.getContext().isConnectComplete()) {
+        super.handleConnect(context);
+        if (context.isConnectComplete()) {
             hasConnectedMap.add(channel);
         }
     }
 
     private Set<NioSocketChannel> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
 
-    public void connectException(NioSocketChannel channel, Exception e) {
+    public void connectException(SocketChannelContext context, Exception e) {
+        NioSocketChannel channel = context.getChannel();
         assert hasConnectExceptionMap.contains(channel) == false : "connectException should only called at maximum once per channel";
         hasConnectExceptionMap.add(channel);
-        super.connectException(channel, e);
+        super.connectException(context, e);
     }
-
-    public void handleRead(NioSocketChannel channel) throws IOException {
-        super.handleRead(channel);
-    }
-
-    public void readException(NioSocketChannel channel, Exception e) {
-        super.readException(channel, e);
-    }
-
-    public void handleWrite(NioSocketChannel channel) throws IOException {
-        super.handleWrite(channel);
-    }
-
-    public void writeException(NioSocketChannel channel, Exception e) {
-        super.writeException(channel, e);
-    }
-
 }

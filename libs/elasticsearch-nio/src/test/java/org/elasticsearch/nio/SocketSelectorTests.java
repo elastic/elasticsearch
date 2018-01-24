@@ -69,8 +69,8 @@ public class SocketSelectorTests extends ESTestCase {
         this.socketSelector = new SocketSelector(eventHandler, rawSelector);
         this.socketSelector.setThread();
 
-        when(channel.isOpen()).thenReturn(true);
         when(channel.getContext()).thenReturn(channelContext);
+        when(channelContext.isOpen()).thenReturn(true);
         when(channelContext.getSelector()).thenReturn(socketSelector);
         when(channelContext.getSelectionKey()).thenReturn(selectionKey);
         when(channelContext.isConnectComplete()).thenReturn(true);
@@ -81,29 +81,29 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        verify(eventHandler).handleRegistration(channel);
+        verify(eventHandler).handleRegistration(channelContext);
     }
 
     public void testClosedChannelWillNotBeRegistered() throws Exception {
-        when(channel.isOpen()).thenReturn(false);
+        when(channelContext.isOpen()).thenReturn(false);
         socketSelector.scheduleForRegistration(channel);
 
         socketSelector.preSelect();
 
-        verify(eventHandler).registrationException(same(channel), any(ClosedChannelException.class));
-        verify(eventHandler, times(0)).handleConnect(channel);
+        verify(eventHandler).registrationException(same(channelContext), any(ClosedChannelException.class));
+        verify(eventHandler, times(0)).handleConnect(channelContext);
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {
         socketSelector.scheduleForRegistration(channel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        doThrow(closedChannelException).when(eventHandler).handleRegistration(channel);
+        doThrow(closedChannelException).when(eventHandler).handleRegistration(channelContext);
 
         socketSelector.preSelect();
 
-        verify(eventHandler).registrationException(channel, closedChannelException);
-        verify(eventHandler, times(0)).handleConnect(channel);
+        verify(eventHandler).registrationException(channelContext, closedChannelException);
+        verify(eventHandler, times(0)).handleConnect(channelContext);
     }
 
     public void testSuccessfullyRegisterChannelWillAttemptConnect() throws Exception {
@@ -111,7 +111,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.preSelect();
 
-        verify(eventHandler).handleConnect(channel);
+        verify(eventHandler).handleConnect(channelContext);
     }
 
     public void testQueueWriteWhenNotRunning() throws Exception {
@@ -126,7 +126,7 @@ public class SocketSelectorTests extends ESTestCase {
         BytesWriteOperation writeOperation = new BytesWriteOperation(channel, buffers, listener);
         socketSelector.queueWrite(writeOperation);
 
-        when(channel.isOpen()).thenReturn(false);
+        when(channelContext.isOpen()).thenReturn(false);
         socketSelector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
@@ -190,7 +190,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).handleConnect(channel);
+        verify(eventHandler).handleConnect(channelContext);
     }
 
     public void testConnectEventFinishThrowException() throws Exception {
@@ -198,10 +198,10 @@ public class SocketSelectorTests extends ESTestCase {
 
         selectionKey.setReadyOps(SelectionKey.OP_CONNECT);
 
-        doThrow(ioException).when(eventHandler).handleConnect(channel);
+        doThrow(ioException).when(eventHandler).handleConnect(channelContext);
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).connectException(channel, ioException);
+        verify(eventHandler).connectException(channelContext, ioException);
     }
 
     public void testWillNotConsiderWriteOrReadUntilConnectionComplete() throws Exception {
@@ -209,13 +209,13 @@ public class SocketSelectorTests extends ESTestCase {
 
         selectionKey.setReadyOps(SelectionKey.OP_WRITE | SelectionKey.OP_READ);
 
-        doThrow(ioException).when(eventHandler).handleWrite(channel);
+        doThrow(ioException).when(eventHandler).handleWrite(channelContext);
 
         when(channelContext.isConnectComplete()).thenReturn(false);
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler, times(0)).handleWrite(channel);
-        verify(eventHandler, times(0)).handleRead(channel);
+        verify(eventHandler, times(0)).handleWrite(channelContext);
+        verify(eventHandler, times(0)).handleRead(channelContext);
     }
 
     public void testSuccessfulWriteEvent() throws Exception {
@@ -223,7 +223,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).handleWrite(channel);
+        verify(eventHandler).handleWrite(channelContext);
     }
 
     public void testWriteEventWithException() throws Exception {
@@ -231,11 +231,11 @@ public class SocketSelectorTests extends ESTestCase {
 
         selectionKey.setReadyOps(SelectionKey.OP_WRITE);
 
-        doThrow(ioException).when(eventHandler).handleWrite(channel);
+        doThrow(ioException).when(eventHandler).handleWrite(channelContext);
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).writeException(channel, ioException);
+        verify(eventHandler).writeException(channelContext, ioException);
     }
 
     public void testSuccessfulReadEvent() throws Exception {
@@ -243,7 +243,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).handleRead(channel);
+        verify(eventHandler).handleRead(channelContext);
     }
 
     public void testReadEventWithException() throws Exception {
@@ -251,11 +251,11 @@ public class SocketSelectorTests extends ESTestCase {
 
         selectionKey.setReadyOps(SelectionKey.OP_READ);
 
-        doThrow(ioException).when(eventHandler).handleRead(channel);
+        doThrow(ioException).when(eventHandler).handleRead(channelContext);
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).readException(channel, ioException);
+        verify(eventHandler).readException(channelContext, ioException);
     }
 
     public void testWillCallPostHandleAfterChannelHandling() throws Exception {
@@ -263,9 +263,9 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler).handleWrite(channel);
-        verify(eventHandler).handleRead(channel);
-        verify(eventHandler).postHandling(channel);
+        verify(eventHandler).handleWrite(channelContext);
+        verify(eventHandler).handleRead(channelContext);
+        verify(eventHandler).postHandling(channelContext);
     }
 
     public void testCleanup() throws Exception {

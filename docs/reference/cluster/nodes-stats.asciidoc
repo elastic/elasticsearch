@@ -147,12 +147,12 @@ information that concern the file system:
     The total number of write operations for the device completed since
     starting Elasticsearch.
 
-`fs.io_stats.devices.read_kilobytes` (Linux only)::
-    The total number of kilobytes read for the device since starting
+`fs.io_stats.devices.read_bytes` (Linux only)::
+    The total number of bytes read for the device since starting
     Elasticsearch.
 
-`fs.io_stats.devices.write_kilobytes` (Linux only)::
-    The total number of kilobytes written for the device since
+`fs.io_stats.devices.write_bytes` (Linux only)::
+    The total number of bytes written for the device since
     starting Elasticsearch.
 
 `fs.io_stats.operations` (Linux only)::
@@ -167,12 +167,12 @@ information that concern the file system:
     The total number of write operations across all devices used by
     Elasticsearch completed since starting Elasticsearch.
 
-`fs.io_stats.read_kilobytes` (Linux only)::
-    The total number of kilobytes read across all devices used by
+`fs.io_stats.read_bytes` (Linux only)::
+    The total number of bytes read across all devices used by
     Elasticsearch since starting Elasticsearch.
 
-`fs.io_stats.write_kilobytes` (Linux only)::
-    The total number of kilobytes written across all devices used by
+`fs.io_stats.write_bytes` (Linux only)::
+    The total number of bytes written across all devices used by
     Elasticsearch since starting Elasticsearch.
 
 [float]

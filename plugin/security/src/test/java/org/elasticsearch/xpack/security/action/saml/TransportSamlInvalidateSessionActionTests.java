@@ -14,6 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -143,6 +146,12 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     final SearchResponse response = new SearchResponse(
                             new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
                                     null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                    listener.onResponse((Response) response);
+                } else if (ClearScrollAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(ClearScrollRequest.class));
+                    ClearScrollRequest scrollRequest = (ClearScrollRequest) request;
+                    assertEquals("_scrollId1", scrollRequest.getScrollIds().get(0));
+                    ClearScrollResponse response = new ClearScrollResponse(true, 1);
                     listener.onResponse((Response) response);
                 } else {
                     super.doExecute(action, request, listener);

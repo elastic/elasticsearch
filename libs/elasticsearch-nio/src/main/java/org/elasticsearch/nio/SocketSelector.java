@@ -55,7 +55,7 @@ public class SocketSelector extends ESSelector {
             attemptConnect(nioSocketChannel, true);
         }
 
-        if (nioSocketChannel.isConnectComplete()) {
+        if (nioSocketChannel.getContext().isConnectComplete()) {
             if ((ops & SelectionKey.OP_WRITE) != 0) {
                 handleWrite(nioSocketChannel);
             }
@@ -213,9 +213,8 @@ public class SocketSelector extends ESSelector {
 
     private void attemptConnect(NioSocketChannel newChannel, boolean connectEvent) {
         try {
-            if (newChannel.finishConnect()) {
-                eventHandler.handleConnect(newChannel);
-            } else if (connectEvent) {
+            eventHandler.handleConnect(newChannel);
+            if (connectEvent && newChannel.isConnectComplete() == false) {
                 eventHandler.connectException(newChannel, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {

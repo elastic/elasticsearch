@@ -69,13 +69,15 @@ public class SocketEventHandler extends EventHandler {
     }
 
     /**
-     * This method is called when a NioSocketChannel is successfully connected. It should only be called
-     * once per channel.
+     * This method is called when a NioSocketChannel has just been accepted or if it has receive an
+     * OP_CONNECT event.
      *
      * @param channel that was registered
      */
-    protected void handleConnect(NioSocketChannel channel) {
-        SelectionKeyUtils.removeConnectInterested(channel.getContext().getSelectionKey());
+    protected void handleConnect(NioSocketChannel channel) throws IOException {
+        SocketChannelContext context = channel.getContext();
+        context.connect();
+        SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
     }
 
     /**

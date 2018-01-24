@@ -58,13 +58,13 @@ public class SocketSelectorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
+        rawSelector = mock(Selector.class);
         eventHandler = mock(SocketEventHandler.class);
         channel = mock(NioSocketChannel.class);
         channelContext = mock(SocketChannelContext.class);
         listener = mock(BiConsumer.class);
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(channel);
-        rawSelector = mock(Selector.class);
 
         this.socketSelector = new SocketSelector(eventHandler, rawSelector);
         this.socketSelector.setThread();
@@ -73,7 +73,7 @@ public class SocketSelectorTests extends ESTestCase {
         when(channel.getContext()).thenReturn(channelContext);
         when(channelContext.getSelector()).thenReturn(socketSelector);
         when(channelContext.getSelectionKey()).thenReturn(selectionKey);
-        when(channel.isConnectComplete()).thenReturn(true);
+        when(channelContext.isConnectComplete()).thenReturn(true);
     }
 
     public void testRegisterChannel() throws Exception {
@@ -91,7 +91,7 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.preSelect();
 
         verify(eventHandler).registrationException(same(channel), any(ClosedChannelException.class));
-        verify(channel, times(0)).finishConnect();
+        verify(eventHandler, times(0)).handleConnect(channel);
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {
@@ -103,27 +103,15 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.preSelect();
 
         verify(eventHandler).registrationException(channel, closedChannelException);
-        verify(channel, times(0)).finishConnect();
+        verify(eventHandler, times(0)).handleConnect(channel);
     }
 
-    public void testSuccessfullyRegisterChannelWillConnect() throws Exception {
+    public void testSuccessfullyRegisterChannelWillAttemptConnect() throws Exception {
         socketSelector.scheduleForRegistration(channel);
-
-        when(channel.finishConnect()).thenReturn(true);
 
         socketSelector.preSelect();
 
         verify(eventHandler).handleConnect(channel);
-    }
-
-    public void testConnectIncompleteWillNotNotify() throws Exception {
-        socketSelector.scheduleForRegistration(channel);
-
-        when(channel.finishConnect()).thenReturn(false);
-
-        socketSelector.preSelect();
-
-        verify(eventHandler, times(0)).handleConnect(channel);
     }
 
     public void testQueueWriteWhenNotRunning() throws Exception {
@@ -200,19 +188,9 @@ public class SocketSelectorTests extends ESTestCase {
     public void testConnectEvent() throws Exception {
         selectionKey.setReadyOps(SelectionKey.OP_CONNECT);
 
-        when(channel.finishConnect()).thenReturn(true);
         socketSelector.processKey(selectionKey);
 
         verify(eventHandler).handleConnect(channel);
-    }
-
-    public void testConnectEventFinishUnsuccessful() throws Exception {
-        selectionKey.setReadyOps(SelectionKey.OP_CONNECT);
-
-        when(channel.finishConnect()).thenReturn(false);
-        socketSelector.processKey(selectionKey);
-
-        verify(eventHandler, times(0)).handleConnect(channel);
     }
 
     public void testConnectEventFinishThrowException() throws Exception {
@@ -220,10 +198,9 @@ public class SocketSelectorTests extends ESTestCase {
 
         selectionKey.setReadyOps(SelectionKey.OP_CONNECT);
 
-        when(channel.finishConnect()).thenThrow(ioException);
+        doThrow(ioException).when(eventHandler).handleConnect(channel);
         socketSelector.processKey(selectionKey);
 
-        verify(eventHandler, times(0)).handleConnect(channel);
         verify(eventHandler).connectException(channel, ioException);
     }
 
@@ -234,7 +211,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         doThrow(ioException).when(eventHandler).handleWrite(channel);
 
-        when(channel.isConnectComplete()).thenReturn(false);
+        when(channelContext.isConnectComplete()).thenReturn(false);
         socketSelector.processKey(selectionKey);
 
         verify(eventHandler, times(0)).handleWrite(channel);

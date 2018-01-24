@@ -36,10 +36,12 @@ public class TestingSocketEventHandler extends SocketEventHandler {
 
     private Set<NioSocketChannel> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 
-    public void handleConnect(NioSocketChannel channel) {
-        assert hasConnectedMap.contains(channel) == false : "handleConnect should only be called once per channel";
-        hasConnectedMap.add(channel);
+    public void handleConnect(NioSocketChannel channel) throws IOException {
+        assert hasConnectedMap.contains(channel) == false : "handleConnect should only be called is a channel is not yet connected";
         super.handleConnect(channel);
+        if (channel.getContext().isConnectComplete()) {
+            hasConnectedMap.add(channel);
+        }
     }
 
     private Set<NioSocketChannel> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());

@@ -107,7 +107,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
@@ -619,7 +618,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 try {
                     TcpChannel.awaitConnected(node, connectionFutures, connectionProfile.getConnectTimeout());
                 } catch (Exception ex) {
-                    logger.error(channels.stream().map(TcpChannel::getLocalAddress).collect(Collectors.toList()));
                     TcpChannel.closeChannels(channels, false);
                     throw ex;
                 }
@@ -1691,7 +1689,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             success = true;
             if (exceptionRef.get() != null) {
-                throw new IllegalStateException("handshake failed for channel: " + channel.getLocalAddress(), exceptionRef.get());
+                throw new IllegalStateException("handshake failed", exceptionRef.get());
             } else {
                 Version version = versionRef.get();
                 if (getCurrentVersion().isCompatible(version) == false) {

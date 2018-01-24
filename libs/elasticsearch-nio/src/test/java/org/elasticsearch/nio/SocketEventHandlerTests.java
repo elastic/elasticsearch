@@ -53,7 +53,6 @@ public class SocketEventHandlerTests extends ESTestCase {
 
         channel.setContext(new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0)));
         handler.handleRegistration(channel);
-        channel.finishConnect();
 
         when(selector.isOnCurrentThread()).thenReturn(true);
     }

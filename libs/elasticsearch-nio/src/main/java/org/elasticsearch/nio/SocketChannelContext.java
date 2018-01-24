@@ -21,7 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 /**
@@ -38,8 +38,10 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
     protected final NioSocketChannel channel;
     private final SocketSelector selector;
     private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private boolean ioException;
     private boolean peerClosed;
+    private Exception connectException;
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
                                    BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
@@ -57,6 +59,54 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
     @Override
     public SocketSelector getSelector() {
         return selector;
+    }
+
+    public void addConnectListener(BiConsumer<Void, Throwable> listener) {
+        connectContext.whenComplete(listener);
+    }
+
+    public boolean isConnectComplete() {
+        return connectContext.isDone() && connectContext.isCompletedExceptionally() == false;
+    }
+
+    /**
+     * This method will attempt to complete the connection process for this channel. It should be called for
+     * new channels or for a channel that has produced a OP_CONNECT event. If this method returns true then
+     * the connection is complete and the channel is ready for reads and writes. If it returns false, the
+     * channel is not yet connected and this method should be called again when a OP_CONNECT event is
+     * received.
+     *
+     * @return true if the connection process is complete
+     * @throws IOException if an I/O error occurs
+     */
+    public boolean connect() throws IOException {
+        if (isConnectComplete()) {
+            return true;
+        } else if (connectContext.isCompletedExceptionally()) {
+            Exception exception = connectException;
+            if (exception == null) {
+                throw new AssertionError("Should have received connection exception");
+            } else if (exception instanceof IOException) {
+                throw (IOException) exception;
+            } else {
+                throw (RuntimeException) exception;
+            }
+        }
+
+        boolean isConnected = channel.getRawChannel().isConnected();
+        if (isConnected == false) {
+            try {
+                isConnected = channel.getRawChannel().finishConnect();
+            } catch (IOException | RuntimeException e) {
+                connectException = e;
+                connectContext.completeExceptionally(e);
+                throw e;
+            }
+        }
+        if (isConnected) {
+            connectContext.complete(null);
+        }
+        return isConnected;
     }
 
     public abstract int read() throws IOException;

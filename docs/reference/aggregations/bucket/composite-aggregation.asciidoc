@@ -422,6 +422,11 @@ GET /_search
 
 <1> The last composite bucket returned by the query.
 
+NOTE: The `after_key` is equals to the last bucket returned in the response before
+any filtering that could be done by <<search-aggregations-pipeline, Pipeline aggregations>>.
+If all buckets are filtered/removed by a pipeline aggregation, the `after_key` will contain
+the last bucket before filtering.
+
 The `after` parameter can be used to retrieve the composite buckets that are **after**
 the last composite buckets returned in a previous round.
 For the example below the last bucket can be found in `after_key` and the next

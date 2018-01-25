@@ -34,30 +34,26 @@ import java.nio.channels.spi.SelectorProvider;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-public class AbstractChannelContextTests extends ESTestCase {
+public class ChannelContextTests extends ESTestCase {
 
     private TestChannelContext context;
-    private BiConsumer<NioChannel<FakeRawChannel>, Exception> exceptionHandler;
-    private NioChannel<FakeRawChannel> channel;
+    private Consumer<Exception> exceptionHandler;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         super.setUp();
-        channel = mock(NioChannel.class);
-        exceptionHandler = mock(BiConsumer.class);
-        context = new TestChannelContext(channel, exceptionHandler);
+        exceptionHandler = mock(Consumer.class);
     }
 
     public void testCloseSuccess() throws IOException {
         FakeRawChannel rawChannel = new FakeRawChannel(null);
-        when(channel.getRawChannel()).thenReturn(rawChannel);
+        context = new TestChannelContext(rawChannel, exceptionHandler);
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         context.addCloseListener((v, t) -> {
@@ -80,7 +76,7 @@ public class AbstractChannelContextTests extends ESTestCase {
     public void testCloseException() throws IOException {
         IOException ioException = new IOException("boom");
         FakeRawChannel rawChannel = new FakeRawChannel(ioException);
-        when(channel.getRawChannel()).thenReturn(rawChannel);
+        context = new TestChannelContext(rawChannel, exceptionHandler);
 
         AtomicReference<Exception> exception = new AtomicReference<>();
         context.addCloseListener((v, t) -> {
@@ -101,15 +97,15 @@ public class AbstractChannelContextTests extends ESTestCase {
     }
 
     public void testExceptionsAreDelegatedToHandler() {
+        context = new TestChannelContext(new FakeRawChannel(null), exceptionHandler);
         IOException exception = new IOException();
         context.handleException(exception);
-        verify(exceptionHandler).accept(channel, exception);
+        verify(exceptionHandler).accept(exception);
     }
 
-    private static class TestChannelContext extends AbstractChannelContext<NioChannel<FakeRawChannel>> {
+    private static class TestChannelContext extends ChannelContext<FakeRawChannel> {
 
-        private TestChannelContext(NioChannel<FakeRawChannel> channel,
-                                   BiConsumer<NioChannel<FakeRawChannel>, Exception> exceptionHandler) {
+        private TestChannelContext(FakeRawChannel channel, Consumer<Exception> exceptionHandler) {
             super(channel, exceptionHandler);
         }
 
@@ -120,6 +116,11 @@ public class AbstractChannelContextTests extends ESTestCase {
 
         @Override
         public ESSelector getSelector() {
+            throw new UnsupportedOperationException("not implemented");
+        }
+
+        @Override
+        public NioChannel<FakeRawChannel> getChannel() {
             throw new UnsupportedOperationException("not implemented");
         }
     }

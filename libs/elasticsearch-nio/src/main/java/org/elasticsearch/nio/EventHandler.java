@@ -67,7 +67,7 @@ public abstract class EventHandler {
      *
      * @param context that should be closed
      */
-    protected void handleClose(ChannelContext context) {
+    protected void handleClose(ChannelContext<?> context) {
         try {
             context.closeFromSelector();
         } catch (IOException e) {
@@ -82,7 +82,7 @@ public abstract class EventHandler {
      * @param context that was being closed
      * @param exception that occurred
      */
-    protected void closeException(ChannelContext context, Exception exception) {
+    protected void closeException(ChannelContext<?> context, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", context.getChannel()), exception);
     }
 
@@ -94,7 +94,7 @@ public abstract class EventHandler {
      * @param channel that caused the exception
      * @param exception that was thrown
      */
-    protected void genericChannelException(ChannelContext channel, Exception exception) {
+    protected void genericChannelException(ChannelContext<?> channel, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel.getChannel()), exception);
     }
 }

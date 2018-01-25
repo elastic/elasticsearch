@@ -20,7 +20,6 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketEventHandler;
 
@@ -35,23 +34,21 @@ public class TestingSocketEventHandler extends SocketEventHandler {
         super(logger);
     }
 
-    private Set<NioSocketChannel> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
+    private Set<SocketChannelContext> hasConnectedMap = Collections.newSetFromMap(new WeakHashMap<>());
 
     public void handleConnect(SocketChannelContext context) throws IOException {
-        NioSocketChannel channel = context.getChannel();
-        assert hasConnectedMap.contains(channel) == false : "handleConnect should only be called is a channel is not yet connected";
+        assert hasConnectedMap.contains(context) == false : "handleConnect should only be called is a channel is not yet connected";
         super.handleConnect(context);
         if (context.isConnectComplete()) {
-            hasConnectedMap.add(channel);
+            hasConnectedMap.add(context);
         }
     }
 
-    private Set<NioSocketChannel> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
+    private Set<SocketChannelContext> hasConnectExceptionMap = Collections.newSetFromMap(new WeakHashMap<>());
 
     public void connectException(SocketChannelContext context, Exception e) {
-        NioSocketChannel channel = context.getChannel();
-        assert hasConnectExceptionMap.contains(channel) == false : "connectException should only called at maximum once per channel";
-        hasConnectExceptionMap.add(channel);
+        assert hasConnectExceptionMap.contains(context) == false : "connectException should only called at maximum once per channel";
+        hasConnectExceptionMap.add(context);
         super.connectException(context, e);
     }
 }

@@ -21,11 +21,8 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
-import java.nio.channels.SelectionKey;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 /**
@@ -74,5 +71,5 @@ public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
         getContext().closeChannel();
     }
 
-    public abstract ChannelContext getContext();
+    public abstract ChannelContext<S> getContext();
 }

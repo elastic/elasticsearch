@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
@@ -33,7 +34,7 @@ import java.util.function.BiConsumer;
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
  */
-public abstract class SocketChannelContext extends AbstractChannelContext<NioSocketChannel> {
+public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;
     private final SocketSelector selector;
@@ -44,7 +45,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
                                    BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
-        super(channel, exceptionHandler);
+        super(channel.getRawChannel(), (e) -> exceptionHandler.accept(channel, e));
         this.selector = selector;
         this.channel = channel;
     }
@@ -52,6 +53,11 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
     @Override
     public SocketSelector getSelector() {
         return selector;
+    }
+
+    @Override
+    public NioSocketChannel getChannel() {
+        return channel;
     }
 
     public void addConnectListener(BiConsumer<Void, Throwable> listener) {
@@ -86,10 +92,10 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
             }
         }
 
-        boolean isConnected = channel.getRawChannel().isConnected();
+        boolean isConnected = rawChannel.isConnected();
         if (isConnected == false) {
             try {
-                isConnected = channel.getRawChannel().finishConnect();
+                isConnected = rawChannel.finishConnect();
             } catch (IOException | RuntimeException e) {
                 connectException = e;
                 connectContext.completeExceptionally(e);
@@ -129,7 +135,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         try {
-            int bytesRead = channel.getRawChannel().read(buffer);
+            int bytesRead = rawChannel.read(buffer);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -143,7 +149,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected int readFromChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            int bytesRead = (int) channel.getRawChannel().read(buffers);
+            int bytesRead = (int) rawChannel.read(buffers);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -157,7 +163,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         try {
-            return channel.getRawChannel().write(buffer);
+            return rawChannel.write(buffer);
         } catch (IOException e) {
             ioException = true;
             throw e;
@@ -166,7 +172,7 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            return (int) channel.getRawChannel().write(buffers);
+            return (int) rawChannel.write(buffers);
         } catch (IOException e) {
             ioException = true;
             throw e;

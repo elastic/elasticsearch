@@ -48,7 +48,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         return channel;
     }
 
-    public Socket acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
+    public Socket acceptNioChannel(NioChannel<ServerSocketChannel> serverChannel, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
@@ -160,7 +160,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return socketChannel;
         }
 
-        SocketChannel acceptNioChannel(NioServerSocketChannel serverSocketChannel) throws IOException {
+        SocketChannel acceptNioChannel(NioChannel<ServerSocketChannel> serverSocketChannel) throws IOException {
             ServerSocketChannel rawChannel = serverSocketChannel.getRawChannel();
             SocketChannel socketChannel = accept(rawChannel);
             try {

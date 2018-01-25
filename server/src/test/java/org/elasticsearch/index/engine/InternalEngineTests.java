@@ -4465,23 +4465,30 @@ public class InternalEngineTests extends EngineTestCase {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(indexForDoc(doc));
         }
-        assertThat(engine.getTranslog().shouldFlush(), equalTo(true));
-        assertThat(engine.shouldFlush(), equalTo(false));
-        engine.rollTranslogGeneration();
-        assertThat(engine.getTranslog().shouldFlush(), equalTo(true));
         assertThat(engine.shouldFlush(), equalTo(true));
         engine.flush();
-        // We can flush with stale documents
+        // No gap - can flush
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, id, false));
             assertThat(result.isCreated(), equalTo(false));
         }
-        engine.getTranslog().rollGeneration(); // This is called automatically by IndexShard#afterWriteOperation
-        assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(numDocs + moreDocs - 1L));
-        final SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
+        SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
         assertThat(engine.shouldFlush(), equalTo(true));
-        engine.flush(false, true);
+        engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
+        // With gap - can not flush
+        final long maxSeqNo = engine.getLocalCheckpointTracker().generateSeqNo();
+        for (int id = 0; id < numDocs; id++) {
+            final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
+            final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, id, false));
+            assertThat(result.isCreated(), equalTo(false));
+        }
+        assertThat(engine.shouldFlush(), equalTo(false));
+        // Fill gap - can flush again
+        final ParsedDocument doc = testParsedDocument(Long.toString(maxSeqNo), null, testDocumentWithTextField(), SOURCE, null);
+        final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, maxSeqNo, false));
+        assertThat(result.isCreated(), equalTo(true));
+        assertThat(engine.shouldFlush(), equalTo(true));
     }
 }

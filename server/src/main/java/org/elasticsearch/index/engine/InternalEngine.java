@@ -1467,8 +1467,15 @@ public class InternalEngine extends Engine {
         if (translog.shouldFlush() == false) {
             return false;
         }
-        // We should only flush iff the shouldFlush condition can become false after flushing.
+        /*
+         * We should only flush ony if the shouldFlush condition can become false after flushing. This condition will change if:
+         * 1. The min translog gen of the next commit points to a different translog gen than the last commit
+         * 2. If Local checkpoint equals to max_seqno, the min translog gen of the next commit will point to the newly rolled generation
+         */
         final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+        if (localCheckpoint == localCheckpointTracker.getMaxSeqNo()) {
+            return true;
+        }
         final long translogGenFromLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long translogGenForNewCommit = translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
         return translogGenForNewCommit > translogGenFromLastCommit;

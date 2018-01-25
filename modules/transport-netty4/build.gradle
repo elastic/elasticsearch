@@ -152,15 +152,15 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
         'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
         'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-        'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
-        'org.conscrypt.Conscrypt$Engines',
         'org.conscrypt.AllocatedBuffer',
         'org.conscrypt.BufferAllocator',
+        'org.conscrypt.Conscrypt$Engines',
         'org.conscrypt.HandshakeListener'
 ]

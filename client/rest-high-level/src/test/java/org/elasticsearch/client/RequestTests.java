@@ -988,7 +988,8 @@ public class RequestTests extends ESTestCase {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
         String[] indices = randomIndicesNames(0, 5);
         getAliasesRequest.indices(indices);
-        String[] aliases = randomIndicesNames(0, 5);
+        //the HEAD endpoint requires at least an alias or an index
+        String[] aliases = randomIndicesNames(indices.length == 0 ? 1 : 0, 5);
         getAliasesRequest.aliases(aliases);
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -1013,6 +1014,12 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedEndpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testExistsAliasNoAliasNoIndex() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+        assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

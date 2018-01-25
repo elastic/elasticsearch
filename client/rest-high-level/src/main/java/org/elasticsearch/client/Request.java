@@ -477,6 +477,9 @@ public final class Request {
         Params params = Params.builder();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
+        if (getAliasesRequest.indices().length == 0 && getAliasesRequest.aliases().length == 0) {
+            throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
+        }
         String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
         return new Request("HEAD", endpoint, params.getParams(), null);
     }

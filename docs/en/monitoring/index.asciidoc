@@ -20,4 +20,3 @@ introduction to monitoring your Elastic stack, including Logstash and {kib}, see
 
 include::stats-export.asciidoc[]
 include::http-export.asciidoc[]
-include::tribe.asciidoc[]

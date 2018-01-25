@@ -16,7 +16,9 @@ This API enables you to instantiate a job.
 ==== Path Parameters
 
 `job_id` (required)::
-  (string) Identifier for the job
+  (string) Identifier for the job. This identifier can contain lowercase
+  alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must
+  start and end with alphanumeric characters.
 
 
 ==== Request Body

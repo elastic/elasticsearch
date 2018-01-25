@@ -130,27 +130,29 @@ class PrecommitTasks {
         }
 
         Task checkstyleTask = project.tasks.create('checkstyle')
-        // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
-        // creates them if there is main or test code to check and it makes `check` depend
-        // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
-        // we have to swap them.
-        project.pluginManager.apply('checkstyle')
-        project.checkstyle {
-            config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
-            configProperties = [
-                suppressions: checkstyleSuppressions
-            ]
-            toolVersion = 7.5
-        }
-        for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
-            Task task = project.tasks.findByName(taskName)
-            if (task != null) {
-                project.tasks['check'].dependsOn.remove(task)
-                checkstyleTask.dependsOn(task)
-                task.dependsOn(copyCheckstyleConf)
-                task.inputs.file(checkstyleSuppressions)
-                task.reports {
-                    html.enabled false
+        project.afterEvaluate {
+            // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
+            // creates them if there is main or test code to check and it makes `check` depend
+            // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
+            // we have to swap them.
+            project.pluginManager.apply('checkstyle')
+            project.checkstyle {
+                config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
+                configProperties = [
+                        suppressions: checkstyleSuppressions
+                ]
+                toolVersion = 7.5
+            }
+            for (String taskName : ['checkstyleMain', 'checkstyleJava9', 'checkstyleTest']) {
+                Task task = project.tasks.findByName(taskName)
+                if (task != null) {
+                    project.tasks['check'].dependsOn.remove(task)
+                    checkstyleTask.dependsOn(task)
+                    task.dependsOn(copyCheckstyleConf)
+                    task.inputs.file(checkstyleSuppressions)
+                    task.reports {
+                        html.enabled false
+                    }
                 }
             }
         }

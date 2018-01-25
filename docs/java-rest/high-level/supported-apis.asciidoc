@@ -10,6 +10,7 @@ Indices APIs::
 * <<java-rest-high-close-index>>
 * <<java-rest-high-put-mapping>>
 * <<java-rest-high-update-aliases>>
+* <<java-rest-high-exists-alias>>
 
 Single document APIs::
 * <<java-rest-high-document-index>>

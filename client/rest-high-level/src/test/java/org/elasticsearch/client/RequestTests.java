@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -983,6 +984,44 @@ public class RequestTests extends ESTestCase {
         assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
+    public void testExistsAlias() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+        String[] indices = randomIndicesNames(0, 5);
+        getAliasesRequest.indices(indices);
+        //the HEAD endpoint requires at least an alias or an index
+        String[] aliases = randomIndicesNames(indices.length == 0 ? 1 : 0, 5);
+        getAliasesRequest.aliases(aliases);
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            boolean local = randomBoolean();
+            getAliasesRequest.local(local);
+        }
+        expectedParams.put("local", Boolean.toString(getAliasesRequest.local()));
+
+        setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
+
+        Request request = Request.existsAlias(getAliasesRequest);
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            expectedEndpoint.add(index);
+        }
+        expectedEndpoint.add("_alias");
+        String alias = String.join(",", aliases);
+        if (Strings.hasLength(alias)) {
+            expectedEndpoint.add(alias);
+        }
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testExistsAliasNoAliasNoIndex() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+        assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
+    }
+
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
         assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
@@ -1017,14 +1056,25 @@ public class RequestTests extends ESTestCase {
         assertEquals("1", requestParams.values().iterator().next());
     }
 
+    public void testBuildEndpoint() {
+        assertEquals("/", Request.buildEndpoint());
+        assertEquals("/", Request.buildEndpoint(Strings.EMPTY_ARRAY));
+        assertEquals("/", Request.buildEndpoint(""));
+        assertEquals("/a/b", Request.buildEndpoint("a", "b"));
+        assertEquals("/a/b/_create", Request.buildEndpoint("a", "b", "_create"));
+        assertEquals("/a/b/c/_create", Request.buildEndpoint("a", "b", "c", "_create"));
+        assertEquals("/a/_create", Request.buildEndpoint("a", null, null, "_create"));
+    }
+
     public void testEndpoint() {
-        assertEquals("/", Request.endpoint());
-        assertEquals("/", Request.endpoint(Strings.EMPTY_ARRAY));
-        assertEquals("/", Request.endpoint(""));
-        assertEquals("/a/b", Request.endpoint("a", "b"));
-        assertEquals("/a/b/_create", Request.endpoint("a", "b", "_create"));
-        assertEquals("/a/b/c/_create", Request.endpoint("a", "b", "c", "_create"));
-        assertEquals("/a/_create", Request.endpoint("a", null, null, "_create"));
+        assertEquals("/index/type/id", Request.endpoint("index", "type", "id"));
+        assertEquals("/index/type/id/_endpoint", Request.endpoint("index", "type", "id", "_endpoint"));
+        assertEquals("/index1,index2", Request.endpoint(new String[]{"index1", "index2"}));
+        assertEquals("/index1,index2/_endpoint", Request.endpoint(new String[]{"index1", "index2"}, "_endpoint"));
+        assertEquals("/index1,index2/type1,type2/_endpoint", Request.endpoint(new String[]{"index1", "index2"},
+                new String[]{"type1", "type2"}, "_endpoint"));
+        assertEquals("/index1,index2/_endpoint/suffix1,suffix2", Request.endpoint(new String[]{"index1", "index2"},
+                "_endpoint", new String[]{"suffix1", "suffix2"}));
     }
 
     public void testCreateContentType() {

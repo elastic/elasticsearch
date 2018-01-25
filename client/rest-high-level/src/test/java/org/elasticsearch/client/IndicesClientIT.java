@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -351,6 +352,22 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     private static boolean aliasExists(String index, String alias) throws IOException {
         Response response = client().performRequest("HEAD", "/" + index + "/_alias/" + alias);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    public void testExistsAlias() throws IOException {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
+        assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+
+        createIndex("index");
+        client().performRequest("PUT", "/index/_alias/alias");
+        assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+
+        GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest();
+        getAliasesRequest2.aliases("alias");
+        getAliasesRequest2.indices("index");
+        assertTrue(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+        getAliasesRequest2.indices("does_not_exist");
+        assertFalse(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
     }
 
     @SuppressWarnings("unchecked")

@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -133,7 +134,7 @@ public final class Request {
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
-        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(deleteIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
@@ -144,7 +145,7 @@ public final class Request {
     }
 
     static Request openIndex(OpenIndexRequest openIndexRequest) {
-        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+        String endpoint = endpoint(openIndexRequest.indices(), "_open");
 
         Params parameters = Params.builder();
 
@@ -157,7 +158,7 @@ public final class Request {
     }
 
     static Request closeIndex(CloseIndexRequest closeIndexRequest) {
-        String endpoint = endpoint(closeIndexRequest.indices(), Strings.EMPTY_ARRAY, "_close");
+        String endpoint = endpoint(closeIndexRequest.indices(), "_close");
 
         Params parameters = Params.builder();
 
@@ -169,7 +170,7 @@ public final class Request {
     }
 
     static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
-        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(createIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(createIndexRequest.timeout());
@@ -472,13 +473,44 @@ public final class Request {
         return new Request(HttpPost.METHOD_NAME, "/_msearch", params.getParams(), entity);
     }
 
+    static Request existsAlias(GetAliasesRequest getAliasesRequest) {
+        Params params = Params.builder();
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        if (getAliasesRequest.indices().length == 0 && getAliasesRequest.aliases().length == 0) {
+            throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
+        }
+        String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
+        return new Request("HEAD", endpoint, params.getParams(), null);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
+    static String endpoint(String index, String type, String id) {
+        return buildEndpoint(index, type, id);
+    }
+
+    static String endpoint(String index, String type, String id, String endpoint) {
+        return buildEndpoint(index, type, id, endpoint);
+    }
+
+    static String endpoint(String[] indices) {
+        return buildEndpoint(String.join(",", indices));
+    }
+
+    static String endpoint(String[] indices, String endpoint) {
+        return buildEndpoint(String.join(",", indices), endpoint);
+    }
+
     static String endpoint(String[] indices, String[] types, String endpoint) {
-        return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+        return buildEndpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+    static String endpoint(String[] indices, String endpoint, String[] suffixes) {
+        return buildEndpoint(String.join(",", indices), endpoint, String.join(",", suffixes));
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {
@@ -486,9 +518,9 @@ public final class Request {
     }
 
     /**
-     * Utility method to build request's endpoint.
+     * Utility method to build request's endpoint given its parts as strings
      */
-    static String endpoint(String... parts) {
+    static String buildEndpoint(String... parts) {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
@@ -653,6 +685,11 @@ public final class Request {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withLocal(boolean local) {
+            putParam("local", Boolean.toString(local));
             return this;
         }
 

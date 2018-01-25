@@ -8,7 +8,7 @@ include::close_index.asciidoc[]
 
 include::putmapping.asciidoc[]
 
-include::indices_aliases.asciidoc[]
+include::update_aliases.asciidoc[]
 
 include::_index.asciidoc[]
 

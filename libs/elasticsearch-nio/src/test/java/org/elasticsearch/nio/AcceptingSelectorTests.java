@@ -57,9 +57,9 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector = new AcceptingSelector(eventHandler, rawSelector);
         this.selector.setThread();
 
-        selectionKey = new TestSelectionKey(0);
-        selectionKey.attach(serverChannel);
         context = mock(ServerChannelContext.class);
+        selectionKey = new TestSelectionKey(0);
+        selectionKey.attach(context);
         when(context.getSelectionKey()).thenReturn(selectionKey);
         when(context.getSelector()).thenReturn(selector);
         when(context.isOpen()).thenReturn(true);
@@ -119,7 +119,7 @@ public class AcceptingSelectorTests extends ESTestCase {
         selector.preSelect();
 
         TestSelectionKey key = new TestSelectionKey(0);
-        key.attach(serverChannel);
+        key.attach(context);
         when(rawSelector.keys()).thenReturn(new HashSet<>(Collections.singletonList(key)));
 
         selector.cleanupAndCloseChannels();

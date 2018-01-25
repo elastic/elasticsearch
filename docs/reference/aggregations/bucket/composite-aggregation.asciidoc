@@ -394,6 +394,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": { <1>
+                "date": 1494288000000,
+                "product": "mad max"
+            },
             "buckets": [
                 {
                     "key": {
@@ -403,7 +407,7 @@ GET /_search
                     "doc_count": 1
                 },
                 {
-                    "key": {     <1>
+                    "key": {
                         "date": 1494288000000,
                         "product": "mad max"
                     },
@@ -418,9 +422,14 @@ GET /_search
 
 <1> The last composite bucket returned by the query.
 
+NOTE: The `after_key` is equals to the last bucket returned in the response before
+any filtering that could be done by <<search-aggregations-pipeline, Pipeline aggregations>>.
+If all buckets are filtered/removed by a pipeline aggregation, the `after_key` will contain
+the last bucket before filtering.
+
 The `after` parameter can be used to retrieve the composite buckets that are **after**
 the last composite buckets returned in a previous round.
-For the example below the last bucket is `"key": [1494288000000, "mad max"]` so the next
+For the example below the last bucket can be found in `after_key` and the next
 round of result can be retrieved with:
 
 [source,js]
@@ -485,6 +494,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": {
+                "date": 1494201600000,
+                "product": "rocky"
+            },
             "buckets": [
                 {
                     "key": {

@@ -224,8 +224,40 @@ Time values can also be specified via abbreviations supported by <<time-units,ti
 Note that fractional time values are not supported, but you can address this by shifting to another
 time unit (e.g., `1.5h` could instead be specified as `90m`).
 
-[float]
-===== Time Zone
+====== Format
+
+Internally, a date is represented as a 64 bit number representing a timestamp in milliseconds-since-the-epoch.
+These timestamps are returned as the bucket keys. It is possible to return a formatted date string instead using
+the format specified with the format parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "aggs" : {
+        "my_buckets": {
+            "composite" : {
+                "sources" : [
+                    {
+                        "date": {
+                            "date_histogram" : {
+                                "field": "timestamp",
+                                "interval": "1d",
+                                "format": "yyyy-MM-dd" <1>
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Supports expressive date <<date-format-pattern,format pattern>>
+
+====== Time Zone
 
 Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
@@ -362,6 +394,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": { <1>
+                "date": 1494288000000,
+                "product": "mad max"
+            },
             "buckets": [
                 {
                     "key": {
@@ -371,7 +407,7 @@ GET /_search
                     "doc_count": 1
                 },
                 {
-                    "key": {     <1>
+                    "key": {
                         "date": 1494288000000,
                         "product": "mad max"
                     },
@@ -386,9 +422,14 @@ GET /_search
 
 <1> The last composite bucket returned by the query.
 
+NOTE: The `after_key` is equals to the last bucket returned in the response before
+any filtering that could be done by <<search-aggregations-pipeline, Pipeline aggregations>>.
+If all buckets are filtered/removed by a pipeline aggregation, the `after_key` will contain
+the last bucket before filtering.
+
 The `after` parameter can be used to retrieve the composite buckets that are **after**
 the last composite buckets returned in a previous round.
-For the example below the last bucket is `"key": [1494288000000, "mad max"]` so the next
+For the example below the last bucket can be found in `after_key` and the next
 round of result can be retrieved with:
 
 [source,js]
@@ -453,6 +494,10 @@ GET /_search
     ...
     "aggregations": {
         "my_buckets": {
+            "after_key": {
+                "date": 1494201600000,
+                "product": "rocky"
+            },
             "buckets": [
                 {
                     "key": {

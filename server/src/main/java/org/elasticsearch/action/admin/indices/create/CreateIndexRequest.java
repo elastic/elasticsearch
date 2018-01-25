@@ -440,7 +440,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return updateAllTypes;
     }
 
-    /** See {@link #updateAllTypes()} */
+    /** See {@link #updateAllTypes()}
+     * @deprecated useless with 6.x indices which may only have one type */
+    @Deprecated
     public CreateIndexRequest updateAllTypes(boolean updateAllTypes) {
         this.updateAllTypes = updateAllTypes;
         return this;

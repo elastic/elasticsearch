@@ -68,6 +68,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private String nodeId;
     private DiscoveryNode masterNode;
     private IndicesAdminClient indicesClient;
+    private long now;
 
     @Before
     public void prepareServices() {
@@ -78,8 +79,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         masterNode = DiscoveryNode.createLocal(settings(Version.CURRENT)
                 .put(NODE_MASTER_SETTING.getKey(), true).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), nodeId);
-        long randomMilli = randomNonNegativeLong();
-        Clock clock = Clock.fixed(Instant.ofEpochMilli(randomMilli), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
+        now = randomNonNegativeLong();
+        Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
 
         doAnswer(invocationOnMock -> null).when(clusterService).addListener(any());
         when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
@@ -96,7 +97,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
 
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock,
-            threadPool, () -> randomMilli);
+                threadPool, () -> now);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
     }
 
@@ -355,7 +356,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         SortedMap<String, LifecyclePolicy> policyMap = new TreeMap<>();
         policyMap.put(policyName, policy);
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        long creationDate = randomNonNegativeLong();
+        long creationDate = randomLongBetween(0, now - 1);
         IndexMetaData indexMetadata = IndexMetaData.builder(index.getName())
             .settings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), policyName)

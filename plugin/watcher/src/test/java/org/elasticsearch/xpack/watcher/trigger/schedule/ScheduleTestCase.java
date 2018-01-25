@@ -9,6 +9,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.Month;

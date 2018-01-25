@@ -9,7 +9,7 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Monitoring'
     classname 'org.elasticsearch.xpack.monitoring.Monitoring'
     hasNativeController false
-    requiresKeystore true
+    requiresKeystore false
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
     noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')

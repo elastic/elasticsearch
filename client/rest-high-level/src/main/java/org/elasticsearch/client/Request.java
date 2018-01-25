@@ -356,17 +356,17 @@ public final class Request {
         if (searchRequest.source() != null) {
             entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
         }
-        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpDelete.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

@@ -164,7 +164,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(5, searchResponse.getTotalShards());
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
-        verify(restClient).performRequest(eq("GET"), eq("/_search/scroll"), eq(Collections.emptyMap()),
+        verify(restClient).performRequest(eq("POST"), eq("/_search/scroll"), eq(Collections.emptyMap()),
                 isNotNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 

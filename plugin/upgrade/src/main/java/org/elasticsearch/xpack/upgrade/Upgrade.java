@@ -79,8 +79,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
 import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.authc.esnative.NativeUserStoreField.INDEX_TYPE;
-import static org.elasticsearch.xpack.security.authc.esnative.NativeUserStoreField.RESERVED_USER_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField.INDEX_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField.RESERVED_USER_TYPE;
 
 public class Upgrade extends Plugin implements ActionPlugin {
 

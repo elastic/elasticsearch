@@ -13,13 +13,13 @@ import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrationTestCase {
     @Override
@@ -28,38 +28,14 @@ public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrat
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, MockPainlessScriptEngine.TestPlugin.class,
-                CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Upgrade.class, ReindexPlugin.class,
+                             MockPainlessScriptEngine.TestPlugin.class, CommonAnalysisPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
+        return Collections.singletonList(XPackClientPlugin.class);
     }
     private static String randomValidLicenseType() {
         return randomFrom("trial", "platinum", "gold", "standard", "basic");

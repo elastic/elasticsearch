@@ -23,14 +23,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -78,6 +82,8 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -92,10 +98,19 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
-abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
+abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
 
     private List<Job.Builder> jobs = new ArrayList<>();
     private List<DatafeedConfig> datafeeds = new ArrayList<>();
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
+    }
 
     @Override
     protected Settings externalClusterClientSettings() {

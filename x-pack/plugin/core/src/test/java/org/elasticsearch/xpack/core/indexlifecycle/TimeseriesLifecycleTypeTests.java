@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
@@ -44,6 +45,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
+    private static final LongSupplier TEST_NOW_SUPPLIER = () -> 0L;
 
     public void testGetFirstPhase() {
         Map<String, Phase> phases = new HashMap<>();
@@ -188,7 +190,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = VALID_HOT_ACTIONS
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "",
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -209,7 +212,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -241,7 +244,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -253,7 +256,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, warmPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
-                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -283,7 +286,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -302,7 +305,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         context = new MockIndexLifecycleContext(indexName, "", "",
-            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+            TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -327,7 +330,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         actions.put(ReplicasAction.NAME, TEST_REPLICAS_ACTION);
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, actions);
         MockIndexLifecycleContext context =new MockIndexLifecycleContext(indexName, "", "",
-                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1) {
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() + 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -339,7 +342,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         LifecyclePolicy.NextActionProvider provider = policy.getActionProvider(context, coldPhase);
         assertThat(provider.next(null), equalTo(TEST_REPLICAS_ACTION));
         context = new MockIndexLifecycleContext(indexName, "", "",
-                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1) {
+                TEST_REPLICAS_ACTION.getNumberOfReplicas() - 1, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -363,7 +366,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             .stream().map(this::getTestAction).collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
         Phase deletePhase = new Phase("delete", TimeValue.ZERO, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "",
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {

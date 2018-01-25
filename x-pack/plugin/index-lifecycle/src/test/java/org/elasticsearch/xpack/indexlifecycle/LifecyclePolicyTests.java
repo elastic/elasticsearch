@@ -136,7 +136,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteNewIndexBeforeTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -163,7 +163,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteNewIndexAfterTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -190,7 +190,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteNewIndexAfterTriggerFailure() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "", "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -221,7 +221,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteFirstPhase() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -244,7 +244,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteSecondPhase() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -267,7 +267,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteThirdPhase() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -290,7 +290,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteMissingPhase() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "does_not_exist", "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, "does_not_exist", "", 0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -316,7 +316,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteFirstPhaseCompletedBeforeTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED,
+            0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -343,7 +344,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteFirstPhaseCompletedAfterTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, firstPhase.getName(), Phase.PHASE_COMPLETED,
+            0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -370,7 +372,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteSecondPhaseCompletedBeforeTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED,
+            0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -397,7 +400,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteSecondPhaseCompletedAfterTrigger() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, secondPhase.getName(), Phase.PHASE_COMPLETED,
+            0, () -> 0L) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -424,7 +428,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testExecuteThirdPhaseCompleted() throws Exception {
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, thirdPhase.getName(), Phase.PHASE_COMPLETED,
+            0, () -> 0L) {
             @Override
             public boolean canExecute(Phase phase) {
                 throw new AssertionError("canExecute should not have been called");

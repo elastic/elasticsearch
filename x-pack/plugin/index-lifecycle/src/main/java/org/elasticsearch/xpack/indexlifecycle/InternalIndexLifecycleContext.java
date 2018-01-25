@@ -54,8 +54,10 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     @Override
     public void setPhase(String phase, Listener listener) {
         Settings newLifecyclePhaseSettings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_PHASE_SETTING.getKey(), phase)
-            .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), "").build();
+            .put(LifecycleSettings.LIFECYCLE_PHASE, phase)
+            .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowSupplier.getAsLong())
+            .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L)
+            .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
         writeSettings(index.getName(), newLifecyclePhaseSettings, listener);
     }
 
@@ -65,14 +67,27 @@ public class InternalIndexLifecycleContext implements IndexLifecycleContext {
     }
 
     @Override
+    public long getPhaseTime() {
+        return LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(getIdxMetaData().getSettings());
+    }
+
+    @Override
     public void setAction(String action, Listener listener) {
-        Settings newLifecycleActionSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), action).build();
+        Settings newLifecycleActionSettings = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_ACTION, action)
+            .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowSupplier.getAsLong())
+            .build();
         writeSettings(index.getName(), newLifecycleActionSettings, listener);
     }
 
     @Override
     public String getAction() {
         return LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(getIdxMetaData().getSettings());
+    }
+
+    @Override
+    public long getActionTime() {
+        return LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(getIdxMetaData().getSettings());
     }
 
     @Override

@@ -22,8 +22,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
 
 public class PhaseTests extends AbstractSerializingTestCase<Phase> {
+    private static final LongSupplier TEST_NOW_SUPPLIER = () -> 0L;
     private String phaseName;
 
     @Before
@@ -125,7 +127,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -185,7 +187,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -244,7 +246,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -285,7 +287,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         TimeValue after = TimeValue.timeValueSeconds(randomIntBetween(10, 100));
         Phase phase = new Phase(phaseName, after, Collections.emptyMap());
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "", 0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -327,7 +329,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         };
         Phase phase = new Phase(phaseName, after, Collections.emptyMap());
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, Phase.PHASE_COMPLETED, 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, Phase.PHASE_COMPLETED,
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -389,7 +392,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -480,7 +484,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, firstAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -566,7 +571,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -652,7 +658,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -735,7 +742,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "does_not_exist", 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, "does_not_exist",
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -789,7 +797,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -914,7 +923,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, secondAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {
@@ -1038,7 +1048,8 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
         actions.put(thirdAction.getWriteableName(), thirdAction);
         Phase phase = new Phase(phaseName, after, actions);
 
-        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName(), 0) {
+        MockIndexLifecycleContext context = new MockIndexLifecycleContext(indexName, phaseName, thirdAction.getWriteableName(),
+            0, TEST_NOW_SUPPLIER) {
 
             @Override
             public boolean canExecute(Phase phase) {

@@ -29,14 +29,11 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -53,7 +50,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
+import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskStatusListener;
 
 public class DatafeedManager extends AbstractComponent {
 

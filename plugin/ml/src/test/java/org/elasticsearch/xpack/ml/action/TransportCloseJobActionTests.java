@@ -28,9 +28,9 @@ import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 

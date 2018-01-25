@@ -41,6 +41,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -101,14 +102,14 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.xpack.core.persistent.CompletionPersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksClusterService;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksExecutor;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.core.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.StartPersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.persistent.CompletionPersistentTaskAction;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.RemovePersistentTaskAction;
+import org.elasticsearch.persistent.StartPersistentTaskAction;
+import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -233,7 +234,7 @@ import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 
-public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin {
+public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
@@ -352,33 +353,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        List<Object> components = new ArrayList<>();
-
-        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
-
-        components.addAll(createComponents(client, clusterService, threadPool, xContentRegistry, environment));
-
-        // This was lifted from the XPackPlugins createComponents when it got split
-        // This is not extensible and anyone copying this code needs to instead make this work
-        // using the same single service (at the time of this writing XPackPlugin was the place these common things got created)
-        // and do not just copy this whole thing and drop it in your service.
-        // The Actions for this service will also have to be moved back into XPackPlugin
-        List<PersistentTasksExecutor<?>> tasksExecutors = new ArrayList<>();
-        tasksExecutors.addAll(createPersistentTasksExecutors(clusterService));
-
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
-        PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);
-        components.add(persistentTasksClusterService);
-        components.add(persistentTasksService);
-        components.add(registry);
-        return components;
-    }
-
-    // TODO: once initialization of the PersistentTasksClusterService, PersistentTasksService
-    // and PersistentTasksExecutorRegistry has been moved somewhere else the entire contents of
-    // this method can replace the entire contents of the overridden createComponents() method
-    private Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                NamedXContentRegistry xContentRegistry, Environment environment) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
@@ -443,7 +417,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         );
     }
 
-    public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(ClusterService clusterService) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
@@ -570,14 +544,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(DeleteCalendarEventAction.INSTANCE, TransportDeleteCalendarEventAction.class),
                 new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
-                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
-                // These actions reside here because ML is the only user of the Persistence service currently.
-                // Once another project uses this service, these actions will need to be moved out to a common place
-                // where they are registered.
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
-                new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class)
+                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class)
         );
     }
     @Override

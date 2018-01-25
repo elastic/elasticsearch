@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.io.IOException;
 import java.util.Objects;

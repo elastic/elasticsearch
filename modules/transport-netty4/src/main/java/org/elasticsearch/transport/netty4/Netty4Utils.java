@@ -25,7 +25,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
-import io.netty.util.internal.ThrowableUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.logging.log4j.Logger;
@@ -36,8 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,15 +61,6 @@ public class Netty4Utils {
     }
 
     public static void setup() {
-        // TODO remove this once we get a fix into Netty so we don't have to do this
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            // this is triggering class initialization which triggers the reflective retrieval of
-            // the Throwable#addSuppressed method. We need to do this to avoid
-            // AccessControlExceptions that this code would otherwise trigger without us wrapping
-            // it in a doPrivileged block
-            ThrowableUtil.haveSuppressed();
-            return null;
-        });
     }
 
     private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();

@@ -64,4 +64,8 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
         builder.endObject();
         return builder;
     }
+
+    public List<RemoteConnectionInfo> getRemoteConnectionInfo() {
+        return infos;
+    }
 }

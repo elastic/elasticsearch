@@ -436,7 +436,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the size in bytes of the translog files with ops above the given seqNo
      */
-    private long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
+    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
@@ -521,17 +521,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } finally {
             Releasables.close(out);
         }
-    }
-
-    /**
-     * Tests whether or not the translog should be flushed. This test is based on the current size
-     * of the translog comparted to the configured flush threshold size.
-     *
-     * @return {@code true} if the translog should be flushed
-     */
-    public boolean shouldFlush() {
-        final long size = this.uncommittedSizeInBytes();
-        return size > this.indexSettings.getFlushThresholdSize().getBytes();
     }
 
     /**

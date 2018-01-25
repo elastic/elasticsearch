@@ -47,7 +47,19 @@ public class GetStoredScriptsRequest extends MasterNodeReadRequest<GetStoredScri
     }
 
     @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        return !(obj == null || getClass() != obj.getClass());
+    }
+
+    @Override
     public String toString() {
         return "get scripts";
     }
+
 }

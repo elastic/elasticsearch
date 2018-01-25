@@ -1463,22 +1463,21 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean shouldFlush() {
-        if (translog.shouldFlush() == false) {
+    public boolean shouldFlushToFreeTranslog() {
+        ensureOpen();
+        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
+        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
             return false;
         }
         /*
-         * We should only flush ony if the shouldFlush condition can become false after flushing. This condition will change if:
-         * 1. The min translog gen of the next commit points to a different translog gen than the last commit
-         * 2. If Local checkpoint equals to max_seqno, the min translog gen of the next commit will point to the newly rolled generation
+         * We should only flush ony if the shouldFlush condition can become false after flushing.
+         * This condition will change if the `uncommittedSize` of the new commit is smaller than
+         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
+         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long localCheckpoint = localCheckpointTracker.getCheckpoint();
-        if (localCheckpoint == localCheckpointTracker.getMaxSeqNo()) {
-            return true;
-        }
-        final long translogGenFromLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
-        final long translogGenForNewCommit = translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
-        return translogGenForNewCommit > translogGenFromLastCommit;
+        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
+        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
     }
 
     @Override
@@ -1511,7 +1510,9 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (indexWriter.hasUncommittedChanges() || force || shouldFlush()) {
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+                // newly created commit points to a different translog generation (can free translog)
+                if (indexWriter.hasUncommittedChanges() || force || shouldFlushToFreeTranslog()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

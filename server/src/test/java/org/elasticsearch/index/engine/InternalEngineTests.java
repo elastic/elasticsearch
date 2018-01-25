@@ -4443,52 +4443,36 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testShouldFlush() throws Exception {
-        assertThat("Empty engine does not need flushing", engine.shouldFlush(), equalTo(false));
+    public void testShouldFlushToFreeTranslog() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldFlushToFreeTranslog(), equalTo(false));
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(indexForDoc(doc));
         }
-        assertThat("Not exceeded translog flush threshold yet", engine.shouldFlush(), equalTo(false));
+        assertThat("Not exceeded translog flush threshold yet", engine.shouldFlushToFreeTranslog(), equalTo(false));
         long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, engine.getTranslog().uncommittedSizeInBytes());
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
-            .settings(Settings.builder()
-                .put(indexSettings.getSettings())
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b"))
-            .build();
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
         indexSettings.updateIndexMetaData(indexMetaData);
         engine.onSettingsChanged();
-        int moreDocs = between(0, 10);
-        for (int id = numDocs; id < numDocs + moreDocs; id++) {
-            final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
-            engine.index(indexForDoc(doc));
-        }
-        assertThat(engine.shouldFlush(), equalTo(true));
+        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
+        assertThat(engine.shouldFlushToFreeTranslog(), equalTo(true));
         engine.flush();
-        // No gap - can flush
+        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
+        // Stale operations skipped by Lucene but added to translog - still able to flush
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, id, false));
             assertThat(result.isCreated(), equalTo(false));
         }
         SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
-        assertThat(engine.shouldFlush(), equalTo(true));
+        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
+        assertThat(engine.shouldFlushToFreeTranslog(), equalTo(true));
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
-        // With gap - can not flush
-        final long maxSeqNo = engine.getLocalCheckpointTracker().generateSeqNo();
-        for (int id = 0; id < numDocs; id++) {
-            final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
-            final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, id, false));
-            assertThat(result.isCreated(), equalTo(false));
-        }
-        assertThat(engine.shouldFlush(), equalTo(false));
-        // Fill gap - can flush again
-        final ParsedDocument doc = testParsedDocument(Long.toString(maxSeqNo), null, testDocumentWithTextField(), SOURCE, null);
-        final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 1L, maxSeqNo, false));
-        assertThat(result.isCreated(), equalTo(true));
-        assertThat(engine.shouldFlush(), equalTo(true));
+        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
     }
 }

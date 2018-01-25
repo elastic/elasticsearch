@@ -1597,8 +1597,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Tests whether or not the engine should be flushed. This test is based on the current size of the translog compared to the
-     * configured flush threshold size.
+     * Tests whether or not the engine should be flushed to free translog.
+     * This test is based on the current size of the translog compared to the configured flush threshold size.
      *
      * @return {@code true} if the engine should be flushed
      */
@@ -1606,7 +1606,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                return engine.shouldFlush();
+                return engine.shouldFlushToFreeTranslog();
             } catch (final AlreadyClosedException e) {
                 // we are already closed, no need to flush or roll
             }

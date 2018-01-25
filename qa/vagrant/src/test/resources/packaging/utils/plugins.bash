@@ -30,7 +30,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Install a plugin an run all the common post installation tests.
+# Install a plugin
 install_plugin() {
     local name=$1
     local path="$2"
@@ -52,8 +52,6 @@ install_plugin() {
       sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install -batch \"file://$path\""
     fi
 
-    assert_file_exist "$ESPLUGINS/$name"
-    assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
     #check we did not accidentially create a log file as root as /usr/share/elasticsearch
     assert_file_not_exist "/usr/share/elasticsearch/logs"
 
@@ -64,13 +62,6 @@ install_plugin() {
         echo "$ESLOG is now owned by root! That'll break logging when elasticsearch tries to start."
         false
     fi
-}
-
-install_jvm_plugin() {
-    local name=$1
-    local path="$2"
-    install_plugin $name "$path" $3
-    assert_file_exist "$ESPLUGINS/$name/$name"*".jar"
 }
 
 # Remove a plugin and make sure its plugin directory is removed.
@@ -95,7 +86,7 @@ remove_plugin() {
 # placements for non-site plugins.
 install_jvm_example() {
     local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    install_jvm_plugin jvm-example "$relativePath" $2
+    install_plugin jvm-example "$relativePath" $2
 
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
     bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
@@ -156,9 +147,11 @@ install_and_check_plugin() {
         local full_name="$prefix-$name"
     fi
 
-    install_jvm_plugin $full_name "$(readlink -m $full_name-*.zip)"
+    install_plugin $full_name "$(readlink -m $full_name-*.zip)"
 
     assert_module_or_plugin_directory "$ESPLUGINS/$full_name"
+    assert_file_exist "$ESPLUGINS/$full_name/plugin-descriptor.properties"
+    assert_file_exist "$ESPLUGINS/$full_name/$full_name"*".jar"
 
     # analysis plugins have a corresponding analyzers jar
     if [ $prefix == 'analysis' ]; then
@@ -174,6 +167,17 @@ install_and_check_plugin() {
     for file in "$@"; do
         assert_module_or_plugin_file "$ESPLUGINS/$full_name/$file"
     done
+}
+
+# Install a meta plugin
+# $1 - the plugin name
+# $@ - all remaining arguments are jars that must exist in the plugin's
+#      installation directory
+install_meta_plugin() {
+    local name=$1
+
+    install_plugin $name "$(readlink -m $name-*.zip)"
+    assert_module_or_plugin_directory "$ESPLUGINS/$name"
 }
 
 # Compare a list of plugin names to the plugins in the plugins pom and see if they are the same

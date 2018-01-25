@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,7 +58,8 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 /**
  * A request to add/remove aliases for one or more indices.
  */
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
+
     private List<AliasActions> allAliasActions = new ArrayList<>();
 
     // indices options that require every specified index to exist, expand wildcards only to open
@@ -65,22 +68,37 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
 
     public IndicesAliasesRequest() {
-
     }
 
     /**
      * Request to take one or more actions on one or more indexes and alias combinations.
      */
-    public static class AliasActions implements AliasesRequest, Writeable {
+    public static class AliasActions implements AliasesRequest, Writeable, ToXContentObject {
+
+        private static final ParseField INDEX = new ParseField("index");
+        private static final ParseField INDICES = new ParseField("indices");
+        private static final ParseField ALIAS = new ParseField("alias");
+        private static final ParseField ALIASES = new ParseField("aliases");
+        private static final ParseField FILTER = new ParseField("filter");
+        private static final ParseField ROUTING = new ParseField("routing");
+        private static final ParseField INDEX_ROUTING = new ParseField("index_routing", "indexRouting", "index-routing");
+        private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
+
+        private static final ParseField ADD = new ParseField("add");
+        private static final ParseField REMOVE = new ParseField("remove");
+        private static final ParseField REMOVE_INDEX = new ParseField("remove_index");
+
         public enum Type {
-            ADD((byte) 0),
-            REMOVE((byte) 1),
-            REMOVE_INDEX((byte) 2);
+            ADD((byte) 0, AliasActions.ADD),
+            REMOVE((byte) 1, AliasActions.REMOVE),
+            REMOVE_INDEX((byte) 2, AliasActions.REMOVE_INDEX);
 
             private final byte value;
+            private final String fieldName;
 
-            Type(byte value) {
+            Type(byte value, ParseField field) {
                 this.value = value;
+                this.fieldName = field.getPreferredName();
             }
 
             public byte value() {
@@ -125,29 +143,29 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     throw new IllegalArgumentException("Only one of [index] and [indices] is supported");
                 }
                 action.index(index);
-            }, new ParseField("index"));
+            }, INDEX);
             parser.declareStringArray(fromList(String.class, (action, indices) -> {
                 if (action.indices() != null) {
                     throw new IllegalArgumentException("Only one of [index] and [indices] is supported");
                 }
                 action.indices(indices);
-            }), new ParseField("indices"));
+            }), INDICES);
             parser.declareString((action, alias) -> {
                 if (action.aliases() != null && action.aliases().length != 0) {
                     throw new IllegalArgumentException("Only one of [alias] and [aliases] is supported");
                 }
                 action.alias(alias);
-            }, new ParseField("alias"));
+            }, ALIAS);
             parser.declareStringArray(fromList(String.class, (action, aliases) -> {
                 if (action.aliases() != null && action.aliases().length != 0) {
                     throw new IllegalArgumentException("Only one of [alias] and [aliases] is supported");
                 }
                 action.aliases(aliases);
-            }), new ParseField("aliases"));
+            }), ALIASES);
             return parser;
         }
 
-        private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser("add", AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -155,14 +173,15 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Problems parsing [filter]", e);
                 }
-            }, new ParseField("filter"));
+            }, FILTER);
             // Since we need to support numbers AND strings here we have to use ValueType.INT.
-            ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, new ParseField("routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, new ParseField("index_routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, new ParseField("search_routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, ROUTING, ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, INDEX_ROUTING, ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
         }
-        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser("remove", AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser("remove_index", AliasActions::removeIndex);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
+                AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
@@ -183,9 +202,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     return action;
                 });
         static {
-            PARSER.declareObject(optionalConstructorArg(), ADD_PARSER, new ParseField("add"));
-            PARSER.declareObject(optionalConstructorArg(), REMOVE_PARSER, new ParseField("remove"));
-            PARSER.declareObject(optionalConstructorArg(), REMOVE_INDEX_PARSER, new ParseField("remove_index"));
+            PARSER.declareObject(optionalConstructorArg(), ADD_PARSER, ADD);
+            PARSER.declareObject(optionalConstructorArg(), REMOVE_PARSER, REMOVE);
+            PARSER.declareObject(optionalConstructorArg(), REMOVE_INDEX_PARSER, REMOVE_INDEX);
         }
 
         private final AliasActions.Type type;
@@ -196,7 +215,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private String indexRouting;
         private String searchRouting;
 
-        AliasActions(AliasActions.Type type) {
+        public AliasActions(AliasActions.Type type) {
             this.type = type;
         }
 
@@ -403,6 +422,37 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(type.fieldName);
+            if (null != indices && 0 != indices.length) {
+                builder.array(INDICES.getPreferredName(), indices);
+            }
+            if (0 != aliases.length) {
+                builder.array(ALIASES.getPreferredName(), aliases);
+            }
+            if (false == Strings.isEmpty(filter)) {
+                builder.rawField(FILTER.getPreferredName(), new BytesArray(filter), XContentType.JSON);
+            }
+            if (false == Strings.isEmpty(routing)) {
+                builder.field(ROUTING.getPreferredName(), routing);
+            }
+            if (false == Strings.isEmpty(indexRouting)) {
+                builder.field(INDEX_ROUTING.getPreferredName(), indexRouting);
+            }
+            if (false == Strings.isEmpty(searchRouting)) {
+                builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
+            }
+            builder.endObject();
+            builder.endObject();
+            return builder;
+        }
+
+        public static AliasActions fromXContent(XContentParser parser) throws IOException {
+            return PARSER.apply(parser, null);
+        }
+
+        @Override
         public String toString() {
             return "AliasActions["
                     + "type=" + type
@@ -477,5 +527,30 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     public IndicesOptions indicesOptions() {
         return INDICES_OPTIONS;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startArray("actions");
+        for (AliasActions action : allAliasActions) {
+            action.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+
+    public static final ObjectParser<IndicesAliasesRequest, Void> PARSER = new ObjectParser<>("aliases", IndicesAliasesRequest::new);
+    static {
+        PARSER.declareObjectArray((request, actions) -> {
+            for (AliasActions action : actions) {
+                request.addAliasAction(action);
+            }
+        }, AliasActions.PARSER, new ParseField("actions"));
+    }
+
+    public static IndicesAliasesRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 }

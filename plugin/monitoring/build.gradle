@@ -16,8 +16,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-monitoring'
 
-licenseHeaders.enabled = false
-
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
@@ -35,8 +33,6 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
-// TODO: don't publish test artifacts just to run messy tests, fix the tests!
-// https://github.com/elastic/x-plugins/issues/724
 configurations {
     testArtifacts.extendsFrom testRuntime
 }

@@ -14,8 +14,6 @@ esplugin {
 
 archivesBaseName = 'x-pack-security'
 
-licenseHeaders.enabled = false
-
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
@@ -82,11 +80,6 @@ artifacts {
     archives jar
     testArtifacts testJar
 }
-//testClasses {
-//    dependsOn project(":x-pack-elasticsearch:plugin:core").testJar
-//}
-// TestUtils creates things in core, and the cli thinks that it needs to read from the core testArtifacts
-// jar, so it fails with a zip file resource not found in getResource(Path)
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
 }

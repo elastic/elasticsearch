@@ -16,8 +16,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-ml'
 
-licenseHeaders.enabled = false
-
 configurations {
     nativeBundle {
         resolutionStrategy.dependencySubstitution {
@@ -58,7 +56,6 @@ dependencies {
     testCompile 'org.ini4j:ini4j:0.5.2'
 }
 
-// TODO: we have a test jar so qa/ml-native-tests can use this stuff..fix that...
 configurations {
     testArtifacts.extendsFrom testRuntime
 }

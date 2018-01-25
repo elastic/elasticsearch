@@ -37,7 +37,6 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected final NioSocketChannel channel;
     private final SocketSelector selector;
-    private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private boolean ioException;
     private boolean peerClosed;
@@ -45,15 +44,9 @@ public abstract class SocketChannelContext extends AbstractChannelContext<NioSoc
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
                                    BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
-        super(channel);
+        super(channel, exceptionHandler);
         this.selector = selector;
         this.channel = channel;
-        this.exceptionHandler = exceptionHandler;
-    }
-
-    @Override
-    public void handleException(Exception e) {
-        exceptionHandler.accept(channel, e);
     }
 
     @Override

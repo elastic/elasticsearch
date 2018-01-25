@@ -20,8 +20,6 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
-import java.nio.channels.NetworkChannel;
-import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
@@ -29,11 +27,13 @@ import java.util.function.BiConsumer;
 public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> implements ChannelContext {
 
     private final S channel;
+    private final BiConsumer<S, Exception> exceptionHandler;
     private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
     private volatile SelectionKey selectionKey;
 
-    protected AbstractChannelContext(S channel) {
+    AbstractChannelContext(S channel, BiConsumer<S, Exception> exceptionHandler) {
         this.channel = channel;
+        this.exceptionHandler = exceptionHandler;
     }
 
     public void register() throws IOException {
@@ -80,5 +80,10 @@ public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> im
     @Override
     public boolean isOpen() {
         return closeContext.isDone() == false;
+    }
+
+    @Override
+    public void handleException(Exception e) {
+        exceptionHandler.accept(channel, e);
     }
 }

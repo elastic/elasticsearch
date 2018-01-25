@@ -62,7 +62,7 @@ public class BytesChannelContextTests extends ESTestCase {
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);
         channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new BytesChannelContext(channel, selector, null, readConsumer, channelBuffer);
+        context = new BytesChannelContext(channel, selector, mock(BiConsumer.class), readConsumer, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(channel.getRawChannel()).thenReturn(rawChannel);

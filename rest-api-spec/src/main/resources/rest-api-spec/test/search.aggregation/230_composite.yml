@@ -182,8 +182,8 @@ setup:
 ---
 "Aggregate After Missing":
   - skip:
-      version: " - 6.99.99"
-      reason:  bug fixed in 7.0.0
+      version: " - 6.1.99"
+      reason:  bug fixed in 6.2.0
 
 
   - do:
@@ -295,3 +295,31 @@ setup:
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with after_key in the response":
+  - skip:
+      version: " - 6.99.99"
+      reason:  starting in 7.0.0 after_key is returned in the response
+
+  - do:
+        search:
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - length: { aggregations.test.after_key: 1 }
+  - match: { aggregations.test.after_key.keyword:  "foo" }

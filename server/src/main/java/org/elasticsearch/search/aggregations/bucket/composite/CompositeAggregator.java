@@ -136,14 +136,15 @@ final class CompositeAggregator extends BucketsAggregator {
             int docCount = bucketDocCount(slot);
             buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
-        return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), reverseMuls,
+        CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
+        return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
             pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         final int[] reverseMuls = getReverseMuls();
-        return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), reverseMuls,
+        return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
             pipelineAggregators(), metaData());
     }
 

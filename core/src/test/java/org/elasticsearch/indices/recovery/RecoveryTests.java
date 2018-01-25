@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -204,6 +205,33 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
             assertThat(newReplica.commitStats().getUserData().get(Engine.HISTORY_UUID_KEY), equalTo(historyUUID));
 
+            shards.assertAllEqual(numDocs);
+        }
+    }
+
+    /**
+     * This test makes sure that there is no infinite loop of flushing (the condition `shouldPeriodicallyFlush` eventually is false)
+     * in peer-recovery if a primary sends a fully-baked index commit.
+     */
+    public void testShouldFlushAfterPeerRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            int numDocs = shards.indexDocs(between(10, 100));
+            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            shards.flush();
+
+            final IndexShard replica = shards.addReplica();
+            IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
+            long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, translogSizeOnPrimary);
+            builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
+            );
+            replica.indexSettings().updateIndexMetaData(builder.build());
+            replica.onSettingsChanged();
+            shards.recoverReplica(replica);
+            // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
+            assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
+            assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

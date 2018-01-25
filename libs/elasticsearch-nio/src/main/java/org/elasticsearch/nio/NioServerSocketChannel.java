@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
+public class NioServerSocketChannel extends NioChannel<ServerSocketChannel> {
 
     private ServerChannelContext context;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);

@@ -24,7 +24,7 @@ import java.nio.channels.SelectionKey;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
-public abstract class AbstractChannelContext<S extends AbstractNioChannel<?>> implements ChannelContext {
+public abstract class AbstractChannelContext<S extends NioChannel<?>> implements ChannelContext {
 
     private final S channel;
     private final BiConsumer<S, Exception> exceptionHandler;

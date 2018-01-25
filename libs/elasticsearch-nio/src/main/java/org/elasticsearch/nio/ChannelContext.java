@@ -24,7 +24,7 @@ import java.util.function.BiConsumer;
 
 public interface ChannelContext {
 
-    NioChannel getChannel();
+    NioChannel<?> getChannel();
 
     /**
      * This method cleans up any context resources that need to be released when a channel is closed. It

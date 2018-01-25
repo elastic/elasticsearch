@@ -19,21 +19,45 @@
 
 package org.elasticsearch.nio;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
-public interface NioChannel {
+/**
+ * This is a basic channel abstraction used by the {@link ESSelector}.
+ * <p>
+ * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
+ * true until the channel is explicitly closed.
+ *
+ * @param <S> the type of raw channel this AbstractNioChannel uses
+ */
+public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
 
-    boolean isOpen();
+    private final S socketChannel;
 
-    InetSocketAddress getLocalAddress();
+    private final InetSocketAddress localAddress;
 
-    void close();
+    NioChannel(S socketChannel) throws IOException {
+        this.socketChannel = socketChannel;
+        this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
+    }
 
-    ChannelContext getContext();
+    public boolean isOpen() {
+        return getContext().isOpen();
+    }
 
-    NetworkChannel getRawChannel();
+    public InetSocketAddress getLocalAddress() {
+        return localAddress;
+    }
+
+    public S getRawChannel() {
+        return socketChannel;
+    }
 
     /**
      * Adds a close listener to the channel. Multiple close listeners can be added. There is no guarantee
@@ -42,5 +66,13 @@ public interface NioChannel {
      *
      * @param listener to be called at close
      */
-    void addCloseListener(BiConsumer<Void, Throwable> listener);
+    public void addCloseListener(BiConsumer<Void, Throwable> listener) {
+        getContext().addCloseListener(listener);
+    }
+
+    public void close() {
+        getContext().closeChannel();
+    }
+
+    public abstract ChannelContext getContext();
 }

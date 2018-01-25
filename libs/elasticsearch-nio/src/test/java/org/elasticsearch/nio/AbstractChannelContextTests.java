@@ -43,14 +43,14 @@ import static org.mockito.Mockito.when;
 public class AbstractChannelContextTests extends ESTestCase {
 
     private TestChannelContext context;
-    private BiConsumer<AbstractNioChannel<FakeRawChannel>, Exception> exceptionHandler;
-    private AbstractNioChannel<FakeRawChannel> channel;
+    private BiConsumer<NioChannel<FakeRawChannel>, Exception> exceptionHandler;
+    private NioChannel<FakeRawChannel> channel;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         super.setUp();
-        channel = mock(AbstractNioChannel.class);
+        channel = mock(NioChannel.class);
         exceptionHandler = mock(BiConsumer.class);
         context = new TestChannelContext(channel, exceptionHandler);
     }
@@ -106,10 +106,10 @@ public class AbstractChannelContextTests extends ESTestCase {
         verify(exceptionHandler).accept(channel, exception);
     }
 
-    private static class TestChannelContext extends AbstractChannelContext<AbstractNioChannel<FakeRawChannel>> {
+    private static class TestChannelContext extends AbstractChannelContext<NioChannel<FakeRawChannel>> {
 
-        private TestChannelContext(AbstractNioChannel<FakeRawChannel> channel,
-                                   BiConsumer<AbstractNioChannel<FakeRawChannel>, Exception> exceptionHandler) {
+        private TestChannelContext(NioChannel<FakeRawChannel> channel,
+                                   BiConsumer<NioChannel<FakeRawChannel>, Exception> exceptionHandler) {
             super(channel, exceptionHandler);
         }
 

@@ -21,13 +21,11 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
+public class NioSocketChannel extends NioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);

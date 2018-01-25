@@ -115,18 +115,6 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
      * Returns true if the requisite number of shards were started in the newly
      * created rollover index before returning. If {@link #isAcknowledged()} is
      * false, then this will also return false.
-     * 
-     * @deprecated use {@link #isShardsAcknowledged()}
-     */
-    @Deprecated
-    public boolean isShardsAcked() {
-        return shardsAcknowledged;
-    }
-
-    /**
-     * Returns true if the requisite number of shards were started in the newly
-     * created rollover index before returning. If {@link #isAcknowledged()} is
-     * false, then this will also return false.
      */
     public boolean isShardsAcknowledged() {
         return shardsAcknowledged;

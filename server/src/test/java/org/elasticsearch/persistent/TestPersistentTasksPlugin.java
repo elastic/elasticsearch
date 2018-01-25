@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -87,33 +88,16 @@ import static org.junit.Assert.fail;
 /**
  * A plugin that adds a test persistent task.
  */
-public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
+public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
-                new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
-                new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class)
-        );
+        return Collections.singletonList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class));
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        PersistentTasksService persistentTasksService = new PersistentTasksService(Settings.EMPTY, clusterService, threadPool, client);
-        TestPersistentTasksExecutor testPersistentAction = new TestPersistentTasksExecutor(Settings.EMPTY, clusterService);
-        PersistentTasksExecutorRegistry persistentTasksExecutorRegistry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
-                Collections.singletonList(testPersistentAction));
-        return Arrays.asList(
-                persistentTasksService,
-                persistentTasksExecutorRegistry,
-                new PersistentTasksClusterService(Settings.EMPTY, persistentTasksExecutorRegistry, clusterService)
-        );
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
+        return Collections.singletonList(new TestPersistentTasksExecutor(Settings.EMPTY, clusterService));
     }
 
     @Override

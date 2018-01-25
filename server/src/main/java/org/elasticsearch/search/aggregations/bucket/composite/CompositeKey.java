@@ -19,16 +19,36 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  * A key that is composed of multiple {@link Comparable} values.
  */
-class CompositeKey {
+class CompositeKey implements Writeable {
     private final Comparable<?>[] values;
 
     CompositeKey(Comparable<?>... values) {
         this.values = values;
+    }
+
+    CompositeKey(StreamInput in) throws IOException {
+        values = new Comparable<?>[in.readVInt()];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = (Comparable<?>) in.readGenericValue();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(values.length);
+        for (int i = 0; i < values.length; i++) {
+            out.writeGenericValue(values[i]);
+        }
     }
 
     Comparable<?>[] values() {

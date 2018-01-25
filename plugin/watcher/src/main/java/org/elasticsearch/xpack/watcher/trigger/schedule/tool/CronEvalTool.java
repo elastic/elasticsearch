@@ -10,12 +10,11 @@ import java.util.List;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.xpack.watcher.trigger.schedule.Cron;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;

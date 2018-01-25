@@ -34,6 +34,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
+import java.util.function.LongSupplier;
 
 public class InternalIndexLifecycleContextTests extends ESTestCase {
     private static final Index TEST_INDEX = new Index("test", "test");
@@ -47,16 +48,23 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
     }
 
     public void testSetPhase() {
+        long oldNow = randomNonNegativeLong();
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String oldPhase = randomAlphaOfLengthBetween(1, 5);
         String newPhase = randomAlphaOfLengthBetween(6, 10);
         Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
+            .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+            .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L)
             .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_PHASE, oldPhase)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, oldPhase)
+                .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, oldNow)
+                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, oldNow)
+                .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterState updatedClusterState = getClusterState(IndexMetaData.builder(idxMeta)
             .settings(Settings.builder().put(idxMeta.getSettings()).put(expectedSettings)).build());
@@ -84,9 +92,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -114,13 +120,16 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
     }
 
     public void testSetPhaseNotAcknowledged() {
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String newPhase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
+                .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
@@ -139,16 +148,16 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
+                    .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
                 return null;
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -175,12 +184,15 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
     }
 
     public void testSetPhaseFailure() {
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String newPhase = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
+                    .put(LifecycleSettings.LIFECYCLE_PHASE, randomAlphaOfLengthBetween(1, 20))
+                    .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -202,16 +214,15 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, newPhase)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L).put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, "").build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onFailure(exception);
                 return null;
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -255,6 +266,24 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         assertEquals(phase, context.getPhase());
     }
 
+    public void testGetPhaseTime() {
+        long creationDate = randomNonNegativeLong();
+        long phaseTime = randomNonNegativeLong();
+        IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
+            .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, phaseTime).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = getClusterState(idxMeta);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, null, clusterService, () -> {
+            throw new AssertionError("nowSupplier should not be called");
+        });
+
+        assertEquals(phaseTime, context.getPhaseTime());
+    }
+
     public void testGetReplicas() {
         int replicas = randomIntBetween(0, 5);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
@@ -272,13 +301,16 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
     }
 
     public void testSetAction() {
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String oldAction = randomAlphaOfLengthBetween(1, 5);
         String newAction = randomAlphaOfLengthBetween(6, 10);
-        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction).build();
+        Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction)
+            .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).build();
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, oldAction).build())
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).put(LifecycleSettings.LIFECYCLE_ACTION, oldAction).build())
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterState updatedClusterState = getClusterState(IndexMetaData.builder(idxMeta)
@@ -305,9 +337,7 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -334,13 +364,16 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
-    public void testSetActionNotAcknoledged() {
+    public void testSetActionNotAcknowledged() {
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String newAction = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
@@ -359,16 +392,14 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction)
-                        .build();
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(false));
                 return null;
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -395,12 +426,15 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
     }
 
     public void testSetActionFailure() {
+        long now = randomNonNegativeLong();
+        LongSupplier nowSupplier = () -> now;
         long creationDate = randomNonNegativeLong();
         String newAction = randomAlphaOfLengthBetween(1, 20);
         IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
                 .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, randomAlphaOfLengthBetween(1, 20)).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         ClusterState clusterState = getClusterState(idxMeta);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
@@ -421,16 +455,14 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
                 Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_ACTION, newAction)
-                        .build();
+                    .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).build();
                 UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, TEST_INDEX.getName());
                 listener.onFailure(exception);
                 return null;
             }
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, () -> {
-            throw new AssertionError("nowSupplier should not be called");
-        });
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, client, clusterService, nowSupplier);
 
         // Use setOnce so it throws an error if we call the listener multiple
         // times
@@ -472,6 +504,24 @@ public class InternalIndexLifecycleContextTests extends ESTestCase {
         });
 
         assertEquals(action, context.getAction());
+    }
+
+    public void testGetActionTime() {
+        long creationDate = randomNonNegativeLong();
+        long actionTime = randomNonNegativeLong();
+        IndexMetaData idxMeta = IndexMetaData.builder(TEST_INDEX.getName())
+            .settings(Settings.builder().put("index.version.created", 7000001L).put("index.creation_date", creationDate)
+                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, actionTime).build())
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        ClusterState clusterState = getClusterState(idxMeta);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+
+        InternalIndexLifecycleContext context = new InternalIndexLifecycleContext(TEST_INDEX, null, clusterService, () -> {
+            throw new AssertionError("nowSupplier should not be called");
+        });
+
+        assertEquals(actionTime, context.getActionTime());
     }
 
     public void testGetLifecycleTarget() {

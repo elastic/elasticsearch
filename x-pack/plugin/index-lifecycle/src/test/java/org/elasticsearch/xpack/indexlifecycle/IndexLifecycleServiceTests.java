@@ -97,7 +97,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
 
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock,
-                threadPool, () -> now);
+            threadPool, () -> now);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
     }
 
@@ -320,8 +320,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), "")
-                .put(LifecycleSettings.LIFECYCLE_PHASE_SETTING.getKey(), "phase").build(), index.getName());
+                .put(LifecycleSettings.LIFECYCLE_ACTION, "")
+                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, -1L)
+                .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, "phase").build(), index.getName());
             phaseUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
@@ -329,7 +331,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             UpdateSettingsRequest request = (UpdateSettingsRequest)  invocationOnMock.getArguments()[0];
             ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocationOnMock.getArguments()[1];
             UpdateSettingsTestHelper.assertSettingsRequest(request, Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_ACTION_SETTING.getKey(), MockAction.NAME).build(), index.getName());
+                .put(LifecycleSettings.LIFECYCLE_ACTION, MockAction.NAME)
+                .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now).build(), index.getName());
             actionUpdated.set(true);
             listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
             return null;
@@ -398,7 +401,6 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         assertNull(dateUpdated.get());
         assertThat(mockAction.getExecutedCount(), equalTo(1L));
-
     }
 
     /**

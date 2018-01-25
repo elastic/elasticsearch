@@ -39,9 +39,19 @@ public interface IndexLifecycleContext {
     String getAction();
 
     /**
+     * @return the start time of the current {@link LifecycleAction}.
+     */
+    long getActionTime();
+
+    /**
      * @return the current {@link Phase} name for the target.
      */
     String getPhase();
+
+    /**
+     * @return the start time of the current {@link Phase}.
+     */
+    long getPhaseTime();
 
     /**
      * @return the name of the target.

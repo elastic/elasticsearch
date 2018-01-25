@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import java.util.function.LongSupplier;
+
 public abstract class MockIndexLifecycleContext implements IndexLifecycleContext {
 
     private final String targetName;
@@ -12,12 +14,19 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     private String action;
     private Exception exceptionToThrow;
     private int numberOfReplicas;
+    private LongSupplier nowSupplier;
+    private long phaseTime;
+    private long actionTime;
 
-    public MockIndexLifecycleContext(String targetName, String initialPhase, String initialAction, int numberOfReplicas) {
+    public MockIndexLifecycleContext(String targetName, String initialPhase, String initialAction, int numberOfReplicas,
+                                     LongSupplier nowSupplier) {
         this.targetName = targetName;
         this.phase = initialPhase;
         this.action = initialAction;
         this.numberOfReplicas = numberOfReplicas;
+        this.nowSupplier = nowSupplier;
+        this.phaseTime = -1L;
+        this.actionTime = -1L;
     }
 
     public void failOnSetters(Exception exceptionToThrow) {
@@ -31,7 +40,9 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
             return;
         }
         this.phase = phase;
+        this.phaseTime = nowSupplier.getAsLong();
         this.action = "";
+        this.actionTime = -1L;
         listener.onSuccess();
     }
 
@@ -42,6 +53,7 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
             return;
         }
         this.action = action;
+        this.actionTime = nowSupplier.getAsLong();
         listener.onSuccess();
     }
 
@@ -51,8 +63,18 @@ public abstract class MockIndexLifecycleContext implements IndexLifecycleContext
     }
 
     @Override
+    public long getActionTime() {
+        return actionTime;
+    }
+
+    @Override
     public String getPhase() {
         return phase;
+    }
+
+    @Override
+    public long getPhaseTime() {
+        return phaseTime;
     }
 
     @Override

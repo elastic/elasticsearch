@@ -15,8 +15,6 @@ archivesBaseName = 'x-pack-graph'
 
 licenseHeaders.enabled = false
 
-integTest.enabled = false
-
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
@@ -31,3 +29,8 @@ dependencyLicenses {
 run {
     plugin ':x-pack-elasticsearch:plugin:core'
 }
+
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false

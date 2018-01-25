@@ -23,7 +23,10 @@ import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
+import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
@@ -297,7 +301,11 @@ public class TestUtils {
     }
 
     private static Path getResourcePath(String resource) throws Exception {
-        return PathUtils.get(TestUtils.class.getResource(resource).toURI());
+        Path resourceFile = createTempFile();
+        try (InputStream resourceInput = TestUtils.class.getResourceAsStream(resource)) {
+            Files.copy(resourceInput, resourceFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return resourceFile;
     }
 
     public static void registerAndAckSignedLicenses(final LicenseService licenseService, License license,

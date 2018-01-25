@@ -31,11 +31,14 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -331,15 +335,14 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     }
 
     private static Path resolveResourcePath(String resourcePathToStore) {
-        final URL url = SecuritySettingsSource.class.getResource(resourcePathToStore);
         try {
-            Path path = PathUtils.get(url.toURI());
-            if (Files.notExists(path)) {
-                throw new ElasticsearchException("path does not exist: " + path);
+            Path path = createTempFile();
+            try (InputStream resourceInput = SecuritySettingsSource.class.getResourceAsStream(resourcePathToStore)) {
+                Files.copy(resourceInput, path, StandardCopyOption.REPLACE_EXISTING);
             }
             return path;
-        } catch (URISyntaxException | FileSystemNotFoundException e) {
-            throw new ElasticsearchException("Failed to resolve resource (Path=[{}] URL=[{}])", e, resourcePathToStore, url);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to resolve resource (Path=[{}])", e, resourcePathToStore);
         }
     }
 

@@ -61,6 +61,7 @@ public class Netty4Utils {
     }
 
     public static void setup() {
+
     }
 
     private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();

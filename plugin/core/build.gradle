@@ -15,7 +15,7 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Core'
   classname 'org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
-  requiresKeystore true
+  requiresKeystore false
   licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
   noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }

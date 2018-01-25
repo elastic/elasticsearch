@@ -114,6 +114,11 @@ This means that if the number of unique terms is greater than `size`, the return
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
 
+NOTE: If you want to retrieve **all** terms or all combinations of terms in a nested `terms` aggregation
+      you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
+      allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
+      `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
+
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
 

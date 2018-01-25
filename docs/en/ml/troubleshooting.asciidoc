@@ -61,3 +61,26 @@ By default, {ml} results are stored in the `.ml-anomalies-shared` index in {es}.
 To resolve this issue, click *Advanced > Use dedicated index* when you create
 the job in {kib}. If you are using the create job API, specify an index name in
 the `results_index_name` property.
+
+[[ml-jobnames]]
+=== {kib} cannot display jobs with invalid characters in their name
+
+This problem occurs when you create a job by using the
+{ref}/ml-put-job.html[Create Jobs API] then try to view that job in {kib}. In
+particular, the problem occurs when you use a period(.) in the job identifier.
+
+*Symptoms:*
+
+* When you try to open a job (named, for example, `job.test` in the
+**Anomaly Explorer** or the **Single Metric Viewer**, the job name is split and
+the text after the period is assumed to be the job name. If a job does not exist
+with that abbreviated name, an error occurs. For example:
+`Warning Requested job test does not exist`. If a job exists with that
+abbreviated name, it is displayed.
+
+*Resolution:*
+
+Create jobs in {kib} or ensure that you create jobs with valid identifiers when
+you use the {ml} APIs. For more information about valid identifiers, see
+{ref}/ml-put-job.html[Create Jobs API] or
+{ref}/ml-job-resource.html[Job Resources].

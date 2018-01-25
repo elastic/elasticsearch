@@ -579,7 +579,7 @@ public final class Definition {
             }
 
             if (component == def.class) {
-                StringBuilder builder = new StringBuilder("def");
+                StringBuilder builder = new StringBuilder(def.class.getSimpleName());
 
                 for (int dimension = 0; dimension < dimensions; dimensions++) {
                     builder.append("[]");
@@ -588,7 +588,7 @@ public final class Definition {
                 return builder.toString();
             }
         } else if (clazz == def.class) {
-            return "def";
+            return def.class.getSimpleName();
         }
 
         return clazz.getCanonicalName().replace('$', '.');
@@ -607,19 +607,19 @@ public final class Definition {
             }
 
             if (component == def.class) {
-                return getType(structsMap.get("def"), dimensions);
+                return getType(structsMap.get(def.class.getSimpleName()), dimensions);
             } else {
                 return getType(runtimeMap.get(component).struct, dimensions);
             }
         } else if (clazz == def.class) {
-            return getType(structsMap.get("def"), 0);
+            return getType(structsMap.get(def.class.getSimpleName()), 0);
         }
 
         return getType(structsMap.get(ClassToName(clazz)), 0);
     }
 
     public static Class<?> TypeToClass(Type type) {
-        if ("def".equals(type.struct.name)) {
+        if (def.class.getSimpleName().equals(type.struct.name)) {
             return ObjectClassTodefClass(type.clazz);
         }
 
@@ -672,7 +672,8 @@ public final class Definition {
         String origin = null;
 
         // add the universal def type
-        structsMap.put("def", new Struct("def", Object.class, org.objectweb.asm.Type.getType(Object.class)));
+        structsMap.put(def.class.getSimpleName(),
+                new Struct(def.class.getSimpleName(), Object.class, org.objectweb.asm.Type.getType(Object.class)));
 
         try {
             // first iteration collects all the Painless type names that
@@ -777,7 +778,7 @@ public final class Definition {
             copyStruct(painlessStruct.name, painlessSuperStructs);
 
             // copies methods and fields from Object into interface types
-            if (painlessStruct.clazz.isInterface() || ("def").equals(painlessStruct.name)) {
+            if (painlessStruct.clazz.isInterface() || (def.class.getSimpleName()).equals(painlessStruct.name)) {
                 Struct painlessObjectStruct = javaClassesToPainlessStructs.get(Object.class);
 
                 if (painlessObjectStruct != null) {
@@ -835,7 +836,7 @@ public final class Definition {
         charType = getType("char");
         CharacterType = getType("Character");
         ObjectType = getType("Object");
-        DefType = getType("def");
+        DefType = getType(def.class.getSimpleName());
         NumberType = getType("Number");
         StringType = getType("String");
         ExceptionType = getType("Exception");
@@ -1409,7 +1410,7 @@ public final class Definition {
             }
         }
 
-        return new Type(name, dimensions, "def".equals(name), struct, clazz, type);
+        return new Type(name, dimensions, def.class.getSimpleName().equals(name), struct, clazz, type);
     }
 
     private int getDimensions(String name) {

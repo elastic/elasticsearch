@@ -74,7 +74,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         this.missing = in.readGenericValue();
         this.order = SortOrder.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             this.format = in.readOptionalString();
         } else {
             this.format = null;
@@ -97,7 +97,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         out.writeGenericValue(missing);
         order.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalString(format);
         }
         innerWriteTo(out);

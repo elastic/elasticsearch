@@ -20,6 +20,11 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -134,7 +139,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertNull(request.getEntity());
-        assertEquals("HEAD", request.getMethod());
+        assertEquals(HttpHead.METHOD_NAME, request.getMethod());
     }
 
     public void testInfo() {
@@ -142,11 +147,11 @@ public class RequestTests extends ESTestCase {
         assertEquals("/", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertNull(request.getEntity());
-        assertEquals("GET", request.getMethod());
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
     }
 
     public void testGet() {
-        getAndExistsTest(Request::get, "GET");
+        getAndExistsTest(Request::get, HttpGet.METHOD_NAME);
     }
 
     public void testMultiGet() throws IOException {
@@ -196,7 +201,7 @@ public class RequestTests extends ESTestCase {
         }
 
         Request request = Request.multiGet(multiGetRequest);
-        assertEquals("GET", request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_mget", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(multiGetRequest, request.getEntity());
@@ -236,7 +241,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testExists() {
-        getAndExistsTest(Request::exists, "HEAD");
+        getAndExistsTest(Request::exists, HttpHead.METHOD_NAME);
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -321,7 +326,7 @@ public class RequestTests extends ESTestCase {
         Request request = Request.createIndex(createIndexRequest);
         assertEquals("/" + indexName, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertEquals("PUT", request.getMethod());
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(createIndexRequest, request.getEntity());
     }
 
@@ -338,7 +343,7 @@ public class RequestTests extends ESTestCase {
         Request request = Request.deleteIndex(deleteIndexRequest);
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertEquals("DELETE", request.getMethod());
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
     }
 
@@ -357,7 +362,7 @@ public class RequestTests extends ESTestCase {
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(expectedParams, equalTo(request.getParameters()));
-        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEntity(), nullValue());
     }
 
@@ -374,7 +379,7 @@ public class RequestTests extends ESTestCase {
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(expectedParams, equalTo(request.getParameters()));
-        assertThat(request.getMethod(), equalTo("POST"));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEntity(), nullValue());
     }
 
@@ -388,9 +393,9 @@ public class RequestTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
 
-        String method = "POST";
+        String method = HttpPost.METHOD_NAME;
         if (id != null) {
-            method = "PUT";
+            method = HttpPut.METHOD_NAME;
             if (randomBoolean()) {
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
             }
@@ -525,7 +530,7 @@ public class RequestTests extends ESTestCase {
         Request request = Request.update(updateRequest);
         assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertEquals("POST", request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
         HttpEntity entity = request.getEntity();
         assertTrue(entity instanceof ByteArrayEntity);
@@ -639,7 +644,7 @@ public class RequestTests extends ESTestCase {
         Request request = Request.bulk(bulkRequest);
         assertEquals("/_bulk", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertEquals("POST", request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         byte[] content = new byte[(int) request.getEntity().getContentLength()];
         try (InputStream inputStream = request.getEntity().getContent()) {
@@ -850,6 +855,7 @@ public class RequestTests extends ESTestCase {
             endpoint.add(type);
         }
         endpoint.add("_search");
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(searchSourceBuilder, request.getEntity());
@@ -888,6 +894,7 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.multiSearch(multiSearchRequest);
         assertEquals("/_msearch", request.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedParams, request.getParameters());
 
         List<SearchRequest> requests = new ArrayList<>();
@@ -911,7 +918,7 @@ public class RequestTests extends ESTestCase {
             searchScrollRequest.scroll(randomPositiveTimeValue());
         }
         Request request = Request.searchScroll(searchScrollRequest);
-        assertEquals("GET", request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(searchScrollRequest, request.getEntity());
@@ -925,7 +932,7 @@ public class RequestTests extends ESTestCase {
             clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
         }
         Request request = Request.clearScroll(clearScrollRequest);
-        assertEquals("DELETE", request.getMethod());
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());

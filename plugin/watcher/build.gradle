@@ -14,9 +14,6 @@ esplugin {
 
 archivesBaseName = 'x-pack-watcher'
 
-licenseHeaders.enabled = false
-
-// TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"

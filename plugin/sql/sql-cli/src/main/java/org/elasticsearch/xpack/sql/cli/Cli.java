@@ -81,7 +81,7 @@ public class Cli extends LoggingAwareCommand {
 
     @Override
     protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
-        boolean debug = Boolean.parseBoolean(System.getProperty("cli.debug", "false")) || options.has("d") || options.has("debug");
+        boolean debug = options.has("d") || options.has("debug");
         boolean checkConnection = checkOption.value(options);
         List<String> args = connectionString.values(options);
         if (args.size() > 1) {

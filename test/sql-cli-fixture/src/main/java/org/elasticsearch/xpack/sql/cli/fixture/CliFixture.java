@@ -89,7 +89,6 @@ public class CliFixture {
                     }
                     List<String> command = new ArrayList<>();
                     command.add(javaExecutable.toString());
-                    command.add("-Dcli.debug=true");
                     //                    command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000");
                     // Force a specific terminal type so we have consistent responses for testing.
                     command.add("-Dorg.jline.terminal.type=xterm-256color");
@@ -100,6 +99,7 @@ public class CliFixture {
                     command.add("-Dorg.jline.terminal.dumb=true");
                     command.add("-jar");
                     command.add(cliJar.toString());
+                    command.add("-d");
                     command.addAll(Arrays.asList(line.split(" ")));
                     ProcessBuilder cliBuilder = new ProcessBuilder(command);
                     // Clear the environment to drop JAVA_TOOLS which prints strange things on startup

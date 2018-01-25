@@ -1467,7 +1467,8 @@ public class InternalEngine extends Engine {
         ensureOpen();
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
         final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
-        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+        // If flushThreshold is too small, we may continuously flush even there is no uncommitted operations.
+        if (uncommittedSizeOfCurrentCommit < flushThreshold || translog.uncommittedOperations() == 0) {
             return false;
         }
         /*

@@ -80,7 +80,7 @@ public class InternalComposite
         }
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
         } else {
             this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
@@ -98,7 +98,7 @@ public class InternalComposite
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeBoolean(afterKey != null);
             if (afterKey != null) {
                 afterKey.writeTo(out);

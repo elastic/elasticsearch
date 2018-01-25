@@ -299,8 +299,8 @@ setup:
 ---
 "Composite aggregation with after_key in the response":
   - skip:
-      version: " - 6.99.99"
-      reason:  starting in 7.0.0 after_key is returned in the response
+      version: " - 6.2.99"
+      reason:  starting in 6.3.0 after_key is returned in the response
 
   - do:
         search:

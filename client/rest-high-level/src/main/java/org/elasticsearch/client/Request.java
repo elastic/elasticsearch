@@ -358,7 +358,7 @@ public final class Request {
         parameters.withRealtime(multiGetRequest.realtime());
         parameters.withRefresh(multiGetRequest.refresh());
         HttpEntity entity = createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, "/_mget", parameters.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_mget", parameters.getParams(), entity);
     }
 
     static Request index(IndexRequest indexRequest) {
@@ -447,17 +447,17 @@ public final class Request {
         if (searchRequest.source() != null) {
             entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
         }
-        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpDelete.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
@@ -469,7 +469,7 @@ public final class Request {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
-        return new Request("GET", "/_msearch", params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_msearch", params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

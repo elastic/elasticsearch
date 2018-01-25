@@ -307,12 +307,15 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    /**
+     * This test makes sure that there is no infinite loop of flushing (the condition `shouldPeriodicallyFlush` eventually is false)
+     * in peer-recovery if a primary sends a fully-baked index commit.
+     */
     public void testShouldFlushAfterPeerRecovery() throws Exception {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
-            long translogSizeOnPrimary = 0;
             int numDocs = shards.indexDocs(between(10, 100));
-            translogSizeOnPrimary += shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
             shards.flush();
 
             final IndexShard replica = shards.addReplica();
@@ -324,6 +327,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
+            // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);

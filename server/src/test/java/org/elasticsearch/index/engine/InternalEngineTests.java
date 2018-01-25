@@ -4443,14 +4443,14 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testShouldFlushToFreeTranslog() throws Exception {
-        assertThat("Empty engine does not need flushing", engine.shouldFlushToFreeTranslog(), equalTo(false));
+    public void testShouldPeriodicallyFlush() throws Exception {
+        assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(indexForDoc(doc));
         }
-        assertThat("Not exceeded translog flush threshold yet", engine.shouldFlushToFreeTranslog(), equalTo(false));
+        assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
         long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, engine.getTranslog().uncommittedSizeInBytes());
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
@@ -4459,7 +4459,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexSettings.updateIndexMetaData(indexMetaData);
         engine.onSettingsChanged();
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
-        assertThat(engine.shouldFlushToFreeTranslog(), equalTo(true));
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
         engine.flush();
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
         // Stale operations skipped by Lucene but added to translog - still able to flush
@@ -4470,7 +4470,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
-        assertThat(engine.shouldFlushToFreeTranslog(), equalTo(true));
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));

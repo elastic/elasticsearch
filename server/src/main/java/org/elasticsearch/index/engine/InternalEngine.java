@@ -1463,7 +1463,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public boolean shouldFlushToFreeTranslog() {
+    public boolean shouldPeriodicallyFlush() {
         ensureOpen();
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
         final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
@@ -1513,7 +1513,7 @@ public class InternalEngine extends Engine {
             try {
                 // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
                 // newly created commit points to a different translog generation (can free translog)
-                if (indexWriter.hasUncommittedChanges() || force || shouldFlushToFreeTranslog()) {
+                if (indexWriter.hasUncommittedChanges() || force || shouldPeriodicallyFlush()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

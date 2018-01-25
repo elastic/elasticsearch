@@ -818,10 +818,10 @@ public abstract class Engine implements Closeable {
     public abstract void writeIndexingBuffer() throws EngineException;
 
     /**
-     * Checks if this engine should be flushed to free translog.
+     * Checks if this engine should be flushed periodically.
      * This check is mainly based on the uncommitted translog size and the translog flush threshold setting.
      */
-    public abstract boolean shouldFlushToFreeTranslog();
+    public abstract boolean shouldPeriodicallyFlush();
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.

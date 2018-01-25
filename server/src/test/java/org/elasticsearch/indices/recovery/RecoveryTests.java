@@ -324,7 +324,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             replica.indexSettings().updateIndexMetaData(builder.build());
             replica.onSettingsChanged();
             shards.recoverReplica(replica);
-            assertBusy(() -> assertThat(getEngine(replica).shouldFlushToFreeTranslog(), equalTo(false)));
+            assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }

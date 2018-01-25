@@ -26,6 +26,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -93,6 +95,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.Request.enforceSameContentType;
+import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -316,6 +319,21 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals("PUT", request.getMethod());
         assertToXContentBody(createIndexRequest, request.getEntity());
+    }
+
+    public void testUpdateAliases() throws IOException {
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        AliasActions aliasAction = randomAliasAction();
+        indicesAliasesRequest.addAliasAction(aliasAction);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(indicesAliasesRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(indicesAliasesRequest, expectedParams);
+
+        Request request = Request.updateAliases(indicesAliasesRequest);
+        assertEquals("/_aliases", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(indicesAliasesRequest, request.getEntity());
     }
 
     public void testPutMapping() throws IOException {

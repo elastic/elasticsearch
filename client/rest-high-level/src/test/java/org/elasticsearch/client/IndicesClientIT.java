@@ -20,9 +20,13 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -32,6 +36,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,7 +48,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -165,6 +172,97 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testUpdateAliases() throws IOException {
+        String index = "index";
+        String alias = "alias";
+
+        createIndex(index);
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(alias), equalTo(false));
+
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
+        addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
+        aliasesAddRequest.addAliasAction(addAction);
+        IndicesAliasesResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
+        assertTrue(aliasesAddResponse.isAcknowledged());
+        assertThat(aliasExists(alias), equalTo(true));
+        assertThat(aliasExists(index, alias), equalTo(true));
+        Map<String, Object> getAlias = getAlias(index, alias);
+        assertThat(getAlias.get("index_routing"), equalTo("routing"));
+        assertThat(getAlias.get("search_routing"), equalTo("search_routing"));
+        Map<String, Object> filter = (Map<String, Object>) getAlias.get("filter");
+        Map<String, Object> term = (Map<String, Object>) filter.get("term");
+        assertEquals(2016, term.get("year"));
+
+        String alias2 = "alias2";
+        IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();
+        addAction = new AliasActions(AliasActions.Type.ADD).indices(index).alias(alias2);
+        aliasesAddRemoveRequest.addAliasAction(addAction);
+        AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index(index).alias(alias);
+        aliasesAddRemoveRequest.addAliasAction(removeAction);
+        IndicesAliasesResponse aliasesAddRemoveResponse = execute(aliasesAddRemoveRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
+        assertTrue(aliasesAddRemoveResponse.isAcknowledged());
+        assertThat(aliasExists(alias), equalTo(false));
+        assertThat(aliasExists(alias2), equalTo(true));
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(index, alias2), equalTo(true));
+
+        IndicesAliasesRequest aliasesRemoveIndexRequest = new IndicesAliasesRequest();
+        AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index(index);
+        aliasesRemoveIndexRequest.addAliasAction(removeIndexAction);
+        IndicesAliasesResponse aliasesRemoveIndexResponse = execute(aliasesRemoveIndexRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync);
+        assertTrue(aliasesRemoveIndexResponse.isAcknowledged());
+        assertThat(aliasExists(alias), equalTo(false));
+        assertThat(aliasExists(alias2), equalTo(false));
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(index, alias2), equalTo(false));
+        assertThat(indexExists(index), equalTo(false));
+    }
+
+    public void testAliasesNonExistentIndex() throws IOException {
+        String index = "index";
+        String alias = "alias";
+        String nonExistentIndex = "non_existent_index";
+
+        IndicesAliasesRequest nonExistentIndexRequest = new IndicesAliasesRequest();
+        nonExistentIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(nonExistentIndexRequest,
+                highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
+
+        createIndex(index);
+        IndicesAliasesRequest mixedRequest = new IndicesAliasesRequest();
+        mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).indices(index).aliases(alias));
+        mixedRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).indices(nonExistentIndex).alias(alias));
+        exception = expectThrows(ElasticsearchStatusException.class,
+                () -> execute(mixedRequest, highLevelClient().indices()::updateAliases, highLevelClient().indices()::updateAliasesAsync));
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
+        assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(alias), equalTo(false));
+
+        IndicesAliasesRequest removeIndexRequest = new IndicesAliasesRequest();
+        removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index(nonExistentIndex).alias(alias));
+        removeIndexRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE_INDEX).indices(nonExistentIndex));
+        exception = expectThrows(ElasticsearchException.class, () -> execute(removeIndexRequest, highLevelClient().indices()::updateAliases,
+                highLevelClient().indices()::updateAliasesAsync));
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+        assertThat(exception.getMetadata("es.index"), hasItem(nonExistentIndex));
+        assertThat(exception.getMetadata("es.index"), not(hasItem(index)));
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(alias), equalTo(false));
+    }
+
     public void testOpenExistingIndex() throws IOException {
         String index = "index";
         createIndex(index);
@@ -245,6 +343,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
+    private static boolean aliasExists(String alias) throws IOException {
+        Response response = client().performRequest("HEAD", "/_alias/" + alias);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    private static boolean aliasExists(String index, String alias) throws IOException {
+        Response response = client().performRequest("HEAD", "/" + index + "/_alias/" + alias);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> getIndexMetadata(String index) throws IOException {
         Response response = client().performRequest("GET", index);
@@ -257,5 +365,27 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertNotNull(indexMetaData);
 
         return indexMetaData;
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
+        String endpoint = "/_alias";
+        if (false == Strings.isEmpty(index)) {
+            endpoint = index + endpoint;
+        }
+        if (false == Strings.isEmpty(alias)) {
+            endpoint = endpoint + "/" + alias;
+        }
+        Map<String, Object> performGet = performGet(endpoint);
+        return (Map) ((Map) ((Map) performGet.get(index)).get("aliases")).get(alias);
+    }
+
+    private static Map<String, Object> performGet(final String endpoint) throws IOException {
+        Response response = client().performRequest("GET", endpoint);
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),
+                false);
+        assertNotNull(responseEntity);
+        return responseEntity;
     }
 }

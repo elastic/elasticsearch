@@ -24,6 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -444,4 +447,68 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-notfound
         }
     }
+
+    public void testIndicesAliases() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index1"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            createIndexResponse = client.indices().create(new CreateIndexRequest("index2"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            createIndexResponse = client.indices().create(new CreateIndexRequest("index3"));
+            assertTrue(createIndexResponse.isAcknowledged());
+            createIndexResponse = client.indices().create(new CreateIndexRequest("index4"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::update-aliases-request
+            IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1"); // <2>
+            request.addAliasAction(aliasAction); // <3>
+            // end::update-aliases-request
+
+            // tag::update-aliases-request2
+            AliasActions addIndexAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1")
+                    .filter("{\"term\":{\"year\":2016}}"); // <1>
+            AliasActions addIndicesAction = new AliasActions(AliasActions.Type.ADD).indices("index1", "index2").alias("alias2")
+                    .routing("1"); // <2>
+            AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index("index3").alias("alias3"); // <3>
+            AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index("index4"); // <4>
+            // end::update-aliases-request2
+
+            // tag::update-aliases-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::update-aliases-request-timeout
+            // tag::update-aliases-request-masterTimeout
+            request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+            request.masterNodeTimeout("1m"); // <2>
+            // end::update-aliases-request-masterTimeout
+
+            // tag::update-aliases-execute
+            IndicesAliasesResponse indicesAliasesResponse = client.indices().updateAliases(request);
+            // end::update-aliases-execute
+
+            // tag::update-aliases-response
+            boolean acknowledged = indicesAliasesResponse.isAcknowledged(); // <1>
+            // end::update-aliases-response
+            assertTrue(acknowledged);
+
+            // tag::update-aliases-execute-async
+            client.indices().updateAliasesAsync(request, new ActionListener<IndicesAliasesResponse>() {
+                @Override
+                public void onResponse(IndicesAliasesResponse indciesAliasesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::update-aliases-execute-async
+        }
+    }    
 }

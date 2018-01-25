@@ -23,6 +23,8 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -111,7 +113,32 @@ public final class IndicesClient {
     public void putMappingAsync(PutMappingRequest putMappingRequest, ActionListener<PutMappingResponse> listener,
                                        Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, Request::putMapping, PutMappingResponse::fromXContent,
-            listener, Collections.emptySet(), headers);
+                listener, Collections.emptySet(), headers);
+    }
+
+    /**
+     * Updates aliases using the Index Aliases API
+     * <p>
+     * See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * Index Aliases API on elastic.co</a>
+     */
+    public IndicesAliasesResponse updateAliases(IndicesAliasesRequest indicesAliasesRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(indicesAliasesRequest, Request::updateAliases,
+                IndicesAliasesResponse::fromXContent, Collections.emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates aliases using the Index Aliases API
+     * <p>
+     * See <a href=
+     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
+     * Index Aliases API on elastic.co</a>
+     */
+    public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequestRequest, ActionListener<IndicesAliasesResponse> listener,
+            Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequestRequest, Request::updateAliases,
+                IndicesAliasesResponse::fromXContent, listener, Collections.emptySet(), headers);
     }
 
     /**

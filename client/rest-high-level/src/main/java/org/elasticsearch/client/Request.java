@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -177,6 +178,15 @@ public final class Request {
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+    
+    static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(indicesAliasesRequest.timeout());
+        parameters.withMasterTimeout(indicesAliasesRequest.masterNodeTimeout());
+        
+        HttpEntity entity = createEntity(indicesAliasesRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, "/_aliases", parameters.getParams(), entity);
     }
 
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {

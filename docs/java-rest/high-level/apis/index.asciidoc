@@ -8,6 +8,8 @@ include::close_index.asciidoc[]
 
 include::putmapping.asciidoc[]
 
+include::update_aliases.asciidoc[]
+
 include::_index.asciidoc[]
 
 include::get.asciidoc[]

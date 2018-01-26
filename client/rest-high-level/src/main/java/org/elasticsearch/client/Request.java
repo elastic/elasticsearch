@@ -418,7 +418,7 @@ public final class Request {
     static Request indicesExist(IndicesExistsRequest request) {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
         Params params = Params.builder();
-        params.putParam("local", Boolean.FALSE.toString());
+        params.withLocal(request.local());
         params.withIndicesOptions(request.indicesOptions());
         params.withFlatSettings(false);
         params.withIncludeDefaults(false);
@@ -569,6 +569,13 @@ public final class Request {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withLocal(boolean local) {
+            if (local) {
+                return putParam("local", Boolean.TRUE.toString());
+            }
             return this;
         }
 

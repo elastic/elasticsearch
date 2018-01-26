@@ -110,6 +110,7 @@ public abstract class Rounding implements Streamable {
         private DateTimeUnit unit;
         private DateTimeField field;
         private DateTimeZone timeZone;
+        private boolean unitRoundsToMidnight;
 
         TimeUnitRounding() { // for serialization
         }
@@ -117,6 +118,7 @@ public abstract class Rounding implements Streamable {
         TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
             this.field = unit.field(timeZone);
+            unitRoundsToMidnight = this.field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
             this.timeZone = timeZone;
         }
 
@@ -161,9 +163,7 @@ public abstract class Rounding implements Streamable {
             // bucket names for the times when the clocks go back. Shorter units behave similarly. However, longer units round down to
             // midnight, and on the days where there are two midnights we would rather pick the earlier one, so that buckets are
             // uniquely identified by the date.
-            boolean roundingToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
-
-            if (roundingToMidnight) {
+            if (unitRoundsToMidnight) {
                 final long anyLocalStartOfDay = field.roundFloor(utcMillis);
                 // `anyLocalStartOfDay` is the Unix timestamp for "the" start of the day in question in the time zone.  On days with no
                 // local midnight, it's the first time that does occur on that day.  On days with >1 local midnight this is one of the
@@ -217,6 +217,7 @@ public abstract class Rounding implements Streamable {
             unit = DateTimeUnit.resolve(in.readByte());
             timeZone = DateTimeZone.forID(in.readString());
             field = unit.field(timeZone);
+            unitRoundsToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
         }
 
         @Override

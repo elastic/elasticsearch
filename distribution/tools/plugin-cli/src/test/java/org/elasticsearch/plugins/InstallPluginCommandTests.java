@@ -1148,8 +1148,8 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testKeystoreRequiredAlreadyExists() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
-        KeyStoreWrapper keystore = KeyStoreWrapper.create(new char[0]);
-        keystore.save(env.v2().configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(env.v2().configFile(), new char[0]);
         byte[] expectedBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");

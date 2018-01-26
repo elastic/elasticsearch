@@ -143,6 +143,7 @@ public abstract class Rounding implements Streamable {
                     // There are no earlier transitions
                     return Long.MAX_VALUE;
                 }
+                assert previousTransition < utcMillis; // Progress was made
                 utcMillis = previousTransition;
             } while (timeZone.getOffset(utcMillis) == offsetAtInputTime);
 
@@ -195,6 +196,7 @@ public abstract class Rounding implements Streamable {
                     // The offset _did_ change in [rounded, utcMillis]. Put differently, this means that none of the times in
                     // [previousTransition+1, utcMillis] were rounded, so the rounded time must be <= previousTransition.  This means
                     // it's sufficient to try and round previousTransition down.
+                    assert previousTransition < utcMillis;
                     utcMillis = previousTransition;
                 } while (true);
             }

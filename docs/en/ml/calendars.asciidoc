@@ -26,6 +26,8 @@ iCalendar (`.ics`) file in {kib} or a JSON file in the
 [NOTE]
 --
 
+* You must identify scheduled events before your job analyzes the data for that
+time period. Machine learning results are not updated retroactively.
 * If your iCalendar file contains recurring events, only the first occurrence is
 imported.
 * Bucket results are generated during scheduled events but they have an

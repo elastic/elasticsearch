@@ -991,7 +991,8 @@ be larger than others. Expect larger slices to have a more even distribution.
 are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
-`_reindex`ed.
+`_reindex` 'ed.
+* The `size` parameter can not be more than the `index.max_result_window` index setting which defaults to 10,000. This is a safeguard since search requests take heap memory and time proportional to `from` + `size`.
 * Each sub-requests gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 

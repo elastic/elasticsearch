@@ -43,7 +43,13 @@ public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
     public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
-    public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
+
+    /**
+     * Disabled as Apache Http Async Client would otherwise throw TimeoutException(s) even when returning connections to
+     * the pool, after having done performed an RPC successfully.
+     * See also https://github.com/elastic/elasticsearch/issues/24069
+     */
+    public static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT_MILLIS = 0;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
@@ -193,7 +199,7 @@ public final class RestClientBuilder {
     }
 
     private CloseableHttpAsyncClient createHttpClient() {
-        //default timeouts are all infinite
+        //default timeouts are all infinite, except the RequestTimeout which is explicitly disabled.
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
                 .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
                 .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS)

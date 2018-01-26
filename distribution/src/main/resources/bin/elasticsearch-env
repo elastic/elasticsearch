@@ -63,7 +63,7 @@ if [ ! -z "$JAVA_OPTS" ]; then
 fi
 
 # check the Java version
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
+"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 
@@ -75,9 +75,13 @@ if [ -z "$ES_PATH_CONF" ]; then
 fi
 
 if [ -z "$ES_TMPDIR" ]; then
-  if [ "`uname`" == "Darwin" ]; then
-    ES_TMPDIR=`mktemp -d -t elasticsearch`
+  set +e
+  mktemp --version 2>&1 | grep coreutils > /dev/null
+  mktemp_coreutils=$?
+  set -e
+  if [ $mktemp_coreutils -eq 0 ]; then
+    ES_TMPDIR=`mktemp -d --tmpdir "elasticsearch.XXXXXXXX"`
   else
-    ES_TMPDIR=`mktemp -d -t elasticsearch.XXXXXXXX`
+    ES_TMPDIR=`mktemp -d -t elasticsearch`
   fi
 fi

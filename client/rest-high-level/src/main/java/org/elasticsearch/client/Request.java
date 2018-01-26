@@ -29,13 +29,21 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -50,6 +58,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -126,7 +135,7 @@ public final class Request {
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
-        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(deleteIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
@@ -134,6 +143,68 @@ public final class Request {
         parameters.withIndicesOptions(deleteIndexRequest.indicesOptions());
 
         return new Request(HttpDelete.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request openIndex(OpenIndexRequest openIndexRequest) {
+        String endpoint = endpoint(openIndexRequest.indices(), "_open");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(openIndexRequest.timeout());
+        parameters.withMasterTimeout(openIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(openIndexRequest.waitForActiveShards());
+        parameters.withIndicesOptions(openIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request closeIndex(CloseIndexRequest closeIndexRequest) {
+        String endpoint = endpoint(closeIndexRequest.indices(), "_close");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(closeIndexRequest.timeout());
+        parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+        String endpoint = endpoint(createIndexRequest.indices());
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(createIndexRequest.timeout());
+        parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
+        parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
+
+        HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+    
+    static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(indicesAliasesRequest.timeout());
+        parameters.withMasterTimeout(indicesAliasesRequest.masterNodeTimeout());
+        
+        HttpEntity entity = createEntity(indicesAliasesRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, "/_aliases", parameters.getParams(), entity);
+    }
+
+    static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+        // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
+        if (putMappingRequest.getConcreteIndex() != null) {
+            throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
+        }
+
+        String endpoint = endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type());
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(putMappingRequest.timeout());
+        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+
+        HttpEntity entity = createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     static Request info() {
@@ -283,6 +354,15 @@ public final class Request {
         return new Request(HttpGet.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withPreference(multiGetRequest.preference());
+        parameters.withRealtime(multiGetRequest.realtime());
+        parameters.withRefresh(multiGetRequest.refresh());
+        HttpEntity entity = createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, "/_mget", parameters.getParams(), entity);
+    }
+
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
@@ -369,17 +449,40 @@ public final class Request {
         if (searchRequest.source() != null) {
             entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
         }
-        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpDelete.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
+            params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
+        }
+        XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
+        byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
+        return new Request(HttpPost.METHOD_NAME, "/_msearch", params.getParams(), entity);
+    }
+
+    static Request existsAlias(GetAliasesRequest getAliasesRequest) {
+        Params params = Params.builder();
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        if (getAliasesRequest.indices().length == 0 && getAliasesRequest.aliases().length == 0) {
+            throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
+        }
+        String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
+        return new Request("HEAD", endpoint, params.getParams(), null);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -387,14 +490,38 @@ public final class Request {
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
+    static String endpoint(String index, String type, String id) {
+        return buildEndpoint(index, type, id);
+    }
+
+    static String endpoint(String index, String type, String id, String endpoint) {
+        return buildEndpoint(index, type, id, endpoint);
+    }
+
+    static String endpoint(String[] indices) {
+        return buildEndpoint(String.join(",", indices));
+    }
+
+    static String endpoint(String[] indices, String endpoint) {
+        return buildEndpoint(String.join(",", indices), endpoint);
+    }
+
     static String endpoint(String[] indices, String[] types, String endpoint) {
-        return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+        return buildEndpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+    static String endpoint(String[] indices, String endpoint, String[] suffixes) {
+        return buildEndpoint(String.join(",", indices), endpoint, String.join(",", suffixes));
+    }
+
+    static String endpoint(String[] indices, String endpoint, String type) {
+        return endpoint(String.join(",", indices), endpoint, type);
     }
 
     /**
-     * Utility method to build request's endpoint.
+     * Utility method to build request's endpoint given its parts as strings
      */
-    static String endpoint(String... parts) {
+    static String buildEndpoint(String... parts) {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
@@ -573,9 +700,7 @@ public final class Request {
         }
 
         Params withLocal(boolean local) {
-            if (local) {
-                return putParam("local", Boolean.TRUE.toString());
-            }
+            putParam("local", Boolean.toString(local));
             return this;
         }
 

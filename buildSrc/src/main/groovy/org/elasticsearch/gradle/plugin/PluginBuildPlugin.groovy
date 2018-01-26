@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import nebula.plugin.info.scm.ScmInfoPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.XmlProvider
@@ -168,10 +170,12 @@ public class PluginBuildPlugin extends BuildPlugin {
             Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
                     StandardCopyOption.REPLACE_EXISTING)
 
-            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
+            if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
+                String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
+                String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
+                Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
+                        StandardCopyOption.REPLACE_EXISTING)
+            }
         }
         project.assemble.dependsOn(clientJar)
     }
@@ -217,7 +221,8 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds a task to generate a pom file for the zip distribution. */
-    protected void addZipPomGeneration(Project project) {
+    public static void addZipPomGeneration(Project project) {
+        project.plugins.apply(ScmInfoPlugin.class)
         project.plugins.apply(MavenPublishPlugin.class)
 
         project.publishing {

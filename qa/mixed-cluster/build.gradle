@@ -45,9 +45,6 @@ for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
     numNodes = 4
     numBwcNodes = 2
     bwcVersion = version
-
-    setting 'logger.level', 'DEBUG'
-    setting 'logger.org.elasticsearch.discovery', 'TRACE'
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
@@ -68,8 +65,10 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  for (final def version : versionCollection.basicIntegrationTestVersions) {
-    dependsOn "v${version}#bwcTest"
+  if (project.bwc_tests_enabled) {
+    for (final def version : versionCollection.basicIntegrationTestVersions) {
+      dependsOn "v${version}#bwcTest"
+    }
   }
 }
 

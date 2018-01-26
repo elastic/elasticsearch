@@ -21,7 +21,7 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 
 task buildZip(type: Zip) {
-  dependsOn createPluginsDir
+  dependsOn createLogDir, createPluginsDir
   baseName = 'elasticsearch'
   with archivesFiles
 }

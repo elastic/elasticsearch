@@ -22,6 +22,7 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
@@ -44,17 +45,28 @@ Collection distributions = project.subprojects.findAll {
    it.path.contains(':tools') == false && it.path.contains(':bwc') == false }
 
 /*****************************************************************************
+ *                  Third party dependencies report                          *
+ *****************************************************************************/
+
+// Concatenates the dependencies CSV files into a single file
+task generateDependenciesReport(type: ConcatFilesTask) {
+  files = fileTree(dir: project.rootDir,  include: '**/dependencies.csv' )
+  headerLine = "name,version,url,license"
+  target = new File(System.getProperty('csv')?: "${project.buildDir}/dependencies/es-dependencies.csv")
+}
+
+/*****************************************************************************
  *                                Notice file                                *
  *****************************************************************************/
 
-// integ test zip only uses core, so a different notice file is needed there
+// integ test zip only uses server, so a different notice file is needed there
 task buildCoreNotice(type: NoticeTask) {
-  licensesDir new File(project(':core').projectDir, 'licenses')
+  licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 // other distributions include notices from modules as well, which are added below later
 task buildFullNotice(type: NoticeTask) {
-  licensesDir new File(project(':core').projectDir, 'licenses')
+  licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 /*****************************************************************************
@@ -71,7 +83,7 @@ ext.restTestExpansions = [
 // we create the buildModules task above so the distribution subprojects can
 // depend on it, but we don't actually configure it until here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
-project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
   buildFullNotice {
     def defaultLicensesDir = new File(module.projectDir, 'licenses')
     if (defaultLicensesDir.exists()) {
@@ -161,10 +173,11 @@ configure(distributions) {
      *****************************************************************************/
     libFiles = copySpec {
       into 'lib'
-      from project(':core').jar
-      from project(':core').configurations.runtime
+      from { project(':server').jar }
+      from { project(':server').configurations.runtime }
+      from { project(':libs:plugin-classloader').jar }
       // delay add tools using closures, since they have not yet been configured, so no jar task exists yet
-      from { project(':distribution:tools:java-version-checker').jar }
+      from { project(':distribution:tools:launchers').jar }
       from { project(':distribution:tools:plugin-cli').jar }
     }
 
@@ -224,6 +237,11 @@ configure(distributions) {
 configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
   // parent to copy to the root of the distribution
+  File logs = new File(buildDir, 'logs-hack/logs')
+  task createLogDir(type: EmptyDirTask) {
+    dir "${logs}"
+    dirMode 0755
+  }
   File plugins = new File(buildDir, 'plugins-hack/plugins')
   task createPluginsDir(type: EmptyDirTask) {
     dir "${plugins}"
@@ -245,6 +263,12 @@ configure(distributions.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.n
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
           MavenFilteringHack.filter(it, expansions)
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          logs.getParent()
         }
       }
       into('') {
@@ -311,6 +335,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
   task createEtc(type: EmptyDirTask) {
     dir "${packagingFiles}/etc/elasticsearch"
     dirMode 0750
+    outputs.dir dir
   }
 
   task fillEtc(type: Copy) {
@@ -381,6 +406,7 @@ configure(distributions.findAll { ['deb', 'rpm'].contains(it.name) }) {
     } else if (project.name == 'deb') {
       requires('bash')
     }
+    requires('coreutils')
 
     into '/usr/share/elasticsearch'
     fileMode 0644
@@ -497,7 +523,9 @@ task run(type: RunTask) {
 Map<String, String> expansionsForDistribution(distributionType) {
   final String defaultHeapSize = "1g"
   final String packagingPathData = "path.data: /var/lib/elasticsearch"
-  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
+  final String pathLogs = "/var/log/elasticsearch"
+  final String packagingPathLogs = "path.logs: ${pathLogs}"
+  final String packagingLoggc = "${pathLogs}/gc.log"
 
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
@@ -524,14 +552,19 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
     ],
     'source.path.env': [
-       'deb': 'if [ -f /etc/default/elasticsearch ]; then source /etc/default/elasticsearch; fi',
-       'rpm': 'if [ -f /etc/sysconfig/elasticsearch ]; then source /etc/sysconfig/elasticsearch; fi',
+       'deb': 'source /etc/default/elasticsearch',
+       'rpm': 'source /etc/sysconfig/elasticsearch',
        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
     ],
     'path.logs': [
       'deb': packagingPathLogs,
       'rpm': packagingPathLogs,
       'def': '#path.logs: /path/to/logs'
+    ],
+    'loggc': [
+      'deb': packagingLoggc,
+      'rpm': packagingLoggc,
+      'def': 'logs/gc.log'
     ],
 
     'heap.min': defaultHeapSize,

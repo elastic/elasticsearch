@@ -73,7 +73,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
 
-    private static final String TYPE = "doc";
+    private static final String TYPE = "_doc";
     private static final String PARENT_DOC = "parent";
     private static final String CHILD_DOC = "child";
 
@@ -97,7 +97,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
                 .startObject("relations")
@@ -132,7 +132,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

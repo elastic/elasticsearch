@@ -23,6 +23,8 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
+import org.elasticsearch.gradle.plugin.MetaPluginPropertiesExtension
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -138,8 +140,8 @@ class ClusterFormationTasks {
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
     static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, String elasticsearchVersion) {
         verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
-        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin');
-        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${extension.name}:${elasticsearchVersion}@zip")
+        final String pluginName = findPluginName(pluginProject)
+        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
     }
 
     /**
@@ -267,35 +269,6 @@ class ClusterFormationTasks {
                         project.tarTree(project.resources.gzip(configuration.singleFile))
                     }
                     into node.baseDir
-                }
-                break;
-            case 'rpm':
-                File rpmDatabase = new File(node.baseDir, 'rpm-database')
-                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
-                /* Delay reading the location of the rpm file until task execution */
-                Object rpm = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
-                        '--dbpath', rpmDatabase,
-                        '--relocate', "/=${rpmExtracted}",
-                        '-i', rpm
-                    doFirst {
-                        rpmDatabase.deleteDir()
-                        rpmExtracted.deleteDir()
-                    }
-                    outputs.dir rpmExtracted
-                }
-                break;
-            case 'deb':
-                /* Delay reading the location of the deb file until task execution */
-                File debExtracted = new File(node.baseDir, 'deb-extracted')
-                Object deb = "${ -> configuration.singleFile}"
-                extract = project.tasks.create(name: name, type: LoggedExec, dependsOn: extractDependsOn) {
-                    commandLine 'dpkg-deb', '-x', deb, debExtracted
-                    doFirst {
-                        debExtracted.deleteDir()
-                    }
-                    outputs.dir debExtracted
                 }
                 break;
             default:
@@ -478,7 +451,7 @@ class ClusterFormationTasks {
                 configuration = project.configurations.create(configurationName)
             }
 
-            final String depName = pluginProject.extensions.findByName('esplugin').name
+            final String depName = findPluginName(pluginProject)
 
             Dependency dep = bwcPlugins.dependencies.find {
                 it.name == depName
@@ -684,7 +657,7 @@ class ClusterFormationTasks {
                 String pid = node.pidFile.getText('UTF-8')
                 ByteArrayOutputStream output = new ByteArrayOutputStream()
                 project.exec {
-                    commandLine = ["${project.javaHome}/bin/jstack", pid]
+                    commandLine = ["${project.runtimeJavaHome}/bin/jstack", pid]
                     standardOutput = output
                 }
                 output.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
@@ -728,7 +701,7 @@ class ClusterFormationTasks {
     }
 
     private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
-        return Paths.get(project.javaHome.toString(), "bin/" + jpsExecutableName).toFile()
+        return Paths.get(project.runtimeJavaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -782,9 +755,19 @@ class ClusterFormationTasks {
     }
 
     static void verifyProjectHasBuildPlugin(String name, String version, Project project, Project pluginProject) {
-        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin")
+                    "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
+        }
+    }
+
+    /** Find the plugin name in the given project, whether a regular plugin or meta plugin. */
+    static String findPluginName(Project pluginProject) {
+        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
+        if (extension != null) {
+            return extension.name
+        } else {
+            return pluginProject.extensions.findByName('es_meta_plugin').name
         }
     }
 }

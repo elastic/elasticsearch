@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -67,7 +68,6 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
@@ -287,7 +287,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
             MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
                     indexSettings.getSettings(), "index");
-            mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
+            mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
             final IndexEventListener indexEventListener = new IndexEventListener() {
             };
@@ -309,7 +309,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param listeners new listerns to use for the newly created shard
      */
@@ -321,7 +321,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /**
-     * Takes an existing shard, closes it and and starts a new initialing shard at the same location
+     * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
      * @param routing   the shard routing to use for the newly created shard.
      * @param listeners new listerns to use for the newly created shard
@@ -555,8 +555,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         throws IOException {
         SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
         if (shard.routingEntry().primary()) {
-            return shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
+            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, type));
+            shard.updateLocalCheckpointForShard(shard.routingEntry().allocationId().getId(),
+                shard.getEngine().getLocalCheckpointTracker().getCheckpoint());
+            return result;
         } else {
             return shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, 0,
                 VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, getMappingUpdater(shard, type));
@@ -576,7 +579,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected void updateMappings(IndexShard shard, IndexMetaData indexMetadata) {
         shard.indexSettings().updateIndexMetaData(indexMetadata);
-        shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE, true);
+        shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
@@ -616,16 +619,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected void snapshotShard(final IndexShard shard,
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = new IndexShardSnapshotStatus();
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(true)) {
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(false, true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
             repository.snapshotShard(shard, snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(), snapshotStatus);
         }
-        assertEquals(IndexShardSnapshotStatus.Stage.DONE, snapshotStatus.stage());
-        assertEquals(shard.snapshotStoreMetadata().size(), snapshotStatus.numberOfFiles());
-        assertNull(snapshotStatus.failure());
+
+        final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+        assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
+        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getNumberOfFiles());
+        assertNull(lastSnapshotStatus.getFailure());
     }
 
     /**
@@ -633,5 +638,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     public static Engine getEngine(IndexShard indexShard) {
         return indexShard.getEngine();
+    }
+
+    public static GlobalCheckpointTracker getGlobalCheckpointTracker(IndexShard indexShard) {
+        return indexShard.getGlobalCheckpointTracker();
     }
 }

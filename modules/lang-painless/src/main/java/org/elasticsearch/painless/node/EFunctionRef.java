@@ -82,11 +82,12 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                         Definition.Type from = interfaceMethod.arguments.get(i);
                         Definition.Type to = delegateMethod.arguments.get(i);
-                        locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
+                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
                     }
 
                     if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                        locals.getDefinition().caster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
+                        AnalyzerCaster.getLegalCast(
+                            location, Definition.TypeToClass(delegateMethod.rtn), Definition.TypeToClass(interfaceMethod.rtn), false, true);
                     }
                 } else {
                     // whitelist lookup

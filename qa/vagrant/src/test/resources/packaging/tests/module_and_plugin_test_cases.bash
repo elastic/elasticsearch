@@ -206,10 +206,10 @@ fi
 }
 
 @test "[$GROUP] install ingest-attachment plugin" {
-    # we specify the version on the poi-3.16.jar so that the test does
+    # we specify the version on the poi-3.17.jar so that the test does
     # not spuriously pass if the jar is missing but the other poi jars
     # are present
-    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.16.jar poi-ooxml-3.16.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
+    install_and_check_plugin ingest attachment bcprov-jdk15on-*.jar tika-core-*.jar pdfbox-*.jar poi-3.17.jar poi-ooxml-3.17.jar poi-ooxml-schemas-*.jar poi-scratchpad-*.jar
 }
 
 @test "[$GROUP] install ingest-geoip plugin" {
@@ -269,6 +269,10 @@ fi
 
 @test "[$GROUP] install store-smb plugin" {
     install_and_check_plugin store smb
+}
+
+@test "[$GROUP] install transport-nio plugin" {
+    install_and_check_plugin transport nio
 }
 
 @test "[$GROUP] check the installed plugins can be listed with 'plugins list' and result matches the list of plugins in plugins pom" {
@@ -371,6 +375,10 @@ fi
 
 @test "[$GROUP] remove store-smb plugin" {
     remove_plugin store-smb
+}
+
+@test "[$GROUP] remove transport-nio plugin" {
+    remove_plugin transport-nio
 }
 
 @test "[$GROUP] start elasticsearch with all plugins removed" {

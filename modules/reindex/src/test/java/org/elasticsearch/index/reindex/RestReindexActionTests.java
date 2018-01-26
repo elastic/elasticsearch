@@ -21,10 +21,12 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
@@ -148,6 +150,24 @@ public class RestReindexActionTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
 
         assertEquals("_reindex doesn't support [pipeline] as a query parmaeter. Specify it in the [dest] object instead.", e.getMessage());
+    }
+
+    public void testSetScrollTimeout() throws IOException {
+        {
+            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+            FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
+            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
+            ReindexRequest request = action.buildRequest(requestBuilder.build());
+            assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
+        }
+        {
+            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+            FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
+            requestBuilder.withParams(singletonMap("scroll", "10m"));
+            requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
+            ReindexRequest request = action.buildRequest(requestBuilder.build());
+            assertEquals("10m", request.getScrollTime().toString());
+        }
     }
 
     private RemoteInfo buildRemoteInfoHostTestCase(String hostInRest) throws IOException {

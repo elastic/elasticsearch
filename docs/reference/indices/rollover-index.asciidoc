@@ -106,7 +106,7 @@ PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
   }
 }
 
-PUT logs_write/log/1
+PUT logs_write/_doc/1
 {
   "message": "a dummy log"
 }

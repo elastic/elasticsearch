@@ -50,9 +50,14 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
             }
         };
         MockTransportService mockTransportService =
-            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings, Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
+    }
+
+    @Override
+    public int channelsPerNodeConnection() {
+        return 1;
     }
 
     @Override

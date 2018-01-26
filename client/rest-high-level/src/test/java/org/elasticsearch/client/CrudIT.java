@@ -33,6 +33,8 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -235,6 +237,64 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
             assertEquals("value1", sourceAsMap.get("field1"));
+        }
+    }
+
+    public void testMultiGet() throws IOException {
+        {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            multiGetRequest.add("index", "type", "id1");
+            multiGetRequest.add("index", "type", "id2");
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            assertEquals(2, response.getResponses().length);
+
+            assertTrue(response.getResponses()[0].isFailed());
+            assertNull(response.getResponses()[0].getResponse());
+            assertEquals("id1", response.getResponses()[0].getFailure().getId());
+            assertEquals("type", response.getResponses()[0].getFailure().getType());
+            assertEquals("index", response.getResponses()[0].getFailure().getIndex());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+                    response.getResponses()[0].getFailure().getFailure().getMessage());
+
+            assertTrue(response.getResponses()[1].isFailed());
+            assertNull(response.getResponses()[1].getResponse());
+            assertEquals("id2", response.getResponses()[1].getId());
+            assertEquals("type", response.getResponses()[1].getType());
+            assertEquals("index", response.getResponses()[1].getIndex());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+                    response.getResponses()[1].getFailure().getFailure().getMessage());
+        }
+
+        String document = "{\"field\":\"value1\"}";
+        StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
+        Response r = client().performRequest("PUT", "/index/type/id1", Collections.singletonMap("refresh", "true"), stringEntity);
+        assertEquals(201, r.getStatusLine().getStatusCode());
+
+        document = "{\"field\":\"value2\"}";
+        stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
+        r = client().performRequest("PUT", "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
+        assertEquals(201, r.getStatusLine().getStatusCode());
+
+        {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            multiGetRequest.add("index", "type", "id1");
+            multiGetRequest.add("index", "type", "id2");
+            MultiGetResponse response = execute(multiGetRequest, highLevelClient()::multiGet, highLevelClient()::multiGetAsync);
+            assertEquals(2, response.getResponses().length);
+
+            assertFalse(response.getResponses()[0].isFailed());
+            assertNull(response.getResponses()[0].getFailure());
+            assertEquals("id1", response.getResponses()[0].getId());
+            assertEquals("type", response.getResponses()[0].getType());
+            assertEquals("index", response.getResponses()[0].getIndex());
+            assertEquals(Collections.singletonMap("field", "value1"), response.getResponses()[0].getResponse().getSource());
+
+            assertFalse(response.getResponses()[1].isFailed());
+            assertNull(response.getResponses()[1].getFailure());
+            assertEquals("id2", response.getResponses()[1].getId());
+            assertEquals("type", response.getResponses()[1].getType());
+            assertEquals("index", response.getResponses()[1].getIndex());
+            assertEquals(Collections.singletonMap("field", "value2"), response.getResponses()[1].getResponse().getSource());
         }
     }
 

@@ -637,12 +637,12 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        SearchRequest searchRequest = new SearchRequest();
         int numIndices = randomIntBetween(0, 5);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
         }
+        SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indices(indices);
         int numTypes = randomIntBetween(0, 5);
         String[] types = new String[numTypes];

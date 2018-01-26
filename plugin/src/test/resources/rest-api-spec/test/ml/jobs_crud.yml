@@ -1135,3 +1135,122 @@
             }
           }
 
+---
+"Test job with rules":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-rules
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "rules": [
+                    {
+                      "actions": ["filter_results", "skip_sampling"],
+                      "conditions": [
+                        {
+                          "type":"numerical_actual",
+                          "field_name":"country",
+                          "field_value": "uk",
+                          "condition": {"operator":"lt","value":"33.3"}
+                        },
+                        {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: jobs-crud-rules
+  - match: { count: 1 }
+  - match: {
+      jobs.0.analysis_config.detectors.0.rules: [
+        {
+          "actions": ["filter_results", "skip_sampling"],
+          "conditions_connective": "or",
+          "conditions": [
+            {
+              "type":"numerical_actual",
+              "field_name":"country",
+              "field_value": "uk",
+              "condition": {"operator":"lt","value":"33.3"}
+            },
+            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+          ]
+        }
+      ]
+    }
+
+---
+"Test job with pre 6.2 rules":
+
+  - skip:
+        features: "warnings"
+        reason: certain rule fields were renamed in 6.2.0
+
+  - do:
+      warnings:
+          - Deprecated field [detector_rules] used, expected [rules] instead
+          - Deprecated field [rule_action] used, expected [actions] instead
+          - Deprecated field [rule_conditions] used, expected [conditions] instead
+          - Deprecated field [condition_type] used, expected [type] instead
+          - Deprecated field [value_filter] used, expected [filter_id] instead
+      xpack.ml.put_job:
+        job_id: jobs-crud-pre-6-2-rules
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "detector_rules": [
+                    {
+                      "rule_action": "filter_results",
+                      "rule_conditions": [
+                        {
+                          "condition_type":"numerical_actual",
+                          "field_name":"country",
+                          "field_value": "uk",
+                          "condition": {"operator":"lt","value":"33.3"}
+                        },
+                        {"type":"categorical", "field_name":"country", "value_filter": "foo"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: jobs-crud-pre-6-2-rules
+  - match: { count: 1 }
+  - match: {
+      jobs.0.analysis_config.detectors.0.rules: [
+        {
+          "actions": ["filter_results"],
+          "conditions_connective": "or",
+          "conditions": [
+            {
+              "type":"numerical_actual",
+              "field_name":"country",
+              "field_value": "uk",
+              "condition": {"operator":"lt","value":"33.3"}
+            },
+            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+          ]
+        }
+      ]
+    }

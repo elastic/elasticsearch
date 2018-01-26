@@ -26,10 +26,11 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
-    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField TYPE_FIELD = new ParseField("type", "condition_type");
     public static final ParseField RULE_CONDITION_FIELD = new ParseField("rule_condition");
     public static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
     public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
+    public static final ParseField FILTER_ID_FIELD = new ParseField(MlFilter.ID.getPreferredName(), "value_filter");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
@@ -56,7 +57,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
             parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
             parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
             parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
-            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), MlFilter.ID);
+            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FILTER_ID_FIELD);
         }
     }
 
@@ -116,7 +117,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
             builder.field(FIELD_VALUE_FIELD.getPreferredName(), fieldValue);
         }
         if (filterId != null) {
-            builder.field(MlFilter.ID.getPreferredName(), filterId);
+            builder.field(FILTER_ID_FIELD.getPreferredName(), filterId);
         }
         builder.endObject();
         return builder;
@@ -214,7 +215,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     private static void verifyCategorical(RuleCondition ruleCondition) throws ElasticsearchParseException {
         checkCategoricalHasNoField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         checkCategoricalHasNoField(RuleCondition.FIELD_VALUE_FIELD.getPreferredName(), ruleCondition.getFieldValue());
-        checkCategoricalHasField(MlFilter.ID.getPreferredName(), ruleCondition.getFilterId());
+        checkCategoricalHasField(FILTER_ID_FIELD.getPreferredName(), ruleCondition.getFilterId());
     }
 
     private static void checkCategoricalHasNoField(String fieldName, Object fieldValue) throws ElasticsearchParseException {
@@ -232,7 +233,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     }
 
     private static void verifyNumerical(RuleCondition ruleCondition) throws ElasticsearchParseException {
-        checkNumericalHasNoField(MlFilter.ID.getPreferredName(), ruleCondition.getFilterId());
+        checkNumericalHasNoField(FILTER_ID_FIELD.getPreferredName(), ruleCondition.getFilterId());
         checkNumericalHasField(Condition.CONDITION_FIELD.getPreferredName(), ruleCondition.getCondition());
         if (ruleCondition.getFieldName() != null && ruleCondition.getFieldValue() == null) {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_NUMERICAL_WITH_FIELD_NAME_REQUIRES_FIELD_VALUE);

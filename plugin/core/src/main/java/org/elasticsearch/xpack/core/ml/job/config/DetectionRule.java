@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,11 +35,11 @@ import java.util.stream.Collectors;
 public class DetectionRule implements ToXContentObject, Writeable {
 
     public static final ParseField DETECTION_RULE_FIELD = new ParseField("detection_rule");
-    public static final ParseField ACTIONS_FIELD = new ParseField("actions");
+    public static final ParseField ACTIONS_FIELD = new ParseField("actions", "rule_action");
     public static final ParseField TARGET_FIELD_NAME_FIELD = new ParseField("target_field_name");
     public static final ParseField TARGET_FIELD_VALUE_FIELD = new ParseField("target_field_value");
     public static final ParseField CONDITIONS_CONNECTIVE_FIELD = new ParseField("conditions_connective");
-    public static final ParseField CONDITIONS_FIELD = new ParseField("conditions");
+    public static final ParseField CONDITIONS_FIELD = new ParseField("conditions", "rule_conditions");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> METADATA_PARSER =
@@ -83,10 +84,14 @@ public class DetectionRule implements ToXContentObject, Writeable {
     }
 
     public DetectionRule(StreamInput in) throws IOException {
-        int actionsCount = in.readVInt();
         actions = EnumSet.noneOf(RuleAction.class);
-        for (int i = 0; i < actionsCount; ++i) {
+        if (in.getVersion().before(Version.V_6_2_0)) {
             actions.add(RuleAction.readFromStream(in));
+        } else {
+            int actionsCount = in.readVInt();
+            for (int i = 0; i < actionsCount; ++i) {
+                actions.add(RuleAction.readFromStream(in));
+            }
         }
 
         conditionsConnective = Connective.readFromStream(in);
@@ -101,9 +106,14 @@ public class DetectionRule implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(actions.size());
-        for (RuleAction action : actions) {
-            action.writeTo(out);
+        if (out.getVersion().before(Version.V_6_2_0)) {
+            // Only filter_results is supported prior to 6.2.0
+            RuleAction.FILTER_RESULTS.writeTo(out);
+        } else {
+            out.writeVInt(actions.size());
+            for (RuleAction action : actions) {
+                action.writeTo(out);
+            }
         }
 
         conditionsConnective.writeTo(out);

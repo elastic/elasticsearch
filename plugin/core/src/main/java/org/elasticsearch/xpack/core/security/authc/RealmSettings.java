@@ -9,7 +9,7 @@ import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.extensions.XPackExtension;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * </p>
  * <p>
  * The allowable settings for each realm-type are determined by calls to {@link InternalRealmsSettings#getSettings()} and
- * {@link XPackExtension#getRealmSettings()}
+ * {@link org.elasticsearch.xpack.core.security.SecurityExtension#getRealmSettings()}
  */
 public class RealmSettings {
 
@@ -54,11 +54,11 @@ public class RealmSettings {
     /**
      * Add the {@link Setting} configuration for <em>all</em> realms to the provided list.
      */
-    public static void addSettings(List<Setting<?>> settingsList, List<XPackExtension> extensions) {
+    public static void addSettings(List<Setting<?>> settingsList, List<SecurityExtension> extensions) {
         settingsList.add(getGroupSetting(extensions));
     }
 
-    public static Collection<String> getSettingsFilter(List<XPackExtension> extensions) {
+    public static Collection<String> getSettingsFilter(List<SecurityExtension> extensions) {
         return getSettingsByRealm(extensions).values().stream()
                 .flatMap(Collection::stream)
                 .filter(Setting::isFiltered)
@@ -107,11 +107,11 @@ public class RealmSettings {
         return PREFIX + name + "." + subKey;
     }
 
-    private static Setting<Settings> getGroupSetting(List<XPackExtension> extensions) {
+    private static Setting<Settings> getGroupSetting(List<SecurityExtension> extensions) {
         return Setting.groupSetting(PREFIX, getSettingsValidator(extensions), Setting.Property.NodeScope);
     }
 
-    private static Consumer<Settings> getSettingsValidator(List<XPackExtension> extensions) {
+    private static Consumer<Settings> getSettingsValidator(List<SecurityExtension> extensions) {
         final Map<String, Set<Setting<?>>> childSettings = getSettingsByRealm(extensions);
         childSettings.forEach(RealmSettings::verify);
         return validator(childSettings);
@@ -121,7 +121,7 @@ public class RealmSettings {
      * @return A map from <em>realm-type</em> to a collection of <code>Setting</code> objects.
      * @see InternalRealmsSettings#getSettings()
      */
-    private static Map<String, Set<Setting<?>>> getSettingsByRealm(List<XPackExtension> extensions) {
+    private static Map<String, Set<Setting<?>>> getSettingsByRealm(List<SecurityExtension> extensions) {
         final Map<String, Set<Setting<?>>> settingsByRealm = new HashMap<>(InternalRealmsSettings.getSettings());
         if (extensions != null) {
             extensions.forEach(ext -> {

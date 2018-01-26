@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security;
+package org.elasticsearch.xpack.core.security;
 
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;

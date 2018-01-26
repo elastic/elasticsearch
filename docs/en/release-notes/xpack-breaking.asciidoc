@@ -31,6 +31,10 @@ Security::
 mappings, get field mappings and field capabilities API are now only the ones
 that the user is authorized to access in case field level security is enabled.
 
+* The legacy `XPackExtension` extension mechanism has been removed and replaced
+with an SPI based extension mechanism that is installed and built as an elasticsearch
+plugin.
+
 See also:
 
 * <<breaking-changes-7.0,{es} Breaking Changes>>

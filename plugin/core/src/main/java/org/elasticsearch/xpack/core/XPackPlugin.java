@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.extensions.XPackExtension;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
@@ -59,7 +58,6 @@ import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -116,11 +114,6 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         setLicenseState(new XPackLicenseState());
 
         this.licensing = new Licensing(settings);
-    }
-
-    // For tests only
-    public Collection<Class<? extends XPackExtension>> getExtensions() {
-        return Collections.emptyList();
     }
 
     // overridable by tests

@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
@@ -94,7 +95,7 @@ public class SecurityTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         licenseState = new TestUtils.UpdatableLicenseState();
         SSLService sslService = new SSLService(settings, env);
-        security = new Security(settings, null) {
+        security = new Security(settings, null, Arrays.asList(extensions)) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;
@@ -118,8 +119,7 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class),
-                Arrays.asList(extensions));
+        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class));
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

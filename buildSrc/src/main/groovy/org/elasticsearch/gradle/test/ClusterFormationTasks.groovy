@@ -580,7 +580,7 @@ class ClusterFormationTasks {
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: '45', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {
@@ -608,6 +608,17 @@ class ClusterFormationTasks {
             }
             if (ant.properties.containsKey("failed${name}".toString()) || anyNodeFailed) {
                 waitFailed(project, nodes, logger, 'Failed to start elasticsearch')
+            }
+
+            // make sure all files exist otherwise we haven't fully started up
+            boolean missingFile = false
+            for (NodeInfo node : nodes) {
+                missingFile |= node.pidFile.exists() == false
+                missingFile |= node.httpPortsFile.exists() == false
+                missingFile |= node.transportPortsFile.exists() == false
+            }
+            if (missingFile) {
+                waitFailed(project, nodes, logger, 'Elasticsearch did not complete startup in time allotted')
             }
 
             // go through each node checking the wait condition

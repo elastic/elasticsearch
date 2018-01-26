@@ -154,7 +154,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
     public void testShrinkIndexPrimaryTerm() throws Exception {
         final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
-        final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size()), factors);
+        final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size() - 1), factors);
         final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
         final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -165,7 +165,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
         final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         final String mergeNode = discoveryNodes[0].getName();
-        // This needs more than the default timeout if 210(2*3*5*7) shards were created.
+        // This needs more than the default timeout if a large number of shards were created.
         ensureGreen(TimeValue.timeValueSeconds(120));
 
         // fail random primary shards to force primary terms to increase

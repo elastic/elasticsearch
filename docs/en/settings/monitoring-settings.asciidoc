@@ -95,7 +95,7 @@ local exporter that indexes monitoring data on the cluster where it is installed
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
 information, see <<local-exporter-settings,Local Exporter Settings>>,
 <<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/monitoring-cluster.html[Setting up a Separate Monitoring Cluster].
+{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
 
 [float]
 [[local-exporter-settings]]

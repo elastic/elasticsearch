@@ -833,8 +833,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
             terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-            keystore = KeyStoreWrapper.create(new char[0]);
-            keystore.save(env.configFile());
+            keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), new char[0]);
         }
     }
 

@@ -663,7 +663,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // read optional security policy from each bundled plugin, and confirm all exceptions one time with user
 
-        PermissionCollection permissions = new Permissions();
+        Set<String> permissions = new HashSet<>();
         final List<PluginInfo> pluginInfos = new ArrayList<>();
         boolean hasNativeController = false;
         for (Path plugin : pluginPaths) {
@@ -674,11 +674,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
             Path policy = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
             if (Files.exists(policy)) {
-                PermissionCollection bundledPermissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
-                Enumeration<Permission> bundledPermissionsEnum = bundledPermissions.elements();
-                while (bundledPermissionsEnum.hasMoreElements()) {
-                    permissions.add(bundledPermissionsEnum.nextElement());
-                }
+                permissions.addAll(PluginSecurity.parsePermissions(policy, env.tmpFile()));
             }
         }
         PluginSecurity.confirmPolicyExceptions(terminal, permissions, hasNativeController, isBatch);
@@ -715,7 +711,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
         Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
         if (Files.exists(policy)) {
-            PermissionCollection permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+            Set<String> permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
             PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
         }
 

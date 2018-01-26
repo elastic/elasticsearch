@@ -123,6 +123,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
         assertAcked(watcherClient.prepareWatchService().stop().get());
+        ensureWatcherStopped();
         assertAcked(watcherClient.prepareWatchService().start().get());
         ensureWatcherStarted();
 

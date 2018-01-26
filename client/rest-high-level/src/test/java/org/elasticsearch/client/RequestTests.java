@@ -241,7 +241,7 @@ public class RequestTests extends ESTestCase {
         Request request = Request.delete(deleteRequest);
         assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertEquals("DELETE", request.getMethod());
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
     }
 

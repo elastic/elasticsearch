@@ -19,15 +19,19 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -55,7 +59,7 @@ import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndex() throws IOException {
         {
             // Create index
@@ -118,7 +122,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index
@@ -268,7 +272,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String index = "index";
         createIndex(index);
         closeIndex(index);
-        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+        ResponseException exception = expectThrows(ResponseException.class,
+                () -> client().performRequest(HttpGet.METHOD_NAME, index + "/_search"));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
 
@@ -277,7 +282,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::openAsync);
         assertTrue(openIndexResponse.isAcknowledged());
 
-        Response response = client().performRequest("GET", index + "/_search");
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
@@ -306,7 +311,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCloseExistingIndex() throws IOException {
         String index = "index";
         createIndex(index);
-        Response response = client().performRequest("GET", index + "/_search");
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
@@ -314,7 +319,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
 
-        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+        ResponseException exception = expectThrows(ResponseException.class,
+                () -> client().performRequest(HttpGet.METHOD_NAME, index + "/_search"));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
     }
@@ -330,27 +336,27 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void createIndex(String index) throws IOException {
-        Response response = client().performRequest("PUT", index);
+        Response response = client().performRequest(HttpPut.METHOD_NAME, index);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     private static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest("HEAD", index);
+        Response response = client().performRequest(HttpHead.METHOD_NAME, index);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     private static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest("POST", index + "/_close");
+        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_close");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
     private static boolean aliasExists(String alias) throws IOException {
-        Response response = client().performRequest("HEAD", "/_alias/" + alias);
+        Response response = client().performRequest(HttpHead.METHOD_NAME, "/_alias/" + alias);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
     private static boolean aliasExists(String index, String alias) throws IOException {
-        Response response = client().performRequest("HEAD", "/" + index + "/_alias/" + alias);
+        Response response = client().performRequest(HttpHead.METHOD_NAME, "/" + index + "/_alias/" + alias);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
@@ -359,7 +365,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 
         createIndex("index");
-        client().performRequest("PUT", "/index/_alias/alias");
+        client().performRequest(HttpPut.METHOD_NAME, "/index/_alias/alias");
         assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
 
         GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest();
@@ -370,9 +376,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private Map<String, Object> getIndexMetadata(String index) throws IOException {
-        Response response = client().performRequest("GET", index);
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index);
 
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),
@@ -398,7 +404,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     private static Map<String, Object> performGet(final String endpoint) throws IOException {
-        Response response = client().performRequest("GET", endpoint);
+        Response response = client().performRequest(HttpGet.METHOD_NAME, endpoint);
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),
                 false);

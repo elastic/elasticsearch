@@ -162,7 +162,6 @@ class PluginSecurity {
                 actualPermissions.add(permission);
             }
         }
-        System.out.println(Collections.list(actualPermissions.elements()));
         return Collections.list(actualPermissions.elements()).stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
     }
 }

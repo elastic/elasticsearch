@@ -129,6 +129,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
             }, (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=d}", result.afterKey().toString());
                 assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
@@ -146,6 +147,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .aggregateAfter(Collections.singletonMap("keyword", "a"));
             }, (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=d}", result.afterKey().toString());
                 assertEquals("{keyword=c}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
@@ -174,6 +176,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
             }, (result) -> {
                 assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=zoo}", result.afterKey().toString());
                 assertEquals("{keyword=bar}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=delta}", result.getBuckets().get(1).getKeyAsString());
@@ -193,6 +196,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .aggregateAfter(Collections.singletonMap("keyword", "car"));
             }, (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=zoo}", result.afterKey().toString());
                 assertEquals("{keyword=delta}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=foo}", result.getBuckets().get(1).getKeyAsString());
@@ -210,6 +214,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .aggregateAfter(Collections.singletonMap("keyword", "mar"));
             }, (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=bar}", result.afterKey().toString());
                 assertEquals("{keyword=foo}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=delta}", result.getBuckets().get(1).getKeyAsString());
@@ -240,6 +245,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 return new CompositeAggregationBuilder("name", Collections.singletonList(terms));
             }, (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.afterKey().toString());
                 assertEquals("{keyword=a}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(2).getDocCount());
                 assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
@@ -258,6 +264,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .aggregateAfter(Collections.singletonMap("keyword", "c"));
 
             }, (result) -> {
+                assertEquals(result.afterKey().toString(), "{keyword=a}");
+                assertEquals("{keyword=a}", result.afterKey().toString());
                 assertEquals(1, result.getBuckets().size());
                 assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
@@ -285,6 +293,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                     assertEquals(5, result.getBuckets().size());
+                    assertEquals("{keyword=z}", result.afterKey().toString());
                     assertEquals("{keyword=a}", result.getBuckets().get(0).getKeyAsString());
                     assertEquals(2L, result.getBuckets().get(0).getDocCount());
                     assertEquals("{keyword=b}", result.getBuckets().get(1).getKeyAsString());
@@ -307,6 +316,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=z}", result.afterKey().toString());
                 assertEquals("{keyword=c}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
@@ -338,6 +348,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(5, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.afterKey().toString());
                 assertEquals("{keyword=a}", result.getBuckets().get(4).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(4).getDocCount());
                 assertEquals("{keyword=b}", result.getBuckets().get(3).getKeyAsString());
@@ -361,6 +372,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=a}", result.afterKey().toString());
                 assertEquals("{keyword=a}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
                 assertEquals("{keyword=b}", result.getBuckets().get(0).getKeyAsString());
@@ -395,6 +407,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             ),
             (result) -> {
                 assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=d, long=10}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(1).getKeyAsString());
@@ -416,6 +429,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             ),
             (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=d, long=10}", result.afterKey().toString());
                 assertEquals("{keyword=c, long=100}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, long=10}", result.getBuckets().get(1).getKeyAsString());
@@ -451,6 +465,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ),
             (result) -> {
                 assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=a, long=0}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(3).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(3).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(2).getKeyAsString());
@@ -471,6 +486,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     )).aggregateAfter(createAfterKey("keyword", "d", "long", 10L)
                 ), (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{keyword=a, long=0}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(1).getKeyAsString());
@@ -503,6 +519,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     ))
             , (result) -> {
                 assertEquals(10, result.getBuckets().size());
+                assertEquals("{keyword=z, long=0}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(1).getKeyAsString());
@@ -536,6 +553,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("keyword", "c", "long", 10L))
             , (result) -> {
                 assertEquals(6, result.getBuckets().size());
+                assertEquals("{keyword=z, long=100}", result.afterKey().toString());
                 assertEquals("{keyword=c, long=100}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, long=10}", result.getBuckets().get(1).getKeyAsString());
@@ -577,6 +595,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ),
             (result) -> {
                 assertEquals(10, result.getBuckets().size());
+                assertEquals("{keyword=a, long=0}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(9).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(9).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(8).getKeyAsString());
@@ -611,6 +630,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ),
             (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{keyword=a, long=0}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertEquals("{keyword=a, long=100}", result.getBuckets().get(0).getKeyAsString());
@@ -644,6 +664,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 )
             , (result) -> {
                 assertEquals(10, result.getBuckets().size());
+                assertEquals("{keyword=c, long=100, double=0.4}", result.afterKey().toString());
                 assertEquals("{keyword=a, long=0, double=0.09}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
                 assertEquals("{keyword=a, long=0, double=0.4}", result.getBuckets().get(1).getKeyAsString());
@@ -678,6 +699,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("keyword", "a", "long", 100L, "double", 0.4d))
             ,(result) -> {
                 assertEquals(10, result.getBuckets().size());
+                assertEquals("{keyword=z, long=0, double=0.09}", result.afterKey().toString());
                 assertEquals("{keyword=b, long=100, double=0.4}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=c, long=0, double=0.09}", result.getBuckets().get(1).getKeyAsString());
@@ -712,6 +734,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("keyword", "z", "long", 100L, "double", 0.4d))
             , (result) -> {
                 assertEquals(0, result.getBuckets().size());
+                assertNull(result.afterKey());
             }
         );
     }
@@ -738,6 +761,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508457600000}", result.afterKey().toString());
                 assertEquals("{date=1474329600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508371200000}", result.getBuckets().get(1).getKeyAsString());
@@ -757,6 +781,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{date=1508457600000}", result.afterKey().toString());
                 assertEquals("{date=1508371200000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508457600000}", result.getBuckets().get(1).getKeyAsString());
@@ -788,6 +813,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=2017-10-20}", result.afterKey().toString());
                 assertEquals("{date=2016-09-20}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=2017-10-19}", result.getBuckets().get(1).getKeyAsString());
@@ -808,6 +834,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{date=2017-10-20}", result.afterKey().toString());
                 assertEquals("{date=2017-10-19}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=2017-10-20}", result.getBuckets().get(1).getKeyAsString());
@@ -871,6 +898,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             },
             (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508454000000}", result.afterKey().toString());
                 assertEquals("{date=1474326000000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508367600000}", result.getBuckets().get(1).getKeyAsString());
@@ -891,6 +919,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
             }, (result) -> {
                 assertEquals(2, result.getBuckets().size());
+                assertEquals("{date=1508454000000}", result.afterKey().toString());
                 assertEquals("{date=1508367600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508454000000}", result.getBuckets().get(1).getKeyAsString());
@@ -924,6 +953,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ),
             (result) -> {
                 assertEquals(7, result.getBuckets().size());
+                assertEquals("{date=1508457600000, keyword=d}", result.afterKey().toString());
                 assertEquals("{date=1474329600000, keyword=b}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1474329600000, keyword=c}", result.getBuckets().get(1).getKeyAsString());
@@ -954,6 +984,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("date", 1508371200000L, "keyword", "g"))
             , (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{date=1508457600000, keyword=d}", result.afterKey().toString());
                 assertEquals("{date=1508457600000, keyword=a}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{date=1508457600000, keyword=c}", result.getBuckets().get(1).getKeyAsString());
@@ -986,6 +1017,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 )
             , (result) -> {
                 assertEquals(7, result.getBuckets().size());
+                assertEquals("{keyword=z, price=50.0}", result.afterKey().toString());
                 assertEquals("{keyword=a, price=100.0}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=b, price=50.0}", result.getBuckets().get(1).getKeyAsString());
@@ -1013,6 +1045,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("keyword", "c", "price", 50.0))
             , (result) -> {
                 assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=z, price=50.0}", result.afterKey().toString());
                 assertEquals("{keyword=c, price=100.0}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, price=100.0}", result.getBuckets().get(1).getKeyAsString());
@@ -1052,6 +1085,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 )
             , (result) -> {
                 assertEquals(8, result.getBuckets().size());
+                assertEquals("{histo=0.9, keyword=d}", result.afterKey().toString());
                 assertEquals("{histo=0.4, keyword=a}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{histo=0.4, keyword=b}", result.getBuckets().get(1).getKeyAsString());
@@ -1081,6 +1115,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("histo", 0.8d, "keyword", "b"))
             , (result) -> {
                 assertEquals(3, result.getBuckets().size());
+                assertEquals("{histo=0.9, keyword=d}", result.afterKey().toString());
                 assertEquals("{histo=0.8, keyword=z}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{histo=0.9, keyword=a}", result.getBuckets().get(1).getKeyAsString());
@@ -1114,6 +1149,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 )
             , (result) -> {
                 assertEquals(7, result.getBuckets().size());
+                assertEquals("{keyword=z, date_histo=1474329600000}", result.afterKey().toString());
                 assertEquals("{keyword=a, date_histo=1508457600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(2L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=b, date_histo=1474329600000}", result.getBuckets().get(1).getKeyAsString());
@@ -1142,6 +1178,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 ).aggregateAfter(createAfterKey("keyword","c", "date_histo", 1474329600000L))
             , (result) -> {
                 assertEquals(4, result.getBuckets().size());
+                assertEquals("{keyword=z, date_histo=1474329600000}", result.afterKey().toString());
                 assertEquals("{keyword=c, date_histo=1508457600000}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
                 assertEquals("{keyword=d, date_histo=1508457600000}", result.getBuckets().get(1).getKeyAsString());
@@ -1306,7 +1343,6 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
         }
     }
-
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> createAfterKey(Object... fields) {

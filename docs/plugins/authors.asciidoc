@@ -5,8 +5,10 @@
 
 The Elasticsearch repository contains examples of:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/jvm-example[Java plugin]
-  which contains Java code.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/custom-settings[Java plugin]
+  which contains a plugin with custom settings.
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/rest-handler[Java plugin]
+  which contains a plugin that registers a Rest handler.
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
   which contains a rescore plugin.
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/script-expert-scoring[Java plugin]

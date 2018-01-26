@@ -17,25 +17,15 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.vagrantsupport'
-apply plugin: 'elasticsearch.vagrant'
+apply plugin: 'elasticsearch.esplugin'
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.path.startsWith(':plugins:') || subproj.path.equals(':example-plugins:custom-settings')) {
-    // add plugin as a dep
-    dependencies {
-      bats project(path: "${subproj.path}", configuration: 'zip')
-    }
-    plugins.add(subproj.name)
-  }
+esplugin {
+  name 'custom-settings'
+  description 'An example plugin showing how to register custom settings'
+  classname 'org.elasticsearch.example.customsettings.ExampleCustomSettingsPlugin'
 }
-plugins = plugins.toSorted()
 
-setupBats {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
+integTestCluster {
+  // Adds a setting in the Elasticsearch keystore before running the integration tests
+  keystoreSetting 'custom.secured', 'password'
 }

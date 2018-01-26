@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -164,7 +165,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
         final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         final String mergeNode = discoveryNodes[0].getName();
-        ensureGreen();
+        // This needs more than the default timeout if 210(2*3*5*7) shards were created.
+        ensureGreen(TimeValue.timeValueSeconds(120));
 
         // fail random primary shards to force primary terms to increase
         final Index source = resolveIndex("source");

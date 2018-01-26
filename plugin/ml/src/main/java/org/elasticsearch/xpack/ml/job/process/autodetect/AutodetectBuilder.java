@@ -31,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeoutException;
 
 /**
  * The autodetect process builder.
@@ -97,9 +96,9 @@ public class AutodetectBuilder {
     /**
      * Requests that the controller daemon start an autodetect process.
      */
-    public void build() throws IOException, TimeoutException {
+    public void build() throws IOException {
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job, logger, controller.getPid());
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job, logger);
 
         buildLimits(command);
         buildModelPlotConfig(command);

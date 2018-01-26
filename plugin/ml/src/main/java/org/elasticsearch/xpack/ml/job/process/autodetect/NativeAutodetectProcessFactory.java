@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeoutException;
 
 public class NativeAutodetectProcessFactory implements AutodetectProcessFactory {
 
@@ -99,7 +98,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
 
             autodetectBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
-        } catch (IOException | TimeoutException e) {
+        } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);

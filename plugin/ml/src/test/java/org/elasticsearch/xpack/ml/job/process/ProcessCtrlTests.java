@@ -26,9 +26,6 @@ import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilde
 public class ProcessCtrlTests extends ESTestCase {
 
     private final Logger logger = Mockito.mock(Logger.class);
-    // 4194304 is the maximum possible PID on Linux according to
-    // http://web.archive.org/web/20111209081734/http://research.cs.wisc.edu/condor/condorg/linux_scalability.html
-    private final long pid = randomIntBetween(2, 4194304);
 
     public void testBuildAutodetectCommand() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
@@ -52,8 +49,8 @@ public class ProcessCtrlTests extends ESTestCase {
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
-        assertEquals(14, command.size());
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger);
+        assertEquals(13, command.size());
         assertTrue(command.contains(ProcessCtrl.AUTODETECT_PATH));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "120"));
         assertTrue(command.contains(ProcessCtrl.LATENCY_ARG + "360"));
@@ -65,7 +62,6 @@ public class ProcessCtrlTests extends ESTestCase {
         assertTrue(command.contains(ProcessCtrl.maxAnomalyRecordsArg(settings)));
 
         assertTrue(command.contains(ProcessCtrl.TIME_FIELD_ARG + "tf"));
-        assertTrue(hasValidLicense(command));
         assertTrue(command.contains(ProcessCtrl.JOB_ID_ARG + "unit-test-job"));
 
         assertTrue(command.contains(ProcessCtrl.PER_PARTITION_NORMALIZATION));
@@ -81,7 +77,7 @@ public class ProcessCtrlTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         Job.Builder job = buildJobBuilder("unit-test-job");
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger);
 
         assertTrue(command.contains(ProcessCtrl.TIME_FIELD_ARG + "time"));
     }
@@ -94,13 +90,13 @@ public class ProcessCtrlTests extends ESTestCase {
 
         int expectedPersistInterval = 10800 + ProcessCtrl.calculateStaggeringInterval(job.getId());
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger);
         assertFalse(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
 
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
 
-        command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger, pid);
+        command = ProcessCtrl.buildAutodetectCommand(env, settings, job.build(), logger);
         assertTrue(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
     }
 
@@ -109,30 +105,11 @@ public class ProcessCtrlTests extends ESTestCase {
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String jobId = "unit-test-job";
 
-        List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, null, 300, true, pid);
-        assertEquals(5, command.size());
+        List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, null, 300, true);
+        assertEquals(4, command.size());
         assertTrue(command.contains(ProcessCtrl.NORMALIZE_PATH));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "300"));
-        assertTrue(hasValidLicense(command));
         assertTrue(command.contains(ProcessCtrl.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(ProcessCtrl.PER_PARTITION_NORMALIZATION));
-    }
-
-    private boolean hasValidLicense(List<String> command) throws NumberFormatException {
-        int matches = 0;
-        for (String arg : command) {
-            if (arg.startsWith(ProcessCtrl.LICENSE_VALIDATION_ARG)) {
-                ++matches;
-                String[] argAndVal = arg.split("=");
-                if (argAndVal.length != 2) {
-                    return false;
-                }
-                long val = Long.parseLong(argAndVal[1]);
-                if ((val % ProcessCtrl.VALIDATION_NUMBER) != (pid % ProcessCtrl.VALIDATION_NUMBER)) {
-                    return false;
-                }
-            }
-        }
-        return matches == 1;
     }
 }

@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeoutException;
 
 public class NativeNormalizerProcessFactory implements NormalizerProcessFactory {
 
@@ -53,12 +52,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
                                      boolean perPartitionNormalization) {
 
         try {
-            List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, quantilesState, bucketSpan,
-                    perPartitionNormalization, nativeController.getPid());
+            List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, quantilesState, bucketSpan, perPartitionNormalization);
             processPipes.addArgs(command);
             nativeController.startProcess(command);
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
-        } catch (IOException | TimeoutException e) {
+        } catch (IOException e) {
             String msg = "Failed to launch normalizer for job " + jobId;
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);

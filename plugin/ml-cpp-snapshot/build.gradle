@@ -58,55 +58,10 @@ void checkJavaVersion() {
   }
 }
 
-void setupVaultAuthMethod() {
-  String VAULT_BASE_URL = 'https://secrets.elastic.co:8200'
-  String VAULT_ROLE_ID = "8e90dd88-5a8e-9c12-0da9-5439f293ff97"
-  String VAULT_SECRET_ID = System.env.VAULT_SECRET_ID
-  // get an authentication token with vault
-  String homePath = System.properties['user.home']
-  File githubToken = file("${homePath}/.elastic/github.token")
-  String vaultAuthBody = null
-  URL vaultUrl = null
-  if (githubToken.exists()) {
-    try {
-      Set<PosixFilePermission> perms = Files.getPosixFilePermissions(githubToken.toPath())
-      if (perms.equals(PosixFilePermissions.fromString("rw-------")) == false) {
-        throw new GradleException('github.token must have 600 permissions')
-      }
-    } catch (UnsupportedOperationException e) {
-      // Assume this isn't a POSIX file system
-    }
-    vaultUrl = new URL(VAULT_BASE_URL + '/v1/auth/github/login')
-    vaultAuthBody = "{\"token\": \"${githubToken.getText('UTF-8').trim()}\"}"
-  } else if (VAULT_SECRET_ID != null) {
-    vaultUrl = new URL(VAULT_BASE_URL + '/v1/auth/approle/login')
-    vaultAuthBody = "{\"role_id\": \"${VAULT_ROLE_ID}\", \"secret_id\": \"${VAULT_SECRET_ID}\"}"
-  } else {
-    throw new GradleException('Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets')
-  }
-  project.ext.vaultAuthBody = vaultAuthBody
-  project.ext.vaultUrl = vaultUrl
-}
-
 void getZip(File snapshotZip) {
-  HttpURLConnection vaultConn = (HttpURLConnection) vaultUrl.openConnection()
-  vaultConn.setRequestProperty('Content-Type', 'application/json')
-  vaultConn.setRequestMethod('PUT')
-  vaultConn.setDoOutput(true)
-  vaultConn.outputStream.withWriter('UTF-8') { writer ->
-    writer.write(vaultAuthBody)
-  }
-  vaultConn.connect()
-  Object authResponse = new groovy.json.JsonSlurper().parseText(vaultConn.content.text)
-  VaultConfig config = new VaultConfig('https://secrets.elastic.co:8200', authResponse.auth.client_token)
-  Vault vault = new Vault(config)
-  LogicalResponse secret = vault.logical().read("aws-dev/creds/prelertartifacts")
-  final AWSCredentials creds = new BasicAWSCredentials(secret.data.get('access_key'), secret.data.get('secret_key'))
-
-  // the keys may take a while to propagate, so wait up to 60 seconds retrying
-  final AmazonS3Client client = new AmazonS3Client(creds)
+  final AmazonS3Client client = new AmazonS3Client()
   final String key = "maven/org/elasticsearch/ml/ml-cpp/${version}/ml-cpp-${version}.zip"
-  int retries = 120
+  int retries = 5 
   while (retries > 0) {
     try {
       File snapshotMd5 = new File(snapshotZip.toString() + '.md5')
@@ -161,7 +116,6 @@ gradle.taskGraph.whenReady { taskGraph ->
   if (findProject(':machine-learning-cpp') == null && project.gradle.startParameter.isOffline() == false) {
     // do validation of token/java version up front, don't wait for the task to run
     checkJavaVersion()
-    setupVaultAuthMethod()
   }
 }
 

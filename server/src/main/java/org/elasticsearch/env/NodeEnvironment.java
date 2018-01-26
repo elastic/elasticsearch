@@ -450,7 +450,18 @@ public final class NodeEnvironment  implements Closeable {
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
-        assert FileSystemUtils.exists(paths) == false;
+        assert assertPathsDoNotExist(paths);
+    }
+
+    private static boolean assertPathsDoNotExist(final Path[] paths) {
+        Set<Path> existingPaths = new HashSet<>();
+        for (Path path : paths) {
+            if (FileSystemUtils.exists(paths)) {
+                existingPaths.add(path);
+            }
+        }
+        assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
+        return existingPaths.size() == 0;
     }
 
     private boolean isShardLocked(ShardId id) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpHead;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -183,7 +184,7 @@ public class RequestTests extends ESTestCase {
         IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indices);
         final Request request = Request.indicesExist(indicesExistRequest);
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
-        assertEquals("HEAD", request.getMethod());
+        assertEquals(HttpHead.METHOD_NAME, request.getMethod());
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {

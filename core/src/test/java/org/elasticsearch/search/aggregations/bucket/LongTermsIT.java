@@ -71,6 +71,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -641,6 +642,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("" + i));
             assertThat(bucket.getKeyAsNumber().intValue(), equalTo(i));
+            assertThat(bucket.getKeyAsNumber(), instanceOf(Long.class));
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
     }

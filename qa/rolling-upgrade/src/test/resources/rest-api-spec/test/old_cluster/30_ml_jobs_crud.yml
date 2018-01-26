@@ -149,7 +149,7 @@
                           "field_value": "uk",
                           "condition": {"operator":"lt","value":"33.3"}
                         },
-                        {"type":"categorical", "field_name":"country", "value_filter": "foo"}
+                        {"condition_type":"categorical", "field_name":"country", "value_filter": "foo"}
                       ]
                     }
                   ]

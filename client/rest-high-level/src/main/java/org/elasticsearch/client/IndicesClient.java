@@ -69,18 +69,14 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public IndicesExistsResponse exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
+    public final boolean exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequest(
             indicesExistsRequest,
             Request::indicesExist,
-            this::parseIndicesExistResp,
+            RestHighLevelClient::convertExistsResponse,
             Collections.emptySet(),
             headers
         );
-    }
-
-    private IndicesExistsResponse parseIndicesExistResp(Response response) {
-        return new IndicesExistsResponse(response.getStatusLine().getStatusCode() == 200);
     }
 
     /**
@@ -89,11 +85,11 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<IndicesExistsResponse> listener, Header... headers) {
+    public final void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<Boolean> listener, Header... headers) {
         restHighLevelClient.performRequestAsync(
             indicesExistsRequest,
             Request::indicesExist,
-            this::parseIndicesExistResp,
+            RestHighLevelClient::convertExistsResponse,
             listener,
             Collections.emptySet(),
             headers

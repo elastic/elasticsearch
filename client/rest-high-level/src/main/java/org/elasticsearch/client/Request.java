@@ -417,7 +417,11 @@ public final class Request {
 
     static Request indicesExist(IndicesExistsRequest request) {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
-        return new Request(HttpHead.METHOD_NAME, endpoint, Collections.emptyMap(), null);
+        Params params = Params.builder();
+        params.putParam("local", Boolean.FALSE.toString());
+        params.putParam("ignore_unavailable", Boolean.FALSE.toString());
+        params.putParam("allow_no_indices", Boolean.FALSE.toString());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**

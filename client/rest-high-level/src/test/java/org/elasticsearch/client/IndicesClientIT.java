@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -36,24 +35,24 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex(indexName);
 
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
-        IndicesExistsResponse response = execute(
+        boolean response = execute(
             request,
             highLevelClient().indices()::exists,
             highLevelClient().indices()::existsAsync
         );
-        assertTrue(response.isExists());
+        assertTrue(response);
     }
 
     public void testIndexExistsIfIndexNotPresent() throws IOException {
         String indexName = "non_existent_index";
 
         IndicesExistsRequest request = new IndicesExistsRequest(indexName);
-        IndicesExistsResponse response = execute(
+        boolean response = execute(
             request,
             highLevelClient().indices()::exists,
             highLevelClient().indices()::existsAsync
         );
-        assertFalse(response.isExists());
+        assertFalse(response);
     }
 
     public void testIndexExistsIfOneIndexPresent_OneIsnt() throws IOException {
@@ -63,12 +62,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String nonExistentIndex = "non_existent_index";
 
         IndicesExistsRequest request = new IndicesExistsRequest(existingIndex, nonExistentIndex);
-        IndicesExistsResponse response = execute(
+        boolean response = execute(
             request,
             highLevelClient().indices()::exists,
             highLevelClient().indices()::existsAsync
         );
-        assertFalse(response.isExists());
+        assertFalse(response);
     }
 
     public void testDeleteIndex() throws IOException {

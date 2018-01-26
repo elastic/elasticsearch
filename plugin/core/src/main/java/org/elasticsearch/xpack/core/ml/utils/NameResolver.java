@@ -46,7 +46,9 @@ public abstract class NameResolver {
      * </ul>
      *
      * @param expression the expression to resolve
-     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
+     *                     This only applies to wild card expressions, if {@code expression} is not a
+     *                     wildcard then setting this true will not suppress the exception
      * @return the sorted set of matching names
      */
     public SortedSet<String> expand(String expression, boolean allowNoMatch) {
@@ -68,6 +70,8 @@ public abstract class NameResolver {
                     result.addAll(expanded);
                 } else {
                     List<String> matchingNames = lookup(token);
+                    // allowNoMatch only applies to wildcard expressions,
+                    // this isn't so don't check the allowNoMatch here
                     if (matchingNames.isEmpty()) {
                         throw notFoundExceptionSupplier.apply(token);
                     }

@@ -509,10 +509,10 @@ public class Setting<T> implements ToXContentObject {
             @Override
             public void apply(Tuple<A, B> value, Settings current, Settings previous) {
                 if (aSettingUpdater.hasChanged(current, previous)) {
-                    logger.info("updating [{}] from [{}] to [{}]", aSetting.key, aSetting.getRaw(previous), aSetting.getRaw(current));
+                    logSettingUpdate(aSetting, current, previous, logger);
                 }
                 if (bSettingUpdater.hasChanged(current, previous)) {
-                    logger.info("updating [{}] from [{}] to [{}]", bSetting.key, bSetting.getRaw(previous), bSetting.getRaw(current));
+                    logSettingUpdate(bSetting, current, previous, logger);
                 }
                 consumer.accept(value.v1(), value.v2());
             }
@@ -520,6 +520,46 @@ public class Setting<T> implements ToXContentObject {
             @Override
             public String toString() {
                 return "CompoundUpdater for: " + aSettingUpdater + " and " + bSettingUpdater;
+            }
+        };
+    }
+
+    static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(Consumer<Settings> consumer, Logger logger,
+                                                                                  final List<? extends Setting<?>> configuredSettings) {
+
+        return new AbstractScopedSettings.SettingUpdater<Settings>() {
+
+            private Settings get(Settings settings) {
+                return settings.filter(s -> {
+                    for (Setting<?> setting : configuredSettings) {
+                        if (setting.key.match(s)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+            }
+
+            @Override
+            public boolean hasChanged(Settings current, Settings previous) {
+                Settings currentSettings = get(current);
+                Settings previousSettings = get(previous);
+                return currentSettings.equals(previousSettings) == false;
+            }
+
+            @Override
+            public Settings getValue(Settings current, Settings previous) {
+                return get(current);
+            }
+
+            @Override
+            public void apply(Settings value, Settings current, Settings previous) {
+                consumer.accept(value);
+            }
+
+            @Override
+            public String toString() {
+                return "Updater grouped: " + configuredSettings.stream().map(Setting::getKey).collect(Collectors.joining(", "));
             }
         };
     }
@@ -541,7 +581,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         private Stream<String> matchStream(Settings settings) {
-            return settings.keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+            return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
         public Set<String> getSettingsDependencies(String settingsKey) {
@@ -597,7 +637,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public boolean hasChanged(Settings current, Settings previous) {
-                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                    return current.filter(k -> match(k)).equals(previous.filter(k -> match(k))) == false;
                 }
 
                 @Override
@@ -612,7 +652,7 @@ public class Setting<T> implements ToXContentObject {
                         if (updater.hasChanged(current, previous)) {
                             // only the ones that have changed otherwise we might get too many updates
                             // the hasChanged above checks only if there are any changes
-                                T value = updater.getValue(current, previous);
+                            T value = updater.getValue(current, previous);
                             if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
                                 result.put(namespace, value);
                             }
@@ -812,9 +852,7 @@ public class Setting<T> implements ToXContentObject {
 
                 @Override
                 public void apply(Settings value, Settings current, Settings previous) {
-                    if (logger.isInfoEnabled()) { // getRaw can create quite some objects
-                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
-                    }
+                    Setting.logSettingUpdate(GroupSetting.this, current, previous, logger);
                     consumer.accept(value);
                 }
 
@@ -902,7 +940,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void apply(T value, Settings current, Settings previous) {
-            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+            logSettingUpdate(Setting.this, current, previous, logger);
             consumer.accept(value);
         }
     }
@@ -1138,6 +1176,16 @@ public class Setting<T> implements ToXContentObject {
         }
     }
 
+    static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {
+        if (logger.isInfoEnabled()) {
+            if (setting.isFiltered()) {
+                logger.info("updating [{}]", setting.key);
+            } else {
+                logger.info("updating [{}] from [{}] to [{}]", setting.key, setting.getRaw(previous), setting.getRaw(current));
+            }
+        }
+    }
+
     public static Setting<Settings> groupSetting(String key, Property... properties) {
         return groupSetting(key, (s) -> {}, properties);
     }
@@ -1308,8 +1356,8 @@ public class Setting<T> implements ToXContentObject {
             if (suffix == null) {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
-                // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
+                // the last part of this regexp is to support both list and group keys
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");
             }
         }
 

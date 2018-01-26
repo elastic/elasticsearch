@@ -147,7 +147,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(indexMetaData, Collections.emptyList());
                 removeIndex = true;
-                indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
+                indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
             }
 
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
@@ -224,7 +224,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
-                                mapperService.merge(indexMetaData, MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
+                                mapperService.merge(indexMetaData, MergeReason.MAPPING_RECOVERY);
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -264,7 +264,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null);
                     if (existingMapper != null) {
                         // first, simulate: just call merge and ignore the result
-                        existingMapper.merge(newMapper.mapping(), request.updateAllTypes());
+                        existingMapper.merge(newMapper.mapping());
                     } else {
                         // TODO: can we find a better place for this validation?
                         // The reason this validation is here is that the mapper service doesn't learn about
@@ -310,7 +310,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

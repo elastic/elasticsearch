@@ -1298,8 +1298,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert commitInfo.localCheckpoint >= globalCheckpoint :
                 "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
                     + globalCheckpoint + "]";
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            // This assertion is only guaranteed if all nodes are on 6.2+.
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
+                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
+                assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
+            }
         }
         globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
         innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
@@ -1597,17 +1600,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Tests whether or not the translog should be flushed. This test is based on the current size of the translog comparted to the
-     * configured flush threshold size.
+     * Tests whether or not the engine should be flushed periodically.
+     * This test is based on the current size of the translog compared to the configured flush threshold size.
      *
-     * @return {@code true} if the translog should be flushed
+     * @return {@code true} if the engine should be flushed
      */
-    boolean shouldFlush() {
+    boolean shouldPeriodicallyFlush() {
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                final Translog translog = engine.getTranslog();
-                return translog.shouldFlush();
+                return engine.shouldPeriodicallyFlush();
             } catch (final AlreadyClosedException e) {
                 // we are already closed, no need to flush or roll
             }
@@ -2361,7 +2363,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * executed asynchronously on the flush thread pool.
      */
     public void afterWriteOperation() {
-        if (shouldFlush() || shouldRollTranslogGeneration()) {
+        if (shouldPeriodicallyFlush() || shouldRollTranslogGeneration()) {
             if (flushOrRollRunning.compareAndSet(false, true)) {
                 /*
                  * We have to check again since otherwise there is a race when a thread passes the first check next to another thread which
@@ -2371,7 +2373,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * Additionally, a flush implicitly executes a translog generation roll so if we execute a flush then we do not need to
                  * check if we should roll the translog generation.
                  */
-                if (shouldFlush()) {
+                if (shouldPeriodicallyFlush()) {
                     logger.debug("submitting async flush request");
                     final AbstractRunnable flush = new AbstractRunnable() {
                         @Override

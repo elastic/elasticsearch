@@ -136,13 +136,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject().string();
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
 

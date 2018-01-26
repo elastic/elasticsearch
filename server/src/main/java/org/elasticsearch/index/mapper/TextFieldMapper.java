@@ -212,31 +212,6 @@ public class TextFieldMapper extends FieldMapper {
                     fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType other,
-                List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
-            TextFieldType otherType = (TextFieldType) other;
-            if (strict) {
-                if (fielddata() != otherType.fielddata()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
-                            + "across all types.");
-                }
-                if (fielddataMinFrequency() != otherType.fielddataMinFrequency()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.min] across all types.");
-                }
-                if (fielddataMaxFrequency() != otherType.fielddataMaxFrequency()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.max] across all types.");
-                }
-                if (fielddataMinSegmentSize() != otherType.fielddataMinSegmentSize()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.min_segment_size] across all types.");
-                }
-            }
-        }
-
         public boolean fielddata() {
             return fielddata;
         }
@@ -357,8 +332,8 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
     }
 
     @Override

@@ -78,7 +78,7 @@ addSubProjects('', new File(rootProject.projectDir, 'plugins'), projects, [])
 addSubProjects('', new File(rootProject.projectDir, 'qa'), projects, [])
 
 /* Create projects for building BWC snapshot distributions from the heads of other branches */
-final List<String> branches = ['5.6', '6.0', '6.1', '6.x']
+final List<String> branches = ['5.6', '6.0', '6.1', '6.2', '6.x']
 for (final String branch : branches) {
   projects.add("distribution:bwc-snapshot-${branch}".toString())
 }

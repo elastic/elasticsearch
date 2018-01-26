@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -64,6 +65,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 final Object value;
                 try {
                     value = leafScripts[i].run();
+                    CollectionUtils.ensureNoSelfReferences(value);
                 } catch (RuntimeException e) {
                     if (scriptFields.get(i).ignoreException()) {
                         continue;

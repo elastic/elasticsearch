@@ -6,6 +6,12 @@ include::open_index.asciidoc[]
 
 include::close_index.asciidoc[]
 
+include::putmapping.asciidoc[]
+
+include::update_aliases.asciidoc[]
+
+include::exists_alias.asciidoc[]
+
 include::_index.asciidoc[]
 
 include::get.asciidoc[]

@@ -183,7 +183,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(Mapper mergeWith) {
         SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
         if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
             this.enabledState = sizeFieldMapperMergeWith.enabledState;

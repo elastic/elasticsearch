@@ -252,9 +252,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndicesExist() {
-        String[] indices = IntStream.range(1, randomIntBetween(1, 10))
-            .mapToObj(i -> randomAlphaOfLength(10))
-            .toArray(String[]::new);
+        String[] indices = randomIndicesNames(1, 10);
 
         IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indices);
         final Request request = Request.indicesExist(indicesExistRequest);

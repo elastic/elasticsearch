@@ -80,6 +80,7 @@ import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.enforceSameContentType;
@@ -174,21 +175,14 @@ public class RequestTests extends ESTestCase {
         getAndExistsTest(Request::exists, "HEAD");
     }
 
-    public void testIndicesExist_OneIndex() {
-        final String indexName = randomAlphaOfLength(10);
-        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indexName);
-        final Request request = Request.indicesExist(indicesExistRequest);
-        assertEquals("/" + indexName, request.getEndpoint());
-        assertEquals("HEAD", request.getMethod());
-    }
+    public void testIndicesExist() {
+        String[] indices = IntStream.range(1, randomIntBetween(1, 10))
+            .mapToObj(i -> randomAlphaOfLength(10))
+            .toArray(String[]::new);
 
-    public void testIndicesExist_OneIndexExists_OneDoesnt() {
-        final String index1 = randomAlphaOfLength(10);
-        final String index2 = randomAlphaOfLength(10);
-
-        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(index1, index2);
+        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indices);
         final Request request = Request.indicesExist(indicesExistRequest);
-        assertEquals("/" + index1 + "," + index2, request.getEndpoint());
+        assertEquals("/" + String.join(",", indices), request.getEndpoint());
         assertEquals("HEAD", request.getMethod());
     }
 

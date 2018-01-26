@@ -419,8 +419,11 @@ public final class Request {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
         Params params = Params.builder();
         params.putParam("local", Boolean.FALSE.toString());
-        params.putParam("ignore_unavailable", Boolean.FALSE.toString());
-        params.putParam("allow_no_indices", Boolean.FALSE.toString());
+        params.putParam("ignore_unavailable", String.valueOf(request.indicesOptions().ignoreUnavailable()));
+        params.putParam("allow_no_indices", String.valueOf(request.indicesOptions().allowNoIndices()));
+        params.putParam("expand_wildcards", "open");
+        params.putParam("flat_settings", Boolean.FALSE.toString());
+        params.putParam("include_defaults", Boolean.FALSE.toString());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 

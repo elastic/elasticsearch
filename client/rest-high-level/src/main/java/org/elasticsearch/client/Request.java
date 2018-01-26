@@ -29,9 +29,9 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -481,7 +481,7 @@ public final class Request {
             throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
         }
         String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
-        return new Request("HEAD", endpoint, params.getParams(), null);
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

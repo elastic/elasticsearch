@@ -514,6 +514,22 @@ public class TimeZoneRoundingTests extends ESTestCase {
         }
     }
 
+    public void testDST_Europe_Rome() {
+        // time zone "Europe/Rome", rounding to days. Rome had two midnights on the day the clocks went back in 1978, and
+        // timeZone.convertLocalToUTC() gives the later of the two because Rome is east of UTC, whereas we want the earlier.
+
+        DateTimeUnit timeUnit = DateTimeUnit.DAY_OF_MONTH;
+        DateTimeZone tz = DateTimeZone.forID("Europe/Rome");
+        Rounding rounding = new TimeUnitRounding(timeUnit, tz);
+
+        long timeAfterSecondMidnight = time("1978-10-01T06:00:00+01:00");
+        long floor = rounding.round(timeAfterSecondMidnight);
+        assertThat(floor, isDate(time("1978-10-01T00:00:00+02:00"), tz));
+
+        long prevFloor = rounding.round(floor - 1);
+        assertThat(prevFloor, lessThan(floor));
+    }
+
     /**
      * Test for a time zone whose days overlap because the clocks are set back across midnight at the end of DST.
      */

@@ -166,19 +166,42 @@ public abstract class Rounding implements Streamable {
             // uniquely identified by the date.
             if (unitRoundsToMidnight) {
                 final long anyLocalStartOfDay = field.roundFloor(utcMillis);
-                // `anyLocalStartOfDay` is the Unix timestamp for "the" start of the day in question in the time zone.  On days with no
-                // local midnight, it's the first time that does occur on that day.  On days with >1 local midnight this is one of the
-                // midnights, but may not be the first.
+                // `anyLocalStartOfDay` is _supposed_ to be the Unix timestamp for the start of the day in question in the current time
+                // zone.  Mostly this just means "midnight", which is fine, and on days with no local midnight it's the first time that
+                // does occur on that day which is also ok. However, on days with >1 local midnight this is _one_ of the midnights, but
+                // may not be the first. Check whether this is happening, and fix it if so.
 
-                final long utcFirstTimeOfTheDay = timeZone.convertUTCToLocal(anyLocalStartOfDay);
-                // `utcFirstTimeOfTheDay` is the Unix timestamp for the UTC time that looks like `anyLocalStartOfDay`, ignoring its
-                // offset.  On days with >= 1 local midnight, its time component is 00:00:00. On days with no local midnight, it is
-                // later.
+                final long previousTransition = previousTransition(anyLocalStartOfDay);
 
-                final long firstLocalStartOfDay = timeZone.convertLocalToUTC(utcFirstTimeOfTheDay, false);
-                // `firstLocalStartOfDay` is the Unix timestamp for the actual start of the day in question in the time zone.
+                if (previousTransition == Long.MAX_VALUE) {
+                    // No previous transitions, so there can't be another earlier local midnight.
+                    return anyLocalStartOfDay;
+                }
 
-                return firstLocalStartOfDay;
+                final long currentOffset = timeZone.getOffset(anyLocalStartOfDay);
+                final long previousOffset = timeZone.getOffset(previousTransition);
+                assert currentOffset != previousOffset;
+
+                // NB we only assume interference from one previous transition. It's theoretically possible to have two transitions in
+                // quick succession, both of which have a midnight in them, but this doesn't appear to happen in the TZDB so (a) it's
+                // pointless to implement and (b) it won't be tested. I recognise that this comment is tempting fate and will likely
+                // cause this very situation to occur in the near future, and eagerly look forward to fixing this using a loop over
+                // previous transitions when it happens.
+
+                final long alsoLocalStartOfDay = anyLocalStartOfDay + currentOffset - previousOffset;
+                // `alsoLocalStartOfDay` is the Unix timestamp for the start of the day in question if the previous offset were in
+                // effect.
+
+                if (alsoLocalStartOfDay <= previousTransition) {
+                    // Therefore the previous offset _is_ in effect at `alsoLocalStartOfDay`, and it's earlier than anyLocalStartOfDay,
+                    // so this is the answer to use.
+                    return alsoLocalStartOfDay;
+                }
+                else {
+                    // The previous offset is not in effect at `alsoLocalStartOfDay`, so the current offset must be.
+                    return anyLocalStartOfDay;
+                }
+
             } else {
                 do {
                     long rounded = field.roundFloor(utcMillis);

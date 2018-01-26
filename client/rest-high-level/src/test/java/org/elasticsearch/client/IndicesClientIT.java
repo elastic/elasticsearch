@@ -55,7 +55,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(response);
     }
 
-    public void testIndexExistsIfOneIndexPresent_OneIsnt() throws IOException {
+    public void testIndexExistsIfOneIndexPresentOneIsnt() throws IOException {
         String existingIndex = "test_index_exists_index_present";
         createIndex(existingIndex);
 

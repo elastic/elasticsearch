@@ -30,7 +30,6 @@ U7321H6 ingest-user-agent       {version} Ingest processor that extracts informa
 U7321H6 mapper-murmur3          {version} The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.
 U7321H6 mapper-size             {version} The Mapper Size plugin allows document to record their uncompressed size at index time.
 U7321H6 store-smb               {version} The Store SMB plugin adds support for SMB stores.
-U7321H6 transport-nio           {version} The nio transport.
 ------------------------------------------------------------------------------
 // TESTRESPONSE[s/([.()])/\\$1/ s/U7321H6/.+/ _cat]
 

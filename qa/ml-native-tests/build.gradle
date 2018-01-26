@@ -53,7 +53,7 @@ integTestCluster {
   dependsOn createNodeKeyStore
   setting 'xpack.ml.enabled', 'true'
   setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'
-  // Integration tests are supposed to enable/disable exporters before/after each test
+  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name

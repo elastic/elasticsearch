@@ -12,9 +12,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.extensions.XPackExtension;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,7 +45,7 @@ public class RealmSettingsTests extends ESTestCase {
      * This test exists because (in 5.x), we want to be backwards compatible and accept custom realms that
      * have not been updated to explicitly declare their settings.
      *
-     * @see XPackExtension#getRealmSettings()
+     * @see org.elasticsearch.xpack.core.security.SecurityExtension#getRealmSettings()
      */
     public void testRealmWithUnknownTypeAcceptsAllSettings() throws Exception {
         final Settings.Builder settings = baseSettings("tam", true)
@@ -322,7 +322,7 @@ public class RealmSettingsTests extends ESTestCase {
 
     private Setting<?> group() {
         final List<Setting<?>> list = new ArrayList<>();
-        final List<XPackExtension> noExtensions = Collections.emptyList();
+        final List<SecurityExtension> noExtensions = Collections.emptyList();
         RealmSettings.addSettings(list, noExtensions);
         assertThat(list, hasSize(1));
         return list.get(0);

@@ -14,7 +14,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.SecurityExtension;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;

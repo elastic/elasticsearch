@@ -3,7 +3,8 @@
 
 If you are using an authentication system that is not supported out-of-the-box
 by {security}, you can create a custom realm to interact with it to authenticate
-users. You implement a custom realm as an {xpack} extension.
+users. You implement a custom realm as an SPI loaded security extension
+as part of an ordinary elasticsearch plugin.
 
 [[implementing-custom-realm]]
 ==== Implementing a Custom Realm
@@ -25,7 +26,7 @@ To create a custom realm, you need to:
 To package your custom realm as a plugin:
 
 . Implement an extension class for your realm that extends
-  `org.elasticsearch.xpack.extensions.XPackExtension`. There you need to
+  `org.elasticsearch.xpack.core.security.SecurityExtension`. There you need to
   override one or more of the following methods:
 +
 [source,java]
@@ -54,29 +55,18 @@ in certain authentication failure events.
 [source,java]
 ----------------------------------------------------
 @Override
-public Collection<String> getRestHeaders() {
-    ...
-}
-----------------------------------------------------
-+
-The `getRestHeaders` method returns a collection of header names that should be
-copied from the request into the `ThreadContext` where they can be accessed by
-the realm.
-+
-[source,java]
-----------------------------------------------------
-@Override
 public List<String> getSettingsFilter() {
     ...
 }
 ----------------------------------------------------
 +
-The `getSettingsFilter` method returns a list of setting names that should be
-filtered from the settings APIs as they may contain sensitive credentials.
+The `Plugin#getSettingsFilter` method returns a list of setting names that should be
+filtered from the settings APIs as they may contain sensitive credentials. Note this method is not
+part of the `SecurityExtension` interface, it's available as part of the elasticsearch plugin main class.
 
 . Create a build configuration file for the plugin; Gradle is our recommendation.
-. Create a `x-pack-extension-descriptor.properties` descriptor file for the
-  extension.
+. Create a `META-INF/services/org.elasticsearch.xpack.core.security.SecurityExtension` descriptor file for the
+  extension that contains the fully qualified class name of your `org.elasticsearch.xpack.core.security.SecurityExtension` implementation
 . Bundle all in a single zip file.
 
 [[using-custom-realm]]
@@ -85,12 +75,12 @@ filtered from the settings APIs as they may contain sensitive credentials.
 To use a custom realm:
 
 . Install the realm extension on each node in the cluster. You run
-  `bin/x-pack/extension` with the `install` sub-command and specify the URL
+  `bin/elasticsearch-plugin` with the `install` sub-command and specify the URL
   pointing to the zip file that contains the extension. For example:
 +
 [source,shell]
 ----------------------------------------
-bin/x-pack/extension install file:///<path>/my-realm-1.0.zip
+bin/elasticsearch-plugin install file:///<path>/my-realm-1.0.zip
 ----------------------------------------
 
 . Add a realm configuration of the appropriate realm type to `elasticsearch.yml`

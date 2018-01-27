@@ -2,14 +2,14 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: ':modules:reindex')
 }
 
 integTestCluster {
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.ml.enabled', 'false'

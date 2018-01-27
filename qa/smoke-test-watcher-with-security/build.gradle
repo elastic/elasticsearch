@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
 // bring in watcher rest test suite
 task copyWatcherRestTests(type: Copy) {
   into project.sourceSets.test.output.resourcesDir
-  from project(':x-pack-elasticsearch:plugin').sourceSets.test.resources.srcDirs
+  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
   include 'rest-api-spec/test/watcher/**'
 }
 
@@ -28,7 +28,7 @@ integTestCluster {
   setting 'xpack.notification.email.account._email.smtp.port', '587'
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
   setting 'xpack.notification.email.account._email.smtp.password', '_passwd'
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
                'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'

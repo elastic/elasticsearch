@@ -4,10 +4,10 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:ml', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:ml', configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+  testCompile project(path: xpackModule('ml'), configuration: 'testArtifacts')
 }
 
 integTestRunner {
@@ -59,7 +59,7 @@ integTestCluster {
   setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
 
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'

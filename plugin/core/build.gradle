@@ -16,8 +16,6 @@ esplugin {
   classname 'org.elasticsearch.xpack.core.XPackPlugin'
   hasNativeController false
   requiresKeystore false
-  licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-  noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 
 dependencyLicenses {

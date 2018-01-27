@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -8,8 +8,6 @@ esplugin {
     hasNativeController false
     requiresKeystore false
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-deprecation'
 
@@ -24,7 +22,7 @@ dependencyLicenses {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
 
 integTest.enabled = false

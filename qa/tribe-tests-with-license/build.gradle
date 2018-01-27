@@ -8,19 +8,19 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
     testCompile project(path: ':modules:tribe', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 
     // TODO: remove all these test deps, this is completely bogus, guava is being force upgraded
-    testCompile project(path: ':x-pack-elasticsearch:plugin:deprecation', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:graph', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:logstash', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:ml', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:upgrade', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:watcher', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('deprecation'), configuration: 'runtime')
+    testCompile project(path: xpackModule('graph'), configuration: 'runtime')
+    testCompile project(path: xpackModule('logstash'), configuration: 'runtime')
+    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
+    testCompile project(path: xpackModule('monitoring'), configuration: 'runtime')
+    testCompile project(path: xpackModule('security'), configuration: 'runtime')
+    testCompile project(path: xpackModule('upgrade'), configuration: 'runtime')
+    testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
@@ -35,7 +35,7 @@ test {
   include '**/*Tests.class'
 }
 
-String licensePath = project(':x-pack-elasticsearch:license-tools').projectDir.toPath().resolve('src/test/resources').toString()
+String licensePath = xpackProject('license-tools').projectDir.toPath().resolve('src/test/resources').toString()
 sourceSets {
   test {
     resources {
@@ -53,7 +53,7 @@ ClusterConfiguration cluster1Config = new ClusterConfiguration(project)
 cluster1Config.clusterName = 'cluster1'
 cluster1Config.setting('node.name', 'cluster1-node1')
 // x-pack
-cluster1Config.plugin(':x-pack-elasticsearch:plugin')
+cluster1Config.plugin(xpackProject('plugin').path)
 cluster1Config.setting('xpack.monitoring.enabled', false)
 cluster1Config.setting('xpack.security.enabled', false)
 cluster1Config.setting('xpack.watcher.enabled', false)
@@ -67,7 +67,7 @@ ClusterConfiguration cluster2Config = new ClusterConfiguration(project)
 cluster2Config.clusterName = 'cluster2'
 cluster2Config.setting('node.name', 'cluster2-node1')
 // x-pack
-cluster2Config.plugin(':x-pack-elasticsearch:plugin')
+cluster2Config.plugin(xpackProject('plugin').path)
 cluster2Config.setting('xpack.monitoring.enabled', false)
 cluster2Config.setting('xpack.monitoring.enabled', false)
 cluster2Config.setting('xpack.security.enabled', false)
@@ -100,7 +100,7 @@ integTestCluster {
   setting 'tribe.cluster2.xpack.graph.enabled', false
   setting 'tribe.cluster2.xpack.ml.enabled', false
   // x-pack
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   setting 'xpack.monitoring.enabled', false
   setting 'xpack.monitoring.enabled', false
   setting 'xpack.security.enabled', false

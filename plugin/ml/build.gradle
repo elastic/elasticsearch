@@ -1,7 +1,7 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -11,8 +11,6 @@ esplugin {
     hasNativeController true
     requiresKeystore false
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-ml'
 
@@ -46,9 +44,9 @@ dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
-    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
     // ml deps
     compile 'net.sf.supercsv:super-csv:2.4.0'
@@ -74,7 +72,7 @@ dependencyLicenses {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

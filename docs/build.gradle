@@ -95,9 +95,9 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
-    testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -142,7 +142,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 }
 
 integTestCluster {
-    plugin ':x-pack-elasticsearch:plugin'
+    plugin xpackProject('plugin').path
     setting 'xpack.security.authc.token.enabled', 'true'
     // Disable monitoring exporters for the docs tests
     setting 'xpack.monitoring.exporters._local.type', 'local'

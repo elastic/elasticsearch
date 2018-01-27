@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -8,8 +8,6 @@ esplugin {
     hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 
 archivesBaseName = 'x-pack-security'
@@ -21,9 +19,9 @@ dependencies {
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     provided project(path: ':plugins:transport-nio', configuration: 'runtime')
 
-    testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring')
+    testCompile project(path: xpackModule('monitoring'))
 
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     //compile project(path: ':modules:transport-netty4')
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
@@ -220,7 +218,7 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
 
 test {

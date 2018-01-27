@@ -4,11 +4,11 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
 ext.pluginsCount = 0
-project(':x-pack-elasticsearch:plugin').subprojects { Project p ->
+project(xpackProject('plugin').path).subprojects { Project p ->
   // the meta plugin contains the individual xpack plugins
   if (p.extensions.findByName('esplugin') != null) {
     pluginsCount += 1
@@ -21,7 +21,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 }
 
 integTestCluster {
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
 
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'

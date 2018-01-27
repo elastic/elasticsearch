@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -204,6 +205,11 @@ public final class Request {
 
         HttpEntity entity = createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request refresh(RefreshRequest refreshRequest) {
+        String endpoint = endpoint(refreshRequest.indices(), Strings.EMPTY_ARRAY, "_refresh");
+        return new Request(HttpPost.METHOD_NAME, endpoint, Collections.emptyMap(), null);
     }
 
     static Request info() {

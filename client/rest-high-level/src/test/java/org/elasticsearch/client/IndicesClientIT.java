@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,13 +57,11 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
-    static {
-        System.setProperty("tests.rest.cluster", "localhost:9200");
-    }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCreateIndex() throws IOException {
@@ -118,35 +117,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
-            Map<String, Object> typeData = (Map) mappingsData.get("type_name");
-            Map<String, Object> properties = (Map) typeData.get("properties");
-            Map<String, Object> field = (Map) properties.get("field");
-
-            assertEquals("text", field.get("type"));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPutMapping() throws IOException {
-        {
-            // Add mappings to index
-            String indexName = "mapping_index";
-            createIndex(indexName);
-
-            PutMappingRequest putMappingRequest = new PutMappingRequest(indexName);
-            putMappingRequest.type("type_name");
-            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-            mappingBuilder.startObject().startObject("properties").startObject("field");
-            mappingBuilder.field("type", "text");
-            mappingBuilder.endObject().endObject().endObject();
-            putMappingRequest.source(mappingBuilder);
-
-            PutMappingResponse putMappingResponse =
-                execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
-            assertTrue(putMappingResponse.isAcknowledged());
-
-            Map<String, Object> indexMetaData = getIndexMetadata(indexName);
             Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
             Map<String, Object> typeData = (Map) mappingsData.get("type_name");
             Map<String, Object> properties = (Map) typeData.get("properties");
@@ -345,7 +315,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCloseExistingIndex() throws IOException {
         String index = "index";
         createIndex(index);
-        Response response = client().performRequest("GET", index + "/_search");
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(index);
@@ -353,7 +323,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
 
-        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest("GET", index + "/_search"));
+        ResponseException exception = expectThrows(ResponseException.class,
+            () -> client().performRequest(HttpGet.METHOD_NAME, index + "/_search"));
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
     }

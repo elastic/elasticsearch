@@ -37,7 +37,6 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -50,17 +49,19 @@ public class InternalComposite
 
     private final int size;
     private final List<InternalBucket> buckets;
+    private final CompositeKey afterKey;
     private final int[] reverseMuls;
     private final List<String> sourceNames;
     private final List<DocValueFormat> formats;
 
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
-                      List<InternalBucket> buckets, int[] reverseMuls,
+                      List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls,
                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
+        this.afterKey = afterKey;
         this.size = size;
         this.reverseMuls = reverseMuls;
     }
@@ -71,7 +72,7 @@ public class InternalComposite
         this.sourceNames = in.readList(StreamInput::readString);
         this.formats = new ArrayList<>(sourceNames.size());
         for (int i = 0; i < sourceNames.size(); i++) {
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                 formats.add(in.readNamedWriteable(DocValueFormat.class));
             } else {
                 formats.add(DocValueFormat.RAW);
@@ -79,19 +80,30 @@ public class InternalComposite
         }
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
+        } else {
+            this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
         out.writeStringList(sourceNames);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             for (DocValueFormat format : formats) {
                 out.writeNamedWriteable(format);
             }
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeBoolean(afterKey != null);
+            if (afterKey != null) {
+                afterKey.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -105,8 +117,14 @@ public class InternalComposite
     }
 
     @Override
-    public InternalComposite create(List<InternalBucket> buckets) {
-        return new InternalComposite(name, size, sourceNames, formats, buckets, reverseMuls, pipelineAggregators(), getMetaData());
+    public InternalComposite create(List<InternalBucket> newBuckets) {
+        /**
+         * This is used by pipeline aggregations to filter/remove buckets so we
+         * keep the <code>afterKey</code> of the original aggregation in order
+         * to be able to retrieve the next page even if all buckets have been filtered.
+         */
+        return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
+            reverseMuls, pipelineAggregators(), getMetaData());
     }
 
     @Override
@@ -126,7 +144,10 @@ public class InternalComposite
 
     @Override
     public Map<String, Object> afterKey() {
-        return buckets.size() > 0 ? buckets.get(buckets.size()-1).getKey() : null;
+        if (afterKey != null) {
+            return new ArrayMap(sourceNames, formats, afterKey.values());
+        }
+        return null;
     }
 
     // Visible for tests
@@ -169,7 +190,8 @@ public class InternalComposite
             reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
-        return new InternalComposite(name, size, sourceNames, formats, result, reverseMuls, pipelineAggregators(), metaData);
+        final CompositeKey lastKey = result.size() > 0 ? result.get(result.size()-1).getRawKey() : null;
+        return new InternalComposite(name, size, sourceNames, formats, result, lastKey, reverseMuls, pipelineAggregators(), metaData);
     }
 
     @Override
@@ -177,12 +199,13 @@ public class InternalComposite
         InternalComposite that = (InternalComposite) obj;
         return Objects.equals(size, that.size) &&
             Objects.equals(buckets, that.buckets) &&
+            Objects.equals(afterKey, that.afterKey) &&
             Arrays.equals(reverseMuls, that.reverseMuls);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(size, buckets, Arrays.hashCode(reverseMuls));
+        return Objects.hash(size, buckets, afterKey, Arrays.hashCode(reverseMuls));
     }
 
     private static class BucketIterator implements Comparable<BucketIterator> {
@@ -226,11 +249,7 @@ public class InternalComposite
 
         @SuppressWarnings("unchecked")
         InternalBucket(StreamInput in, List<String> sourceNames, List<DocValueFormat> formats, int[] reverseMuls) throws IOException {
-            final Comparable<?>[] values = new Comparable<?>[in.readVInt()];
-            for (int i = 0; i < values.length; i++) {
-                values[i] = (Comparable<?>) in.readGenericValue();
-            }
-            this.key = new CompositeKey(values);
+            this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
             this.aggregations = InternalAggregations.readAggregations(in);
             this.reverseMuls = reverseMuls;
@@ -240,10 +259,7 @@ public class InternalComposite
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(key.size());
-            for (int i = 0; i < key.size(); i++) {
-                out.writeGenericValue(key.get(i));
-            }
+            key.writeTo(out);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }

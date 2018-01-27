@@ -81,7 +81,7 @@ public final class MethodWriter extends GeneratorAdapter {
     private final BitSet statements;
     private final CompilerSettings settings;
 
-    private final Deque<List<org.objectweb.asm.Type>> stringConcatArgs =
+    private final Deque<List<Type>> stringConcatArgs =
         (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
 
     public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, CompilerSettings settings) {
@@ -200,7 +200,7 @@ public final class MethodWriter extends GeneratorAdapter {
      * Proxy the box method to use valueOf instead to ensure that the modern boxing methods are used.
      */
     @Override
-    public void box(org.objectweb.asm.Type type) {
+    public void box(Type type) {
         valueOf(type);
     }
 
@@ -252,10 +252,10 @@ public final class MethodWriter extends GeneratorAdapter {
         }
     }
 
-    public void writeAppendStrings(final Definition.Type type) {
+    public void writeAppendStrings(Class<?> clazz) {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: record type information
-            stringConcatArgs.peek().add(type.type);
+            stringConcatArgs.peek().add(getType(clazz));
             // prevent too many concat args.
             // If there are too many, do the actual concat:
             if (stringConcatArgs.peek().size() >= MAX_INDY_STRING_CONCAT_ARGS) {
@@ -266,24 +266,24 @@ public final class MethodWriter extends GeneratorAdapter {
             }
         } else {
             // Java 8: push a StringBuilder append
-            if (type.clazz == boolean.class)      invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
-            else if (type.clazz == char.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
-            else if (type.clazz == byte.class  ||
-                     type.clazz == short.class ||
-                     type.clazz == int.class)     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);
-            else if (type.clazz == long.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
-            else if (type.clazz == float.class)   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
-            else if (type.clazz == double.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
-            else if (type.clazz == String.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
-            else                                  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+            if      (clazz == boolean.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
+            else if (clazz == char.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
+            else if (clazz == byte.class  ||
+                     clazz == short.class ||
+                     clazz == int.class)     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);
+            else if (clazz == long.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
+            else if (clazz == float.class)   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
+            else if (clazz == double.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
+            else if (clazz == String.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
+            else                             invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
         }
     }
 
     public void writeToStrings() {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: use type information and push invokeDynamic
-            final String desc = org.objectweb.asm.Type.getMethodDescriptor(STRING_TYPE,
-                    stringConcatArgs.pop().stream().toArray(org.objectweb.asm.Type[]::new));
+            final String desc = Type.getMethodDescriptor(STRING_TYPE,
+                    stringConcatArgs.pop().stream().toArray(Type[]::new));
             invokeDynamic("concat", desc, INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
         } else {
             // Java 8: call toString() on StringBuilder
@@ -292,9 +292,9 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
-    public void writeDynamicBinaryInstruction(Location location, Definition.Type returnType, Definition.Type lhs, Definition.Type rhs,
+    public void writeDynamicBinaryInstruction(Location location, Class<?> returnType, Class<?> lhs, Class<?> rhs,
                                               Operation operation, int flags) {
-        org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(returnType.type, lhs.type, rhs.type);
+        Type methodType = Type.getMethodType(getType(returnType), getType(lhs), getType(rhs));
 
         switch (operation) {
             case MUL:
@@ -310,7 +310,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 // if either side is primitive, then the + operator should always throw NPE on null,
                 // so we don't need a special NPE guard.
                 // otherwise, we need to allow nulls for possible string concatenation.
-                boolean hasPrimitiveArg = lhs.clazz.isPrimitive() || rhs.clazz.isPrimitive();
+                boolean hasPrimitiveArg = lhs.isPrimitive() || rhs.isPrimitive();
                 if (!hasPrimitiveArg) {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
@@ -343,8 +343,8 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a static binary instruction */
-    public void writeBinaryInstruction(Location location, Definition.Type type, Operation operation) {
-        if ((type.clazz == float.class || type.clazz == double.class) &&
+    public void writeBinaryInstruction(Location location, Class<?> clazz, Operation operation) {
+        if (    (clazz == float.class || clazz == double.class) &&
                 (operation == Operation.LSH || operation == Operation.USH ||
                 operation == Operation.RSH || operation == Operation.BWAND ||
                 operation == Operation.XOR || operation == Operation.BWOR)) {
@@ -352,17 +352,17 @@ public final class MethodWriter extends GeneratorAdapter {
         }
 
         switch (operation) {
-            case MUL:   math(GeneratorAdapter.MUL,  type.type); break;
-            case DIV:   math(GeneratorAdapter.DIV,  type.type); break;
-            case REM:   math(GeneratorAdapter.REM,  type.type); break;
-            case ADD:   math(GeneratorAdapter.ADD,  type.type); break;
-            case SUB:   math(GeneratorAdapter.SUB,  type.type); break;
-            case LSH:   math(GeneratorAdapter.SHL,  type.type); break;
-            case USH:   math(GeneratorAdapter.USHR, type.type); break;
-            case RSH:   math(GeneratorAdapter.SHR,  type.type); break;
-            case BWAND: math(GeneratorAdapter.AND,  type.type); break;
-            case XOR:   math(GeneratorAdapter.XOR,  type.type); break;
-            case BWOR:  math(GeneratorAdapter.OR,   type.type); break;
+            case MUL:   math(GeneratorAdapter.MUL,  getType(clazz)); break;
+            case DIV:   math(GeneratorAdapter.DIV,  getType(clazz)); break;
+            case REM:   math(GeneratorAdapter.REM,  getType(clazz)); break;
+            case ADD:   math(GeneratorAdapter.ADD,  getType(clazz)); break;
+            case SUB:   math(GeneratorAdapter.SUB,  getType(clazz)); break;
+            case LSH:   math(GeneratorAdapter.SHL,  getType(clazz)); break;
+            case USH:   math(GeneratorAdapter.USHR, getType(clazz)); break;
+            case RSH:   math(GeneratorAdapter.SHR,  getType(clazz)); break;
+            case BWAND: math(GeneratorAdapter.AND,  getType(clazz)); break;
+            case XOR:   math(GeneratorAdapter.XOR,  getType(clazz)); break;
+            case BWOR:  math(GeneratorAdapter.OR,   getType(clazz)); break;
             default:
                 throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -416,7 +416,7 @@ public final class MethodWriter extends GeneratorAdapter {
      * @param flavor type of call
      * @param params flavor-specific parameters
      */
-    public void invokeDefCall(String name, org.objectweb.asm.Type methodType, int flavor, Object... params) {
+    public void invokeDefCall(String name, Type methodType, int flavor, Object... params) {
         Object[] args = new Object[params.length + 2];
         args[0] = settings.getInitialCallSiteDepth();
         args[1] = flavor;

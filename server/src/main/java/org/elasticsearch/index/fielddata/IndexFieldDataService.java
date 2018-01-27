@@ -48,7 +48,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             case "none":
                 return s;
             default:
-                throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,node]");
+                throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
         }
     }, Property.IndexScope);
 

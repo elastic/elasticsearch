@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,7 +57,8 @@ public class TransportFlushAction extends TransportBroadcastReplicationAction<Fl
     }
 
     @Override
-    protected FlushResponse newResponse(int successfulShards, int failedShards, int totalNumCopies, List<ShardOperationFailedException> shardFailures) {
+    protected FlushResponse newResponse(int successfulShards, int failedShards, int totalNumCopies, List
+            <DefaultShardOperationFailedException> shardFailures) {
         return new FlushResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
 }

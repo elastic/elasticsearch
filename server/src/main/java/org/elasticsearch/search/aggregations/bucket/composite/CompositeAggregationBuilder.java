@@ -147,17 +147,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             Sort sort = indexSortConfig.buildIndexSort(shardContext::fieldMapper, shardContext::getForField);
             System.arraycopy(sort.getSort(), 0, sortFields, 0, sortFields.length);
         }
-        List<String> sourceNames = new ArrayList<>();
         for (int i = 0; i < configs.length; i++) {
             configs[i] = sources.get(i).build(context, i, configs.length, sortFields[i]);
-            sourceNames.add(sources.get(i).name());
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }
         }
         final CompositeKey afterKey;
         if (after != null) {
-            if (after.size() != sources.size()) {
+            if (after.size() != configs.length) {
                 throw new IllegalArgumentException("[after] has " + after.size() +
                     " value(s) but [sources] has " + sources.size());
             }
@@ -179,7 +177,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metaData, size, configs, sourceNames, afterKey);
+        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metaData, size, configs, afterKey);
     }
 
 

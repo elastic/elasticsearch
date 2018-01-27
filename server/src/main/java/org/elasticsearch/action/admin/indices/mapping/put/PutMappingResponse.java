@@ -22,13 +22,24 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
  * The response of put mapping operation.
  */
-public class PutMappingResponse extends AcknowledgedResponse {
+public class PutMappingResponse extends AcknowledgedResponse implements ToXContentObject {
+
+    private static final ConstructingObjectParser<PutMappingResponse, Void> PARSER = new ConstructingObjectParser<>("put_mapping",
+        true, args -> new PutMappingResponse((boolean) args[0]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+    }
 
     protected PutMappingResponse() {
 
@@ -48,5 +59,17 @@ public class PutMappingResponse extends AcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        addAcknowledgedField(builder);
+        builder.endObject();
+        return builder;
+    }
+
+    public static PutMappingResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 }

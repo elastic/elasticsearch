@@ -29,13 +29,16 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -153,6 +156,18 @@ public final class Request {
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request closeIndex(CloseIndexRequest closeIndexRequest) {
+        String endpoint = endpoint(closeIndexRequest.indices(), Strings.EMPTY_ARRAY, "_close");
+
+        Params parameters = Params.builder();
+
+        parameters.withTimeout(closeIndexRequest.timeout());
+        parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
     static Request refresh(RefreshRequest refreshRequest) {
         String endpoint = endpoint(refreshRequest.indices(), Strings.EMPTY_ARRAY, "_refresh");
         return new Request(HttpPost.METHOD_NAME, endpoint, Collections.emptyMap(), null);
@@ -165,9 +180,24 @@ public final class Request {
         parameters.withTimeout(createIndexRequest.timeout());
         parameters.withMasterTimeout(createIndexRequest.masterNodeTimeout());
         parameters.withWaitForActiveShards(createIndexRequest.waitForActiveShards());
-        parameters.withUpdateAllTypes(createIndexRequest.updateAllTypes());
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
+        // The concreteIndex is an internal concept, not applicable to requests made over the REST API.
+        if (putMappingRequest.getConcreteIndex() != null) {
+            throw new IllegalArgumentException("concreteIndex cannot be set on PutMapping requests made over the REST API");
+        }
+
+        String endpoint = endpoint(putMappingRequest.indices(), "_mapping", putMappingRequest.type());
+
+        Params parameters = Params.builder();
+        parameters.withTimeout(putMappingRequest.timeout());
+        parameters.withMasterTimeout(putMappingRequest.masterNodeTimeout());
+
+        HttpEntity entity = createEntity(putMappingRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
@@ -318,6 +348,15 @@ public final class Request {
         return new Request(HttpGet.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
+    static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withPreference(multiGetRequest.preference());
+        parameters.withRealtime(multiGetRequest.realtime());
+        parameters.withRefresh(multiGetRequest.refresh());
+        HttpEntity entity = createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpGet.METHOD_NAME, "/_mget", parameters.getParams(), entity);
+    }
+
     static Request index(IndexRequest indexRequest) {
         String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
@@ -436,6 +475,10 @@ public final class Request {
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
         return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+    static String endpoint(String[] indices, String endpoint, String type) {
+        return endpoint(String.join(",", indices), endpoint, type);
     }
 
     /**
@@ -566,13 +609,6 @@ public final class Request {
 
         Params withTimeout(TimeValue timeout) {
             return putParam("timeout", timeout);
-        }
-
-        Params withUpdateAllTypes(boolean updateAllTypes) {
-            if (updateAllTypes) {
-                return putParam("update_all_types", Boolean.TRUE.toString());
-            }
-            return this;
         }
 
         Params withVersion(long version) {

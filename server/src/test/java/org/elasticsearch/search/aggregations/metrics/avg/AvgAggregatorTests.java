@@ -30,13 +30,11 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
-import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -103,8 +101,59 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalAvg> verify)
-            throws IOException {
+    public void testSummationAccuracy() throws IOException {
+        // Summing up a normal array and expect an accurate value
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifyAvgOfDoubles(values, 0.9, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifyAvgOfDoubles(values, sum / n, 1e-10);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifyAvgOfDoubles(largeValues, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifyAvgOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
+        testCase(new MatchAllDocsQuery(),
+            iw -> {
+                for (double value : values) {
+                    iw.addDocument(singleton(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
+                }
+            },
+            avg -> assertEquals(expected, avg.getValue(), delta),
+            NumberFieldMapper.NumberType.DOUBLE
+        );
+    }
+
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalAvg> verify) throws IOException {
+        testCase(query, buildIndex, verify, NumberFieldMapper.NumberType.LONG);
+    }
+
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalAvg> verify,
+                          NumberFieldMapper.NumberType fieldNumberType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -114,7 +163,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("_name").field("number");
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
         fieldType.setName("number");
 
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);

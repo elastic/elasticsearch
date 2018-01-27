@@ -19,38 +19,34 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Arrays;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response of a refresh action.
  */
-public class RefreshResponse extends BroadcastResponse implements ToXContentFragment {
+public class RefreshResponse extends BroadcastResponse {
 
-    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh",
-        true, arg -> (RefreshResponse) arg[0]);
+    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh", true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            return new RefreshResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                Arrays.asList(response.getShardFailures()));
+        });
 
     static {
-        ConstructingObjectParser<RefreshResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
-            arg -> new RefreshResponse((int) arg[0], (int) arg[1], (int) arg[2], null));
-        shardsParser.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
-        shardsParser.declareInt(constructorArg(), new ParseField(Fields.SUCCESSFUL));
-        shardsParser.declareInt(constructorArg(), new ParseField(Fields.FAILED));
-        PARSER.declareObject(constructorArg(), shardsParser, new ParseField(Fields._SHARDS));
+        declareBroadcastFields(PARSER);
     }
 
     RefreshResponse() {
     }
 
-    RefreshResponse(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    RefreshResponse(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 

@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.sql.plugin.ColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.hamcrest.Matchers;
@@ -26,9 +24,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -59,35 +54,6 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertEquals("baz", response.rows().get(1).get(dataIndex));
         assertEquals(43L, response.rows().get(1).get(countIndex));
     }
-
-    public void testSqlListTablesAction() throws Exception {
-
-        createCompatibleIndex("foo");
-        createCompatibleIndex("bar");
-        createCompatibleIndex("baz");
-        createIncompatibleIndex("broken");
-
-        SqlListTablesResponse response = client().prepareExecute(SqlListTablesAction.INSTANCE)
-                .pattern("").get();
-        List<String> tables = removeInternal(response.getTables());
-        assertThat(tables, hasSize(4));
-        assertThat(tables, containsInAnyOrder("foo", "bar", "baz", "broken"));
-
-
-        response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("b%").get();
-        tables = removeInternal(response.getTables());
-        assertThat(tables, hasSize(3));
-        assertThat(tables, containsInAnyOrder("bar", "baz", "broken"));
-
-        response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("not_found").get();
-        tables = removeInternal(response.getTables());
-        assertThat(tables, emptyCollectionOf(String.class));
-
-        response = client().prepareExecute(SqlListTablesAction.INSTANCE).pattern("broken").get();
-        tables = removeInternal(response.getTables());
-        assertThat(tables, hasSize(1));
-    }
-
 
     public void testSqlListColumnsAction() throws Exception {
 

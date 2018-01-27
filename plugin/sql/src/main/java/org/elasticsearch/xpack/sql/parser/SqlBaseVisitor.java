@@ -77,6 +77,27 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
+   * Visit a parse tree produced by the {@code sysTables}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSysTables(SqlBaseParser.SysTablesContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code sysColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSysColumns(SqlBaseParser.SysColumnsContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code sysTypes}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSysTypes(SqlBaseParser.SysTypesContext ctx);
+  /**
    * Visit a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
    * @return the visitor result

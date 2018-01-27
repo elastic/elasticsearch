@@ -187,30 +187,6 @@ http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].
 
 [[sql-rest-metadata]]
 
-SQL can only work with a subset of Elasticsearch indices. To get the list of
-indices that are available to the user execute:
-
-[source,js]
---------------------------------------------------
-POST /_xpack/sql/tables
-{
-    "table_pattern": "lib%"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:library]
-
-Which returns:
-
-[source,js]
---------------------------------------------------
-{
-    "tables": [ "library" ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-
 To get the list of fields that are supported in SQL execute:
 
 [source,js]

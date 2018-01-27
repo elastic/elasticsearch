@@ -28,15 +28,11 @@ public enum DataType {
     HALF_FLOAT(  JDBCType.FLOAT,     Double.BYTES,      16,                25, true, false, true, true),
     // precision is based on long
     SCALED_FLOAT(JDBCType.FLOAT,     Double.BYTES,      19,                25, true, false, true, true),
-    // 39 is maximum address in IPv6
-    IP(          JDBCType.VARCHAR,   -1,                39,                0),
     KEYWORD(     JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               0),
     TEXT(        JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, 0,  false, false, false, false),
     OBJECT(      JDBCType.STRUCT,    -1,                0,                 0),
     NESTED(      JDBCType.STRUCT,    -1,                0,                 0),
-    TOKEN_COUNT( JDBCType.INTEGER,   Integer.BYTES,     10,                11),
     BINARY(      JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0),
-    GEO_POINT(   null,               -1,                Integer.MAX_VALUE, 0),
     DATE(        JDBCType.TIMESTAMP, Long.BYTES,        19,                20);
     // @formatter:on
 

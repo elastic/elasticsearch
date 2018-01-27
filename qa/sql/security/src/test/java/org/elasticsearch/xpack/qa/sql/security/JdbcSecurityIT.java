@@ -231,20 +231,12 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "%t", null),
             "full_access",
             con -> con.getMetaData().getTables("%", "%", "%", null));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort", "test"))
-            .expect(true, GetIndexAction.NAME, "full_access", contains("bort", "test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetTablesWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         expectForbidden("no_access", con -> con.getMetaData().getTables("%", "%", "%", null));
-        new AuditLogAsserter()
-            // TODO figure out why this generates *no* logs
-            // .expect(false, GetIndexAction.NAME, "no_access", contains("bort", "test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetTablesWithLimitedAccess() throws Exception {
@@ -254,10 +246,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "bort", null),
             "read_bort",
             con -> con.getMetaData().getTables("%", "%", "%", null));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort"))
-            .expect(true, GetIndexAction.NAME, "read_bort", contains("bort"))
-            .assertLogs();
     }
 
     public void testMetaDataGetTablesWithInAccessibleIndex() throws Exception {
@@ -267,10 +255,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getTables("%", "%", "not_created", null),
             "read_bort",
             con -> con.getMetaData().getTables("%", "%", "test", null));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
-            .expect(true, GetIndexAction.NAME, "read_bort", contains("*", "-*"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsWorksAsFullAccess() throws Exception {

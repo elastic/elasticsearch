@@ -119,16 +119,6 @@ setup:
   - match: { indices.test.total.search.open_contexts: 0 }
 
 ---
-"Check list of tables":
-  - do:
-      xpack.sql.tables:
-        body:
-          table_pattern: "t%"
-
-  - length: { tables: 1 }
-  - match: { tables.0: 'test' }
-
----
 "Check list of columns":
   - do:
       xpack.sql.columns:

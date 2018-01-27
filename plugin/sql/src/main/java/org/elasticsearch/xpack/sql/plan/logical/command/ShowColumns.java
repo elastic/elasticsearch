@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +47,7 @@ public class ShowColumns extends Command {
     @Override
     public List<Attribute> output() {
         return asList(new FieldAttribute(location(), "column", new KeywordEsField("column")),
-                new FieldAttribute(location(), "type", new KeywordEsField("type")));
-    }
+                new FieldAttribute(location(), "type", new KeywordEsField("type")));    }
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {

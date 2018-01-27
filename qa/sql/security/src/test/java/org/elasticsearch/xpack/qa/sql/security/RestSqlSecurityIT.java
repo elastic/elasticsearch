@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.JDBCType;
@@ -26,11 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
 import java.util.stream.Collectors;
-import static java.util.Collections.singletonMap;
+
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.randomMode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -116,7 +115,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             for (String table : tables) {
                 List<String> fields = new ArrayList<>();
                 fields.add(table);
-                fields.add("INDEX");
+                fields.add("BASE TABLE");
                 rows.add(fields);
             }
             expected.put("rows", rows);

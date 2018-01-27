@@ -481,7 +481,6 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/write/reindex") ||
                 action.equals("indices:data/read/sql") ||
                 action.equals("indices:data/read/sql/translate") ||
-                action.equals("indices:admin/sql/tables") ||
                 action.equals("indices:admin/sql/columns") ;
     }
 

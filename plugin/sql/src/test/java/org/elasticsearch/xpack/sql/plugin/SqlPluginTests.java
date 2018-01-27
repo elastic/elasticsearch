@@ -24,7 +24,7 @@ public class SqlPluginTests  extends ESTestCase {
 
     public void testSqlDisabled() {
         SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker((mode) -> {}));
-        assertThat(plugin.createComponents(mock(Client.class)), empty());
+        assertThat(plugin.createComponents(mock(Client.class), "cluster"), empty());
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

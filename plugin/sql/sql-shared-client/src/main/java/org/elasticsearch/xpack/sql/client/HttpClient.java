@@ -28,9 +28,6 @@ import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
@@ -91,10 +88,6 @@ public class HttpClient {
         return response.isSucceeded();
     }
     
-    public SqlListTablesResponse listTables(SqlListTablesRequest request)  throws SQLException {
-        return post(SqlListTablesAction.REST_ENDPOINT, request, SqlListTablesResponse::fromXContent);
-    }
-
     public SqlListColumnsResponse listColumns(SqlListColumnsRequest request)  throws SQLException {
         return post(SqlListColumnsAction.REST_ENDPOINT, request, SqlListColumnsResponse::fromXContent);
     }

@@ -117,6 +117,42 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
+   * Enter a parse tree produced by the {@code sysTables}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void enterSysTables(SqlBaseParser.SysTablesContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code sysTables}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void exitSysTables(SqlBaseParser.SysTablesContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code sysColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void enterSysColumns(SqlBaseParser.SysColumnsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code sysColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void exitSysColumns(SqlBaseParser.SysColumnsContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code sysTypes}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void enterSysTypes(SqlBaseParser.SysTypesContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code sysTypes}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void exitSysTypes(SqlBaseParser.SysTypesContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
    */

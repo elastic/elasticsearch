@@ -112,7 +112,7 @@ showTables
 SHOW TABLES 'test_emp';
 
  name:s        | type:s
-test_emp       |INDEX
+test_emp       |BASE TABLE
 ;
 
 // DESCRIBE

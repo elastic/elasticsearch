@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlListTablesRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.joda.time.DateTimeZone;
@@ -76,10 +75,6 @@ public class JdbcHttpClient {
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
         return new InfoResponse(mainResponse.getClusterName().value(), mainResponse.getVersion().major, mainResponse.getVersion().minor);
-    }
-
-    public List<String> metaInfoTables(String pattern) throws SQLException {
-        return httpClient.listTables(new SqlListTablesRequest(AbstractSqlRequest.Mode.JDBC, pattern)).getTables();
     }
 
     public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {

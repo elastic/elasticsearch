@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTablesContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plan.logical.command.Debug;
@@ -20,6 +22,8 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
+import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
+import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
@@ -119,5 +123,15 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier identifier = visitTableIdentifier(ctx.tableIdentifier());
         return new ShowColumns(source(ctx), identifier.index());
+    }
+
+    @Override
+    public SysTables visitSysTables(SysTablesContext ctx) {
+        return new SysTables(source(ctx), visitPattern(ctx.pattern()));
+    }
+
+    @Override
+    public SysTypes visitSysTypes(SysTypesContext ctx) {
+        return new SysTypes(source(ctx));
     }
 }

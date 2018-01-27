@@ -56,6 +56,10 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
+    
+    | SYS TABLES (LIKE? pattern)?                                                                         #sysTables
+    | SYS COLUMNS (LIKE? indexPattern=pattern)? (LIKE? columnPattern=pattern)?                            #sysColumns
+    | SYS TYPES                                                                                           #sysTypes  
     ;
 
 query
@@ -264,8 +268,8 @@ nonReserved
     | PARSED | PHYSICAL | PLAN 
     | QUERY 
     | RLIKE
-    | SCHEMAS | SHOW
-    | TABLES | TEXT
+    | SCHEMAS | SHOW | SYS
+    | TABLES | TEXT | TYPES
     | VERIFY
     ;
 
@@ -317,15 +321,17 @@ OUTER: 'OUTER';
 PARSED: 'PARSED';
 PHYSICAL: 'PHYSICAL';
 PLAN: 'PLAN';
-QUERY: 'QUERY';
 RIGHT: 'RIGHT';
 RLIKE: 'RLIKE';
+QUERY: 'QUERY';
 SCHEMAS: 'SCHEMAS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
+SYS: 'SYS';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';
+TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
 WHERE: 'WHERE';

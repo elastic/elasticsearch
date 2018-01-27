@@ -5,17 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.tree.Location;
-
-import static java.util.Collections.emptyList;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+
 public abstract class Command extends LogicalPlan implements Executable {
 
-    public Command(Location location) {
+    protected Command(Location location) {
         super(location, emptyList());
     }
 
@@ -27,5 +32,23 @@ public abstract class Command extends LogicalPlan implements Executable {
     @Override
     public boolean expressionsResolved() {
         return true;
+    }
+
+    /**
+     * Syntactic sugar for creating a schema keyword/string field.
+     */
+    protected final FieldAttribute keyword(String name) {
+        return field(name, new KeywordEsField(name));
+    }
+
+    /**
+     * Syntactic sugar for creating a schema field.
+     */
+    protected final FieldAttribute field(String name, DataType type) {
+        return field(name, new EsField(name, type, emptyMap(), true));
+    }
+
+    private FieldAttribute field(String name, EsField field) {
+        return new FieldAttribute(location(), name, field);
     }
 }

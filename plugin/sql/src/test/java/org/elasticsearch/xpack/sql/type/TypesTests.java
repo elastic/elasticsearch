@@ -180,7 +180,7 @@ public class TypesTests extends ESTestCase {
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
         EsField dt = mapping.get("location");
-        assertThat(dt.getDataType().esType, is("geo_point"));
+        assertThat(dt.getDataType().esType, is("unsupported"));
     }
 
     public void testUnsupportedTypes() {
@@ -193,5 +193,11 @@ public class TypesTests extends ESTestCase {
         InputStream stream = TypesTests.class.getResourceAsStream("/" + name);
         assertNotNull("Could not find mapping resource:" + name, stream);
         return Types.fromEs(XContentHelper.convertToMap(JsonXContent.jsonXContent, stream, randomBoolean()));
+    }
+
+    public static Map<String, EsField> loadMapping(String name, boolean ordered) {
+        InputStream stream = TypesTests.class.getResourceAsStream("/" + name);
+        assertNotNull("Could not find mapping resource:" + name, stream);
+        return Types.fromEs(XContentHelper.convertToMap(JsonXContent.jsonXContent, stream, ordered));
     }
 }

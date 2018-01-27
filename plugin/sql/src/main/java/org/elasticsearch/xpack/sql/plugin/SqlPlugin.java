@@ -79,17 +79,17 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        return createComponents(client);
+        return createComponents(client, clusterService.getClusterName().value());
     }
 
     /**
      * Create components used by the sql plugin.
      */
-    public Collection<Object> createComponents(Client client) {
+    Collection<Object> createComponents(Client client, String clusterName) {
         if (false == enabled) {
             return emptyList();
         }
-        indexResolver = new IndexResolver(client);
+        indexResolver = new IndexResolver(client, clusterName);
         return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver));
     }
 
@@ -106,7 +106,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new RestSqlQueryAction(settings, restController),
                 new RestSqlTranslateAction(settings, restController),
                 new RestSqlClearCursorAction(settings, restController),
-                new RestSqlListTablesAction(settings, restController),
                 new RestSqlListColumnsAction(settings, restController));
     }
 
@@ -119,7 +118,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
                 new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-                new ActionHandler<>(SqlListTablesAction.INSTANCE, TransportSqlListTablesAction.class),
                 new ActionHandler<>(SqlListColumnsAction.INSTANCE, TransportSqlListColumnsAction.class));
     }
 }

@@ -38,7 +38,19 @@ import static java.util.Collections.emptyList;
 public class IndexResolver {
 
     public enum IndexType {
-        INDEX, ALIAS;
+
+        INDEX("BASE TABLE"),
+        ALIAS("ALIAS");
+
+        private final String toSql;
+
+        IndexType(String sql) {
+            this.toSql = sql;
+        }
+
+        public String toSql() {
+            return toSql;
+        }
     }
 
     public static class IndexInfo {
@@ -85,9 +97,16 @@ public class IndexResolver {
     }
 
     private final Client client;
+    private final String clusterName;
 
-    public IndexResolver(Client client) {
+
+    public IndexResolver(Client client, String clusterName) {
         this.client = client;
+        this.clusterName = clusterName;
+    }
+
+    public String clusterName() {
+        return clusterName;
     }
 
     /**
@@ -101,7 +120,7 @@ public class IndexResolver {
                 .aliases(indexWildcard)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases -> 
+        client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases ->
                         resolveIndices(indexWildcard, javaRegex, aliases, listener),
                         ex -> {
                             // with security, two exception can be thrown:
@@ -117,7 +136,7 @@ public class IndexResolver {
                         }));
     }
 
-    private void resolveIndices(String indexWildcard, String javaRegex,  GetAliasesResponse aliases, 
+    private void resolveIndices(String indexWildcard, String javaRegex,  GetAliasesResponse aliases,
             ActionListener<Set<IndexInfo>> listener) {
         GetIndexRequest indexRequest = new GetIndexRequest()
                 .local(true)

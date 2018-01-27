@@ -84,8 +84,8 @@ name:s               | type:s
 
 test_alias           | ALIAS
 test_alias_emp       | ALIAS
-test_emp             | INDEX
-test_emp_copy        | INDEX
+test_emp             | BASE TABLE
+test_emp_copy        | BASE TABLE
 ;
 
 testGroupByOnAlias

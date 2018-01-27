@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.client.shared.ObjectUtils;
+import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.JDBCType;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
@@ -699,42 +700,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        List<ColumnInfo> info = columnInfo("TABLES",
-                                           "TABLE_CAT",                 //0
-                                           "TABLE_SCHEM",               //1
-                                           "TABLE_NAME",                //2
-                                           "TABLE_TYPE",                //3
-                                           "REMARKS",                   //4
-                                           "TYPE_CAT",                  //5
-                                           "TYPE_SCHEM",                //6
-                                           "TYPE_NAME",                 //7
-                                           "SELF_REFERENCING_COL_NAME", //8
-                                           "REF_GENERATION");           //9
-
-        // schema and catalogs are not being used, if these are specified return an empty result set
-        if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(con.cfg, info);
-        }
-
-        String cat = defaultCatalog();
-        List<String> tables = con.client.metaInfoTables(tableNamePattern);
-        Object[][] data = new Object[tables.size()][];
-        for (int i = 0; i < data.length; i++) {
-            data[i] = new Object[10];
-            Object[] row = data[i];
-
-            row[0] = cat;
-            row[1] = "";
-            row[2] = tables.get(i);
-            row[3] = "TABLE";
-            row[4] = "";
-            row[5] = null;
-            row[6] = null;
-            row[7] = null;
-            row[8] = null;
-            row[9] = null;
-        }
-        return memorySet(con.cfg, info, data);
+        PreparedStatement ps = con.prepareStatement("SYS TABLES LIKE ?");
+        ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        return ps.executeQuery();
     }
 
     @Override
@@ -886,27 +854,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return emptySet(con.cfg,
-                     "TYPE_INFO",
-                     "TYPE_NAME",
-                     "DATA_TYPE", int.class,
-                     "PRECISION", int.class,
-                     "LITERAL_PREFIX",
-                     "LITERAL_SUFFIX",
-                     "CREATE_PARAMS",
-                     "NULLABLE", short.class,
-                     "CASE_SENSITIVE", boolean.class,
-                     "SEARCHABLE", short.class,
-                     "UNSIGNED_ATTRIBUTE", boolean.class,
-                     "FIXED_PREC_SCALE", boolean.class,
-                     "AUTO_INCREMENT", boolean.class,
-                     "LOCAL_TYPE_NAME",
-                     "MINIMUM_SCALE", short.class,
-                     "MAXIMUM_SCALE", short.class,
-                     "SQL_DATA_TYPE", int.class,
-                     "SQL_DATETIME_SUB", int.class,
-                     "NUM_PREC_RADIX", int.class
-                     );
+        return con.createStatement().executeQuery("SYS TYPES");
     }
 
     @Override

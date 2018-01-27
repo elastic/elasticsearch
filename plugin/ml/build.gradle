@@ -22,7 +22,7 @@ configurations {
             if (findProject(':machine-learning-cpp') != null) {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
             } else {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.parent.path}:ml-cpp-snapshot")
+                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:cpp-snapshot")
             }
         }
     }

@@ -61,6 +61,6 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
             }
             keystore.remove(setting);
         }
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), new char[0]);
     }
 }

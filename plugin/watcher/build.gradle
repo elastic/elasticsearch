@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -8,8 +8,6 @@ esplugin {
   hasNativeController false
   requiresKeystore false
   extendedPlugins = ['x-pack-core']
-  licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-  noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 
 archivesBaseName = 'x-pack-watcher'
@@ -30,7 +28,7 @@ dependencies {
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     provided project(path: ':modules:transport-netty4', configuration: 'runtime')
 
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
@@ -100,7 +98,7 @@ if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
 
 test {

@@ -2,8 +2,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:ml', configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('ml'), configuration: 'runtime')
 }
 
 integTestCluster {
@@ -13,5 +13,5 @@ integTestCluster {
     setting 'xpack.ml.enabled', 'true'
     numNodes = 3
     distribution = 'zip'
-    plugin ':x-pack-elasticsearch:plugin'
+    plugin xpackProject('plugin').path
 }

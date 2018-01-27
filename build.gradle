@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
@@ -8,8 +9,14 @@ if (project.projectDir.name != 'x-pack-elasticsearch') {
 
 task wrapper(type: Wrapper)
 
+Project xpackRootProject = project
+
 subprojects {
   group = 'org.elasticsearch.plugin'
+  ext.xpackRootProject = xpackRootProject
+  ext.xpackProject = { String projectName -> xpackRootProject.project(projectName) }
+  // helper method to find the path to a module
+  ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
 
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {
@@ -34,8 +41,13 @@ subprojects {
   }
 
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project(':x-pack-elasticsearch').file('LICENSE.txt')
-    project.noticeFile = project(':x-pack-elasticsearch').file('NOTICE.txt')
+    project.licenseFile = xpackRootProject.file('LICENSE.txt')
+    project.noticeFile = xpackRootProject.file('NOTICE.txt')
+  }
+
+  plugins.withType(PluginBuildPlugin).whenPluginAdded {
+    project.esplugin.licenseFile = xpackRootProject.file('LICENSE.txt')
+    project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
 }
 
@@ -53,16 +65,16 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin:core']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack-elasticsearch:plugin:core']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": ':x-pack-elasticsearch:plugin:deprecation']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": ':x-pack-elasticsearch:plugin:graph']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": ':x-pack-elasticsearch:plugin:logstash']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": ':x-pack-elasticsearch:plugin:ml']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": ':x-pack-elasticsearch:plugin:monitoring']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": ':x-pack-elasticsearch:plugin:security']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": ':x-pack-elasticsearch:plugin:upgrade']
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": ':x-pack-elasticsearch:plugin:watcher']
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": xpackModule('core')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": xpackModule('logstash')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
 
   for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
     if (version.branch != null) {

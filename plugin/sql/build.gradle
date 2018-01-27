@@ -22,6 +22,6 @@ dependencies {
     // compile project(':x-pack-elasticsearch:sql:server')
 }
 
-//project(':x-pack-elasticsearch:plugin:core').bundlePlugin {
+//project(xpackModule('core')).bundlePlugin {
 //    from jar
 //}

@@ -12,7 +12,7 @@ esvagrant {
 
 dependencies {
     // Packaging tests use the x-pack meta plugin
-    bats project(path: ':x-pack-elasticsearch:plugin', configuration: 'zip')
+    bats project(path: xpackProject('plugin').path, configuration: 'zip')
 
     // Inherit Bats test utils from :qa:vagrant project
     bats project(path: ':qa:vagrant', configuration: 'bats')

@@ -58,7 +58,7 @@ subprojects {
 
     task createXPackClone(type: LoggedExec) {
       onlyIf { xpackCheckoutDir.exists() == false }
-      commandLine = ['git', 'clone', project(':x-pack-elasticsearch').projectDir, xpackCheckoutPath]
+      commandLine = ['git', 'clone', xpackRootProject.projectDir, xpackCheckoutPath]
     }
 
     // we use regular Exec here to ensure we always get output, regardless of logging level

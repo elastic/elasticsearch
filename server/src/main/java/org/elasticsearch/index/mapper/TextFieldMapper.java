@@ -19,10 +19,17 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -113,6 +120,11 @@ public class TextFieldMapper extends FieldMapper {
             return builder;
         }
 
+        public Builder indexPrefixes(int minChars, int maxChars) {
+            fieldType().setIndexPrefixes(minChars, maxChars);
+            return builder;
+        }
+
         @Override
         public TextFieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
@@ -161,9 +173,54 @@ public class TextFieldMapper extends FieldMapper {
                     builder.fielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
                     DocumentMapperParser.checkNoRemainingFields(propName, frequencyFilter, parserContext.indexVersionCreated());
                     iterator.remove();
+                } else if (propName.equals("index_prefix")) {
+                    Map<?, ?> indexPrefix = (Map<?, ?>) propNode;
+                    int minChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("min_chars"), 0);
+                    int maxChars = XContentMapValues.nodeIntegerValue(indexPrefix.remove("max_chars"), 10);
+                    builder.indexPrefixes(minChars, maxChars);
+                    DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+                    iterator.remove();
                 }
             }
             return builder;
+        }
+    }
+
+    private static class PrefixWrappedAnalyzer extends AnalyzerWrapper {
+
+        static final String SUBFIELD = "..prefix";
+
+        private final int minChars;
+        private final int maxChars;
+        private final Analyzer delegate;
+
+        PrefixWrappedAnalyzer(Analyzer delegate, int minChars, int maxChars) {
+            super(delegate.getReuseStrategy());
+            this.delegate = delegate;
+            this.minChars = minChars;
+            this.maxChars = maxChars;
+        }
+
+        @Override
+        protected Analyzer getWrappedAnalyzer(String fieldName) {
+            return delegate;
+        }
+
+        @Override
+        protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
+            TokenFilter filter = new EdgeNGramTokenFilter(components.getTokenStream(), minChars, maxChars);
+            return new TokenStreamComponents(components.getTokenizer(), filter);
+        }
+
+        boolean accept(int length) {
+            return length >= minChars && length <= maxChars;
+        }
+
+        void doXContent(XContentBuilder builder) throws IOException {
+            builder.startObject("index_prefix");
+            builder.field("min_chars", minChars);
+            builder.field("max_chars", maxChars);
+            builder.endObject();
         }
     }
 
@@ -173,6 +230,7 @@ public class TextFieldMapper extends FieldMapper {
         private double fielddataMinFrequency;
         private double fielddataMaxFrequency;
         private int fielddataMinSegmentSize;
+        private PrefixWrappedAnalyzer prefixAnalyzer;
 
         public TextFieldType() {
             setTokenized(true);
@@ -248,9 +306,25 @@ public class TextFieldMapper extends FieldMapper {
             this.fielddataMinSegmentSize = fielddataMinSegmentSize;
         }
 
+        public void setIndexPrefixes(int minChars, int maxChars) {
+            checkIfFrozen();
+            prefixAnalyzer = new PrefixWrappedAnalyzer(indexAnalyzer().analyzer(), minChars, maxChars);
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            if (prefixAnalyzer == null || prefixAnalyzer.accept(value.length()) == false) {
+                return super.prefixQuery(value, method, context);
+            }
+            TermQuery q = new TermQuery(new Term(name() + PrefixWrappedAnalyzer.SUBFIELD, indexedValueForSearch(value)));
+            if (boost() != 1f)
+                return new BoostQuery(q, boost());
+            return q;
         }
 
         @Override
@@ -323,6 +397,10 @@ public class TextFieldMapper extends FieldMapper {
             if (fieldType().omitNorms()) {
                 createFieldNamesField(context, fields);
             }
+            if (fieldType().prefixAnalyzer != null) {
+                String prefixFieldName = fieldType().name() + PrefixWrappedAnalyzer.SUBFIELD;
+                fields.add(new TextField(prefixFieldName, fieldType().prefixAnalyzer.tokenStream(prefixFieldName, value)));
+            }
         }
     }
 
@@ -370,6 +448,9 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 builder.endObject();
             }
+        }
+        if (fieldType().prefixAnalyzer != null) {
+            fieldType().prefixAnalyzer.doXContent(builder);
         }
     }
 }

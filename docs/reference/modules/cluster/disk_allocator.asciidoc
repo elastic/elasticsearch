@@ -98,3 +98,20 @@ PUT _cluster/settings
 --------------------------------------------------
 // CONSOLE
 
+/////////////////////
+
+Clear the settings so they don't leak into subsequent snippets.
+
+[source,js]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.*" : null
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+/////////////////////

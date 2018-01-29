@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
@@ -37,7 +38,7 @@ import java.util.Optional;
 /**
  * Combines a {@link SearchHit} with a document rating.
  */
-public class RatedSearchHit implements Writeable, ToXContent {
+public class RatedSearchHit implements Writeable, ToXContentObject {
 
     private final SearchHit searchHit;
     private final Optional<Integer> rating;
@@ -82,9 +83,8 @@ public class RatedSearchHit implements Writeable, ToXContent {
     private static final ParseField HIT_FIELD = new ParseField("hit");
     private static final ParseField RATING_FIELD = new ParseField("rating");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit",
-            a -> new RatedSearchHit((SearchHit) a[0],
-                    (Optional<Integer>) a[1]));
+    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true,
+            a -> new RatedSearchHit((SearchHit) a[0], (Optional<Integer>) a[1]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchHit.fromXContent(p), HIT_FIELD);

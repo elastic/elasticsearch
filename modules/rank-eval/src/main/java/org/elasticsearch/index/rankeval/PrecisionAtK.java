@@ -242,7 +242,7 @@ public class PrecisionAtK implements EvaluationMetric {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Breakdown, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
+        private static final ConstructingObjectParser<Breakdown, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
             return new Breakdown((Integer) args[0], (Integer) args[1]);
         });
 

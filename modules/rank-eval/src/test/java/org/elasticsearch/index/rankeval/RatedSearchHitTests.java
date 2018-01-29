@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,6 +33,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class RatedSearchHitTests extends ESTestCase {
 
@@ -73,8 +73,10 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         RatedSearchHit testItem = randomRatedSearchHit();
-        XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             RatedSearchHit parsedItem = RatedSearchHit.parse(parser);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

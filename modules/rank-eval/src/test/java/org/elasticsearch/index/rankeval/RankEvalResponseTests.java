@@ -51,9 +51,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -114,8 +116,14 @@ public class RankEvalResponseTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        // skip inserting random fields for:
+        // - the `details` section, which can contain arbitrary queryIds
+        // - everything under `failures` (exceptions parsing is quiet lenient)
+        // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
+        Predicate<String> pathsToExclude = path -> (path.endsWith("details") || path.contains("failures") || path.contains("hits"));
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
         RankEvalResponse parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parsedItem = RankEvalResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }

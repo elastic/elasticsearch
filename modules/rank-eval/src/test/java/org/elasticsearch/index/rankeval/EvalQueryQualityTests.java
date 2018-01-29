@@ -33,10 +33,12 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class EvalQueryQualityTests extends ESTestCase {
@@ -89,8 +91,14 @@ public class EvalQueryQualityTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        // skip inserting random fields for:
+        // - the root object, since we expect a particular queryId there in this test
+        // - the `metric_details` section, which can potentially contain different namedXContent names
+        // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
+        Predicate<String> pathsToExclude = path -> path.isEmpty() || path.endsWith("metric_details") || path.contains("hits");
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
         EvalQueryQuality parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             String queryId = parser.currentName();

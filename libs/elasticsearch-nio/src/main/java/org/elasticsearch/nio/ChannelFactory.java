@@ -89,7 +89,6 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         try {
             Socket channel = createChannel(selector, rawChannel);
             assert channel.getContext() != null : "channel context should have been set on channel";
-            assert channel.getExceptionContext() != null : "exception handler should have been set on channel";
             return channel;
         } catch (Exception e) {
             closeRawChannel(rawChannel, e);

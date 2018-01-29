@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -81,7 +82,8 @@ public class EElvis extends AExpression {
         }
 
         if (expected == null) {
-            final Type promote = locals.getDefinition().caster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+            Type promote = locals.getDefinition().ClassToType(AnalyzerCaster.promoteConditional(
+                Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual), lhs.constant, rhs.constant));
 
             lhs.expected = promote;
             rhs.expected = promote;

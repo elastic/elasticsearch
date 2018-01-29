@@ -24,11 +24,9 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
@@ -45,7 +43,6 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -283,8 +280,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
+        public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
+            super.checkCompatibility(other, conflicts);
             PrefixFieldType otherFieldType = (PrefixFieldType) other;
             if (otherFieldType.minChars != this.minChars) {
                 conflicts.add("mapper [" + name() + "] has different min_chars values");
@@ -370,31 +367,6 @@ public class TextFieldMapper extends FieldMapper {
         public int hashCode() {
             return Objects.hash(super.hashCode(), fielddata,
                     fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType other,
-                List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
-            TextFieldType otherType = (TextFieldType) other;
-            if (strict) {
-                if (fielddata() != otherType.fielddata()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
-                            + "across all types.");
-                }
-                if (fielddataMinFrequency() != otherType.fielddataMinFrequency()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.min] across all types.");
-                }
-                if (fielddataMaxFrequency() != otherType.fielddataMaxFrequency()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.max] across all types.");
-                }
-                if (fielddataMinSegmentSize() != otherType.fielddataMinSegmentSize()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update "
-                            + "[fielddata_frequency_filter.min_segment_size] across all types.");
-                }
-            }
         }
 
         public boolean fielddata() {
@@ -548,11 +520,11 @@ public class TextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         TextFieldMapper mw = (TextFieldMapper) mergeWith;
         if (this.prefixFieldMapper != null && mw.prefixFieldMapper != null) {
-            this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper, updateAllTypes);
+            this.prefixFieldMapper = (PrefixFieldMapper) this.prefixFieldMapper.merge(mw.prefixFieldMapper);
         }
         else if (this.prefixFieldMapper != null || mw.prefixFieldMapper != null) {
             throw new IllegalArgumentException("mapper [" + name() + "] has different index_prefix settings, current ["

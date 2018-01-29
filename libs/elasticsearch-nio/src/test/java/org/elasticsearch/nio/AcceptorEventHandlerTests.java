@@ -27,8 +27,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
@@ -41,21 +39,21 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private SocketSelector socketSelector;
     private ChannelFactory<NioServerSocketChannel, NioSocketChannel> channelFactory;
     private NioServerSocketChannel channel;
-    private Consumer<NioSocketChannel> acceptedChannelCallback;
+    private ServerChannelContext context;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         channelFactory = mock(ChannelFactory.class);
         socketSelector = mock(SocketSelector.class);
-        acceptedChannelCallback = mock(Consumer.class);
+        context = mock(ServerChannelContext.class);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
         selectors.add(socketSelector);
         handler = new AcceptorEventHandler(logger, new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()])));
 
         AcceptingSelector selector = mock(AcceptingSelector.class);
         channel = new DoNotRegisterServerChannel(mock(ServerSocketChannel.class), channelFactory, selector);
-        channel.setAcceptContext(acceptedChannelCallback);
+        channel.setContext(context);
         channel.register();
     }
 
@@ -80,11 +78,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testHandleAcceptCallsServerAcceptCallback() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class), socketSelector);
-        childChannel.setContexts(mock(ChannelContext.class), mock(BiConsumer.class));
+        childChannel.setContext(mock(SocketChannelContext.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
-        verify(acceptedChannelCallback).accept(childChannel);
+        verify(context).acceptChannel(childChannel);
     }
 }

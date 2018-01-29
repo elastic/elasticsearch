@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
+import org.elasticsearch.gradle.plugin.MetaPluginPropertiesExtension
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -139,8 +140,8 @@ class ClusterFormationTasks {
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
     static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, String elasticsearchVersion) {
         verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
-        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin');
-        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${extension.name}:${elasticsearchVersion}@zip")
+        final String pluginName = findPluginName(pluginProject)
+        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
     }
 
     /**
@@ -450,7 +451,7 @@ class ClusterFormationTasks {
                 configuration = project.configurations.create(configurationName)
             }
 
-            final String depName = pluginProject.extensions.findByName('esplugin').name
+            final String depName = findPluginName(pluginProject)
 
             Dependency dep = bwcPlugins.dependencies.find {
                 it.name == depName
@@ -757,6 +758,16 @@ class ClusterFormationTasks {
         if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
                     "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
+        }
+    }
+
+    /** Find the plugin name in the given project, whether a regular plugin or meta plugin. */
+    static String findPluginName(Project pluginProject) {
+        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
+        if (extension != null) {
+            return extension.name
+        } else {
+            return pluginProject.extensions.findByName('es_meta_plugin').name
         }
     }
 }

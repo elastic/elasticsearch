@@ -27,6 +27,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -75,6 +76,13 @@ public final class Definition {
     public final Type IteratorType;
     public final Type ArrayListType;
     public final Type HashMapType;
+
+    /** Marker class for def type to be used during type analysis. */
+    public static final class def {
+        private def() {
+
+        }
+    }
 
     public static final class Type {
         public final String name;
@@ -365,40 +373,41 @@ public final class Definition {
     }
 
     public static class Cast {
+
         /** Create a standard cast with no boxing/unboxing. */
-        public static Cast standard(Type from, Type to, boolean explicit) {
+        public static Cast standard(Class<?> from, Class<?> to, boolean explicit) {
             return new Cast(from, to, explicit, null, null, null, null);
         }
 
         /** Create a cast where the from type will be unboxed, and then the cast will be performed. */
-        public static Cast unboxFrom(Type from, Type to, boolean explicit, Type unboxFrom) {
+        public static Cast unboxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom) {
             return new Cast(from, to, explicit, unboxFrom, null, null, null);
         }
 
         /** Create a cast where the to type will be unboxed, and then the cast will be performed. */
-        public static Cast unboxTo(Type from, Type to, boolean explicit, Type unboxTo) {
+        public static Cast unboxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxTo) {
             return new Cast(from, to, explicit, null, unboxTo, null, null);
         }
 
         /** Create a cast where the from type will be boxed, and then the cast will be performed. */
-        public static Cast boxFrom(Type from, Type to, boolean explicit, Type boxFrom) {
+        public static Cast boxFrom(Class<?> from, Class<?> to, boolean explicit, Class<?> boxFrom) {
             return new Cast(from, to, explicit, null, null, boxFrom, null);
         }
 
         /** Create a cast where the to type will be boxed, and then the cast will be performed. */
-        public static Cast boxTo(Type from, Type to, boolean explicit, Type boxTo) {
+        public static Cast boxTo(Class<?> from, Class<?> to, boolean explicit, Class<?> boxTo) {
             return new Cast(from, to, explicit, null, null, null, boxTo);
         }
 
-        public final Type from;
-        public final Type to;
+        public final Class<?> from;
+        public final Class<?> to;
         public final boolean explicit;
-        public final Type unboxFrom;
-        public final Type unboxTo;
-        public final Type boxFrom;
-        public final Type boxTo;
+        public final Class<?> unboxFrom;
+        public final Class<?> unboxTo;
+        public final Class<?> boxFrom;
+        public final Class<?> boxTo;
 
-        private Cast(Type from, Type to, boolean explicit, Type unboxFrom, Type unboxTo, Type boxFrom, Type boxTo) {
+        private Cast(Class<?> from, Class<?> to, boolean explicit, Class<?> unboxFrom, Class<?> unboxTo, Class<?> boxFrom, Class<?> boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
@@ -499,6 +508,124 @@ public final class Definition {
                constant.clazz == String.class;
     }
 
+    public static Class<?> ObjectClassTodefClass(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == Object.class) {
+                char[] braces = new char[dimensions];
+                Arrays.fill(braces, '[');
+
+                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(def.class).getDescriptor();
+                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+
+                try {
+                    return Class.forName(type.getInternalName().replace('/', '.'));
+                } catch (ClassNotFoundException exception) {
+                    throw new IllegalStateException("internal error", exception);
+                }
+            }
+        } else if (clazz == Object.class) {
+            return def.class;
+        }
+
+        return clazz;
+    }
+
+    public static Class<?> defClassToObjectClass(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == def.class) {
+                char[] braces = new char[dimensions];
+                Arrays.fill(braces, '[');
+
+                String descriptor = new String(braces) + org.objectweb.asm.Type.getType(Object.class).getDescriptor();
+                org.objectweb.asm.Type type = org.objectweb.asm.Type.getType(descriptor);
+
+                try {
+                    return Class.forName(type.getInternalName().replace('/', '.'));
+                } catch (ClassNotFoundException exception) {
+                    throw new IllegalStateException("internal error", exception);
+                }
+            }
+        } else if (clazz == def.class) {
+            return Object.class;
+        }
+
+        return clazz;
+    }
+
+    public static String ClassToName(Class<?> clazz) {
+        if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (component == def.class) {
+                StringBuilder builder = new StringBuilder("def");
+
+                for (int dimension = 0; dimension < dimensions; dimensions++) {
+                    builder.append("[]");
+                }
+
+                return builder.toString();
+            }
+        } else if (clazz == def.class) {
+            return "def";
+        }
+
+        return clazz.getCanonicalName().replace('$', '.');
+    }
+
+    public Type ClassToType(Class<?> clazz) {
+        if (clazz == null) {
+            return null;
+        } else if (clazz.isArray()) {
+            Class<?> component = clazz.getComponentType();
+            int dimensions = 1;
+
+            while (component.isArray()) {
+                component = component.getComponentType();
+                ++dimensions;
+            }
+
+            if (clazz == def.class) {
+                return getType(structsMap.get("def"), dimensions);
+            } else {
+                return getType(runtimeMap.get(clazz).struct, dimensions);
+            }
+        } else if (clazz == def.class) {
+            return getType(structsMap.get("def"), 0);
+        }
+
+        return getType(structsMap.get(ClassToName(clazz)), 0);
+    }
+
+    public static Class<?> TypeToClass (Type type) {
+        if (type.dynamic) {
+            return ObjectClassTodefClass(type.clazz);
+        }
+
+        return type.clazz;
+    }
+
     public RuntimeClass getRuntimeClass(Class<?> clazz) {
         return runtimeMap.get(clazz);
     }
@@ -535,8 +662,6 @@ public final class Definition {
     private final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
-
-    public AnalyzerCaster caster;
 
     public Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
@@ -719,8 +844,6 @@ public final class Definition {
         IteratorType = getType("Iterator");
         ArrayListType = getType("ArrayList");
         HashMapType = getType("HashMap");
-
-        caster = new AnalyzerCaster(this);
     }
 
     private void addStruct(ClassLoader whitelistClassLoader, Whitelist.Struct whitelistStruct) {

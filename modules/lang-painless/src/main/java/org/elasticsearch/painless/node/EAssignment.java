@@ -19,9 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
+
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -139,33 +143,41 @@ public final class EAssignment extends AExpression {
         boolean shift = false;
 
         if (operation == Operation.MUL) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual), true));
         } else if (operation == Operation.DIV) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual), true));
         } else if (operation == Operation.REM) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual), true));
         } else if (operation == Operation.ADD) {
-            promote = locals.getDefinition().caster.promoteAdd(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteAdd(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual)));
         } else if (operation == Operation.SUB) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, rhs.actual, true);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual), true));
         } else if (operation == Operation.LSH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), false));
+            shiftDistance = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(rhs.actual), false));
             shift = true;
         } else if (operation == Operation.RSH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), false));
+            shiftDistance = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(rhs.actual), false));
             shift = true;
         } else if (operation == Operation.USH) {
-            promote = locals.getDefinition().caster.promoteNumeric(lhs.actual, false);
-            shiftDistance = locals.getDefinition().caster.promoteNumeric(rhs.actual, false);
+            promote = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(lhs.actual), false));
+            shiftDistance = locals.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(rhs.actual), false));
             shift = true;
         } else if (operation == Operation.BWAND) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteXor(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual)));
         } else if (operation == Operation.XOR) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteXor(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual)));
         } else if (operation == Operation.BWOR) {
-            promote = locals.getDefinition().caster.promoteXor(lhs.actual, rhs.actual);
+            promote = locals.getDefinition().ClassToType(
+                AnalyzerCaster.promoteXor(Definition.TypeToClass(lhs.actual), Definition.TypeToClass(rhs.actual)));
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
@@ -199,8 +211,8 @@ public final class EAssignment extends AExpression {
 
         rhs = rhs.cast(locals);
 
-        there = locals.getDefinition().caster.getLegalCast(location, lhs.actual, promote, false, false);
-        back = locals.getDefinition().caster.getLegalCast(location, promote, lhs.actual, true, false);
+        there = AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(lhs.actual), Definition.TypeToClass(promote), false, false);
+        back = AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(promote), Definition.TypeToClass(lhs.actual), true, false);
 
         this.statement = true;
         this.actual = read ? lhs.actual : locals.getDefinition().voidType;
@@ -263,12 +275,12 @@ public final class EAssignment extends AExpression {
             writer.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                             // before concat helper on stack
             lhs.load(writer, globals);                                      // read the current lhs's value
-            writer.writeAppendStrings(lhs.actual);                          // append the lhs's value using the StringBuilder
+            writer.writeAppendStrings(Definition.TypeToClass(lhs.actual));  // append the lhs's value using the StringBuilder
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) { // check to see if the rhs has already done a concatenation
-                writer.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
+            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
+                writer.writeAppendStrings(Definition.TypeToClass(rhs.actual)); // append the rhs's value since it's hasn't already
             }
 
             writer.writeToStrings(); // put the value for string concat onto the stack
@@ -302,9 +314,9 @@ public final class EAssignment extends AExpression {
         // write the operation instruction for compound assignment
             if (promote.dynamic) {
                 writer.writeDynamicBinaryInstruction(
-                    location, promote, DefType, DefType, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
+                    location, Definition.TypeToClass(promote), def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
             } else {
-                writer.writeBinaryInstruction(location, promote, operation);
+                writer.writeBinaryInstruction(location, Definition.TypeToClass(promote), operation);
             }
 
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type

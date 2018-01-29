@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats.Bounds;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExtendedStats;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ParsedExtend
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -187,5 +189,45 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalExtendedStats(name, count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metaData);
+    }
+
+    public void testSummationAccuracy() {
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifySumOfSqrsOfDoubles(values, 13.5, 0d);
+
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifySumOfSqrsOfDoubles(values, sum, TOLERANCE);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifySumOfSqrsOfDoubles(largeValues, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifySumOfSqrsOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifySumOfSqrsOfDoubles(double[] values, double expectedSumOfSqrs, double delta) {
+        List<InternalAggregation> aggregations = new ArrayList<>(values.length);
+        double sigma = randomDouble();
+        for (double sumOfSqrs : values) {
+            aggregations.add(new InternalExtendedStats("dummy1", 1, 0.0, 0.0, 0.0, sumOfSqrs, sigma, null, null, null));
+        }
+        InternalExtendedStats stats = new InternalExtendedStats("dummy", 1, 0.0, 0.0, 0.0, 0.0, sigma, null, null, null);
+        InternalExtendedStats reduced = stats.doReduce(aggregations, null);
+        assertEquals(expectedSumOfSqrs, reduced.getSumOfSquares(), delta);
     }
 }

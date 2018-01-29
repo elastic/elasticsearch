@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gradle.plugin
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestTestPlugin
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.test.StandaloneRestTestPlugin
@@ -40,8 +40,11 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
 
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
-            distribution = 'zip'
-            setupCommand('installMetaPlugin', 'bin/elasticsearch-plugin', 'install', 'file:' + project.bundlePlugin.archivePath)
+            plugin(project.path)
+        }
+        BuildPlugin.configurePomGeneration(project)
+        project.afterEvaluate {
+            PluginBuildPlugin.addZipPomGeneration(project)
         }
 
         RunTask run = project.tasks.create('run', RunTask)

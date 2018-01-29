@@ -459,6 +459,8 @@ class BuildPlugin implements Plugin<Project> {
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
+                options.fork = true
+                options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
         }
@@ -657,7 +659,10 @@ class BuildPlugin implements Plugin<Project> {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
-        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+        // only require dependency licenses for non-elasticsearch deps
+        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
+            it.group.startsWith('org.elasticsearch') == false
+        } - project.configurations.provided
     }
 
     private static configureDependenciesInfo(Project project) {

@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -139,7 +138,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 Mapper mapper = builder.build(context);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
-                    mapper = existing.merge(mapper, false);
+                    mapper = existing.merge(mapper);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
@@ -426,17 +425,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, boolean updateAllTypes) {
+    public ObjectMapper merge(Mapper mergeWith) {
         if (!(mergeWith instanceof ObjectMapper)) {
             throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject, updateAllTypes);
+        merged.doMerge(mergeWithObject);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(final ObjectMapper mergeWith) {
         if (nested().isNested()) {
             if (!mergeWith.nested().isNested()) {
                 throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from nested to non-nested");
@@ -459,7 +458,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeWithMapper;
             } else {
                 // root mappers can only exist here for backcompat, and are merged in Mapping
-                merged = mergeIntoMapper.merge(mergeWithMapper, updateAllTypes);
+                merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
         }

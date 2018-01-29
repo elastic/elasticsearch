@@ -7,6 +7,8 @@ setup:
               mappings:
                 doc:
                   properties:
+                    date:
+                      type: date
                     keyword:
                       type: keyword
                     long:
@@ -41,6 +43,20 @@ setup:
         body:  { "keyword": "bar", "long": [1000, 0] }
 
   - do:
+      index:
+        index: test
+        type:  doc
+        id:    5
+        body:  { "date": "2017-10-20T03:08:45" }
+
+  - do:
+      index:
+        index: test
+        type:  doc
+        id:    6
+        body:  { "date": "2017-10-21T07:00:00" }
+
+  - do:
       indices.refresh:
         index: [test]
 
@@ -66,7 +82,7 @@ setup:
                   }
                 ]
 
-  - match: {hits.total: 4}
+  - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 2 }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
   - match: { aggregations.test.buckets.0.doc_count: 3 }
@@ -104,7 +120,7 @@ setup:
                   }
                 ]
 
-  - match: {hits.total: 4}
+  - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 5 }
   - match: { aggregations.test.buckets.0.key.long: 0}
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
@@ -154,7 +170,7 @@ setup:
                 ]
                 after: { "long": 20, "kw": "foo" }
 
-  - match: {hits.total: 4}
+  - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 2 }
   - match: { aggregations.test.buckets.0.key.long: 100 }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
@@ -166,8 +182,8 @@ setup:
 ---
 "Aggregate After Missing":
   - skip:
-      version: " - 6.99.99"
-      reason:  bug fixed in 7.0.0
+      version: " - 6.1.99"
+      reason:  bug fixed in 6.2.0
 
 
   - do:
@@ -188,7 +204,7 @@ setup:
                 ]
                 after: { "kw": "delta" }
 
-  - match: {hits.total: 4}
+  - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.kw: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 2 }
@@ -220,3 +236,90 @@ setup:
                         }
                       }
                     ]
+
+---
+"Composite aggregation with format":
+  - skip:
+      version: " - 6.2.99"
+      reason:  this uses a new option (format) added in 6.3.0
+
+  - do:
+      search:
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "interval": "1d",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+  - do:
+        search:
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  after: {
+                    date: "2017-10-20"
+                  }
+                  sources: [
+                    {
+                      "date": {
+                        "date_histogram": {
+                          "field": "date",
+                          "interval": "1d",
+                          "format": "yyyy-MM-dd"
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with after_key in the response":
+  - skip:
+      version: " - 6.2.99"
+      reason:  starting in 6.3.0 after_key is returned in the response
+
+  - do:
+        search:
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - length: { aggregations.test.after_key: 1 }
+  - match: { aggregations.test.after_key.keyword:  "foo" }

@@ -32,6 +32,8 @@ public interface NioChannel {
 
     InetSocketAddress getLocalAddress();
 
+    void close();
+
     void closeFromSelector() throws IOException;
 
     void register() throws ClosedChannelException;
@@ -41,6 +43,8 @@ public interface NioChannel {
     SelectionKey getSelectionKey();
 
     NetworkChannel getRawChannel();
+
+    ChannelContext getContext();
 
     /**
      * Adds a close listener to the channel. Multiple close listeners can be added. There is no guarantee

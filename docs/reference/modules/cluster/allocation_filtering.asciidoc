@@ -65,4 +65,3 @@ PUT _cluster/settings
 }
 ------------------------
 // CONSOLE
-// TEST[skip:indexes don't assign]

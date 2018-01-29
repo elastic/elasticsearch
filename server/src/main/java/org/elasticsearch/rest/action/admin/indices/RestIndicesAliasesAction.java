@@ -36,14 +36,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestIndicesAliasesAction extends BaseRestHandler {
-    static final ObjectParser<IndicesAliasesRequest, Void> PARSER = new ObjectParser<>("aliases");
-    static {
-        PARSER.declareObjectArray((request, actions) -> {
-            for (AliasActions action: actions) {
-                request.addAliasAction(action);
-            }
-        }, AliasActions.PARSER, new ParseField("actions"));
-    }
 
     @Override
     public String getName() {
@@ -61,7 +53,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         try (XContentParser parser = request.contentParser()) {
-            PARSER.parse(parser, indicesAliasesRequest, null);
+            IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);
         }
         if (indicesAliasesRequest.getAliasActions().isEmpty()) {
             throw new IllegalArgumentException("No action specified");

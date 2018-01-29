@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -75,14 +76,15 @@ final class SSubEachIterable extends AStatement {
         iterator = locals.addVariable(location, locals.getDefinition().getType("Iterator"),
                 "#itr" + location.getOffset(), true);
 
-        if (expression.actual.dynamic) {
+        if (expression.actual == def.class) {
             method = null;
         } else {
-            method = expression.actual.struct.methods.get(new MethodKey("iterator", 0));
+            Type actualType = locals.getDefinition().ClassToType(expression.actual);
+            method = actualType.struct.methods.get(new MethodKey("iterator", 0));
 
             if (method == null) {
                 throw createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + expression.actual.name + "]."));
+                    "Unable to create iterator for the type [" + actualType.name + "]."));
             }
         }
 

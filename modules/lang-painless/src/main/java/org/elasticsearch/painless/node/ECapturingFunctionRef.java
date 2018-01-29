@@ -70,13 +70,14 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 // typed implementation
                 defPointer = "S" + captured.type.name + "." + call + ",1";
             }
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
         } else {
             defPointer = null;
             // static case
             if (captured.type.dynamic == false) {
                 try {
-                    ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
+                    ref = new FunctionRef(
+                        locals.getDefinition(), locals.getDefinition().ClassToType(expected), captured.type.name, call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
@@ -108,8 +109,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         } else if (ref == null) {
             // typed interface, dynamic implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(expected.type, captured.type.type);
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, expected.name);
+            Type methodType = Type.getMethodType(MethodWriter.getType(expected), captured.type.type);
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, Definition.ClassToName(expected));
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());

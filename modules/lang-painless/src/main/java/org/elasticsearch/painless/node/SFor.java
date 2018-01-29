@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -94,7 +93,7 @@ public final class SFor extends AStatement {
         }
 
         if (condition != null) {
-            condition.expected = locals.getDefinition().booleanType;
+            condition.expected = boolean.class;
             condition.analyze(locals);
             condition = condition.cast(locals);
 
@@ -161,7 +160,7 @@ public final class SFor extends AStatement {
             AExpression initializer = (AExpression)this.initializer;
 
             initializer.write(writer, globals);
-            writer.writePop(initializer.expected.type.getSize());
+            writer.writePop(MethodWriter.getType(initializer.expected).getSize());
         }
 
         writer.mark(start);

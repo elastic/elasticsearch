@@ -1,8 +1,5 @@
 ---
 "Put job on the old cluster and post some data":
-  - skip:
-      version:  "all"
-      reason:   "Awaiting fix of #1760"
 
   - do:
       xpack.ml.put_job:

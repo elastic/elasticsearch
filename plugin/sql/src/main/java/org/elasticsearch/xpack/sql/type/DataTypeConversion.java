@@ -29,7 +29,7 @@ public abstract class DataTypeConversion {
      * Returns the type compatible with both left and right types
      * <p>
      * If one of the types is null - returns another type
-     * If both types are numeric - returns type with the highest precision int < long < float < double
+     * If both types are numeric - returns type with the highest precision int &lt; long &lt; float &lt; double
      * If one of the types is string and another numeric - returns numeric
      */
     public static DataType commonType(DataType left, DataType right) {

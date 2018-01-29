@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlRedirect;
 import org.elasticsearch.xpack.security.authc.saml.SamlUtils;
 import org.opensaml.saml.saml2.core.LogoutResponse;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,7 @@ public final class TransportSamlInvalidateSessionAction
                 })), listener::onFailure));
     }
 
-    private List<Tuple<UserToken, String>> filterTokens(List<Tuple<UserToken, String>> tokens, Map<String, Object> requiredMetadata) {
+    private List<Tuple<UserToken, String>> filterTokens(Collection<Tuple<UserToken, String>> tokens, Map<String, Object> requiredMetadata) {
         return tokens.stream()
                 .filter(tup -> {
                     Map<String, Object> actualMetadata = tup.v1().getMetadata();

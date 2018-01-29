@@ -8,9 +8,9 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
     testCompile project(path: ':modules:tribe', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
@@ -18,7 +18,7 @@ namingConventions.skipIntegTestInDisguise = true
 
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
-String xpackPath = project(':x-pack-elasticsearch:plugin:core').projectDir.toPath().resolve('src/test/resources').toString()
+String xpackPath = project(xpackModule('core')).projectDir.toPath().resolve('src/test/resources').toString()
 sourceSets {
     test {
         resources {
@@ -40,13 +40,13 @@ configOne.clusterName = 'cluster1'
 configOne.setting('node.name', 'cluster1-node1')
 configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
-configOne.plugin(':x-pack-elasticsearch:plugin')
+configOne.plugin(xpackProject('plugin').path)
 configOne.module(project.project(':modules:analysis-common'))
 configOne.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow",
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
             dest: tmpFile.toString(),
             username: 'test_user',
             password: 'x-pack-test-password',
@@ -62,13 +62,13 @@ configTwo.clusterName = 'cluster2'
 configTwo.setting('node.name', 'cluster2-node1')
 configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
-configTwo.plugin(':x-pack-elasticsearch:plugin')
+configTwo.plugin(xpackProject('plugin').path)
 configTwo.module(project.project(':modules:analysis-common'))
 configTwo.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow",
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
             dest: tmpFile.toString(),
             username: 'test_user',
             password: 'x-pack-test-password',
@@ -80,7 +80,7 @@ List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo'
 
 integTestCluster {
     dependsOn setupClusterOne, setupClusterTwo
-    plugin ':x-pack-elasticsearch:plugin'
+    plugin xpackProject('plugin').path
     setupCommand 'setupDummyUser',
             'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false
@@ -99,7 +99,7 @@ integTestCluster {
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow",
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow&timeout=60s",
                 dest: tmpFile.toString(),
                 username: 'test_user',
                 password: 'x-pack-test-password',

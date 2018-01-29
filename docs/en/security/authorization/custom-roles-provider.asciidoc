@@ -3,7 +3,8 @@
 
 If you need to retrieve user roles from a system not supported out-of-the-box
 by {security}, you can create a custom roles provider to retrieve and resolve
-roles. You implement a custom roles provider as an {xpack} extension.
+roles. You implement a custom roles provider as an SPI loaded security extension
+as part of an ordinary elasticsearch plugin.
 
 [[implementing-custom-roles-provider]]
 ==== Implementing a Custom Roles Provider
@@ -22,8 +23,8 @@ To create a custom roles provider:
 
 To package your custom roles provider as a plugin:
 
-. Implement an extension class for your roles provider that extends
-  `org.elasticsearch.xpack.core.extensions.XPackExtension`. There you need to
+. Implement an extension class for your roles provider that implements
+  `org.elasticsearch.xpack.core.security.SecurityExtension`. There you need to
   override one or more of the following methods:
 +
 [source,java]
@@ -51,12 +52,13 @@ public List<String> getSettingsFilter() {
 }
 ----------------------------------------------------
 +
-The `getSettingsFilter` method returns a list of setting names that should be
-filtered from the settings APIs as they may contain sensitive credentials.
+The `Plugin#getSettingsFilter` method returns a list of setting names that should be
+filtered from the settings APIs as they may contain sensitive credentials. Note this method is not
+part of the `SecurityExtension` interface, it's available as part of the elasticsearch plugin main class.
 
 . Create a build configuration file for the plugin; Gradle is our recommendation.
-. Create a `x-pack-extension-descriptor.properties` descriptor file for the
-  extension.
+. Create a `META-INF/services/org.elasticsearch.xpack.core.security.SecurityExtension` descriptor file for the
+  extension that contains the fully qualified class name of your `org.elasticsearch.xpack.core.security.SecurityExtension` implementation
 . Bundle all in a single zip file.
 
 [[using-custom-roles-provider]]
@@ -65,12 +67,12 @@ filtered from the settings APIs as they may contain sensitive credentials.
 To use a custom roles provider:
 
 . Install the roles provider extension on each node in the cluster. You run
-  `bin/x-pack/extension` with the `install` sub-command and specify the URL
+  `bin/elasticsearch-plugin` with the `install` sub-command and specify the URL
   pointing to the zip file that contains the extension. For example:
 +
 [source,shell]
 ----------------------------------------
-bin/x-pack/extension install file:///<path>/my-roles-provider-1.0.zip
+bin/elasticsearch-plugin install file:///<path>/my-roles-provider-1.0.zip
 ----------------------------------------
 
 . Add any configuration parameters for any of the custom roles provider implementations

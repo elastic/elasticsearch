@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
 ext {
@@ -18,7 +18,7 @@ ext {
 }
 
 integTestCluster {
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

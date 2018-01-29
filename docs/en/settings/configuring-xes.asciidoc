@@ -8,7 +8,5 @@
 include::{asciidoc-dir}/../../shared/settings.asciidoc[]
 include::license-settings.asciidoc[]
 include::ml-settings.asciidoc[]
-include::monitoring-settings.asciidoc[]
-//include::security-settings.asciidoc[]
 include::notification-settings.asciidoc[]
 include::sql-settings.asciidoc[]

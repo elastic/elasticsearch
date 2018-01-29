@@ -17,7 +17,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.util.HashSet;
 import java.util.Set;

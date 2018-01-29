@@ -20,15 +20,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobDataDeleter;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 import java.util.Date;
 import java.util.function.Consumer;

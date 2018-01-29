@@ -113,7 +113,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     refresh();
 
                     assertThat(client().admin().indices().prepareExists(".monitoring-*").get().isExists(), is(true));
-                    ensureYellow(".monitoring-*");
+                    ensureYellowAndNoInitializingShards(".monitoring-*");
 
                     SearchResponse response = client().prepareSearch(".monitoring-*").get();
                     assertEquals(nbDocs, response.getHits().getTotalHits());
@@ -132,7 +132,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             final int numNodes = internalCluster().getNodeNames().length;
             assertBusy(() -> {
                 assertThat(client().admin().indices().prepareExists(".monitoring-*").get().isExists(), is(true));
-                ensureYellow(".monitoring-*");
+                ensureYellowAndNoInitializingShards(".monitoring-*");
 
                 assertThat(client().prepareSearch(".monitoring-es-*")
                         .setSize(0)
@@ -193,7 +193,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         assertBusy(() -> {
             IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(".monitoring-*").get();
             if (indicesExistsResponse.isExists()) {
-                ensureYellow(".monitoring-*");
+                ensureYellowAndNoInitializingShards(".monitoring-*");
                 refresh(".monitoring-es-*");
 
                 SearchResponse response = client().prepareSearch(".monitoring-es-*")

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
+import org.elasticsearch.xpack.core.scheduler.Cron;
+
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;

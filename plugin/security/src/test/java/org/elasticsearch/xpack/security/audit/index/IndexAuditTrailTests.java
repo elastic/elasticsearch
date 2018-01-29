@@ -886,7 +886,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     private SearchHit getIndexedAuditMessage(Message message) throws InterruptedException {
         assertNotNull("no audit message was enqueued", message);
         final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, message.timestamp, rollover);
-        ensureYellow(indexName);
+        ensureYellowAndNoInitializingShards(indexName);
         GetSettingsResponse settingsResponse = getClient().admin().indices().prepareGetSettings(indexName).get();
         assertThat(settingsResponse.getSetting(indexName, "index.number_of_shards"), is(Integer.toString(numShards)));
         assertThat(settingsResponse.getSetting(indexName, "index.number_of_replicas"), is(Integer.toString(numReplicas)));
@@ -916,14 +916,18 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public ClusterHealthStatus ensureYellow(String... indices) {
+    public ClusterHealthStatus ensureYellowAndNoInitializingShards(String... indices) {
         if (remoteIndexing == false) {
-            return super.ensureYellow(indices);
+            return super.ensureYellowAndNoInitializingShards(indices);
         }
 
-        // pretty ugly but just a rip of ensureYellow that uses a different client
+        // pretty ugly but just a rip of ensureYellowAndNoInitializingShards that uses a different client
         ClusterHealthResponse actionGet = getClient().admin().cluster().health(Requests.clusterHealthRequest(indices)
-                .waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .waitForNoRelocatingShards(true)
+                .waitForYellowStatus()
+                .waitForEvents(Priority.LANGUID)
+                .waitForNoInitializingShards(true))
+                .actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}",
                     getClient().admin().cluster().prepareState().get().getState(),

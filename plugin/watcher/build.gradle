@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -6,19 +6,12 @@ esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Watcher'
   classname 'org.elasticsearch.xpack.watcher.Watcher'
   hasNativeController false
-  requiresKeystore true
+  requiresKeystore false
   extendedPlugins = ['x-pack-core']
-  licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-  noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 
 archivesBaseName = 'x-pack-watcher'
 
-licenseHeaders.enabled = false
-
-integTest.enabled = false
-
-// TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
@@ -36,7 +29,7 @@ dependencies {
     provided project(path: ':modules:transport-netty4', configuration: 'runtime')
     provided project(path: ':plugins:transport-nio', configuration: 'runtime')
 
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
@@ -106,7 +99,7 @@ if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
 
 test {
@@ -117,16 +110,7 @@ test {
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
-integTestRunner {
-    /*
-     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
-     * other if we allow them to set the number of available processors as it's set-once in Netty.
-     */
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-
-integTestRunner {
-    // TODO: this test was failing for the big split merge
-    def blacklist = ['watcher/execute_watch/*']
-    systemProperty 'tests.rest.blacklist', blacklist.join(',')
-}
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false

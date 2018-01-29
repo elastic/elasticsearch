@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
@@ -79,9 +78,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.extensions.XPackExtension;
-import org.elasticsearch.xpack.core.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
@@ -228,12 +226,10 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
-import static org.elasticsearch.xpack.core.XPackPlugin.resolveXPackExtensionsFile;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
@@ -266,17 +262,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
-    private final XPackExtensionsService extensionsService;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
 
-
     public Security(Settings settings, final Path configPath) {
+        this(settings, configPath, Collections.emptyList());
+    }
+
+    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.env = transportClientMode ? null : new Environment(settings, configPath);
-        this.extensionsService = transportClientMode ? null : new XPackExtensionsService(settings, resolveXPackExtensionsFile(env),
-                Collections.emptyList());
-
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
@@ -295,6 +290,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
+        this.securityExtensions.addAll(extensions);
     }
 
     @Override
@@ -353,8 +349,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService,
-                    extensionsService.getExtensions().stream().collect(Collectors.toList()));
+            return createComponents(client, threadPool, clusterService, resourceWatcherService);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -362,8 +357,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
-                                               ResourceWatcherService resourceWatcherService,
-                                               List<SecurityExtension> extensions) throws Exception {
+                                               ResourceWatcherService resourceWatcherService) throws Exception {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -417,9 +411,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityLifecycleService));
         for (SecurityExtension extension : securityExtensions) {
-            extensions.add(extension);
-        }
-        for (SecurityExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
                 if (realmFactories.put(entry.getKey(), entry.getValue()) != null) {
@@ -435,7 +426,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
-        for (SecurityExtension extension : extensions) {
+        for (SecurityExtension extension : securityExtensions) {
             AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
             if (extensionFailureHandler != null && failureHandler != null) {
                 throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
@@ -459,7 +450,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityLifecycleService);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
-        for (SecurityExtension extension : extensions) {
+        for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
@@ -542,13 +533,13 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<Setting<?>> getSettings() {
-        return getSettings(transportClientMode, extensionsService);
+        return getSettings(transportClientMode, securityExtensions);
     }
 
         /**
          * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
          */
-    public static List<Setting<?>> getSettings(boolean transportClientMode, @Nullable XPackExtensionsService extensionsService) {
+    public static List<Setting<?>> getSettings(boolean transportClientMode, List<SecurityExtension> securityExtensions) {
         List<Setting<?>> settingsList = new ArrayList<>();
 
         if (transportClientMode) {
@@ -567,7 +558,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         // authentication settings
         AnonymousUser.addSettings(settingsList);
-        RealmSettings.addSettings(settingsList, extensionsService == null ? null : extensionsService.getExtensions());
+        RealmSettings.addSettings(settingsList, securityExtensions);
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
@@ -596,8 +587,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(AuthenticationServiceField.RUN_AS_USER_HEADER);
         }
-        headers.addAll(extensionsService.getExtensions().stream()
-            .flatMap(e -> e.getRestHeaders().stream()).collect(Collectors.toList()));
         return headers;
     }
 
@@ -605,12 +594,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public List<String> getSettingsFilter() {
         List<String> asArray = settings.getAsList(SecurityField.setting("hide_settings"));
         ArrayList<String> settingsFilter = new ArrayList<>(asArray);
-        if (transportClientMode == false) {
-            settingsFilter.addAll(RealmSettings.getSettingsFilter(extensionsService.getExtensions()));
-            for (XPackExtension extension : extensionsService.getExtensions()) {
-                settingsFilter.addAll(extension.getSettingsFilter());
-            }
-        }
+        settingsFilter.addAll(RealmSettings.getSettingsFilter(securityExtensions));
         // hide settings where we don't define them - they are part of a group...
         settingsFilter.add("transport.profiles.*." + SecurityField.setting("*"));
         return settingsFilter;

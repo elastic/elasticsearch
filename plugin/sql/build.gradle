@@ -108,3 +108,6 @@ task regen {
     }
 }
 
+//project(xpackModule('core')).bundlePlugin {
+//    from jar
+//}

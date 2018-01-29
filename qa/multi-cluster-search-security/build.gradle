@@ -3,8 +3,8 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 task remoteClusterTest(type: RestIntegTestTask) {
@@ -16,7 +16,7 @@ remoteClusterTestCluster {
   numNodes = 2
   clusterName = 'remote-cluster'
   setting 'search.remote.connect', false
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -42,7 +42,7 @@ task mixedClusterTest(type: RestIntegTestTask) {}
 
 mixedClusterTestCluster {
   dependsOn remoteClusterTestRunner
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

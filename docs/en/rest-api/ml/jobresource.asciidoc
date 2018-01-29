@@ -49,7 +49,9 @@ so do not set the `background_persist_interval` value too low.
   many. For example, `["group1", "group2"]`.
 
 `job_id`::
-  (string) The unique identifier for the job.
+  (string) The unique identifier for the job. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
 
 `job_type`::
   (string) Reserved for future use, currently set to `anomaly_detector`.

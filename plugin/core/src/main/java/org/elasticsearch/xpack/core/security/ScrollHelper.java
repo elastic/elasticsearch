@@ -67,6 +67,10 @@ public final class ScrollHelper {
                             listener.onFailure(new IllegalStateException("scrolling returned more hits [" + results.size()
                                     + "] than expected [" + resp.getHits().getTotalHits() + "] so bailing out to prevent unbounded "
                                     + "memory consumption."));
+                        } else if (results.size() == resp.getHits().getTotalHits()) {
+                            clearScroll.accept(resp);
+                            // Finally, return the list of the entity
+                            listener.onResponse(Collections.unmodifiableList(results));
                         } else {
                             SearchScrollRequest scrollRequest = new SearchScrollRequest(resp.getScrollId());
                             scrollRequest.scroll(request.scroll().keepAlive());
@@ -74,7 +78,7 @@ public final class ScrollHelper {
                         }
                     } else {
                         clearScroll.accept(resp);
-                        // Finally, return the list of users
+                        // Finally, return the list of the entity
                         listener.onResponse(Collections.unmodifiableList(results));
                     }
                 } catch (Exception e){

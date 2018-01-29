@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -6,16 +6,10 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Deprecation'
     classname 'org.elasticsearch.xpack.deprecation.Deprecation'
     hasNativeController false
-    requiresKeystore true
+    requiresKeystore false
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-deprecation'
-
-licenseHeaders.enabled = false
-
-integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
@@ -28,5 +22,7 @@ dependencyLicenses {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
+
+integTest.enabled = false

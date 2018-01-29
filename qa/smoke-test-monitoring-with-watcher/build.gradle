@@ -2,13 +2,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:watcher')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:monitoring')
+  testCompile project(path: xpackModule('core'))
+  testCompile project(path: xpackModule('watcher'))
+  testCompile project(path: xpackModule('monitoring'))
 }
 
 integTestCluster {
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.watcher.enabled', 'true'
   setting 'xpack.security.enabled', 'false'

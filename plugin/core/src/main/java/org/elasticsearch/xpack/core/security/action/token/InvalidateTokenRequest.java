@@ -74,7 +74,7 @@ public final class InvalidateTokenRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeVInt(tokenType.ordinal());
         } else if (tokenType == Type.REFRESH_TOKEN) {
-            throw new UnsupportedOperationException("refresh token invalidation cannot be serialized with version [" + out.getVersion() +
+            throw new IllegalArgumentException("refresh token invalidation cannot be serialized with version [" + out.getVersion() +
                     "]");
         }
     }

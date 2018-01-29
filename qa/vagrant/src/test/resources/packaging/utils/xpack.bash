@@ -5,37 +5,81 @@
 # you may not use this file except in compliance with the Elastic License.
 
 install_xpack() {
-    install_and_check_plugin x pack x-pack-core-*.jar x-pack-graph-*.jar x-pack-ml-*.jar \
-            x-pack-monitoring-*.jar x-pack-security-*.jar x-pack-watcher-*.jar
+    install_meta_plugin x-pack
 }
 
 # Checks that X-Pack files are correctly installed
 verify_xpack_installation() {
+    local name="x-pack"
     local user="$ESPLUGIN_COMMAND_USER"
     local group="$ESPLUGIN_COMMAND_USER"
 
-    assert_file "$ESHOME/bin/x-pack" d $user $group 755
-    assert_file "$ESHOME/bin/x-pack/certgen" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/croneval" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/extension" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/migrate" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/saml-metadata" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/setup-passwords" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/sql-cli" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/syskeygen" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/users" f $user $group 755
-    assert_file "$ESHOME/bin/x-pack/x-pack-env" f $user $group 755
-    assert_number_of_files "$ESHOME/bin/x-pack/" 24
+    # Verify binary files
+    assert_file "$ESHOME/bin/$name" d $user $group 755
+    local binaryFiles=(
+        'certgen'
+        'certgen.bat'
+        'certutil'
+        'certutil.bat'
+        'croneval'
+        'croneval.bat'
+        'extension'
+        'extension.bat'
+        'migrate'
+        'migrate.bat'
+        'saml-metadata'
+        'saml-metadata.bat'
+        'setup-passwords'
+        'setup-passwords.bat'
+        'sql-cli'
+        'sql-cli.bat'
+        'syskeygen'
+        'syskeygen.bat'
+        'users'
+        'users.bat'
+        'x-pack-env'
+        'x-pack-env.bat'
+        'x-pack-security-env'
+        'x-pack-security-env.bat'
+        'x-pack-watcher-env'
+        'x-pack-watcher-env.bat'
+    )
 
-    assert_file "$ESCONFIG/x-pack" d $user elasticsearch 750
-    assert_file "$ESCONFIG/x-pack/users" f $user elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/users_roles" f $user elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/roles.yml" f $user elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/role_mapping.yml" f $user elasticsearch 660
-    assert_file "$ESCONFIG/x-pack/log4j2.properties" f $user elasticsearch 660
-    assert_number_of_files "$ESCONFIG/x-pack" 5
+    local binaryFilesCount=0
+    for binaryFile in ${binaryFiles[@]}; do
+        assert_file "$ESHOME/bin/$name/${binaryFile}" f $user $group 755
+        binaryFilesCount=$(( binaryFilesCount + 1 ))
+    done
+    assert_number_of_files "$ESHOME/bin/$name/" $binaryFilesCount
 
+    # Verify config files
+    assert_file "$ESCONFIG/$name" d $user elasticsearch 750
+    local configFiles=(
+        'users'
+        'users_roles'
+        'roles.yml'
+        'role_mapping.yml'
+        'log4j2.properties'
+    )
+
+    local configFilesCount=0
+    for configFile in ${configFiles[@]}; do
+        assert_file "$ESCONFIG/$name/${configFile}" f $user elasticsearch 660
+        configFilesCount=$(( configFilesCount + 1 ))
+    done
+    assert_number_of_files "$ESCONFIG/$name/" $configFilesCount
+
+    # Verify keystore creation
     assert_file "$ESCONFIG/elasticsearch.keystore" f $user elasticsearch 660
+
+    # Read the $name.expected file that contains all the expected
+    # plugins for the meta plugin
+    while read plugin; do
+        assert_module_or_plugin_directory "$ESPLUGINS/$name/$plugin"
+        assert_file_exist "$ESPLUGINS/$name/$plugin/$plugin"*".jar"
+        assert_file_exist "$ESPLUGINS/$name/$plugin/plugin-descriptor.properties"
+        assert_file_exist "$ESPLUGINS/$name/$plugin/plugin-security.policy"
+    done </project/build/plugins/$name.expected
 }
 
 assert_number_of_files() {

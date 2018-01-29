@@ -50,7 +50,6 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
     protected void createIndex(String name, DateTime creationDate) {
         assertAcked(prepareCreate(name)
                 .setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, creationDate.getMillis()).build()));
-        ensureYellow(name);
     }
 
     @Override

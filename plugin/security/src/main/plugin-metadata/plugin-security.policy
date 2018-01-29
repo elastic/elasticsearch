@@ -5,6 +5,7 @@ grant {
   permission java.util.PropertyPermission "*", "read,write";
 
   // needed because of SAML (cf. o.e.x.s.s.RestorableContextClassLoader)
+  permission java.lang.RuntimePermission "getClassLoader";
   permission java.lang.RuntimePermission "setContextClassLoader";
 
   // needed for multiple server implementations used in tests

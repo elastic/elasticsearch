@@ -128,8 +128,6 @@ public class GraphTests extends ESSingleNodeTestCase {
 
         checkVertexDepth(response, 0, "john", "paul", "george", "ringo");
         checkVertexDepth(response, 1, "stevie", "yoko", "roy");
-        checkVertexIsMoreImportant(response, "John's only collaboration is more relevant than one of Paul's many", "yoko", "stevie");
-        checkVertexIsMoreImportant(response, "John's only collaboration is more relevant than George's with profligate Roy", "yoko", "roy");
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people","elvis")));
     }
     

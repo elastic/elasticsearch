@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.upgrade;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -32,7 +33,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,11 +50,13 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsEqual.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3729")
 public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ReindexPlugin.class, CustomScriptPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class,
+                             ReindexPlugin.class, CustomScriptPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

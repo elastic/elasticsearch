@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.core.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;

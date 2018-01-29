@@ -14,13 +14,13 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
 String outputDir = "generated-resources/${project.name}"
 task copyXPackPluginProps(type: Copy) {
-  from project(':x-pack-elasticsearch:plugin:core').file('src/main/plugin-metadata')
-  from project(':x-pack-elasticsearch:plugin:core').tasks.pluginProperties
+  from project(xpackModule('core')).file('src/main/plugin-metadata')
+  from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
@@ -160,7 +160,7 @@ integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCert
 
 
 ext.pluginsCount = 0
-project(':x-pack-elasticsearch:plugin').subprojects { Project p ->
+project(xpackProject('plugin').path).subprojects { Project p ->
   // the meta plugin contains the individual xpack plugins
   if (p.extensions.findByName('esplugin') != null) {
     pluginsCount += 1
@@ -188,7 +188,7 @@ integTestCluster {
 
   setting 'xpack.ml.enabled', 'false'
 
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
 
   // copy keystores into config/
   extraConfigFile nodeKeystore.name, nodeKeystore

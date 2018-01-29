@@ -77,7 +77,7 @@ public class ElasticsearchMappings {
     /**
      * Name of the Elasticsearch field by which documents are sorted by default
      */
-    static final String ES_DOC = "_doc";
+    public static final String ES_DOC = "_doc";
 
     /**
      * Elasticsearch data types
@@ -301,7 +301,7 @@ public class ElasticsearchMappings {
         addModelSizeStatsFieldsToMapping(builder);
     }
 
-    static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
+    public static XContentBuilder termFieldsMapping(String type, Collection<String> termFields) {
         try {
             XContentBuilder builder = jsonBuilder().startObject();
             if (type != null) {

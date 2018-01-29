@@ -8,9 +8,6 @@ setup:
 
 ---
 "Test open old jobs":
-  - skip:
-      version:  "all"
-      reason:   "Awaiting fix of #1760"
 
   - do:
       xpack.ml.open_job:
@@ -97,3 +94,27 @@ setup:
         job_id: no-model-memory-limit-job
   - match: { acknowledged: true }
 
+---
+"Test get job with rules":
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: old-cluster-job-with-rules
+  - match: { count: 1 }
+  - match: {
+      jobs.0.analysis_config.detectors.0.rules: [
+        {
+          "actions": ["filter_results"],
+          "conditions_connective": "or",
+          "conditions": [
+            {
+              "type":"numerical_actual",
+              "field_name":"country",
+              "field_value": "uk",
+              "condition": {"operator":"lt","value":"33.3"}
+            },
+            {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+          ]
+        }
+      ]
+    }

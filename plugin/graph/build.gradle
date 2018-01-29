@@ -1,4 +1,4 @@
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -6,22 +6,16 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Graph'
     classname 'org.elasticsearch.xpack.graph.Graph'
     hasNativeController false
-    requiresKeystore true
+    requiresKeystore false
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-graph'
-
-licenseHeaders.enabled = false
-
-integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
 
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {
@@ -29,5 +23,7 @@ dependencyLicenses {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }
+
+integTest.enabled = false

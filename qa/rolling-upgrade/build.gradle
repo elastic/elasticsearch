@@ -10,9 +10,9 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:security', configuration: 'runtime')
-  testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts') // to be moved in a later commit
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('security'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -100,7 +100,7 @@ subprojects {
 
   String output = "generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack-elasticsearch:plugin:core')
+    from project(xpackModule('core'))
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
@@ -115,7 +115,7 @@ subprojects {
     Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
-      plugin ':x-pack-elasticsearch:plugin'
+      plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       bwcVersion = version
@@ -160,7 +160,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
       dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-      plugin ':x-pack-elasticsearch:plugin'
+      plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
@@ -198,7 +198,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
       dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-      plugin ':x-pack-elasticsearch:plugin'
+      plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       distribution = 'zip'
       clusterName = 'rolling-upgrade'
@@ -266,9 +266,9 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'runtime')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
-    testCompile project(path: ':x-pack-elasticsearch:plugin:watcher')
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('watcher'))
   }
 
   compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
@@ -276,15 +276,15 @@ subprojects {
   // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
   task copyXPackRestSpec(type: Copy) {
     dependsOn(project.configurations.restSpec, 'processTestResources')
-    from project(':x-pack-elasticsearch:plugin:core').sourceSets.test.resources
+    from project(xpackProject('plugin').path).sourceSets.test.resources
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
   }
 
   task copyXPackPluginProps(type: Copy) {
     dependsOn(copyXPackRestSpec)
-    from project(':x-pack-elasticsearch:plugin:core').file('src/main/plugin-metadata')
-    from project(':x-pack-elasticsearch:plugin:core').tasks.pluginProperties
+    from project(xpackModule('core')).file('src/main/plugin-metadata')
+    from project(xpackModule('core')).tasks.pluginProperties
     into outputDir
   }
   project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)

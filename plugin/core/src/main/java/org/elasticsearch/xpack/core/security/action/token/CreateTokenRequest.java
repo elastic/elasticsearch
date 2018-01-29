@@ -142,7 +142,7 @@ public final class CreateTokenRequest extends ActionRequest {
             out.writeOptionalString(refreshToken);
         } else {
             if ("refresh_token".equals(grantType)) {
-                throw new UnsupportedOperationException("a refresh request cannot be sent to an older version");
+                throw new IllegalArgumentException("a refresh request cannot be sent to an older version");
             } else {
                 out.writeString(username);
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());

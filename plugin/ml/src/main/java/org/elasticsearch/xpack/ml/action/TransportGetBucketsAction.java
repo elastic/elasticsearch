@@ -15,9 +15,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.core.ml.job.persistence.BucketsQueryBuilder;
-import org.elasticsearch.xpack.core.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
 public class TransportGetBucketsAction extends HandledTransportAction<GetBucketsAction.Request, GetBucketsAction.Response> {
 

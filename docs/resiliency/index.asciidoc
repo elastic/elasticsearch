@@ -171,14 +171,33 @@ shard.
 == Completed
 
 [float]
-=== Replicas can fail to replicate delete-and-reindex operations during certain network partitions (STATUS: DONE, V6.0.0)
+=== Replicas can incorrectly replicate sequences of operations that delete a document and later index another with the same id (STATUS: DONE, V6.0.0)
 
 If a document is deleted and another document with the same id is indexed a
-short time late then it is possible for a replica to fail to replicate both of
-these operations correctly and to fall out of sync with the primary. In a
-healthy network this is extraordinarily unlikely to occur, but a badly-timed
-network partition of a particular duration may make this happen with
-non-negligible probability.  The introduction of sequence numbers
+short time later then it was possible for these operations not to be replicated
+correctly, leading to a replica which fell out of sync with the primary.
+
+Prior to v6.0.0, each shard copy kept a record of the ids, and versions, of
+recently-deleted documents to ensure that a document that was deleted and then
+indexed again was assigned the correct version number. By default Elasticsearch
+periodically discarded such records when they were older than 60 seconds. Once
+the version record for a deleted document had been discarded, a subsequent
+indexing operation for a document with the same document id would have been
+given version number 1 again.
+
+If the times at which the primary and its replicas received the deletion and
+indexing operations were sufficiently skewed then the records of the
+recently-deleted documents may be inconsistent between the two shard copies.
+More precisely, if the primary had discarded the record in question and
+assigned version number 1 to the newly-indexed document, but the replica had
+not discarded its copy of the same record, then it would ignore the request
+from the primary to index the document under the mistaken impression that it
+already had indexed a later version of this document.
+
+In a healthy network this is extraordinarily unlikely to occur, but a
+badly-timed network partition of a particular duration may have delayed the
+replication of the deletion operation, causing this to happen with
+non-negligible probability. The introduction of sequence numbers
 {GIT}10708[#10708] means that this timing issue is no longer present.
 
 [float]

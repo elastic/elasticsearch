@@ -335,6 +335,22 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
+    public void testExistsAlias() throws IOException {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
+        assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+
+        createIndex("index");
+        client().performRequest(HttpPut.METHOD_NAME, "/index/_alias/alias");
+        assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+
+        GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest();
+        getAliasesRequest2.aliases("alias");
+        getAliasesRequest2.indices("index");
+        assertTrue(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+        getAliasesRequest2.indices("does_not_exist");
+        assertFalse(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
+    }
+
     private static void createIndex(String index) throws IOException {
         Response response = client().performRequest(HttpPut.METHOD_NAME, index);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -360,24 +376,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-    public void testExistsAlias() throws IOException {
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
-        assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
-
-        createIndex("index");
-        client().performRequest(HttpPut.METHOD_NAME, "/index/_alias/alias");
-        assertTrue(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
-
-        GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest();
-        getAliasesRequest2.aliases("alias");
-        getAliasesRequest2.indices("index");
-        assertTrue(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
-        getAliasesRequest2.indices("does_not_exist");
-        assertFalse(execute(getAliasesRequest2, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private Map<String, Object> getIndexMetadata(String index) throws IOException {
+    private static Map<String, Object> getIndexMetadata(String index) throws IOException {
         Response response = client().performRequest(HttpGet.METHOD_NAME, index);
 
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
@@ -399,11 +399,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         if (false == Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
-        Map<String, Object> performGet = performGet(endpoint);
+        Map<String, Object> performGet = get(endpoint);
         return (Map) ((Map) ((Map) performGet.get(index)).get("aliases")).get(alias);
     }
 
-    private static Map<String, Object> performGet(final String endpoint) throws IOException {
+    private static Map<String, Object> get(final String endpoint) throws IOException {
         Response response = client().performRequest(HttpGet.METHOD_NAME, endpoint);
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(), response.getEntity().getContent(),

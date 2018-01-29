@@ -81,6 +81,7 @@ List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo'
 integTestCluster {
     dependsOn setupClusterOne, setupClusterTwo
     plugin xpackProject('plugin').path
+    nodeStartupWaitSeconds 45
     setupCommand 'setupDummyUser',
             'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false

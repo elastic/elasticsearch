@@ -345,11 +345,7 @@ public class RequestTests extends ESTestCase {
     public void testPutMapping() throws IOException {
         PutMappingRequest putMappingRequest = new PutMappingRequest();
 
-        int numIndices = randomIntBetween(0, 5);
-        String[] indices = new String[numIndices];
-        for (int i = 0; i < numIndices; i++) {
-            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
-        }
+        String[] indices = randomIndicesNames(0, 5);
         putMappingRequest.indices(indices);
 
         String type = randomAlphaOfLengthBetween(3, 10);

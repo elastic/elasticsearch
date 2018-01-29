@@ -675,7 +675,7 @@ public final class Request {
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
                 expandWildcards = "none";
             } else {
-                StringJoiner joiner  = new StringJoiner(",");
+                StringJoiner joiner = new StringJoiner(",");
                 if (indicesOptions.expandWildcardsOpen()) {
                     joiner.add("open");
                 }

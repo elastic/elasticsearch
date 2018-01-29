@@ -138,8 +138,9 @@ The following parameters are accepted by `text` fields:
 [[index-prefix-config]]
 ==== Index Prefix configuration
 
-To configure the index prefix field, use the following syntax.  Either or both
-of `min_chars` and `max_chars` may be excluded.
+Text fields may also index term prefixes to speed up prefix searches. The `index_prefix`
+parameter is configured as below. Either or both of `min_chars` and `max_chars` may be excluded.
+Both values are treated as inclusive
 
 [source,js]
 --------------------------------
@@ -162,4 +163,4 @@ PUT my_index
 --------------------------------
 // CONSOLE
 <1> `min_chars` must be greater than zero, defaults to 2
-<2> `max_chars` must be greater than `min_chars` and less than 20, defaults to 5
+<2> `max_chars` must be greater than or equal to `min_chars` and less than 20, defaults to 5

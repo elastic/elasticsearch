@@ -123,6 +123,14 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
+    /**
+     * The maximum number of seconds to wait for nodes to complete startup, which includes writing
+     * the ports files for the transports and the pid file. This wait time occurs before the wait
+     * condition is executed.
+     */
+    @Input
+    int nodeStartupWaitSeconds = 30
+
     public ClusterConfiguration(Project project) {
         this.project = project
     }

@@ -148,7 +148,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void ensureMonitoringIndicesYellow() {
-        ensureYellow(".monitoring-es-*");
+        ensureYellowAndNoInitializingShards(".monitoring-es-*");
     }
 
     protected void assertMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) {

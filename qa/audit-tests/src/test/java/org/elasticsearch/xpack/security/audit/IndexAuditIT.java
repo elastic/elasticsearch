@@ -61,7 +61,7 @@ public class IndexAuditIT extends ESIntegTestCase {
                 }
             }
 
-            ensureYellow(".security_audit_log*");
+            ensureYellowAndNoInitializingShards(".security_audit_log*");
             logger.info("security audit log index is yellow");
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             lastClusterState.set(state);

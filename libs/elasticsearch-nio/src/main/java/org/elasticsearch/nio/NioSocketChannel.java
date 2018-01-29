@@ -21,6 +21,7 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -51,10 +52,6 @@ public class NioSocketChannel extends NioChannel<SocketChannel> {
 
     public InetSocketAddress getRemoteAddress() {
         return remoteAddress;
-    }
-
-    public boolean isConnectComplete() {
-        return context.isConnectComplete();
     }
 
     public void addConnectListener(BiConsumer<Void, Throwable> listener) {

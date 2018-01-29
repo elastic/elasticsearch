@@ -46,7 +46,6 @@ public class SocketEventHandler extends EventHandler {
      */
     protected void handleRegistration(SocketChannelContext context) throws IOException {
         context.register();
-        // TODO: Test attachment
         SelectionKey selectionKey = context.getSelectionKey();
         selectionKey.attach(context);
         if (context.hasQueuedWriteOps()) {

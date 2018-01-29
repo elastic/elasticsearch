@@ -61,11 +61,19 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     }
 
     public void testHandleRegisterSetsOP_ACCEPTInterest() throws IOException {
-        assertNull(channel.getContext().getSelectionKey());
+        assertNull(context.getSelectionKey());
 
         handler.handleRegistration(context);
 
         assertEquals(SelectionKey.OP_ACCEPT, channel.getContext().getSelectionKey().interestOps());
+    }
+
+    public void testRegisterAddsAttachment() throws IOException {
+        assertNull(context.getSelectionKey());
+
+        handler.handleRegistration(context);
+
+        assertEquals(context, context.getSelectionKey().attachment());
     }
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
@@ -75,7 +83,6 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         handler.acceptChannel(context);
 
         verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector));
-
     }
 
     @SuppressWarnings("unchecked")
@@ -98,8 +105,9 @@ public class AcceptorEventHandlerTests extends ESTestCase {
     private class DoNotRegisterContext extends ServerChannelContext {
 
 
+        @SuppressWarnings("unchecked")
         DoNotRegisterContext(NioServerSocketChannel channel, AcceptingSelector selector, Consumer<NioSocketChannel> acceptor) {
-            super(channel, channelFactory, selector, acceptor, null);
+            super(channel, channelFactory, selector, acceptor, mock(Consumer.class));
         }
 
         @Override

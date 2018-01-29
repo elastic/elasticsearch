@@ -67,6 +67,9 @@ public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
         getContext().addCloseListener(listener);
     }
 
+    /**
+     * Schedules channel for close. This process is asynchronous.
+     */
     public void close() {
         getContext().closeChannel();
     }

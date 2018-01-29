@@ -28,18 +28,18 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SocketChannelContextTests extends ESTestCase {
 
     private SocketChannel rawChannel;
     private TestSocketChannelContext context;
-    private BiConsumer<NioSocketChannel, Exception> exceptionHandler;
+    private Consumer<Exception> exceptionHandler;
     private NioSocketChannel channel;
 
     @SuppressWarnings("unchecked")
@@ -50,7 +50,7 @@ public class SocketChannelContextTests extends ESTestCase {
         rawChannel = mock(SocketChannel.class);
         channel = mock(NioSocketChannel.class);
         when(channel.getRawChannel()).thenReturn(rawChannel);
-        exceptionHandler = mock(BiConsumer.class);
+        exceptionHandler = mock(Consumer.class);
         context = new TestSocketChannelContext(channel, mock(SocketSelector.class), exceptionHandler);
     }
 
@@ -121,8 +121,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
     private static class TestSocketChannelContext extends SocketChannelContext {
 
-        private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector,
-                                         BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
+        private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
             super(channel, selector, exceptionHandler);
         }
 

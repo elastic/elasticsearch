@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This context should implement the specific logic for a channel. When a channel receives a notification
@@ -43,9 +44,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private boolean peerClosed;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector,
-                                   BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
-        super(channel.getRawChannel(), (e) -> exceptionHandler.accept(channel, e));
+    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
+        super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
     }

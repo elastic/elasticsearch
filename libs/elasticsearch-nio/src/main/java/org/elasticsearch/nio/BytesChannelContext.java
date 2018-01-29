@@ -22,10 +22,10 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
 import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
 
@@ -34,7 +34,7 @@ public class BytesChannelContext extends SocketChannelContext {
     private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, BiConsumer<NioSocketChannel, Exception> exceptionHandler,
+    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler);
         this.readConsumer = readConsumer;

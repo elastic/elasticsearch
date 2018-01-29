@@ -46,7 +46,6 @@ public class AcceptorEventHandler extends EventHandler {
      */
     protected void handleRegistration(ServerChannelContext context) throws IOException {
         context.register();
-        // TODO: Test attachment
         SelectionKey selectionKey = context.getSelectionKey();
         selectionKey.attach(context);
         SelectionKeyUtils.setAcceptInterested(selectionKey);

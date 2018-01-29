@@ -21,7 +21,6 @@ package org.elasticsearch.nio;
 
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
@@ -33,8 +32,8 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     private final ChannelFactory<?, ?> channelFactory;
 
     public ServerChannelContext(NioServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector,
-                                Consumer<NioSocketChannel> acceptor, BiConsumer<NioServerSocketChannel, Exception> exceptionHandler) {
-        super(channel.getRawChannel(), (e) -> exceptionHandler.accept(channel, e));
+                                Consumer<NioSocketChannel> acceptor, Consumer<Exception> exceptionHandler) {
+        super(channel.getRawChannel(), exceptionHandler);
         this.channel = channel;
         this.channelFactory = channelFactory;
         this.selector = selector;

@@ -659,7 +659,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 CONSTANT_SCORE_REWRITE, queryShardContext);
             assertThat(q6, instanceOf(PrefixQuery.class));
 
-            indexService.mapperService().merge("type", json, MergeReason.MAPPING_UPDATE, false);
+            indexService.mapperService().merge("type", json, MergeReason.MAPPING_UPDATE);
 
             String badUpdate = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -674,7 +674,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
                 indexService.mapperService()
-                    .merge("type", new CompressedXContent(badUpdate), MergeReason.MAPPING_UPDATE, false);
+                    .merge("type", new CompressedXContent(badUpdate), MergeReason.MAPPING_UPDATE);
             });
             assertThat(e.getMessage(), containsString("mapper [field._index_prefix] has different min_chars values"));
         }
@@ -696,7 +696,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
                 indexService.mapperService()
-                    .merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE, false);
+                    .merge("type", new CompressedXContent(illegalMapping), MergeReason.MAPPING_UPDATE);
             });
             assertThat(e.getMessage(), containsString("Field [field._index_prefix] is defined twice in [type]"));
 
@@ -751,6 +751,20 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 () -> parser.parse("type", new CompressedXContent(badConfigMapping))
             );
             assertThat(e.getMessage(), containsString("max_chars [25] must be less than 20"));
+        }
+
+        {
+            String badConfigMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .field("index_prefix", (String) null)
+                .endObject().endObject()
+                .endObject().endObject().string();
+            MapperParsingException e = expectThrows(MapperParsingException.class,
+                () -> parser.parse("type", new CompressedXContent(badConfigMapping))
+            );
+            assertThat(e.getMessage(), containsString("[index_prefix] must not have a [null] value"));
         }
 
         {

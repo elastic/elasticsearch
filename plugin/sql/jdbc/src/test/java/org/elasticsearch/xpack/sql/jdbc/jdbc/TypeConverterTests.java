@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.joda.time.DateTime;
 
-import java.io.IOException;
 import java.sql.JDBCType;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -22,7 +21,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TypeConverterTests extends ESTestCase {
 
 
-    public void testFloatAsNative() throws IOException {
+    public void testFloatAsNative() throws Exception {
         assertThat(convertAsNative(42.0f, JDBCType.REAL), instanceOf(Float.class));
         assertThat(convertAsNative(42.0, JDBCType.REAL), instanceOf(Float.class));
         assertEquals(42.0f, (float) convertAsNative(42.0, JDBCType.REAL), 0.001f);
@@ -31,7 +30,7 @@ public class TypeConverterTests extends ESTestCase {
         assertEquals(Float.POSITIVE_INFINITY, convertAsNative(Float.POSITIVE_INFINITY, JDBCType.REAL));
     }
 
-    public void testDoubleAsNative() throws IOException {
+    public void testDoubleAsNative() throws Exception {
         JDBCType type = randomFrom(JDBCType.FLOAT, JDBCType.DOUBLE);
         assertThat(convertAsNative(42.0, type), instanceOf(Double.class));
         assertEquals(42.0f, (double) convertAsNative(42.0, type), 0.001f);
@@ -40,13 +39,13 @@ public class TypeConverterTests extends ESTestCase {
         assertEquals(Double.POSITIVE_INFINITY, convertAsNative(Double.POSITIVE_INFINITY, type));
     }
 
-    public void testTimestampAsNative() throws IOException {
+    public void testTimestampAsNative() throws Exception {
         DateTime now = DateTime.now();
         assertThat(convertAsNative(now, JDBCType.TIMESTAMP), instanceOf(Long.class));
         assertEquals(now.getMillis(), convertAsNative(now, JDBCType.TIMESTAMP));
     }
 
-    private Object convertAsNative(Object value, JDBCType type) throws IOException {
+    private Object convertAsNative(Object value, JDBCType type) throws Exception {
         // Simulate sending over XContent
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -55,7 +54,7 @@ public class TypeConverterTests extends ESTestCase {
         builder.endObject();
         builder.close();
         Object copy = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2().get("value");
-        return TypeConverter.asNative(copy, type);
+        return TypeConverter.convert(copy, type);
     }
 
 }

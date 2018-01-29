@@ -369,12 +369,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
         JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
         
-        T t = TypeConverter.convert(val, columnType, type);
-        
-        if (t != null || type == null) {
-            return t;
-        }
-        throw new SQLException("Conversion from type [" + columnType + "] to [" + type.getName() + "] not supported");
+        return TypeConverter.convert(val, columnType, type);
     }
 
     @Override

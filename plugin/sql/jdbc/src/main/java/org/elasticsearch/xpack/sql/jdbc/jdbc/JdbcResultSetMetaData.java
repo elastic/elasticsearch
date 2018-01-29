@@ -62,7 +62,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public boolean isSigned(int column) throws SQLException {
-        return JdbcUtils.isSigned(getColumnType(column));
+        return TypeConverter.isSigned(column(column).type);
     }
 
     @Override
@@ -137,7 +137,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return JdbcUtils.classOf(column(column).type.getVendorTypeNumber()).getName();
+        return TypeConverter.classNameOf(column(column).type);
     }
 
     private void checkOpen() throws SQLException {

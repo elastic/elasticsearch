@@ -177,4 +177,18 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Short.MAX_VALUE + "] out of [Byte] range", e.getMessage());
         }
     }
+
+    public void testCommonType() {
+        assertEquals(DataType.BOOLEAN, DataTypeConversion.commonType(DataType.BOOLEAN, DataType.NULL));
+        assertEquals(DataType.BOOLEAN, DataTypeConversion.commonType(DataType.NULL, DataType.BOOLEAN));
+        assertEquals(DataType.BOOLEAN, DataTypeConversion.commonType(DataType.BOOLEAN, DataType.BOOLEAN));
+        assertEquals(DataType.NULL, DataTypeConversion.commonType(DataType.NULL, DataType.NULL));
+        assertEquals(DataType.INTEGER, DataTypeConversion.commonType(DataType.INTEGER, DataType.KEYWORD));
+        assertEquals(DataType.LONG, DataTypeConversion.commonType(DataType.TEXT, DataType.LONG));
+        assertEquals(null, DataTypeConversion.commonType(DataType.TEXT, DataType.KEYWORD));
+        assertEquals(DataType.SHORT, DataTypeConversion.commonType(DataType.SHORT, DataType.BYTE));
+        assertEquals(DataType.FLOAT, DataTypeConversion.commonType(DataType.BYTE, DataType.FLOAT));
+        assertEquals(DataType.FLOAT, DataTypeConversion.commonType(DataType.FLOAT, DataType.INTEGER));
+        assertEquals(DataType.DOUBLE, DataTypeConversion.commonType(DataType.DOUBLE, DataType.FLOAT));
+    }
 }

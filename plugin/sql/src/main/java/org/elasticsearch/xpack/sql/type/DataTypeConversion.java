@@ -16,7 +16,8 @@ import java.util.function.Function;
 import java.util.function.LongFunction;
 
 /**
- * Conversions from one data type to another.
+ * Conversions from one Elasticsearch data type to another Elasticsearch data types.
+ * <p>
  * This class throws {@link SqlIllegalArgumentException} to differentiate between validation
  * errors inside SQL as oppose to the rest of ES.
  */
@@ -24,6 +25,13 @@ public abstract class DataTypeConversion {
 
     private static final DateTimeFormatter UTC_DATE_FORMATTER = ISODateTimeFormat.dateTimeNoMillis().withZoneUTC();
 
+    /**
+     * Returns the type compatible with both left and right types
+     * <p>
+     * If one of the types is null - returns another type
+     * If both types are numeric - returns type with the highest precision int < long < float < double
+     * If one of the types is string and another numeric - returns numeric
+     */
     public static DataType commonType(DataType left, DataType right) {
         if (left == right) {
             return left;
@@ -65,46 +73,30 @@ public abstract class DataTypeConversion {
         return null;
     }
 
-    public static boolean canConvert(DataType from, DataType to) { // TODO it'd be cleaner and more right to fetch the conversion
+    /**
+     * Returns true if the from type can be converted to the to type, false - otherwise
+     */
+    public static boolean canConvert(DataType from, DataType to) {
+        // Special handling for nulls and if conversion is not requires
+        if (from == to || from == DataType.NULL) {
+            return true;
+        }
         // only primitives are supported so far
-        if (!from.isPrimitive() || !to.isPrimitive()) {
-            return false;
-        }
-
-        if (from.getClass() == to.getClass()) {
-            return true;
-        }
-        if (from == DataType.NULL) {
-            return true;
-        }
-
-        // anything can be converted to String
-        if (to.isString()) {
-            return true;
-        }
-
-        // also anything can be converted into a bool
-        if (to == DataType.BOOLEAN) {
-            return true;
-        }
-
-        // numeric conversion
-        if ((from.isString() || from == DataType.BOOLEAN || from == DataType.DATE || from.isNumeric()) && to.isNumeric()) {
-            return true;
-        }
-
-        // date conversion
-        if ((from == DataType.DATE || from.isString() || from.isNumeric()) && to == DataType.DATE) {
-            return true;
-        }
-
-        return false;
+        return from.isPrimitive() && to.isPrimitive() && conversion(from, to) != null;
     }
 
     /**
      * Get the conversion from one type to another.
      */
     public static Conversion conversionFor(DataType from, DataType to) {
+        Conversion conversion = conversion(from, to);
+        if (conversion == null) {
+            throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
+        }
+        return conversion;
+    }
+
+    private static Conversion conversion(DataType from, DataType to) {
         switch (to) {
             case KEYWORD:
             case TEXT:
@@ -126,8 +118,9 @@ public abstract class DataTypeConversion {
             case BOOLEAN:
                 return conversionToBoolean(from);
             default:
-                throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
+                return null;
         }
+
     }
 
     private static Conversion conversionToString(DataType from) {
@@ -150,7 +143,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;
         }
-        throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [Long]");
+        return null;
     }
 
     private static Conversion conversionToInt(DataType from) {
@@ -166,7 +159,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_INT;
         }
-        throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [Integer]");
+        return null;
     }
 
     private static Conversion conversionToShort(DataType from) {
@@ -182,7 +175,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_SHORT;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Short]");
+        return null;
     }
 
     private static Conversion conversionToByte(DataType from) {
@@ -198,7 +191,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_BYTE;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Byte]");
+        return null;
     }
 
     private static Conversion conversionToFloat(DataType from) {
@@ -214,7 +207,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_FLOAT;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Float]");
+        return null;
     }
 
     private static Conversion conversionToDouble(DataType from) {
@@ -230,7 +223,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_DOUBLE;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Double]");
+        return null;
     }
 
     private static Conversion conversionToDate(DataType from) {
@@ -246,7 +239,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_DATE;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Date]");
+        return null;
     }
 
     private static Conversion conversionToBoolean(DataType from) {
@@ -256,7 +249,7 @@ public abstract class DataTypeConversion {
         if (from.isString()) {
             return Conversion.STRING_TO_BOOLEAN;
         }
-        throw new SqlIllegalArgumentException("cannot convert [" + from + "] to [Boolean]");
+        return null;
     }
 
     public static byte safeToByte(long x) {
@@ -295,9 +288,14 @@ public abstract class DataTypeConversion {
         return Booleans.parseBoolean(lowVal);
     }
 
+    /**
+     * Converts arbitrary object to the desired data type.
+     * <p>
+     * Throws SqlIllegalArgumentException if such conversion is not possible
+     */
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = DataTypes.fromJava(value);
-        if (detectedType.equals(dataType) || value == null) {
+        if (detectedType == dataType || value == null) {
             return value;
         }
         return conversionFor(detectedType, dataType).convert(value);

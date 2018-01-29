@@ -132,7 +132,10 @@ public class SysColumns extends Command {
                         type.size,
                         // no DECIMAL support
                         null,
-                        // RADIX
+                        // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
+                        // 10 means they represent the number of decimal digits allowed for the column.
+                        // 2 means they represent the number of bits allowed for the column.
+                        // null means radix is not applicable for the given type.
                         type.isInteger ? Integer.valueOf(10) : type.isRational ? Integer.valueOf(2) : null,
                         // everything is nullable
                         DatabaseMetaData.columnNullable,

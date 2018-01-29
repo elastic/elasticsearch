@@ -32,7 +32,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public boolean isSigned(int param) throws SQLException {
-        return JdbcUtils.isSigned(paramInfo(param).type.getVendorTypeNumber().intValue());
+        return TypeConverter.isSigned(paramInfo(param).type);
     }
 
     @Override
@@ -49,7 +49,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public int getParameterType(int param) throws SQLException {
-        return paramInfo(param).type.getVendorTypeNumber().intValue();
+        return paramInfo(param).type.getVendorTypeNumber();
     }
 
     @Override
@@ -59,7 +59,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public String getParameterClassName(int param) throws SQLException {
-        return JdbcUtils.classOf(paramInfo(param).type.getVendorTypeNumber()).getName();
+        return TypeConverter.classNameOf(paramInfo(param).type);
     }
 
     @Override

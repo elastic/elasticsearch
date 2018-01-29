@@ -22,6 +22,9 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.sql.JDBCType.INTEGER;
+import static java.sql.JDBCType.SMALLINT;
+
 /**
  * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
  * from <a href="https://www.postgresql.org/docs/9.0/static/information-schema.html">
@@ -640,11 +643,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "PROCEDURE_CAT",
                      "PROCEDURE_SCHEM",
                      "PROCEDURE_NAME",
-                     "NUM_INPUT_PARAMS", int.class,
-                     "NUM_OUTPUT_PARAMS", int.class,
-                     "NUM_RESULT_SETS", int.class,
+                     "NUM_INPUT_PARAMS", INTEGER,
+                     "NUM_OUTPUT_PARAMS", INTEGER,
+                     "NUM_RESULT_SETS", INTEGER,
                      "REMARKS",
-                     "PROCEDURE_TYPE", short.class,
+                     "PROCEDURE_TYPE", SMALLINT,
                      "SPECIFIC_NAME");
     }
 
@@ -657,20 +660,20 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "PROCEDURE_SCHEM",
                      "PROCEDURE_NAME",
                      "COLUMN_NAME",
-                     "COLUMN_TYPE", short.class,
-                     "DATA_TYPE", int.class,
+                     "COLUMN_TYPE", SMALLINT,
+                     "DATA_TYPE", INTEGER,
                      "TYPE_NAME",
-                     "PRECISION", int.class,
-                     "LENGTH", int.class,
-                     "SCALE", short.class,
-                     "RADIX", short.class,
-                     "NULLABLE", short.class,
+                     "PRECISION", INTEGER,
+                     "LENGTH", INTEGER,
+                     "SCALE", SMALLINT,
+                     "RADIX", SMALLINT,
+                     "NULLABLE", SMALLINT,
                      "REMARKS",
                      "COLUMN_DEF",
-                     "SQL_DATA_TYPE", int.class,
-                     "SQL_DATETIME_SUB", int.class,
-                     "CHAR_OCTET_LENGTH", int.class,
-                     "ORDINAL_POSITION", int.class,
+                     "SQL_DATA_TYPE", INTEGER,
+                     "SQL_DATETIME_SUB", INTEGER,
+                     "CHAR_OCTET_LENGTH", INTEGER,
+                     "ORDINAL_POSITION", INTEGER,
                      "IS_NULLABLE",
                      "SPECIFIC_NAME");
     }
@@ -739,7 +742,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS TABLES LIKE ? LIKE ?");
         ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
         ps.setString(2, columnNamePattern != null ? columnNamePattern.trim() : "%");
@@ -865,9 +867,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                     "TYPE_SCHEM",
                     "TYPE_NAME",
                     "CLASS_NAME",
-                    "DATA_TYPE", int.class,
+                    "DATA_TYPE", INTEGER,
                     "REMARKS",
-                    "BASE_TYPE", short.class);
+                    "BASE_TYPE", SMALLINT);
     }
 
     @Override
@@ -926,23 +928,23 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "TYPE_SCHEM",
                      "TYPE_NAME",
                      "ATTR_NAME",
-                     "DATA_TYPE", int.class,
+                     "DATA_TYPE", INTEGER,
                      "ATTR_TYPE_NAME",
-                     "ATTR_SIZE", int.class,
-                     "DECIMAL_DIGITS", int.class,
-                     "NUM_PREC_RADIX", int.class,
-                     "NULLABLE", int.class,
+                     "ATTR_SIZE", INTEGER,
+                     "DECIMAL_DIGITS", INTEGER,
+                     "NUM_PREC_RADIX", INTEGER,
+                     "NULLABLE", INTEGER,
                      "REMARKS",
                      "ATTR_DEF",
-                     "SQL_DATA_TYPE", int.class,
-                     "SQL_DATETIME_SUB", int.class,
-                     "CHAR_OCTET_LENGTH", int.class,
-                     "ORDINAL_POSITION", int.class,
+                     "SQL_DATA_TYPE", INTEGER,
+                     "SQL_DATETIME_SUB", INTEGER,
+                     "CHAR_OCTET_LENGTH", INTEGER,
+                     "ORDINAL_POSITION", INTEGER,
                      "IS_NULLABLE",
                      "SCOPE_CATALOG",
                      "SCOPE_SCHEMA",
                      "SCOPE_TABLE",
-                     "SOURCE_DATA_TYPE", short.class);
+                     "SOURCE_DATA_TYPE", SMALLINT);
     }
 
     @Override
@@ -1018,7 +1020,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "FUNCTION_SCHEM",
                      "FUNCTION_NAME",
                      "REMARKS",
-                     "FUNCTION_TYPE", short.class,
+                     "FUNCTION_TYPE", SMALLINT,
                      "SPECIFIC_NAME");
     }
 
@@ -1031,16 +1033,16 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "FUNCTION_SCHEM",
                      "FUNCTION_NAME",
                      "COLUMN_NAME",
-                     "DATA_TYPE", int.class,
+                     "DATA_TYPE", INTEGER,
                      "TYPE_NAME",
-                     "PRECISION", int.class,
-                     "LENGTH", int.class,
-                     "SCALE", short.class,
-                     "RADIX", short.class,
-                     "NULLABLE", short.class,
+                     "PRECISION", INTEGER,
+                     "LENGTH", INTEGER,
+                     "SCALE", SMALLINT,
+                     "RADIX", SMALLINT,
+                     "NULLABLE", SMALLINT,
                      "REMARKS",
-                     "CHAR_OCTET_LENGTH", int.class,
-                     "ORDINAL_POSITION", int.class,
+                     "CHAR_OCTET_LENGTH", INTEGER,
+                     "ORDINAL_POSITION", INTEGER,
                      "IS_NULLABLE",
                      "SPECIFIC_NAME");
     }
@@ -1054,10 +1056,10 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                      "TABLE_SCHEM",
                      "TABLE_NAME",
                      "COLUMN_NAME",
-                     "DATA_TYPE", int.class,
-                     "COLUMN_SIZE", int.class,
-                     "DECIMAL_DIGITS", int.class,
-                     "NUM_PREC_RADIX", int.class,
+                     "DATA_TYPE", INTEGER,
+                     "COLUMN_SIZE", INTEGER,
+                     "DECIMAL_DIGITS", INTEGER,
+                     "NUM_PREC_RADIX", INTEGER,
                      "REMARKS",
                      "COLUMN_USAGE",
                      "IS_NULLABLE");
@@ -1078,8 +1080,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                 JDBCType type = JDBCType.VARCHAR;
                 if (i + 1 < cols.length) {
                     // check if the next item it's a type
-                    if (cols[i + 1] instanceof Class) {
-                        type = JDBCType.valueOf(JdbcUtils.fromClass((Class<?>) cols[i + 1]));
+                    if (cols[i + 1] instanceof JDBCType) {
+                        type = (JDBCType) cols[i + 1];
                         i++;
                     }
                     // it's not, use the default and move on

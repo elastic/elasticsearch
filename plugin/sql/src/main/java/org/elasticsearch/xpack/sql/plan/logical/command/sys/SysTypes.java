@@ -81,7 +81,7 @@ public class SysTypes extends Command {
                         // everything is searchable,
                         DatabaseMetaData.typeSearchable,
                         // only numerics are signed
-                        t.isNumeric() ? !t.isSigned : null,
+                        t.isSigned(),
                         //no fixed precision scale SQL_FALSE
                         0,
                         null,

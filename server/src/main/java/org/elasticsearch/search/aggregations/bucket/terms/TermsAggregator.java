@@ -189,6 +189,11 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         this.order = InternalOrder.validate(order, this);
         this.format = format;
         if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
+            /**
+             * Force the execution to depth_first because we need to access the score of
+             * nested documents in a sub-aggregation and we are not able to generate this score
+             * while replaying deferred documents.
+             */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {
             this.collectMode = collectMode;

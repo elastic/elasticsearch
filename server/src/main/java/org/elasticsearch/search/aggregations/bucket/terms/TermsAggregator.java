@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -187,7 +188,11 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
         this.format = format;
-        this.collectMode = collectMode;
+        if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
+            this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
+        } else {
+            this.collectMode = collectMode;
+        }
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
             AggregationPath path = ((Aggregation) order).path();
@@ -201,6 +206,25 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
                 }
             }
         }
+    }
+
+    static boolean descendsFromNestedAggregator(Aggregator parent) {
+        while (parent != null) {
+            if (parent.getClass() == NestedAggregator.class) {
+                return true;
+            }
+            parent = parent.parent();
+        }
+        return false;
+    }
+
+    private boolean subAggsNeedScore() {
+        for (Aggregator subAgg : subAggregators) {
+            if (subAgg.needsScores()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

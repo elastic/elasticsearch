@@ -1,0 +1,31 @@
+[[release-notes-5.6.7]]
+== 5.6.7 Release Notes
+
+[[bug-5.6.7]]
+[float]
+=== Bug fixes
+
+Engine::
+* Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
+* Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
+
+Internal::
+* Never return null from Strings.tokenizeToStringArray {pull}28224[#28224] (issue: {issue}28213[#28213])
+* Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
+
+Java REST Client::
+* Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
+
+Mapping::
+* Allow update of `eager_global_ordinals` on `_parent`. {pull}28014[#28014] (issue: {issue}24407[#24407])
+
+Scripting::
+* Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
+
+Snapshot/Restore::
+* Avoid concurrent snapshot finalizations when deleting an INIT snapshot {pull}28078[#28078] (issues: {issue}27214[#27214], {issue}27931[#27931], {issue}27974[#27974])
+* Do not start snapshots that are deleted during initialization {pull}27931[#27931]
+
+Plugin Lang Painless::
+* change float to double {pull}28221[#28221]
+

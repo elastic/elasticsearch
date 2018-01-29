@@ -61,6 +61,8 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.reinit.NodesReInitAction;
+import org.elasticsearch.action.admin.cluster.reinit.NodesReInitRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -781,6 +783,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public ClusterUpdateSettingsRequestBuilder prepareUpdateSettings() {
             return new ClusterUpdateSettingsRequestBuilder(this, ClusterUpdateSettingsAction.INSTANCE);
+        }
+
+        @Override
+        public NodesReInitRequestBuilder prepareReInit() {
+            return new NodesReInitRequestBuilder(this, NodesReInitAction.INSTANCE);
         }
 
         @Override

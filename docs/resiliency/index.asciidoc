@@ -191,8 +191,8 @@ recently-deleted documents may be inconsistent between the two shard copies.
 More precisely, if the primary had discarded the record in question and
 assigned version number 1 to the newly-indexed document, but the replica had
 not discarded its copy of the same record, then it would ignore the request
-from the primary to index the document under the mistaken impression that it
-already had indexed a later version of this document.
+from the primary to index the document under the mistaken impression that its
+version of the document was already up-to-date.
 
 In a healthy network this is extraordinarily unlikely to occur, but a
 badly-timed network partition of a particular duration may have delayed the

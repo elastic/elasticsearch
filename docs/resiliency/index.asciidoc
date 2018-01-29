@@ -171,6 +171,17 @@ shard.
 == Completed
 
 [float]
+=== Replicas can fail to replicate delete-and-reindex operations during certain network partitions (STATUS: DONE, V6.0.0)
+
+If a document is deleted and another document with the same id is indexed a
+short time late then it is possible for a replica to fail to replicate both of
+these operations correctly and to fall out of sync with the primary. In a
+healthy network this is extraordinarily unlikely to occur, but a badly-timed
+network partition of a particular duration may make this happen with
+non-negligible probability.  The introduction of sequence numbers
+{GIT}10708[#10708] means that this timing issue is no longer present.
+
+[float]
 === Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: DONE, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in

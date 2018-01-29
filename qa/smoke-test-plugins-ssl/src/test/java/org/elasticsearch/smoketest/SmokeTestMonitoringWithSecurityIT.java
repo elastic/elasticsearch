@@ -89,7 +89,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         });
 
         // Waits for indices to be ready
-        ensureYellow(MONITORING_PATTERN);
+        ensureYellowAndNoInitializingShards(MONITORING_PATTERN);
 
         // Checks that the HTTP exporter has successfully exported some data
         assertBusy(() -> {

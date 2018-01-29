@@ -156,7 +156,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void ensureMonitoringIndicesYellow() {
-        ensureYellow(".monitoring-es-*");
+        ensureYellowAndNoInitializingShards(".monitoring-es-*");
     }
 
     protected List<Tuple<String, String>> monitoringTemplates() {

@@ -49,9 +49,9 @@ public class TextFieldMapper extends FieldMapper {
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
 
     public static class Defaults {
-        public static double FIELDDATA_MIN_FREQUENCY = 0;
-        public static double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
-        public static int FIELDDATA_MIN_SEGMENT_SIZE = 0;
+        public static final double FIELDDATA_MIN_FREQUENCY = 0;
+        public static final double FIELDDATA_MAX_FREQUENCY = Integer.MAX_VALUE;
+        public static final int FIELDDATA_MIN_SEGMENT_SIZE = 0;
 
         public static final MappedFieldType FIELD_TYPE = new TextFieldType();
 

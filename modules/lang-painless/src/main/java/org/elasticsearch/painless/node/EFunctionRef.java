@@ -59,24 +59,24 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void analyze(Locals locals) {
         if (expected == null) {
             ref = null;
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = expected.struct.getFunctionalMethod();
+                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.getFunctionalMethod();
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], not a functional interface");
+                                                           "to [" + Definition.ClassToName(expected) + "], not a functional interface");
                     }
                     Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], function not found");
+                                                           "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
-                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
+                    ref = new FunctionRef(locals.getDefinition().ClassToType(expected), interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
@@ -91,7 +91,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
                     }
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
+                    ref = new FunctionRef(locals.getDefinition(), locals.getDefinition().ClassToType(expected), type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

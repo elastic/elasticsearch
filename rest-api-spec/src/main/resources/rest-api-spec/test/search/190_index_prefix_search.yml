@@ -1,5 +1,8 @@
 ---
 "search with index prefixes":
+  - skip:
+      version: " - 6.2.99"
+      reason: fielddata on _id is only available as of 6.3.0
   - do:
       indices.create:
         index:  test

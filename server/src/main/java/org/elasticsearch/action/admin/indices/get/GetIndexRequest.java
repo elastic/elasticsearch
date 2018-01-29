@@ -33,7 +33,6 @@ import java.util.List;
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
-
     public enum Feature {
         ALIASES((byte) 0, "_aliases", "_alias"),
         MAPPINGS((byte) 1, "_mappings", "_mapping"),
@@ -99,6 +98,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private static final Feature[] DEFAULT_FEATURES = new Feature[] { Feature.ALIASES, Feature.MAPPINGS, Feature.SETTINGS };
     private Feature[] features = DEFAULT_FEATURES;
     private boolean humanReadable = false;
+    private boolean flatSettings = false;
+    private boolean includeDefaults = false;
 
     public GetIndexRequest() {
 
@@ -147,6 +148,24 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     public boolean humanReadable() {
         return humanReadable;
+    }
+
+    public GetIndexRequest flatSettings(boolean flatSettings) {
+        this.flatSettings = flatSettings;
+        return this;
+    }
+
+    public boolean flatSettings() {
+        return flatSettings;
+    }
+
+    public GetIndexRequest includeDefaults(boolean includeDefaults) {
+        this.includeDefaults = includeDefaults;
+        return this;
+    }
+
+    public boolean includeDefaults() {
+        return includeDefaults;
     }
 
     @Override

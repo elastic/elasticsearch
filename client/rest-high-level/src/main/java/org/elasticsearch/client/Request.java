@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -542,13 +543,13 @@ public final class Request {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
-    static Request indicesExist(IndicesExistsRequest request) {
+    static Request indicesExist(GetIndexRequest request) {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
         Params params = Params.builder();
         params.withLocal(request.local());
         params.withIndicesOptions(request.indicesOptions());
-        params.withFlatSettings(false);
-        params.withIncludeDefaults(false);
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 

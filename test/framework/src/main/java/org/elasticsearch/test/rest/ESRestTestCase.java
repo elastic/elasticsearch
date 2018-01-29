@@ -37,8 +37,10 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -63,10 +65,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -222,6 +226,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         wipeSnapshots();
+        wipeClusterSettings();
     }
 
     /**
@@ -250,6 +255,36 @@ public abstract class ESRestTestCase extends ESTestCase {
                 logger.debug("wiping snapshot repository [{}]", repoName);
                 adminClient().performRequest("DELETE", "_snapshot/" + repoName);
             }
+        }
+    }
+
+    /**
+     * Remove any cluster settings.
+     */
+    private void wipeClusterSettings() throws IOException {
+        Map<?, ?> getResponse = entityAsMap(adminClient().performRequest("GET", "/_cluster/settings"));
+
+        boolean mustClear = false;
+        XContentBuilder clearCommand = JsonXContent.contentBuilder();
+        clearCommand.startObject();
+        for (Map.Entry<?, ?> entry : getResponse.entrySet()) {
+            String type = entry.getKey().toString();
+            Map<?, ?> settings = (Map<?, ?>) entry.getValue();
+            if (settings.isEmpty()) {
+                continue;
+            }
+            mustClear = true;
+            clearCommand.startObject(type);
+            for (Object key: settings.keySet()) {
+                clearCommand.field(key + ".*").nullValue();
+            }
+            clearCommand.endObject();
+        }
+        clearCommand.endObject();
+
+        if (mustClear) {
+            adminClient().performRequest("PUT", "/_cluster/settings", emptyMap(), new StringEntity(
+                clearCommand.string(), ContentType.APPLICATION_JSON));
         }
     }
 

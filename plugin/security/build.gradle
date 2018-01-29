@@ -20,8 +20,7 @@ dependencies {
     provided project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('monitoring'))
-    // TODO: figure out how to use xpackModule for this
-    testCompile project(path: ':x-pack-elasticsearch:plugin:sql:sql-proto')
+    testCompile project(path: xpackModule('sql:sql-proto'))
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 

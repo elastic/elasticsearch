@@ -21,16 +21,16 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -217,9 +217,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public final boolean exists(IndicesExistsRequest indicesExistsRequest, Header... headers) throws IOException {
+    public final boolean exists(GetIndexRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequest(
-            indicesExistsRequest,
+            request,
             Request::indicesExist,
             RestHighLevelClient::convertExistsResponse,
             Collections.emptySet(),
@@ -233,9 +233,9 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public final void existsAsync(IndicesExistsRequest indicesExistsRequest, ActionListener<Boolean> listener, Header... headers) {
+    public final void existsAsync(GetIndexRequest request, ActionListener<Boolean> listener, Header... headers) {
         restHighLevelClient.performRequestAsync(
-            indicesExistsRequest,
+            request,
             Request::indicesExist,
             RestHighLevelClient::convertExistsResponse,
             listener,

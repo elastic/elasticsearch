@@ -30,13 +30,14 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -98,7 +99,6 @@ import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
@@ -253,10 +253,36 @@ public class RequestTests extends ESTestCase {
 
     public void testIndicesExist() {
         String[] indices = randomIndicesNames(1, 10);
+        boolean flatSettings = true;
+        boolean includeDefaults = true;
+        boolean local = true;
+        boolean ignoreUnavailable = false;
+        boolean allowNoIndices = true;
+        boolean expandToOpenIndices = false;
+        boolean expandToClosedIndices = false;
 
-        IndicesExistsRequest indicesExistRequest = new IndicesExistsRequest(indices);
-        final Request request = Request.indicesExist(indicesExistRequest);
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            ignoreUnavailable,
+            allowNoIndices,
+            expandToOpenIndices,
+            expandToClosedIndices
+        );
+        GetIndexRequest getIndexRequest = new GetIndexRequest()
+            .local(local)
+            .indicesOptions(indicesOptions)
+            .indices(indices)
+            .flatSettings(flatSettings)
+            .includeDefaults(includeDefaults);
+
+        final Request request = Request.indicesExist(getIndexRequest);
+
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
+        assertEquals(String.valueOf(flatSettings), request.getParameters().get("flat_settings"));
+        assertEquals(String.valueOf(local), request.getParameters().get("local"));
+        assertEquals(String.valueOf(includeDefaults), request.getParameters().get("include_defaults"));
+        assertEquals(String.valueOf(ignoreUnavailable), request.getParameters().get("ignore_unavailable"));
+        assertEquals(String.valueOf(allowNoIndices), request.getParameters().get("allow_no_indices"));
+        assertEquals("none", request.getParameters().get("expand_wildcards"));
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
     }
 

@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -65,7 +66,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         String indexName = "test_index_exists_index_present";
         createIndex(indexName);
 
-        IndicesExistsRequest request = new IndicesExistsRequest(indexName);
+        GetIndexRequest request = new GetIndexRequest();
+        request.indices(indexName);
+
         boolean response = execute(
             request,
             highLevelClient().indices()::exists,
@@ -77,7 +80,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testIndexExistsIfIndexNotPresent() throws IOException {
         String indexName = "non_existent_index";
 
-        IndicesExistsRequest request = new IndicesExistsRequest(indexName);
+        GetIndexRequest request = new GetIndexRequest();
+        request.indices(indexName);
+
         boolean response = execute(
             request,
             highLevelClient().indices()::exists,
@@ -92,7 +97,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         String nonExistentIndex = "non_existent_index";
 
-        IndicesExistsRequest request = new IndicesExistsRequest(existingIndex, nonExistentIndex);
+        GetIndexRequest request = new GetIndexRequest();
+        request.indices(existingIndex, nonExistentIndex);
+
         boolean response = execute(
             request,
             highLevelClient().indices()::exists,

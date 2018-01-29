@@ -3,4 +3,3 @@
 
 ==== Indices Exists Request
 
-An `IndicesExistsRequest` requires an `indices` argument, which is an array of index names.

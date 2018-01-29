@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
-import org.elasticsearch.gradle.plugin.MetaPluginPropertiesExtension
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -120,7 +119,7 @@ class ClusterFormationTasks {
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
-        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
+        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config.nodeStartupWaitSeconds)
         runner.dependsOn(wait)
 
         return nodes
@@ -577,10 +576,10 @@ class ClusterFormationTasks {
         return start
     }
 
-    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
+    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '45', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {

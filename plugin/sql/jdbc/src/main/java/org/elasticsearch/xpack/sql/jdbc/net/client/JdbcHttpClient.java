@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
-import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.joda.time.DateTimeZone;
@@ -77,10 +75,6 @@ public class JdbcHttpClient {
         return new InfoResponse(mainResponse.getClusterName().value(), mainResponse.getVersion().major, mainResponse.getVersion().minor);
     }
 
-    public List<MetaColumnInfo> metaInfoColumns(String tablePattern, String columnPattern) throws SQLException {
-        return httpClient.listColumns(new SqlListColumnsRequest(AbstractSqlRequest.Mode.JDBC, tablePattern, columnPattern)).getColumns();
-    }
-
     /**
      * Converts REST column metadata into JDBC column metadata
      */
@@ -89,5 +83,4 @@ public class JdbcHttpClient {
                 new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize())
         ).collect(Collectors.toList());
     }
-
 }

@@ -123,16 +123,16 @@ public class JdbcAssert {
 
                     int type = metaData.getColumnType(column);
 
-                    String msg = format(Locale.ROOT, "Different result for column [" + metaData.getColumnName(column) + "], entry [" + count
-                            + "]; " + "expected %s but was %s", expectedObject, actualObject);
+                    String msg = format(Locale.ROOT, "Different result for column [" + metaData.getColumnName(column) + "], "
+                            + "entry [" + (count + 1) + "]");
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {
-                        assertEquals(expectedObject, actualObject);
+                        assertEquals(msg, expectedObject, actualObject);
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                        assertEquals(getTime(expected, column), getTime(actual, column));
+                        assertEquals(msg, getTime(expected, column), getTime(actual, column));
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {

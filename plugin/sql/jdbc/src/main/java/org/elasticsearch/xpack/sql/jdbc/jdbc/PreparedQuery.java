@@ -64,7 +64,7 @@ class PreparedQuery {
         for (int i = 0; i < fragments.size(); i++) {
             sb.append(fragments.get(i));
             if (i < params.length) {
-                // TODO: this needs conversion
+                // TODO: this needs converting
                 sb.append(params[i].value);
             }
         }

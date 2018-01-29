@@ -23,23 +23,28 @@ CREATE TABLE mock (
   IS_AUTOINCREMENT VARCHAR,
   IS_GENERATEDCOLUMN VARCHAR
 ) AS
-SELECT '', 'test1', 'name', 12, 'VARCHAR', 2147483647, null, null, null,
+SELECT null, 'test1', 'name', 12, 'TEXT', 0, null, null, null,
   1, -- columnNullable
-  null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
+  null, null, 12, null, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'date', 93, 'TIMESTAMP', 19, null, null, null,
+SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 0, null, null, null,
   1, -- columnNullable
-  null, null, null, null, null, 1, 'YES', null, null, null, null, '', ''
+  null, null, 12, null, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'float', 7, 'REAL', 7, null, null, 2,
+SELECT null, 'test2', 'date', 93, 'DATE', 20, null, null, null,
   1, -- columnNullable
-  null, null, null, null, null, 2, 'YES', null, null, null, null, '', ''
+  null, null, 93, null, null, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT '', 'test2', 'number', -5, 'BIGINT', 19, null, null, 10,
+SELECT null, 'test2', 'float', 7, 'FLOAT', 15, null, null, 2,
   1, -- columnNullable
-  null, null, null, null, null, 3, 'YES', null, null, null, null, '', ''
+  null, null, 7, null, null, 2, 'YES', null, null, null, null, 'NO', 'NO'
+FROM DUAL
+UNION ALL
+SELECT null, 'test2', 'number', -5, 'LONG', 20, null, null, 10,
+  1, -- columnNullable
+  null, null, -5, null, null, 3, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 ;

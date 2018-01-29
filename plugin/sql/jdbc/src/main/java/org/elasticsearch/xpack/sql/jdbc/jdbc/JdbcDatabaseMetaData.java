@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
-import org.elasticsearch.xpack.sql.plugin.MetaColumnInfo;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -22,8 +21,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.numericPrecisionRadix;
 
 /**
  * Implementation of {@link DatabaseMetaData} for Elasticsearch. Draws inspiration
@@ -742,73 +739,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        List<ColumnInfo> info = columnInfo("COLUMNS",
-                                           "TABLE_CAT",
-                                           "TABLE_SCHEM",
-                                           "TABLE_NAME",
-                                           "COLUMN_NAME",
-                                           "DATA_TYPE", int.class,
-                                           "TYPE_NAME",
-                                           "COLUMN_SIZE", int.class,
-                                           "BUFFER_LENGTH", void.class,
-                                           "DECIMAL_DIGITS", int.class,
-                                           "NUM_PREC_RADIX", int.class,
-                                           "NULLABLE", int.class,
-                                           "REMARKS",
-                                           "COLUMN_DEF",
-                                           "SQL_DATA_TYPE", int.class,
-                                           "SQL_DATETIME_SUB", int.class,
-                                           "CHAR_OCTET_LENGTH", int.class,
-                                           "ORDINAL_POSITION", int.class,
-                                           "IS_NULLABLE",
-                                           "SCOPE_CATALOG",
-                                           "SCOPE_SCHEMA",
-                                           "SCOPE_TABLE",
-                                           "SOURCE_DATA_TYPE", short.class,
-                                           "IS_AUTOINCREMENT",
-                                           "IS_GENERATEDCOLUMN");
 
-
-        // schema and catalogs are not being used, if these are specified return an empty result set
-        if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(con.cfg, info);
-        }
-
-        String cat = defaultCatalog();
-        // escaping is done on the server
-        List<MetaColumnInfo> columns = con.client.metaInfoColumns(tableNamePattern, columnNamePattern);
-        Object[][] data = new Object[columns.size()][];
-        for (int i = 0; i < data.length; i++) {
-            data[i] = new Object[24];
-            Object[] row = data[i];
-            MetaColumnInfo col = columns.get(i);
-
-            row[ 0] = cat;
-            row[ 1] = "";
-            row[ 2] = col.table();
-            row[ 3] = col.name();
-            row[ 4] = col.jdbcType().getVendorTypeNumber();
-            row[ 5] = col.jdbcType().getName();
-            row[ 6] = col.size();
-            row[ 7] = null;
-            row[ 8] = null;
-            row[ 9] = numericPrecisionRadix(col.jdbcType().getVendorTypeNumber());
-            row[10] = columnNullable;
-            row[11] = null;
-            row[12] = null;
-            row[13] = null;
-            row[14] = null;
-            row[15] = null;
-            row[16] = col.position();
-            row[17] = "YES";
-            row[18] = null;
-            row[19] = null;
-            row[20] = null;
-            row[21] = null;
-            row[22] = "";
-            row[23] = "";
-        }
-        return memorySet(con.cfg, info, data);
+        PreparedStatement ps = con.prepareStatement("SYS COLUMNS TABLES LIKE ? LIKE ?");
+        ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        ps.setString(2, columnNamePattern != null ? columnNamePattern.trim() : "%");
+        return ps.executeQuery();
     }
 
     @Override

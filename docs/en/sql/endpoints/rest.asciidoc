@@ -183,35 +183,3 @@ or fewer results though. `time_zone` is the time zone to use for date
 functions and date parsing. `time_zone` defaults to `utc` and can take
 any values documented
 http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].
-
-
-[[sql-rest-metadata]]
-
-To get the list of fields that are supported in SQL execute:
-
-[source,js]
---------------------------------------------------
-POST /_xpack/sql/columns
-{
-    "table_pattern": "library",
-    "column_pattern": ""
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-[source,js]
---------------------------------------------------
-{
-    "columns": [
-        {"table": "library", "name": "author",       "type": "text",  "position": 1},
-        {"table": "library", "name": "name",         "type": "text",  "position": 2},
-        {"table": "library", "name": "page_count",   "type": "short", "position": 3},
-        {"table": "library", "name": "release_date", "type": "date",  "position": 4}
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-The `position` is the position in the original table and won't match the position in the
-array if the `column_pattern` removes any columns.

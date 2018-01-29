@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.PathUtils;
@@ -28,7 +27,6 @@ import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.elasticsearchAddress;
 import static org.elasticsearch.xpack.qa.sql.jdbc.JdbcIntegrationTestCase.randomKnownTimeZone;
 import static org.elasticsearch.xpack.qa.sql.security.RestSqlIT.SSL_ENABLED;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 
 public class JdbcSecurityIT extends SqlSecurityTestCase {
@@ -264,20 +262,12 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getColumns("%", "%", "%t", "%"),
             "full_access",
             con -> con.getMetaData().getColumns("%", "%", "%", "%"));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("bort", "test"))
-            .expect(true, GetIndexAction.NAME, "full_access", contains("bort", "test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsWithNoAccess() throws Exception {
         createUser("no_access", "read_nothing");
 
         expectForbidden("no_access", con -> con.getMetaData().getColumns("%", "%", "%", "%"));
-        new AuditLogAsserter()
-            // TODO figure out why this generates *no* logs
-            // .expect(false, GetIndexAction.NAME, "no_access", contains("bort", "test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsWithWrongAccess() throws Exception {
@@ -287,10 +277,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getColumns("%", "%", "not_created", "%"),
             "wrong_access",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
-            .expect(true, GetIndexAction.NAME, "wrong_access", contains("*", "-*"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsSingleFieldGranted() throws Exception {
@@ -300,10 +286,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getColumns("%", "%", "test", "a"),
             "only_a",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("test"))
-            .expect(true, GetIndexAction.NAME, "only_a", contains("test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsSingleFieldExcepted() throws Exception {
@@ -322,9 +304,6 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             assertEquals("b", columnName);
             assertFalse(result.next());
         }
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "not_c", contains("test"))
-            .assertLogs();
     }
 
     public void testMetaDataGetColumnsDocumentExcluded() throws Exception {
@@ -334,9 +313,5 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             con -> con.getMetaData().getColumns("%", "%", "test", "%"),
             "no_3s",
             con -> con.getMetaData().getColumns("%", "%", "test", "%"));
-        new AuditLogAsserter()
-            .expect(true, GetIndexAction.NAME, "test_admin", contains("test"))
-            .expect(true, GetIndexAction.NAME, "no_3s", contains("test"))
-            .assertLogs();
     }
 }

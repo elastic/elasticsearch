@@ -105,8 +105,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
         return Arrays.asList(new RestSqlQueryAction(settings, restController),
                 new RestSqlTranslateAction(settings, restController),
-                new RestSqlClearCursorAction(settings, restController),
-                new RestSqlListColumnsAction(settings, restController));
+                new RestSqlClearCursorAction(settings, restController));
     }
 
     @Override
@@ -117,7 +116,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
         return Arrays.asList(new ActionHandler<>(SqlQueryAction.INSTANCE, TransportSqlQueryAction.class),
                 new ActionHandler<>(SqlTranslateAction.INSTANCE, TransportSqlTranslateAction.class),
-                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class),
-                new ActionHandler<>(SqlListColumnsAction.INSTANCE, TransportSqlListColumnsAction.class));
+                new ActionHandler<>(SqlClearCursorAction.INSTANCE, TransportSqlClearCursorAction.class));
     }
 }

@@ -2,7 +2,7 @@
  * ELASTICSEARCH CONFIDENTIAL
  * __________________
  *
- *  [2014] Elasticsearch Incorporated. All Rights Reserved.
+ *  [2017] Elasticsearch Incorporated. All Rights Reserved.
  *
  * NOTICE:  All information contained herein is, and remains
  * the property of Elasticsearch Incorporated and its suppliers,
@@ -56,12 +56,11 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    
     | SYS TABLES (LIKE? pattern)?                                                                         #sysTables
-    | SYS COLUMNS (LIKE? indexPattern=pattern)? (LIKE? columnPattern=pattern)?                            #sysColumns
+    | SYS COLUMNS (TABLES LIKE? indexPattern=pattern)? (LIKE? columnPattern=pattern)?                     #sysColumns
     | SYS TYPES                                                                                           #sysTypes  
     ;
-
+    
 query
     : (WITH namedQuery (',' namedQuery)*)? queryNoWith
     ;

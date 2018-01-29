@@ -6,13 +6,16 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
@@ -21,20 +24,37 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SysParserTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
 
-    private Command sql(String sql) {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), DateTimeZone.UTC);
-        return (Command) analyzer.analyze(parser.createStatement(sql), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
+
+        IndexResolver resolver = mock(IndexResolver.class);
+        when(resolver.clusterName()).thenReturn("cluster");
+
+        doAnswer(invocation -> {
+            ((ActionListener) invocation.getArguments()[2]).onResponse(singletonList(test));
+            return Void.TYPE;
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
+
+        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
+        return new Tuple<>(cmd, session);
     }
 
     public void testSysTypes() throws Exception {
-        Command cmd = sql("SYS TYPES");
+        Command cmd = sql("SYS TYPES").v1();
 
         List<String> names = asList("BYTE", "SHORT", "INTEGER", "LONG", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE", "KEYWORD", "TEXT",
                 "DATE", "BINARY", "NULL", "UNSUPPORTED", "OBJECT", "NESTED", "BOOLEAN");
@@ -45,6 +65,62 @@ public class SysParserTests extends ESTestCase {
 
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));
+                r.advanceRow();
+            }
+
+        }, ex -> fail(ex.getMessage())));
+    }
+
+    public void testSysColsNoArgs(String commandVariation) throws Exception {
+        runSysColumns("SYS COLUMNS");
+    }
+
+    public void testSysColsTableOnlyPattern(String commandVariation) throws Exception {
+        runSysColumns("SYS COLUMNS TABLES LIKE 'test'");
+    }
+
+    public void testSysColsColOnlyPattern(String commandVariation) throws Exception {
+        runSysColumns("SYS COLUMNS LIKE '%'");
+    }
+
+    public void testSysColsTableAndColsPattern(String commandVariation) throws Exception {
+        runSysColumns("SYS COLUMNS TABLES LIKE 'test' LIKE '%'");
+    }
+
+
+    private void runSysColumns(String commandVariation) throws Exception {
+        Tuple<Command, SqlSession> sql = sql(commandVariation);
+        List<String> names = asList("bool",
+                "int",
+                "text",
+                "keyword",
+                "unsupported",
+                "some",
+                "some.dotted",
+                "some.dotted.field",
+                "some.string",
+                "some.string.normalized",
+                "some.string.typical",
+                "some.ambiguous",
+                "some.ambiguous.one",
+                "some.ambiguous.two",
+                "some.ambiguous.normalized",
+                "dep",
+                "dep.dep_name",
+                "dep.dep_id",
+                "dep.dep_id.keyword",
+                "dep.end_date",
+                "dep.start_date");
+
+        sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
+            assertEquals(24, r.columnCount());
+            assertEquals(21, r.size());
+
+            for (int i = 0; i < r.size(); i++) {
+                assertEquals("cluster", r.column(0));
+                assertNull(r.column(1));
+                assertEquals("test", r.column(2));
+                assertEquals(names.get(i), r.column(3));
                 r.advanceRow();
             }
 

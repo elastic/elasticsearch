@@ -123,5 +123,4 @@ public enum DataType {
     public boolean isPrimitive() {
         return this != OBJECT && this != NESTED;
     }
-
 }

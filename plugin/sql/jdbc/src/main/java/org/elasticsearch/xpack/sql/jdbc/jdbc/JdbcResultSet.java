@@ -354,7 +354,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         Object val = column(columnIndex);
-        
+
         if (val == null) {
             return null;
         }
@@ -371,7 +371,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         
         T t = TypeConverter.convert(val, columnType, type);
         
-        if (t != null) {
+        if (t != null || type == null) {
             return t;
         }
         throw new SQLException("Conversion from type [" + columnType + "] to [" + type.getName() + "] not supported");

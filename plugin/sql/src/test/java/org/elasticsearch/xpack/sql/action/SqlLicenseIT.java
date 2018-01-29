@@ -19,8 +19,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
@@ -37,9 +35,6 @@ import static org.elasticsearch.license.XPackLicenseStateTests.randomBasicStanda
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialBasicStandardGoldOrPlatinumMode;
 import static org.elasticsearch.license.XPackLicenseStateTests.randomTrialOrPlatinumMode;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
     @Override
@@ -138,38 +133,6 @@ public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
 
         SqlQueryResponse response = client().prepareExecute(SqlQueryAction.INSTANCE).query("SELECT * FROM test").mode("jdbc").get();
         assertThat(response.size(), Matchers.equalTo(2L));
-    }
-
-    public void testSqlListColumnsActionLicense() throws Exception {
-        setupTestIndex();
-        disableSqlLicensing();
-
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(SqlListColumnsAction.INSTANCE).columnPattern("").indexPattern("test").get());
-        assertThat(e.getMessage(), equalTo("current license is non-compliant for [sql]"));
-        enableSqlLicensing();
-
-        SqlListColumnsResponse response = client().prepareExecute(SqlListColumnsAction.INSTANCE).columnPattern("")
-                .indexPattern("test").get();
-        assertThat(response.getColumns(), hasSize(2));
-        assertThat(response.getColumns().get(0).jdbcType(), nullValue());
-    }
-
-
-    public void testSqlListColumnsJdbcModeLicense() throws Exception {
-        setupTestIndex();
-        disableJdbcLicensing();
-
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> client().prepareExecute(SqlListColumnsAction.INSTANCE).columnPattern("")
-                        .indexPattern("test").mode("jdbc").get());
-        assertThat(e.getMessage(), equalTo("current license is non-compliant for [jdbc]"));
-        enableJdbcLicensing();
-
-        SqlListColumnsResponse response = client().prepareExecute(SqlListColumnsAction.INSTANCE).columnPattern("")
-                .indexPattern("test").mode("jdbc").get();
-        assertThat(response.getColumns(), hasSize(2));
-        assertThat(response.getColumns().get(0).jdbcType(), notNullValue());
     }
 
     public void testSqlTranslateActionLicense() throws Exception {

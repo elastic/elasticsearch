@@ -25,9 +25,6 @@ import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsAction;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsRequest;
-import org.elasticsearch.xpack.sql.plugin.SqlListColumnsResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
@@ -88,12 +85,8 @@ public class HttpClient {
         return response.isSucceeded();
     }
     
-    public SqlListColumnsResponse listColumns(SqlListColumnsRequest request)  throws SQLException {
-        return post(SqlListColumnsAction.REST_ENDPOINT, request, SqlListColumnsResponse::fromXContent);
-    }
-
-    private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request,
-                                                                 CheckedFunction<XContentParser, Response, IOException> responseParser)
+    private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request, 
+            CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         BytesReference requestBytes = toXContent(request);
         String query = "error_trace&mode=" + request.mode();
@@ -167,5 +160,4 @@ public class HttpClient {
             throw new ClientException("Cannot parse response", ex);
         }
     }
-
 }

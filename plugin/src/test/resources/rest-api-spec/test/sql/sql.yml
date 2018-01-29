@@ -118,14 +118,3 @@ setup:
 
   - match: { indices.test.total.search.open_contexts: 0 }
 
----
-"Check list of columns":
-  - do:
-      xpack.sql.columns:
-        body:
-          table_pattern: "t%"
-          column_pattern: ""
-
-  - length: { columns: 2 }
-  - match: { columns.0.name: 'int' }
-  - match: { columns.1.name: 'str' }

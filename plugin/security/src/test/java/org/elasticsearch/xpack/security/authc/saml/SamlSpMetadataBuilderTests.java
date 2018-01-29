@@ -87,21 +87,21 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
                 " protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">" +
                 "<md:KeyDescriptor>" +
                 "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>" +
-                "MIIDWDCCAkCgAwIBAgIVANRTZaFrK+Pz19O8TZsb3HSJmAWpMA0GCSqGSIb3DQEBCwUAMB0xGzAZ\n" +
-                "BgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTDAeFw0xNzExMjkwMjQ3MjZaFw0yMDExMjgwMjQ3MjZa\n" +
-                "MB0xGzAZBgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\n" +
-                "AQoCggEBALHTuPGOieCbD2mZUdYrdH4ofo7qFze6rQUROCLKqf69uBuwvraNWOcwxHUTKVlLMV3d\n" +
-                "dKzYo+yfC44AMXrrV+79xVWsTCNHu9sxQzcDwiEx2OtOOX9MAk6tJQ3svNrMPNXWh8ftwmmY9XdF\n" +
-                "ZwMYUdo6FPjSQj5uQTDmGWRgF08f7VRlk6N92d/fzn9DlDm+TFuaOr17OTSR4B6RTrNwKC29AmXQ\n" +
-                "TwCijCObjLqyMEqP20dZCQeVf2qw8JKUHhW4r6mCLzqmeR+kRTqiHMSWxJddzxDGw6X7fOS7iuzB\n" +
-                "0+TnsKwgu8nYrEXds9MkGf1Yco7WsM43g+Es+LhNHP+es70CAwEAAaOBjjCBizAdBgNVHQ4EFgQU\n" +
-                "ILqVKGhIi8p5Xffsow/IKFLhRbIwWQYDVR0jBFIwUIAUILqVKGhIi8p5Xffsow/IKFLhRbKhIaQf\n" +
-                "MB0xGzAZBgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTIIVANRTZaFrK+Pz19O8TZsb3HSJmAWpMA8G\n" +
-                "A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAGhl4V9mp4SWSV2E3HAJ1PX+Vmp6k27K\n" +
-                "d0tkOk1B9fyA13QB30teyiL7RR0vSHRyWFY8rQH1mHD366GKRWLITRG/QPULamGdYXX4h0pFj5ld\n" +
-                "aubLxM/O9vEAxOgmo/lsdkeIq9tLBqY06r/5A/Mcgo63KGi00AFYBoyvqfOu6nRLPnQr+rKVfdNO\n" +
-                "pWeIiFY1i2XTNZ3CZjNPSTwiQMUzrCxKXB9lL0vF6QL2Gj2iBhzNfXi88wf7xaR6XKY1wNuv3HLP\n" +
-                "sL7n+PWby7LRX188dyS1dmKfQcrKL65OssBA5NC8CAYyBiygBmWN+5kVJM5fSb0SwPSoVWrNyz+8\n" +
+                "MIIDWDCCAkCgAwIBAgIVANRTZaFrK+Pz19O8TZsb3HSJmAWpMA0GCSqGSIb3DQEBCwUAMB0xGzAZ" + System.lineSeparator() +
+                "BgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTDAeFw0xNzExMjkwMjQ3MjZaFw0yMDExMjgwMjQ3MjZa" + System.lineSeparator() +
+                "MB0xGzAZBgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC" + System.lineSeparator() +
+                "AQoCggEBALHTuPGOieCbD2mZUdYrdH4ofo7qFze6rQUROCLKqf69uBuwvraNWOcwxHUTKVlLMV3d" + System.lineSeparator() +
+                "dKzYo+yfC44AMXrrV+79xVWsTCNHu9sxQzcDwiEx2OtOOX9MAk6tJQ3svNrMPNXWh8ftwmmY9XdF" + System.lineSeparator() +
+                "ZwMYUdo6FPjSQj5uQTDmGWRgF08f7VRlk6N92d/fzn9DlDm+TFuaOr17OTSR4B6RTrNwKC29AmXQ" + System.lineSeparator() +
+                "TwCijCObjLqyMEqP20dZCQeVf2qw8JKUHhW4r6mCLzqmeR+kRTqiHMSWxJddzxDGw6X7fOS7iuzB" + System.lineSeparator() +
+                "0+TnsKwgu8nYrEXds9MkGf1Yco7WsM43g+Es+LhNHP+es70CAwEAAaOBjjCBizAdBgNVHQ4EFgQU" + System.lineSeparator() +
+                "ILqVKGhIi8p5Xffsow/IKFLhRbIwWQYDVR0jBFIwUIAUILqVKGhIi8p5Xffsow/IKFLhRbKhIaQf" + System.lineSeparator() +
+                "MB0xGzAZBgNVBAMTEkVsYXN0aWNzZWFyY2gtU0FNTIIVANRTZaFrK+Pz19O8TZsb3HSJmAWpMA8G" + System.lineSeparator() +
+                "A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggEBAGhl4V9mp4SWSV2E3HAJ1PX+Vmp6k27K" + System.lineSeparator() +
+                "d0tkOk1B9fyA13QB30teyiL7RR0vSHRyWFY8rQH1mHD366GKRWLITRG/QPULamGdYXX4h0pFj5ld" + System.lineSeparator() +
+                "aubLxM/O9vEAxOgmo/lsdkeIq9tLBqY06r/5A/Mcgo63KGi00AFYBoyvqfOu6nRLPnQr+rKVfdNO" + System.lineSeparator() +
+                "pWeIiFY1i2XTNZ3CZjNPSTwiQMUzrCxKXB9lL0vF6QL2Gj2iBhzNfXi88wf7xaR6XKY1wNuv3HLP" + System.lineSeparator() +
+                "sL7n+PWby7LRX188dyS1dmKfQcrKL65OssBA5NC8CAYyBiygBmWN+5kVJM5fSb0SwPSoVWrNyz+8" + System.lineSeparator() +
                 "IUldQE8=" +
                 "</ds:X509Certificate></ds:X509Data></ds:KeyInfo>" +
                 "</md:KeyDescriptor>" +

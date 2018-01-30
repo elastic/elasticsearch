@@ -120,15 +120,15 @@ public final class ELambda extends AExpression implements ILambda {
             }
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = expected.struct.getFunctionalMethod();
+            interfaceMethod = locals.getDefinition().ClassToType(expected).struct.getFunctionalMethod();
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name +
+                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + Definition.ClassToName(expected) +
                                                                "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.arguments.size() != paramTypeStrs.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
-                                                   "] in [" + expected.clazz + "]");
+                                                   "] in [" + Definition.ClassToName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.rtn.equals(locals.getDefinition().voidType)) {
                 returnType = locals.getDefinition().DefType;
@@ -178,7 +178,7 @@ public final class ELambda extends AExpression implements ILambda {
         // setup method reference to synthetic method
         if (expected == null) {
             ref = null;
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
@@ -192,11 +192,12 @@ public final class ELambda extends AExpression implements ILambda {
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
                 Type from = interfaceMethod.arguments.get(i);
                 Type to = desugared.parameters.get(i + captures.size()).type;
-                locals.getDefinition().caster.getLegalCast(location, from, to, false, true);
+                AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
             }
 
             if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                locals.getDefinition().caster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
+                AnalyzerCaster.getLegalCast(
+                    location, Definition.TypeToClass(desugared.rtnType), Definition.TypeToClass(interfaceMethod.rtn), false, true);
             }
 
             actual = expected;

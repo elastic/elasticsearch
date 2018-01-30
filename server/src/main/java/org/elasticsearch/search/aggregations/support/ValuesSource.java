@@ -30,6 +30,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -460,7 +461,9 @@ public abstract class ValuesSource {
                     for (int i = 0; i < count; ++i) {
                         final BytesRef value = bytesValues.nextValue();
                         script.setNextAggregationValue(value.utf8ToString());
-                        values[i].copyChars(script.run().toString());
+                        Object run = script.run();
+                        CollectionUtils.ensureNoSelfReferences(run);
+                        values[i].copyChars(run.toString());
                     }
                     sort();
                     return true;

@@ -19,28 +19,45 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
 class CompositeValuesSourceConfig {
     private final String name;
     private final ValuesSource vs;
+    private final DocValueFormat format;
     private final int reverseMul;
     private final boolean canEarlyTerminate;
 
-    CompositeValuesSourceConfig(String name, ValuesSource vs, SortOrder order, boolean canEarlyTerminate) {
+    CompositeValuesSourceConfig(String name, ValuesSource vs, DocValueFormat format, SortOrder order, boolean canEarlyTerminate) {
         this.name = name;
         this.vs = vs;
+        this.format = format;
         this.canEarlyTerminate = canEarlyTerminate;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
     }
 
+    /**
+     * Returns the name associated with this configuration.
+     */
     String name() {
         return name;
     }
 
+    /**
+     * Returns the {@link ValuesSource} for this configuration.
+     */
     ValuesSource valuesSource() {
         return vs;
+    }
+
+    /**
+     * The {@link DocValueFormat} to use for formatting the keys.
+     * {@link DocValueFormat#RAW} means no formatting.
+     */
+    DocValueFormat format() {
+        return format;
     }
 
     /**
@@ -51,6 +68,9 @@ class CompositeValuesSourceConfig {
         return reverseMul;
     }
 
+    /**
+     * Returns whether this {@link ValuesSource} is used to sort the index.
+     */
     boolean canEarlyTerminate() {
         return canEarlyTerminate;
     }

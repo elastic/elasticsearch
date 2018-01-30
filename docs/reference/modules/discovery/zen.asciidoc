@@ -99,7 +99,7 @@ The following settings control the fault detection process using the
 |`ping_interval` |How often a node gets pinged. Defaults to `1s`.
 
 |`ping_timeout` |How long to wait for a ping response, defaults to
-`30s`.
+`3s`.
 
 |`ping_retries` |How many ping failures / timeouts cause a node to be
 considered failed. Defaults to `3`.

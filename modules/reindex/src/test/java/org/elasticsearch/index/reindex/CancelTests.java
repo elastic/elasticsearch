@@ -110,9 +110,15 @@ public class CancelTests extends ReindexTestCase {
         // Now execute the reindex action...
         ActionFuture<? extends BulkByScrollResponse> future = builder.execute();
 
-        /* ... and waits for the indexing operation listeners to block. It is important to realize that some of the workers might have
-         * exhausted their slice while others might have quite a bit left to work on. We can't control that. */
-        awaitBusy(() -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0);
+        /* ... and wait for the indexing operation listeners to block. It
+         * is important to realize that some of the workers might have
+         * exhausted their slice while others might have quite a bit left
+         * to work on. We can't control that. */
+        logger.debug("waiting for updates to be blocked");
+        boolean blocked = awaitBusy(
+            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+            1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavilly loaded machines this can wake a while
+        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());

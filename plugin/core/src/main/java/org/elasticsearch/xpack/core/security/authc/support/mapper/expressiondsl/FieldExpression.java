@@ -5,21 +5,19 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
-import org.elasticsearch.common.Numbers;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.function.Predicate;
 
 /**
  * An expression that evaluates to <code>true</code> if a field (map element) matches
@@ -31,9 +29,9 @@ public final class FieldExpression implements RoleMapperExpression {
     public static final String NAME = "field";
 
     private final String field;
-    private final List<FieldPredicate> values;
+    private final List<FieldValue> values;
 
-    public FieldExpression(String field, List<FieldPredicate> values) {
+    public FieldExpression(String field, List<FieldValue> values) {
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("null or empty field name (" + field + ")");
         }
@@ -45,7 +43,7 @@ public final class FieldExpression implements RoleMapperExpression {
     }
 
     public FieldExpression(StreamInput in) throws IOException {
-        this(in.readString(), in.readList(FieldPredicate::readFrom));
+        this(in.readString(), in.readList(FieldValue::readFrom));
     }
 
     @Override
@@ -60,24 +58,15 @@ public final class FieldExpression implements RoleMapperExpression {
     }
 
     @Override
-    public boolean match(Map<String, Object> object) {
-        final Object fieldValue = object.get(field);
-        if (fieldValue instanceof Collection) {
-            return ((Collection) fieldValue).stream().anyMatch(this::matchValue);
-        } else {
-            return matchValue(fieldValue);
-        }
-    }
-
-    private boolean matchValue(Object fieldValue) {
-        return values.stream().anyMatch(predicate -> predicate.test(fieldValue));
+    public boolean match(ExpressionModel model) {
+        return model.test(field, values);
     }
 
     public String getField() {
         return field;
     }
 
-    public List<Predicate<Object>> getValues() {
+    public List<FieldValue> getValues() {
         return Collections.unmodifiableList(values);
     }
 
@@ -107,7 +96,7 @@ public final class FieldExpression implements RoleMapperExpression {
             values.get(0).toXContent(builder, params);
         } else {
             builder.startArray(this.field);
-            for (FieldPredicate fp : values) {
+            for (FieldValue fp : values) {
                 fp.toXContent(builder, params);
             }
             builder.endArray();
@@ -116,60 +105,40 @@ public final class FieldExpression implements RoleMapperExpression {
         return builder.endObject();
     }
 
-    /**
-     * A special predicate for matching values in a {@link FieldExpression}. This interface
-     * exists to support the serialisation ({@link ToXContent}, {@link Writeable}) of <em>field</em>
-     * expressions.
-     */
-    public static class FieldPredicate implements Predicate<Object>, ToXContent, Writeable {
+    public static class FieldValue implements ToXContent, Writeable {
         private final Object value;
-        private final Predicate<Object> predicate;
+        @Nullable
+        private final CharacterRunAutomaton automaton;
 
-        private FieldPredicate(Object value, Predicate<Object> predicate) {
+        public FieldValue(Object value) {
             this.value = value;
-            this.predicate = predicate;
+            this.automaton = buildAutomaton(value);
         }
 
-        @Override
-        public boolean test(Object o) {
-            return this.predicate.test(o);
+        private static CharacterRunAutomaton buildAutomaton(Object value) {
+            if (value instanceof String) {
+                final String str = (String) value;
+                if (Regex.isSimpleMatchPattern(str) || isLuceneRegex(str)) {
+                    return new CharacterRunAutomaton(Automatons.patterns(str));
+                }
+            }
+            return null;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
-                throws IOException {
-            return builder.value(value);
+        private static boolean isLuceneRegex(String str) {
+            return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
         }
 
-        /**
-         * Create an appropriate predicate based on the type and value of the argument.
-         * The predicate is formed according to the following rules:
-         * <ul>
-         * <li>If <code>value</code> is <code>null</code>, then the predicate evaluates to
-         * <code>true</code> <em>if-and-only-if</em> the predicate-argument is
-         * <code>null</code></li>
-         * <li>If <code>value</code> is a {@link Boolean}, then the predicate
-         * evaluates to <code>true</code> <em>if-and-only-if</em> the predicate-argument is
-         * an {@link Boolean#equals(Object) equal} <code>Boolean</code></li>
-         * <li>If <code>value</code> is a {@link Number}, then the predicate
-         * evaluates to <code>true</code> <em>if-and-only-if</em> the predicate-argument is
-         * numerically equal to <code>value</code>. This class makes a best-effort to determine
-         * numeric equality across different implementations of <code>Number</code>, but the
-         * implementation can only be guaranteed for standard integral representations (
-         * <code>Long</code>, <code>Integer</code>, etc)</li>
-         * <li>If <code>value</code> is a {@link String}, then it is treated as a
-         * {@link org.apache.lucene.util.automaton.Automaton Lucene automaton} pattern with
-         * {@link Automatons#predicate(String...) corresponding predicate}.
-         * </li>
-         * </ul>
-         */
-        public static FieldPredicate create(Object value) {
-            Predicate<Object> predicate = buildPredicate(value);
-            return new FieldPredicate(value, predicate);
+        public Object getValue() {
+            return value;
         }
 
-        public static FieldPredicate readFrom(StreamInput in) throws IOException {
-            return create(in.readGenericValue());
+        public CharacterRunAutomaton getAutomaton() {
+            return automaton;
+        }
+
+        public static FieldValue readFrom(StreamInput in) throws IOException {
+            return new FieldValue(in.readGenericValue());
         }
 
         @Override
@@ -177,41 +146,9 @@ public final class FieldExpression implements RoleMapperExpression {
             out.writeGenericValue(value);
         }
 
-        private static Predicate<Object> buildPredicate(Object object) {
-            if (object == null) {
-                return Objects::isNull;
-            }
-            if (object instanceof Boolean) {
-                return object::equals;
-            }
-            if (object instanceof Number) {
-                return (other) -> numberEquals((Number) object, other);
-            }
-            if (object instanceof String) {
-                final String str = (String) object;
-                if (str.isEmpty()) {
-                    return obj -> String.valueOf(obj).isEmpty();
-                } else {
-                    final Predicate<String> predicate = Automatons.predicate(str);
-                    return obj -> predicate.test(String.valueOf(obj));
-                }
-            }
-            throw new IllegalArgumentException("Unsupported value type " + object.getClass());
-        }
-
-        private static boolean numberEquals(Number left, Object other) {
-            if (left.equals(other)) {
-                return true;
-            }
-            if ((other instanceof Number) == false) {
-                return false;
-            }
-            Number right = (Number) other;
-            if (left instanceof Double || left instanceof Float
-                    || right instanceof Double || right instanceof Float) {
-                return Double.compare(left.doubleValue(), right.doubleValue()) == 0;
-            }
-            return Numbers.toLongExact(left) == Numbers.toLongExact(right);
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.value(value);
         }
 
     }

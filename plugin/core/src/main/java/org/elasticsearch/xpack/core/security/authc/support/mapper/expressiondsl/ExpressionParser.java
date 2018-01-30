@@ -114,7 +114,7 @@ public final class ExpressionParser {
     private RoleMapperExpression parseFieldExpression(XContentParser parser) throws IOException {
         checkStartObject(parser);
         final String fieldName = readFieldName(Fields.FIELD.getPreferredName(), parser);
-        final List<FieldExpression.FieldPredicate> values;
+        final List<FieldExpression.FieldValue> values;
         if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
             values = parseArray(Fields.FIELD, parser, this::parseFieldValue);
         } else {
@@ -166,19 +166,19 @@ public final class ExpressionParser {
         }
     }
 
-    private FieldExpression.FieldPredicate parseFieldValue(XContentParser parser) throws IOException {
+    private FieldExpression.FieldValue parseFieldValue(XContentParser parser) throws IOException {
         switch (parser.currentToken()) {
             case VALUE_STRING:
-                return FieldExpression.FieldPredicate.create(parser.text());
+                return new FieldExpression.FieldValue(parser.text());
 
             case VALUE_BOOLEAN:
-                return FieldExpression.FieldPredicate.create(parser.booleanValue());
+                return new FieldExpression.FieldValue(parser.booleanValue());
 
             case VALUE_NUMBER:
-                return FieldExpression.FieldPredicate.create(parser.longValue());
+                return new FieldExpression.FieldValue(parser.longValue());
 
             case VALUE_NULL:
-                return FieldExpression.FieldPredicate.create(null);
+                return new FieldExpression.FieldValue(null);
 
             default:
                 throw new ElasticsearchParseException("failed to parse rules expression. expected a field value but found [{}] instead",

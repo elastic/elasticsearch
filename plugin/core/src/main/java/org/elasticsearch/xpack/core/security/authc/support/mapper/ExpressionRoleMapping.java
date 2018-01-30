@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,7 +100,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     /**
      * The expression that determines whether the roles in this mapping should be applied to any given user.
-     * If the expression {@link RoleMapperExpression#match(Map) matches} a
+     * If the expression
+     * {@link RoleMapperExpression#match(org.elasticsearch.xpack.security.authc.support.mapper.expressiondsl.ExpressionModel) matches} a
      * org.elasticsearch.xpack.security.authc.support.UserRoleMapper.UserData user, then the user should be assigned this mapping's
      * {@link #getRoles() roles}
      */
@@ -133,7 +135,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "<" + name + " ; " + roles + " = " + expression + ">";
+        return getClass().getSimpleName() + "<" + name + " ; " + roles + " = " + Strings.toString(expression) + ">";
     }
 
     /**

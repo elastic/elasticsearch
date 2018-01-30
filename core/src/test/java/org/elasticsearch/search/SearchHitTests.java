@@ -55,6 +55,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -257,7 +258,7 @@ public class SearchHitTests extends ESTestCase {
         assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 
-    public void testNullSource() throws Exception {
+    public void testNullSource() {
         SearchHit searchHit = new SearchHit(0, "_id", new Text("_type"), null);
 
         assertThat(searchHit.source(), nullValue());
@@ -274,6 +275,73 @@ public class SearchHitTests extends ESTestCase {
         assertFalse(searchHit.hasSource());
         searchHit.sourceRef(new BytesArray("{}"));
         assertTrue(searchHit.hasSource());
+    }
+
+    public void testWeirdScriptFields() throws Exception {
+        {
+            XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
+                    "  \"_index\": \"twitter\",\n" +
+                    "  \"_type\": \"tweet\",\n" +
+                    "  \"_id\": \"1\",\n" +
+                    "  \"_score\": 1.0,\n" +
+                    "  \"fields\": {\n" +
+                    "    \"result\": [null]\n" +
+                    "  }\n" +
+                    "}");
+            SearchHit searchHit = SearchHit.fromXContent(parser);
+            Map<String, SearchHitField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            SearchHitField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            assertNull(result.getValues().get(0));
+        }
+        {
+            XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
+                    "  \"_index\": \"twitter\",\n" +
+                    "  \"_type\": \"tweet\",\n" +
+                    "  \"_id\": \"1\",\n" +
+                    "  \"_score\": 1.0,\n" +
+                    "  \"fields\": {\n" +
+                    "    \"result\": [{}]\n" +
+                    "  }\n" +
+                    "}");
+
+            SearchHit searchHit = SearchHit.fromXContent(parser);
+            Map<String, SearchHitField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            SearchHitField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            Object value = result.getValues().get(0);
+            assertThat(value, instanceOf(Map.class));
+            Map<?, ?> map = (Map<?, ?>) value;
+            assertEquals(0, map.size());
+        }
+        {
+            XContentParser parser = createParser(JsonXContent.jsonXContent, "{\n" +
+                    "  \"_index\": \"twitter\",\n" +
+                    "  \"_type\": \"tweet\",\n" +
+                    "  \"_id\": \"1\",\n" +
+                    "  \"_score\": 1.0,\n" +
+                    "  \"fields\": {\n" +
+                    "    \"result\": [\n" +
+                    "      []\n" +
+                    "    ]\n" +
+                    "  }\n" +
+                    "}");
+
+            SearchHit searchHit = SearchHit.fromXContent(parser);
+            Map<String, SearchHitField> fields = searchHit.getFields();
+            assertEquals(1, fields.size());
+            SearchHitField result = fields.get("result");
+            assertNotNull(result);
+            assertEquals(1, result.getValues().size());
+            Object value = result.getValues().get(0);
+            assertThat(value, instanceOf(List.class));
+            List<?> list = (List<?>) value;
+            assertEquals(0, list.size());
+        }
     }
 
     private static Explanation createExplanation(int depth) {

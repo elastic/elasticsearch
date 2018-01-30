@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.join.aggregations.Children;
 import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
@@ -54,6 +55,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
@@ -392,6 +395,47 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
                 assertThat(option.getScore(), greaterThan(0f));
                 assertThat(option.getText().string(), either(equalTo("type1")).or(equalTo("type2")));
             }
+        }
+    }
+
+    public void testSearchWithWeirdScriptFields() throws Exception {
+        HttpEntity entity = new NStringEntity("{ \"field\":\"value\"}", ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "test/type/1", Collections.emptyMap(), entity);
+        client().performRequest("POST", "/test/_refresh");
+
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
+                    .scriptField("result", new Script("null")));
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertNull(values.get(0));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
+                    .scriptField("result", new Script("new HashMap()")));
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertThat(values.get(0), instanceOf(Map.class));
+            Map<?, ?> map = (Map<?, ?>) values.get(0);
+            assertEquals(0, map.size());
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest("test").source(SearchSourceBuilder.searchSource()
+                    .scriptField("result", new Script("new String[]{}")));
+            SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+            SearchHit searchHit = searchResponse.getHits().getAt(0);
+            List<Object> values = searchHit.getFields().get("result").getValues();
+            assertNotNull(values);
+            assertEquals(1, values.size());
+            assertThat(values.get(0), instanceOf(List.class));
+            List<?> list = (List<?>) values.get(0);
+            assertEquals(0, list.size());
         }
     }
 

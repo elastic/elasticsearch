@@ -39,7 +39,7 @@ public final class XContentParserUtils {
     }
 
     /**
-     * Makes sure that current token is of type {@link XContentParser.Token#FIELD_NAME} and the the field name is equal to the provided one
+     * Makes sure that current token is of type {@link Token#FIELD_NAME} and the the field name is equal to the provided one
      * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME} or is not equal to the given field name
      */
     public static void ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
@@ -62,7 +62,7 @@ public final class XContentParserUtils {
     /**
      * @throws ParsingException with a "unknown token found" reason
      */
-    public static void throwUnknownToken(XContentParser.Token token, XContentLocation location) {
+    public static void throwUnknownToken(Token token, XContentLocation location) {
         String message = "Failed to parse object: unexpected token [%s] found";
         throw new ParsingException(location, String.format(Locale.ROOT, message, token));
     }
@@ -83,27 +83,36 @@ public final class XContentParserUtils {
      * Parse the current token depending on its token type. The following token types will be
      * parsed by the corresponding parser methods:
      * <ul>
-     *    <li>XContentParser.Token.VALUE_STRING: parser.text()</li>
-     *    <li>XContentParser.Token.VALUE_NUMBER: parser.numberValue()</li>
-     *    <li>XContentParser.Token.VALUE_BOOLEAN: parser.booleanValue()</li>
-     *    <li>XContentParser.Token.VALUE_EMBEDDED_OBJECT: parser.binaryValue()</li>
+     *    <li>{@link Token#VALUE_STRING}: {@link XContentParser#text()}</li>
+     *    <li>{@link Token#VALUE_NUMBER}: {@link XContentParser#numberValue()} ()}</li>
+     *    <li>{@link Token#VALUE_BOOLEAN}: {@link XContentParser#booleanValue()} ()}</li>
+     *    <li>{@link Token#VALUE_EMBEDDED_OBJECT}: {@link XContentParser#binaryValue()} ()}</li>
+     *    <li>{@link Token#VALUE_NULL}: returns null</li>
+     *    <li>{@link Token#START_OBJECT}: {@link XContentParser#mapOrdered()} ()}</li>
+     *    <li>{@link Token#START_ARRAY}: {@link XContentParser#listOrderedMap()} ()}</li>
      * </ul>
      *
-     * @throws ParsingException if the token none of the allowed values
+     * @throws ParsingException if the token is none of the allowed values
      */
-    public static Object parseStoredFieldsValue(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
+    public static Object parseFieldsValue(XContentParser parser) throws IOException {
+        Token token = parser.currentToken();
         Object value = null;
-        if (token == XContentParser.Token.VALUE_STRING) {
+        if (token == Token.VALUE_STRING) {
             //binary values will be parsed back and returned as base64 strings when reading from json and yaml
             value = parser.text();
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+        } else if (token == Token.VALUE_NUMBER) {
             value = parser.numberValue();
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+        } else if (token == Token.VALUE_BOOLEAN) {
             value = parser.booleanValue();
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+        } else if (token == Token.VALUE_EMBEDDED_OBJECT) {
             //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
             value = new BytesArray(parser.binaryValue());
+        } else if (token == Token.VALUE_NULL) {
+            value = null;
+        } else if (token == Token.START_OBJECT) {
+            value = parser.mapOrdered();
+        } else if (token == Token.START_ARRAY) {
+            value = parser.listOrderedMap();
         } else {
             throwUnknownToken(token, parser.getTokenLocation());
         }
@@ -132,7 +141,7 @@ public final class XContentParserUtils {
      */
     public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
             throws IOException {
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.currentToken() != XContentParser.Token.START_ARRAY) {
+        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
             throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
         }
         String currentFieldName = parser.currentName();

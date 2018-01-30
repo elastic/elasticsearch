@@ -67,7 +67,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
@@ -759,7 +759,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
                     fieldMap.put(field.getName(), field);
                 }, (p, c) -> {
                     List<Object> values = new ArrayList<>();
-                    values.add(parseStoredFieldsValue(p));
+                    values.add(parseFieldsValue(p));
                     return new SearchHitField(metadatafield, values);
                 }, new ParseField(metadatafield), ValueType.VALUE);
             }
@@ -773,7 +773,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             List<Object> values = new ArrayList<>();
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                values.add(parseStoredFieldsValue(parser));
+                values.add(parseFieldsValue(parser));
             }
             fields.put(fieldName, new SearchHitField(fieldName, values));
         }
@@ -809,7 +809,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, () -> parser.getTokenLocation());
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -817,7 +817,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, () -> parser.getTokenLocation());
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }

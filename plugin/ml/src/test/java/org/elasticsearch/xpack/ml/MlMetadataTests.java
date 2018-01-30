@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 
 import java.util.Collections;
 import java.util.Date;
@@ -37,7 +38,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
-import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
 import static org.hamcrest.Matchers.contains;

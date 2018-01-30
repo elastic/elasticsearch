@@ -11,8 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.ssl.CertUtils;
-import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import javax.net.ssl.HandshakeCompletedEvent;
 import javax.net.ssl.SSLContext;
@@ -111,10 +110,11 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
         }
     }
 
-    @Before
-    public void assumeECDSACiphersSupported() {
-        final SSLService sslService = internalCluster().getInstance(SSLService.class);
-        SSLEngine sslEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+    @BeforeClass
+    public static void assumeECDSACiphersSupported() throws Exception {
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(null, null, null);
+        SSLEngine sslEngine = sslContext.createSSLEngine();
         assumeTrue("ECDSA ciphers must be supported for this test to run. Enabled ciphers: " +
                         Arrays.toString(sslEngine.getEnabledCipherSuites()) + ", supported ciphers: " +
                         Arrays.toString(sslEngine.getSupportedCipherSuites()),

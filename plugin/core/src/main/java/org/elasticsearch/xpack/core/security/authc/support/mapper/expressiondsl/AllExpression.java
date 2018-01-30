@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,8 +44,8 @@ public final class AllExpression implements RoleMapperExpression {
     }
 
     @Override
-    public boolean match(Map<String, Object> object) {
-        return elements.stream().allMatch(RoleMapperExpression.predicate(object));
+    public boolean match(ExpressionModel model) {
+        return elements.stream().allMatch(RoleMapperExpression.predicate(model));
     }
 
     public List<RoleMapperExpression> getElements() {

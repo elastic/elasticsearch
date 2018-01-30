@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.job.persistence.InfluencersQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 
 public class InfluencersQueryBuilderTests extends ESTestCase {

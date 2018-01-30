@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +52,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -278,15 +281,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // set current allocation ids
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithLocalShards, clusterStateWithoutLocalShards));
-        verify(watcherService, times(0)).pauseExecution(eq("no local watcher shards"));
+        verify(watcherService, times(0)).pauseExecution(eq("no local watcher shards found"));
 
         // no more local hards, lets pause execution
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithLocalShards));
-        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards"));
+        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards found"));
 
         // no further invocations should happen if the cluster state does not change in regard to local shards
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithoutLocalShards));
-        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards"));
+        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards found"));
     }
 
     public void testReplicaWasAddedOrRemoved() throws Exception {
@@ -537,6 +540,41 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).blocks(clusterBlocks).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
         verify(watcherService, times(1)).stop(eq("write level cluster block"));
+    }
+
+    public void testStateIsSetImmediately() throws Exception {
+        Index index = new Index(Watch.INDEX, "foo");
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addShard(
+                TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(Watch.INDEX).settings(settings(Version.CURRENT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+                .numberOfShards(1).numberOfReplicas(0);
+        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
+                        .add(newNode("node_1")))
+                .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
+                .metaData(MetaData.builder()
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(indexMetaDataBuilder)
+                        .build())
+                .build();
+        when(watcherService.validate(state)).thenReturn(true);
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", state, state));
+        verify(watcherService, times(1)).start(eq(state));
+        assertThat(lifeCycleService.allocationIds(), hasSize(1));
+
+        // now do any cluster state upgrade, see that reload gets triggers, but should not
+        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", state, state));
+        verify(watcherService, never()).pauseExecution(anyString());
+
+        verify(watcherService, never()).reload(eq(state), anyString());
+        assertThat(lifeCycleService.allocationIds(), hasSize(1));
     }
 
     private List<String> randomIndexPatterns() {

@@ -185,20 +185,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             timeWarp = new TimeWarp(internalCluster().getInstances(ScheduleTriggerEngineMock.class),
                     (ClockMock)getInstanceFromMaster(Clock.class));
         }
-        startWatcherIfNodesExist();
-        createWatcherIndicesOrAliases();
-    }
 
-    @After
-    public void _cleanup() throws Exception {
-        // Clear all internal watcher state for the next test method:
-        logger.info("[#{}]: clearing watcher state", getTestName());
-        stopWatcher();
-    }
-
-    private void startWatcherIfNodesExist() throws Exception {
         if (internalCluster().size() > 0) {
             ensureLicenseEnabled();
+
             if (timeWarped()) {
                 // now that the license is enabled and valid we can freeze all nodes clocks
                 logger.info("[{}#{}]: freezing time on nodes", getTestClass().getSimpleName(), getTestName());
@@ -206,8 +196,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 internalCluster().setDisruptionScheme(ice);
                 ice.startDisrupting();
             }
-            assertAcked(watcherClient().prepareWatchService().start().get());
+
+            createWatcherIndicesOrAliases();
+            startWatcher();
         }
+    }
+
+    @After
+    public void _cleanup() throws Exception {
+        // Clear all internal watcher state for the next test method:
+        logger.info("[#{}]: clearing watcher state", getTestName());
+        stopWatcher();
     }
 
     /**
@@ -237,6 +236,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     assertAcked(response);
                     ensureGreen(newIndex);
                 }
+                logger.info("set alias for .watches index to [{}]", newIndex);
             } else {
                 Settings.Builder builder = Settings.builder();
                 if (randomBoolean()) {
@@ -270,6 +270,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     assertAcked(response);
                     ensureGreen(newIndex);
                 }
+                logger.info("set alias for .triggered-watches index to [{}]", newIndex);
             } else {
                 assertAcked(client().admin().indices().prepareCreate(TriggeredWatchStoreField.INDEX_NAME));
                 ensureGreen(TriggeredWatchStoreField.INDEX_NAME);
@@ -277,9 +278,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
             assertAcked(client().admin().indices().prepareCreate(historyIndex));
+            logger.info("creating watch history index [{}]", historyIndex);
             ensureGreen(historyIndex);
-
-            ensureWatcherStarted();
         }
     }
 
@@ -364,7 +364,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                                 ExecutionState.EXECUTED.id())))
                         .get();
                 lastResponse.set(searchResponse);
-                assertThat("could not find executed watch record", searchResponse.getHits().getTotalHits(),
+                assertThat("could not find executed watch record for watch " + watchName, searchResponse.getHits().getTotalHits(),
                         greaterThanOrEqualTo(minimumExpectedWatchActionsWithActionPerformed));
                 if (assertConditionMet) {
                     assertThat((Integer) XContentMapValues.extractValue("result.input.payload.hits.total",
@@ -508,12 +508,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void startWatcher() throws Exception {
-        watcherClient().prepareWatchService().start().get();
+        assertAcked(watcherClient().prepareWatchService().start().get());
         ensureWatcherStarted();
     }
 
     protected void stopWatcher() throws Exception {
-        watcherClient().prepareWatchService().stop().get();
+        assertAcked(watcherClient().prepareWatchService().stop().get());
         ensureWatcherStopped();
     }
 

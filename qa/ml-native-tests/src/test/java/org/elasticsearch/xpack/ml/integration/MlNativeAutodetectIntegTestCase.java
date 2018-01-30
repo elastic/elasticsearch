@@ -49,7 +49,9 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -58,6 +60,8 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -87,9 +91,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -415,6 +421,16 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         return response.isAcknowledged();
     }
 
+    protected PutCalendarAction.Response putCalendar(String calendarId, List<String> jobIds, String description) {
+        PutCalendarAction.Request request = new PutCalendarAction.Request(new Calendar(calendarId, jobIds, description));
+        return client().execute(PutCalendarAction.INSTANCE, request).actionGet();
+    }
+
+    protected PostCalendarEventsAction.Response postScheduledEvents(String calendarId, List<ScheduledEvent> events) {
+        PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request(calendarId, events);
+        return client().execute(PostCalendarEventsAction.INSTANCE, request).actionGet();
+    }
+
     @Override
     protected void ensureClusterStateConsistency() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
@@ -467,6 +483,21 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
                 }
             }
         }
+    }
+
+    protected List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount,
+                                      Function<Integer, Integer> timeToCountFunction) throws IOException {
+        List<String> data = new ArrayList<>();
+        long now = timestamp;
+        for (int bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
+            for (int count = 0; count < timeToCountFunction.apply(bucketIndex); count++) {
+                Map<String, Object> record = new HashMap<>();
+                record.put("time", now);
+                data.add(createJsonRecord(record));
+            }
+            now += bucketSpan.getMillis();
+        }
+        return data;
     }
 
     protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {

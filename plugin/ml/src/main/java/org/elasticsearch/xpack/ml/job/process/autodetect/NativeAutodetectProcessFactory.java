@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.params.AutodetectParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 

@@ -23,8 +23,6 @@ verify_xpack_installation() {
         'certutil.bat'
         'croneval'
         'croneval.bat'
-        'extension'
-        'extension.bat'
         'migrate'
         'migrate.bat'
         'saml-metadata'

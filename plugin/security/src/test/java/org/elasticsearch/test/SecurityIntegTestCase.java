@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

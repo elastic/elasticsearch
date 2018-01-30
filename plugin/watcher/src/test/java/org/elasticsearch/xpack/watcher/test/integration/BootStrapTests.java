@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -56,8 +55,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
-        "org.elasticsearch.xpack.watcher.execution:TRACE")
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -192,6 +189,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
 
+        ensureGreen("output", "my-index");
         int numWatches = 8;
         for (int i = 0; i < numWatches; i++) {
             String watchId = "_id" + i;

@@ -44,7 +44,7 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
     public void acceptChannels(Supplier<SocketSelector> selectorSupplier) throws IOException {
         NioSocketChannel acceptedChannel;
-        while ((acceptedChannel = channelFactory.acceptNioChannel(channel, selectorSupplier)) != null) {
+        while ((acceptedChannel = channelFactory.acceptNioChannel(this, selectorSupplier)) != null) {
             acceptor.accept(acceptedChannel);
         }
     }

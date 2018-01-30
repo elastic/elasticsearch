@@ -50,8 +50,8 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         return channel;
     }
 
-    public Socket acceptNioChannel(NioChannel<ServerSocketChannel> serverChannel, Supplier<SocketSelector> supplier) throws IOException {
-        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
+    public Socket acceptNioChannel(ServerChannelContext serverContext, Supplier<SocketSelector> supplier) throws IOException {
+        SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverContext);
         // Null is returned if there are no pending sockets to accept
         if (rawChannel == null) {
             return null;
@@ -169,8 +169,8 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
             return socketChannel;
         }
 
-        SocketChannel acceptNioChannel(NioChannel<ServerSocketChannel> serverSocketChannel) throws IOException {
-            ServerSocketChannel rawChannel = serverSocketChannel.getRawChannel();
+        SocketChannel acceptNioChannel(ServerChannelContext serverContext) throws IOException {
+            ServerSocketChannel rawChannel = serverContext.getChannel().getRawChannel();
             SocketChannel socketChannel = accept(rawChannel);
             if (socketChannel == null) {
                 return null;

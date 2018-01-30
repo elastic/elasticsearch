@@ -65,15 +65,14 @@ public class ChannelFactoryTests extends ESTestCase {
 
     @After
     public void ensureClosed() throws IOException {
-        IOUtils.closeWhileHandlingException(rawChannel);
-        IOUtils.closeWhileHandlingException(rawServerChannel);
+        IOUtils.closeWhileHandlingException(rawChannel, rawServerChannel);
     }
 
     public void testAcceptChannel() throws IOException {
-        NioServerSocketChannel serverChannel = mock(NioServerSocketChannel.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannel)).thenReturn(rawChannel);
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
+        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
 
-        NioSocketChannel channel = channelFactory.acceptNioChannel(serverChannel, socketSelectorSupplier);
+        NioSocketChannel channel = channelFactory.acceptNioChannel(serverChannelContext, socketSelectorSupplier);
 
         verify(socketSelector).scheduleForRegistration(channel);
 
@@ -81,11 +80,11 @@ public class ChannelFactoryTests extends ESTestCase {
     }
 
     public void testAcceptedChannelRejected() throws IOException {
-        NioServerSocketChannel serverChannel = mock(NioServerSocketChannel.class);
-        when(rawChannelFactory.acceptNioChannel(serverChannel)).thenReturn(rawChannel);
+        ServerChannelContext serverChannelContext = mock(ServerChannelContext.class);
+        when(rawChannelFactory.acceptNioChannel(serverChannelContext)).thenReturn(rawChannel);
         doThrow(new IllegalStateException()).when(socketSelector).scheduleForRegistration(any());
 
-        expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(serverChannel, socketSelectorSupplier));
+        expectThrows(IllegalStateException.class, () -> channelFactory.acceptNioChannel(serverChannelContext, socketSelectorSupplier));
 
         assertFalse(rawChannel.isOpen());
     }

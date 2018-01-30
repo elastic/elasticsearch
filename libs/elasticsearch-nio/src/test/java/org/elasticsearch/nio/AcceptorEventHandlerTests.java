@@ -77,11 +77,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel, null);
+        when(channelFactory.acceptNioChannel(same(context), same(selectorSupplier))).thenReturn(childChannel, null);
 
         handler.acceptChannel(context);
 
-        verify(channelFactory, times(2)).acceptNioChannel(same(channel), same(selectorSupplier));
+        verify(channelFactory, times(2)).acceptNioChannel(same(context), same(selectorSupplier));
     }
 
     @SuppressWarnings("unchecked")
@@ -93,7 +93,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         channel.setContext(serverChannelContext);
         when(serverChannelContext.getChannel()).thenReturn(channel);
-        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(context), same(selectorSupplier))).thenReturn(childChannel);
 
         handler.acceptChannel(serverChannelContext);
 

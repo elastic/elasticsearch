@@ -5,17 +5,23 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import com.unboundid.ldap.sdk.DN;
+import com.unboundid.ldap.sdk.LDAPException;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Where a realm users an authentication method that does not have in-built support for X-Pack
@@ -60,20 +66,24 @@ public interface UserRoleMapper {
         }
 
         /**
-         * Formats the user data as a <code>Map</code>.
-         * The map is <em>not</em> nested - all values are simple Java values, but keys may
+         * Formats the user data as a {@link ExpressionModel}.
+         * The model does <em>not</em> have nested values - all values are simple Java values, but keys may
          * contain <code>.</code>.
-         * For example, the {@link #metadata} values will be stored in the map with a key of
+         * For example, the {@link #metadata} values will be stored in the model with a key of
          * <code>"metadata.KEY"</code> where <code>KEY</code> is the key from the metadata object.
          */
-        public Map<String, Object> asMap() {
-            final Map<String, Object> map = new HashMap<>();
-            map.put("username", username);
-            map.put("dn", dn);
-            map.put("groups", groups);
-            metadata.keySet().forEach(k -> map.put("metadata." + k, metadata.get(k)));
-            map.put("realm.name", realm.name());
-            return map;
+        public ExpressionModel asModel() {
+            final ExpressionModel model = new ExpressionModel();
+            model.defineField("username", username);
+            model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
+            model.defineField("groups", groups, groups.stream()
+                    .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
+                    .reduce((a, b) -> a.or(b))
+                    .orElse(fieldValue -> false)
+            );
+            metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
+            model.defineField("realm.name", realm.name());
+            return model;
         }
 
         @Override
@@ -124,6 +134,100 @@ public interface UserRoleMapper {
          */
         public RealmConfig getRealm() {
             return realm;
+        }
+    }
+
+    /**
+     * A specialised predicate for fields that might be a DistinguishedName (e.g "dn" or "groups").
+     *
+     * The X500 specs define how to compare DistinguishedNames (but we mostly rely on {@link DN#equals(Object)}),
+     * which means "CN=me,DC=example,DC=com" should be equal to "cn=me, dc=Example, dc=COM" (and other variations).
+
+     * The {@link FieldExpression} class doesn't know about special rules for special data types, but the
+     * {@link ExpressionModel} class can take a custom {@code Predicate} that tests whether the data in the model
+     * matches the {@link FieldExpression.FieldValue value} in the expression.
+     *
+     * The string constructor parameter may or may not actaully parse as a DN - the "dn" field <em>should</em>
+     * always be a DN, however groups will be a DN if they're from an LDAP/AD realm, but often won't be for a SAML realm.
+     *
+     * Because the {@link FieldExpression.FieldValue} might be a pattern ({@link CharacterRunAutomaton automaton}),
+     * we sometimes need to do more complex matching than just comparing a DN for equality.
+     *
+     */
+    class DistinguishedNamePredicate implements Predicate<FieldExpression.FieldValue> {
+        private final String string;
+        private final DN dn;
+
+        public DistinguishedNamePredicate(String string) {
+            this.string = string;
+            this.dn = parseDn(string);
+        }
+
+        private static DN parseDn(String string) {
+            try {
+                return new DN(string);
+            } catch (LDAPException e) {
+                return null;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return string;
+        }
+
+        @Override
+        public boolean test(FieldExpression.FieldValue fieldValue) {
+            final CharacterRunAutomaton automaton = fieldValue.getAutomaton();
+            if (automaton != null) {
+                if (automaton.run(string)) {
+                    return true;
+                }
+                if (dn != null && automaton.run(dn.toNormalizedString())) {
+                    return true;
+                }
+                if (automaton.run(string.toLowerCase(Locale.ROOT)) || automaton.run(string.toUpperCase(Locale.ROOT))) {
+                    return true;
+                }
+                if (dn == null) {
+                    return false;
+                }
+
+                assert fieldValue.getValue() instanceof String : "FieldValue " + fieldValue + " has automaton but value is "
+                        + (fieldValue.getValue() == null ? "<null>" : fieldValue.getValue().getClass());
+                String pattern = (String) fieldValue.getValue();
+
+                // If the pattern is "*,dc=example,dc=com" then the rule is actually trying to express a DN sub-tree match.
+                // We can use dn.isDescendantOf for that
+                if (pattern.startsWith("*,")) {
+                    final String suffix = pattern.substring(2);
+                    // if the suffix has a wildcard, then it's not a pure sub-tree match
+                    if (suffix.indexOf('*') == -1) {
+                        final DN dnSuffix = parseDn(suffix);
+                        if (dnSuffix != null && dn.isDescendantOf(dnSuffix, false)) {
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+            if (fieldValue.getValue() instanceof String) {
+                final String testString = (String) fieldValue.getValue();
+                if (testString.equalsIgnoreCase(string)) {
+                    return true;
+                }
+                if (dn == null) {
+                    return false;
+                }
+
+                final DN testDn = parseDn(testString);
+                if (testDn != null) {
+                    return dn.equals(testDn);
+                }
+                return testString.equalsIgnoreCase(dn.toNormalizedString());
+            }
+            return false;
         }
     }
 }

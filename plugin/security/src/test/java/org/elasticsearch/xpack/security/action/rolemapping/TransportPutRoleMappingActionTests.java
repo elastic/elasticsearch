@@ -63,7 +63,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     public void testPutValidMapping() throws Exception {
         final FieldExpression expression = new FieldExpression(
                 "username",
-                Collections.singletonList(FieldExpression.FieldPredicate.create("*"))
+                Collections.singletonList(new FieldExpression.FieldValue("*"))
         );
         final PutRoleMappingResponse response = put("anarchy", expression, "superuser",
                 Collections.singletonMap("dumb", true));

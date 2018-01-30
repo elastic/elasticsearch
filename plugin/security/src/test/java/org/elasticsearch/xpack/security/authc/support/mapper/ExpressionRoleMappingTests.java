@@ -22,9 +22,6 @@
 
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
-import java.io.IOException;
-import java.util.Collections;
-
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -40,6 +37,10 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -71,9 +72,18 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("kibana_user", "sales"));
         assertThat(mapping.getExpression(), instanceOf(AllExpression.class));
 
-        final UserRoleMapper.UserData user1 = new UserRoleMapper.UserData(
+        final UserRoleMapper.UserData user1a = new UserRoleMapper.UserData(
                 "john.smith", "cn=john.smith,ou=sales,dc=example,dc=com",
                 Collections.emptyList(), Collections.singletonMap("active", true), realm
+        );
+        final UserRoleMapper.UserData user1b = new UserRoleMapper.UserData(
+                user1a.getUsername(), user1a.getDn().toUpperCase(Locale.US), user1a.getGroups(), user1a.getMetadata(), user1a.getRealm()
+        );
+        final UserRoleMapper.UserData user1c = new UserRoleMapper.UserData(
+                user1a.getUsername(), user1a.getDn().replaceAll(",", ", "), user1a.getGroups(), user1a.getMetadata(), user1a.getRealm()
+        );
+        final UserRoleMapper.UserData user1d = new UserRoleMapper.UserData(
+                user1a.getUsername(), user1a.getDn().replaceAll("dc=", "DC="), user1a.getGroups(), user1a.getMetadata(), user1a.getRealm()
         );
         final UserRoleMapper.UserData user2 = new UserRoleMapper.UserData(
                 "jamie.perez", "cn=jamie.perez,ou=sales,dc=example,dc=com",
@@ -85,9 +95,12 @@ public class ExpressionRoleMappingTests extends ESTestCase {
                 Collections.emptyList(), Collections.singletonMap("active", true), realm
         );
 
-        assertThat(mapping.getExpression().match(user1.asMap()), equalTo(true));
-        assertThat(mapping.getExpression().match(user2.asMap()), equalTo(false));
-        assertThat(mapping.getExpression().match(user3.asMap()), equalTo(false));
+        assertThat(mapping.getExpression().match(user1a.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(user1b.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(user1c.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(user1d.asModel()), equalTo(true));
+        assertThat(mapping.getExpression().match(user2.asModel()), equalTo(false));
+        assertThat(mapping.getExpression().match(user3.asModel()), equalTo(false));
     }
 
     public void testParsingFailsIfRulesAreMissing() throws Exception {

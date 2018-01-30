@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRespons
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -327,10 +328,10 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(
                 mappings -> {
-                    final Map<String, Object> userDataMap = user.asMap();
+                    final ExpressionModel model = user.asModel();
                     Stream<ExpressionRoleMapping> stream = mappings.stream()
                             .filter(ExpressionRoleMapping::isEnabled)
-                            .filter(m -> m.getExpression().match(userDataMap));
+                            .filter(m -> m.getExpression().match(model));
                     if (logger.isTraceEnabled()) {
                         stream = stream.map(m -> {
                             logger.trace("User [{}] matches role-mapping [{}] with roles [{}]", user.getUsername(), m.getName(),

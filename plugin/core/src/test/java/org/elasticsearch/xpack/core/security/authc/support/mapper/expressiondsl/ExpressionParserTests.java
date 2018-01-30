@@ -17,18 +17,17 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ExpressionParserTests extends ESTestCase {
 
@@ -37,9 +36,11 @@ public class ExpressionParserTests extends ESTestCase {
         FieldExpression field = checkExpressionType(parse(json), FieldExpression.class);
         assertThat(field.getField(), equalTo("username"));
         assertThat(field.getValues(), iterableWithSize(1));
-        final Predicate<Object> predicate = field.getValues().get(0);
-        assertThat(predicate.test("bob@shield.gov"), equalTo(true));
-        assertThat(predicate.test("bob@example.net"), equalTo(false));
+        final FieldValue value = field.getValues().get(0);
+        assertThat(value.getValue(), equalTo("*@shield.gov"));
+        assertThat(value.getAutomaton(), notNullValue());
+        assertThat(value.getAutomaton().run("bob@shield.gov"), equalTo(true));
+        assertThat(value.getAutomaton().run("bob@example.net"), equalTo(false));
         assertThat(json(field), equalTo(json.replaceAll("\\s", "")));
     }
 
@@ -65,9 +66,11 @@ public class ExpressionParserTests extends ESTestCase {
                 FieldExpression.class);
         assertThat(fieldShield.getField(), equalTo("username"));
         assertThat(fieldShield.getValues(), iterableWithSize(1));
-        final Predicate<Object> predicateShield = fieldShield.getValues().get(0);
-        assertThat(predicateShield.test("fury@shield.gov"), equalTo(true));
-        assertThat(predicateShield.test("fury@shield.net"), equalTo(false));
+        final FieldValue valueShield = fieldShield.getValues().get(0);
+        assertThat(valueShield.getValue(), equalTo("*@shield.gov"));
+        assertThat(valueShield.getAutomaton(), notNullValue());
+        assertThat(valueShield.getAutomaton().run("fury@shield.gov"), equalTo(true));
+        assertThat(valueShield.getAutomaton().run("fury@shield.net"), equalTo(false));
 
         final AllExpression all = checkExpressionType(any.getElements().get(1),
                 AllExpression.class);
@@ -77,19 +80,17 @@ public class ExpressionParserTests extends ESTestCase {
                 FieldExpression.class);
         assertThat(fieldAvengers.getField(), equalTo("username"));
         assertThat(fieldAvengers.getValues(), iterableWithSize(1));
-        final Predicate<Object> predicateAvengers = fieldAvengers.getValues().get(0);
-        assertThat(predicateAvengers.test("stark@avengers.net"), equalTo(true));
-        assertThat(predicateAvengers.test("romanov@avengers.org"), equalTo(true));
-        assertThat(predicateAvengers.test("fury@shield.gov"), equalTo(false));
+        final FieldValue valueAvengers = fieldAvengers.getValues().get(0);
+        assertThat(valueAvengers.getAutomaton().run("stark@avengers.net"), equalTo(true));
+        assertThat(valueAvengers.getAutomaton().run("romanov@avengers.org"), equalTo(true));
+        assertThat(valueAvengers.getAutomaton().run("fury@shield.gov"), equalTo(false));
 
         final FieldExpression fieldGroupsAdmin = checkExpressionType(all.getElements().get(1),
                 FieldExpression.class);
         assertThat(fieldGroupsAdmin.getField(), equalTo("groups"));
         assertThat(fieldGroupsAdmin.getValues(), iterableWithSize(2));
-        assertThat(fieldGroupsAdmin.getValues().get(0).test("admin"), equalTo(true));
-        assertThat(fieldGroupsAdmin.getValues().get(0).test("foo"), equalTo(false));
-        assertThat(fieldGroupsAdmin.getValues().get(1).test("operators"), equalTo(true));
-        assertThat(fieldGroupsAdmin.getValues().get(1).test("foo"), equalTo(false));
+        assertThat(fieldGroupsAdmin.getValues().get(0).getValue(), equalTo("admin"));
+        assertThat(fieldGroupsAdmin.getValues().get(1).getValue(), equalTo("operators"));
 
         final ExceptExpression except = checkExpressionType(all.getElements().get(2),
                 ExceptExpression.class);
@@ -97,26 +98,25 @@ public class ExpressionParserTests extends ESTestCase {
                 FieldExpression.class);
         assertThat(fieldDisavowed.getField(), equalTo("groups"));
         assertThat(fieldDisavowed.getValues(), iterableWithSize(1));
-        assertThat(fieldDisavowed.getValues().get(0).test("disavowed"), equalTo(true));
-        assertThat(fieldDisavowed.getValues().get(0).test("_disavowed_"), equalTo(false));
+        assertThat(fieldDisavowed.getValues().get(0).getValue(), equalTo("disavowed"));
 
-        Map<String, Object> hawkeye = new HashMap<>();
-        hawkeye.put("username", "hawkeye@avengers.org");
-        hawkeye.put("groups", Arrays.asList("operators"));
+        ExpressionModel hawkeye = new ExpressionModel();
+        hawkeye.defineField("username", "hawkeye@avengers.org");
+        hawkeye.defineField("groups", Arrays.asList("operators"));
         assertThat(expr.match(hawkeye), equalTo(true));
 
-        Map<String, Object> captain = new HashMap<>();
-        captain.put("username", "america@avengers.net");
+        ExpressionModel captain = new ExpressionModel();
+        captain.defineField("username", "america@avengers.net");
         assertThat(expr.match(captain), equalTo(false));
 
-        Map<String, Object> warmachine = new HashMap<>();
-        warmachine.put("username", "warmachine@avengers.net");
-        warmachine.put("groups", Arrays.asList("admin", "disavowed"));
+        ExpressionModel warmachine = new ExpressionModel();
+        warmachine.defineField("username", "warmachine@avengers.net");
+        warmachine.defineField("groups", Arrays.asList("admin", "disavowed"));
         assertThat(expr.match(warmachine), equalTo(false));
 
-        Map<String, Object> fury = new HashMap<>();
-        fury.put("username", "fury@shield.gov");
-        fury.put("groups", Arrays.asList("classified", "directors"));
+        ExpressionModel fury = new ExpressionModel();
+        fury.defineField("username", "fury@shield.gov");
+        fury.defineField("groups", Arrays.asList("classified", "directors"));
         assertThat(expr.asPredicate().test(fury), equalTo(true));
 
         assertThat(json(expr), equalTo(json.replaceAll("\\s", "")));

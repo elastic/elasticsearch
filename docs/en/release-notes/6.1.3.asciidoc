@@ -8,12 +8,13 @@
 [[xes-bug-6.1.3]]
 [float]
 === Bug fixes
-////
+
 Security::
-* [Security] Handle cache expiry in token service
+* Improved cache expiry handling in the token service. Previously, if the token
+service was idle for more than 60 minutes, the key expired and the service
+failed to generate user tokens.
 // Repo: x-pack-elasticsearch
-// Pull: 3565
-////
+//Pull: 3565
 
 Watcher::
 * Fixed a null pointer exception in the TemplateRegistry when there is no master

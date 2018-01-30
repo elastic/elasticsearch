@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.JsonToken;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -37,8 +38,9 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
 
-    public JsonXContentParser(NamedXContentRegistry xContentRegistry, JsonParser parser) {
-        super(xContentRegistry);
+    public JsonXContentParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, JsonParser parser) {
+        super(xContentRegistry, deprecationHandler);
         this.parser = parser;
     }
 

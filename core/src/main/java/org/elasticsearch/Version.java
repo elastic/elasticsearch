@@ -106,6 +106,8 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_6_6 = new Version(V_5_6_6_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_7_ID = 5060799;
     public static final Version V_5_6_7 = new Version(V_5_6_7_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_8_ID = 5060899;
+    public static final Version V_5_6_8 = new Version(V_5_6_8_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -166,6 +168,8 @@ public class Version implements Comparable<Version> {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_8_ID:
+                return V_5_6_8;
             case V_5_6_7_ID:
                 return V_5_6_7;
             case V_5_6_6_ID:

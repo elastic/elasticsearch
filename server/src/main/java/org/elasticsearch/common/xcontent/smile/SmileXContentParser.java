@@ -20,15 +20,16 @@
 package org.elasticsearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonParser;
-
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 public class SmileXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(NamedXContentRegistry xContentRegistry, JsonParser parser) {
-        super(xContentRegistry, parser);
+    public SmileXContentParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, JsonParser parser) {
+        super(xContentRegistry, deprecationHandler, parser);
     }
 
     @Override

@@ -22,7 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -35,7 +35,6 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
     private final WatcherService watcherService;
     private final ExecutionService executionService;
     private final XPackLicenseState licenseState;
-    private final WatcherLifeCycleService lifeCycleService;
     private final TriggerService triggerService;
 
     @Inject
@@ -43,13 +42,12 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
                                           ExecutionService executionService, XPackLicenseState licenseState,
-                                          WatcherLifeCycleService lifeCycleService, TriggerService triggerService) {
+                                          TriggerService triggerService) {
         super(settings, OldWatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, 
                 indexNameExpressionResolver, OldWatcherStatsRequest::new);
         this.watcherService = watcherService;
         this.executionService = executionService;
         this.licenseState = licenseState;
-        this.lifeCycleService = lifeCycleService;
         this.triggerService = triggerService;
     }
 
@@ -81,7 +79,7 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setWatchesCount(triggerService.count());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());
-        statsResponse.setWatcherMetaData(lifeCycleService.watcherMetaData());
+        statsResponse.setWatcherMetaData(getWatcherMetaData());
 
         if (request.includeCurrentWatches()) {
             statsResponse.setSnapshots(executionService.currentExecutions());
@@ -96,5 +94,13 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
     @Override
     protected ClusterBlockException checkBlock(OldWatcherStatsRequest request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+    }
+
+    private WatcherMetaData getWatcherMetaData() {
+        WatcherMetaData watcherMetaData = clusterService.state().getMetaData().custom(WatcherMetaData.TYPE);
+        if (watcherMetaData == null) {
+            watcherMetaData = new WatcherMetaData(false);
+        }
+        return watcherMetaData;
     }
 }

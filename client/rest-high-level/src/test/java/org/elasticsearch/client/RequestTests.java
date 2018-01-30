@@ -1083,7 +1083,8 @@ public class RequestTests extends ESTestCase {
 
     private static void resizeTest(ResizeType resizeType, CheckedFunction<ResizeRequest, Request, IOException> function)
             throws IOException {
-        ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
+        String[] indices = randomIndicesNames(2, 2);
+        ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
         resizeRequest.setResizeType(resizeType);
         Map<String, String> expectedParams = new HashMap<>();
         setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);

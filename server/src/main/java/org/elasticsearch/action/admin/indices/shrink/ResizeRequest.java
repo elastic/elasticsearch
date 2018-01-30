@@ -184,7 +184,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         targetIndexRequest.settings().toXContent(builder, params);
         builder.endObject();
         builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
-        for (Alias alias :targetIndexRequest.aliases()) {
+        for (Alias alias : targetIndexRequest.aliases()) {
             alias.toXContent(builder, params);
         }
         builder.endObject();

@@ -478,8 +478,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardRouting initializingReplicaRouting = replica.routingEntry();
         primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
             inSyncIds, routingTable, Collections.emptySet());
-        recovery.recoverToTarget();
-        recoveryTarget.markAsDone();
+        try {
+            recovery.recoverToTarget();
+        } finally {
+            recoveryTarget.markAsDone();
+        }
         IndexShardRoutingTable newRoutingTable =
             initializingReplicaRouting.isRelocationTarget() ?
                 new IndexShardRoutingTable.Builder(routingTable)

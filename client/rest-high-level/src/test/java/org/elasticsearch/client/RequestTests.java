@@ -30,7 +30,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -253,14 +252,14 @@ public class RequestTests extends ESTestCase {
 
     public void testIndicesExist() {
         String[] indices = randomIndicesNames(1, 10);
-        boolean flatSettings = true;
-        boolean includeDefaults = true;
-        boolean local = true;
-        boolean humanReadable = true;
-        boolean ignoreUnavailable = false;
-        boolean allowNoIndices = true;
-        boolean expandToOpenIndices = false;
-        boolean expandToClosedIndices = false;
+        boolean flatSettings = randomBoolean();
+        boolean includeDefaults = randomBoolean();
+        boolean local = randomBoolean();
+        boolean humanReadable = randomBoolean();
+        boolean ignoreUnavailable = randomBoolean();
+        boolean allowNoIndices = randomBoolean();
+        boolean expandToOpenIndices = randomBoolean();
+        boolean expandToClosedIndices = randomBoolean();
 
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(
             ignoreUnavailable,
@@ -280,14 +279,47 @@ public class RequestTests extends ESTestCase {
         final Request request = Request.indicesExist(getIndexRequest);
 
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
-        assertEquals(String.valueOf(flatSettings), request.getParameters().get("flat_settings"));
-        assertEquals(String.valueOf(local), request.getParameters().get("local"));
-        assertEquals(String.valueOf(humanReadable), request.getParameters().get("human"));
-        assertEquals(String.valueOf(includeDefaults), request.getParameters().get("include_defaults"));
-        assertEquals(String.valueOf(ignoreUnavailable), request.getParameters().get("ignore_unavailable"));
-        assertEquals(String.valueOf(allowNoIndices), request.getParameters().get("allow_no_indices"));
-        assertEquals("none", request.getParameters().get("expand_wildcards"));
+        assertEquals(
+            flatSettings,
+            Boolean.valueOf(request.getParameters().get("flat_settings"))
+        );
+        assertEquals(
+            local,
+            Boolean.valueOf(request.getParameters().get("local"))
+        );
+        assertEquals(
+            humanReadable,
+            Boolean.valueOf(request.getParameters().get("human"))
+        );
+        assertEquals(
+            includeDefaults,
+            Boolean.valueOf(request.getParameters().get("include_defaults"))
+        );
+        assertEquals(
+            ignoreUnavailable,
+            Boolean.valueOf(request.getParameters().get("ignore_unavailable"))
+        );
+        assertEquals(
+            allowNoIndices,
+            Boolean.valueOf(request.getParameters().get("allow_no_indices"))
+        );
+        assertEquals(
+            getWildcardValue(expandToOpenIndices, expandToClosedIndices),
+            request.getParameters().get("expand_wildcards")
+        );
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
+    }
+
+    private String getWildcardValue(boolean expandToOpenIndices, boolean expandToClosedIndices) {
+        if (expandToOpenIndices && expandToClosedIndices) {
+            return "open,closed";
+        } else if (!expandToOpenIndices && !expandToClosedIndices) {
+            return "none";
+        } if (expandToClosedIndices) {
+            return "closed";
+        } else {
+            return "open";
+        }
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {

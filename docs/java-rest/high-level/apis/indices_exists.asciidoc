@@ -3,3 +3,26 @@
 
 ==== Indices Exists Request
 
+The high-level REST client uses a `GetIndexRequest` for Indices Exists API. The index name (or indices' names) are required.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-request]
+--------------------------------------------------
+<1> Index
+
+==== Optional arguments
+Indices Exists API also accepts following optional arguments, through a `GetIndexRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-request-optionals]
+--------------------------------------------------
+
+==== Response
+The response is a `boolean` value, indicating whether the index (or indices) exist:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-response]
+--------------------------------------------------

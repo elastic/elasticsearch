@@ -547,6 +547,7 @@ public final class Request {
         String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
         Params params = Params.builder();
         params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
         params.withIndicesOptions(request.indicesOptions());
         params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
@@ -697,6 +698,11 @@ public final class Request {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withHuman(boolean human) {
+            putParam("human", Boolean.toString(human));
             return this;
         }
 

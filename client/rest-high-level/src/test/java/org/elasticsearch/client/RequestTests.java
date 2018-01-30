@@ -256,6 +256,7 @@ public class RequestTests extends ESTestCase {
         boolean flatSettings = true;
         boolean includeDefaults = true;
         boolean local = true;
+        boolean humanReadable = true;
         boolean ignoreUnavailable = false;
         boolean allowNoIndices = true;
         boolean expandToOpenIndices = false;
@@ -267,8 +268,10 @@ public class RequestTests extends ESTestCase {
             expandToOpenIndices,
             expandToClosedIndices
         );
+
         GetIndexRequest getIndexRequest = new GetIndexRequest()
             .local(local)
+            .humanReadable(humanReadable)
             .indicesOptions(indicesOptions)
             .indices(indices)
             .flatSettings(flatSettings)
@@ -279,6 +282,7 @@ public class RequestTests extends ESTestCase {
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
         assertEquals(String.valueOf(flatSettings), request.getParameters().get("flat_settings"));
         assertEquals(String.valueOf(local), request.getParameters().get("local"));
+        assertEquals(String.valueOf(humanReadable), request.getParameters().get("human"));
         assertEquals(String.valueOf(includeDefaults), request.getParameters().get("include_defaults"));
         assertEquals(String.valueOf(ignoreUnavailable), request.getParameters().get("ignore_unavailable"));
         assertEquals(String.valueOf(allowNoIndices), request.getParameters().get("allow_no_indices"));

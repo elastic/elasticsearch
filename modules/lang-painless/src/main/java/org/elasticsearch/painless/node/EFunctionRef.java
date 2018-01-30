@@ -80,12 +80,12 @@ public final class EFunctionRef extends AExpression implements ILambda {
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = interfaceMethod.arguments.get(i);
-                        Definition.Type to = delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = Definition.TypeToClass(interfaceMethod.arguments.get(i));
+                        Class<?> to = Definition.TypeToClass(delegateMethod.arguments.get(i));
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                    if (interfaceMethod.rtn.clazz != void.class) {
                         AnalyzerCaster.getLegalCast(
                             location, Definition.TypeToClass(delegateMethod.rtn), Definition.TypeToClass(interfaceMethod.rtn), false, true);
                     }

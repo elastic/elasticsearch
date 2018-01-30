@@ -298,6 +298,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Get the name of the parser.
      */
+    @Override
     public String getName() {
         return name;
     }
@@ -400,6 +401,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         LONG(VALUE_NUMBER, VALUE_STRING),
         LONG_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         INT(VALUE_NUMBER, VALUE_STRING),
+        INT_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         BOOLEAN(VALUE_BOOLEAN, VALUE_STRING),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
         FLOAT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),

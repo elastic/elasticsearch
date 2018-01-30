@@ -128,6 +128,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
         private final DocValueFormat[] sortFmt;
         private final CollapsingTopDocsCollector<?> topDocsCollector;
+        private final boolean rescore;
 
         /**
          * Ctr
@@ -139,13 +140,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private CollapsingTopDocsCollectorContext(CollapseContext collapseContext,
                                                   @Nullable SortAndFormats sortAndFormats,
                                                   int numHits,
-                                                  boolean trackMaxScore) {
+                                                  boolean trackMaxScore, boolean rescore) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, trackMaxScore);
+            this.rescore = rescore;
         }
 
         @Override
@@ -157,6 +159,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             result.topDocs(topDocsCollector.getTopDocs(), sortFmt);
+        }
+
+        @Override
+        boolean shouldRescore() {
+            return rescore;
         }
     }
 
@@ -335,8 +342,15 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            final boolean rescore = searchContext.rescore().isEmpty() == false;
+            if (rescore) {
+                assert searchContext.sort() == null;
+                for (RescoreContext rescoreContext : searchContext.rescore()) {
+                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
+                }
+            }
             return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                searchContext.sort(), numDocs, trackScores);
+                searchContext.sort(), numDocs, trackScores, rescore);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;

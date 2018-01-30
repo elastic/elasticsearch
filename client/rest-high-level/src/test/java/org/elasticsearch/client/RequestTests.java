@@ -30,10 +30,10 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -798,6 +798,14 @@ public class RequestTests extends ESTestCase {
             assertEquals("Unsupported content-type found for request with content-type [" + xContentType
                     + "], only JSON and SMILE are supported", exception.getMessage());
         }
+    }
+
+    public void testSearchNullSource() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        Request request = Request.search(searchRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_search", request.getEndpoint());
+        assertNull(request.getEntity());
     }
 
     public void testSearch() throws Exception {

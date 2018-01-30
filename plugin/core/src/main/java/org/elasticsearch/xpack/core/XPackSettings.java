@@ -30,10 +30,8 @@ public class XPackSettings {
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling monitoring. Defaults to true if not a tribe node. */
-    public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled",
-            // By default, monitoring is disabled on tribe nodes
-            s -> String.valueOf(XPackClientActionPlugin.isTribeNode(s) == false && XPackClientActionPlugin.isTribeClientNode(s) == false),
+    /** Setting for enabling or disabling monitoring. */
+    public static final Setting<Boolean> MONITORING_ENABLED = Setting.boolSetting("xpack.monitoring.enabled", true,
             Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling watcher. Defaults to true. */

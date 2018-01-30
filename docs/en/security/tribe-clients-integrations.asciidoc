@@ -1,12 +1,11 @@
 [[ccs-tribe-clients-integrations]]
-== Cross Cluster Search, Tribe, Clients and Integrations
+== Cross Cluster Search, Clients and Integrations
 
-When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search] or
-{ref}/modules-tribe.html[Tribe Nodes] you need to take extra steps to secure
-communications with the connected clusters.
+When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search]
+you need to take extra steps to secure communications with the connected
+clusters.
 
 * <<cross-cluster-configuring, Cross Cluster Search and Security>>
-* <<tribe-node-configuring, Tribe Nodes and Security>>
 
 You will need to update the configuration for several clients to work with a
 secured cluster:
@@ -33,8 +32,6 @@ or at least communicate with the cluster in a secured way:
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
 include::tribe-clients-integrations/cross-cluster.asciidoc[]
-
-include::tribe-clients-integrations/tribe.asciidoc[]
 
 include::tribe-clients-integrations/java.asciidoc[]
 

@@ -35,7 +35,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
@@ -84,7 +83,6 @@ public class NativeRolesStore extends AbstractComponent {
 
     private final Client client;
     private final XPackLicenseState licenseState;
-    private final boolean isTribeNode;
 
     private SecurityClient securityClient;
     private final SecurityLifecycleService securityLifecycleService;
@@ -93,7 +91,6 @@ public class NativeRolesStore extends AbstractComponent {
                             SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;
         this.securityLifecycleService = securityLifecycleService;
@@ -136,35 +133,29 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
-        } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                        ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
-                request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        new ActionListener<DeleteResponse>() {
-                            @Override
-                            public void onResponse(DeleteResponse deleteResponse) {
-                                clearRoleCache(deleteRoleRequest.name(), listener,
-                                        deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                            }
+        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                    ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
+            request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<DeleteResponse>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            clearRoleCache(deleteRoleRequest.name(), listener,
+                                    deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("failed to delete role from the index", e);
-                                listener.onFailure(e);
-                            }
-                        }, client::delete);
-            });
-        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("failed to delete role from the index", e);
+                            listener.onFailure(e);
+                        }
+                    }, client::delete);
+        });
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("roles may not be created or modified using a tribe node"));
-        } else if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             innerPutRole(request, role, listener);
         } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));

@@ -31,7 +31,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
@@ -68,10 +67,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 /**
- * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client or tribe client:
- * - node clients: all modules are binded
- * - transport clients: only action/transport actions are binded
- * - tribe clients: everything is disables by default but can be enabled per tribe cluster
+ * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
+ * - node clients: all modules are bound
+ * - transport clients: only action/transport actions are bound
  */
 public class Monitoring extends Plugin implements ActionPlugin {
 
@@ -85,13 +83,11 @@ public class Monitoring extends Plugin implements ActionPlugin {
     protected final Settings settings;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private final boolean tribeNode;
 
     public Monitoring(Settings settings) {
         this.settings = settings;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
-        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
     }
 
     // overridable by tests
@@ -112,7 +108,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         List<Module> modules = new ArrayList<>();
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
-            if (transportClientMode || enabled == false || tribeNode) {
+            if (transportClientMode || enabled == false) {
                 b.bind(Exporters.class).toProvider(Providers.of(null));
             }
         });
@@ -124,7 +120,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || tribeNode) {
+        if (enabled == false) {
             return Collections.emptyList();
         }
 
@@ -153,7 +149,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (false == enabled || tribeNode) {
+        if (false == enabled) {
             return emptyList();
         }
         return singletonList(new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class));
@@ -163,7 +159,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled || tribeNode) {
+        if (false == enabled) {
             return emptyList();
         }
         return singletonList(new RestMonitoringBulkAction(settings, restController));

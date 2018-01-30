@@ -36,7 +36,6 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -83,14 +82,12 @@ public class NativeUsersStore extends AbstractComponent {
 
     private final Hasher hasher = Hasher.BCRYPT;
     private final Client client;
-    private final boolean isTribeNode;
 
     private volatile SecurityLifecycleService securityLifecycleService;
 
     public NativeUsersStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 
@@ -195,48 +192,44 @@ public class NativeUsersStore extends AbstractComponent {
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
         assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
+        final String docType;
+        if (ClientReservedRealm.isReserved(username, settings)) {
+            docType = RESERVED_USER_TYPE;
         } else {
-            final String docType;
-            if (ClientReservedRealm.isReserved(username, settings)) {
-                docType = RESERVED_USER_TYPE;
-            } else {
-                docType = USER_DOC_TYPE;
-            }
-
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
-                                .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
-                                        String.valueOf(request.passwordHash()))
-                                .setRefreshPolicy(request.getRefreshPolicy()).request(),
-                        new ActionListener<UpdateResponse>() {
-                            @Override
-                            public void onResponse(UpdateResponse updateResponse) {
-                                assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                clearRealmCache(request.username(), listener, null);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (isIndexNotFoundOrDocumentMissing(e)) {
-                                    if (docType.equals(RESERVED_USER_TYPE)) {
-                                        createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
-                                    } else {
-                                        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
-                                                new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
-                                        ValidationException validationException = new ValidationException();
-                                        validationException.addValidationError("user must exist in order to change password");
-                                        listener.onFailure(validationException);
-                                    }
-                                } else {
-                                    listener.onFailure(e);
-                                }
-                            }
-                        }, client::update);
-            });
+            docType = USER_DOC_TYPE;
         }
+
+        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
+                    client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
+                            .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
+                                    String.valueOf(request.passwordHash()))
+                            .setRefreshPolicy(request.getRefreshPolicy()).request(),
+                    new ActionListener<UpdateResponse>() {
+                        @Override
+                        public void onResponse(UpdateResponse updateResponse) {
+                            assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            clearRealmCache(request.username(), listener, null);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (isIndexNotFoundOrDocumentMissing(e)) {
+                                if (docType.equals(RESERVED_USER_TYPE)) {
+                                    createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
+                                } else {
+                                    logger.debug((org.apache.logging.log4j.util.Supplier<?>) () ->
+                                            new ParameterizedMessage("failed to change password for user [{}]", request.username()), e);
+                                    ValidationException validationException = new ValidationException();
+                                    validationException.addValidationError("user must exist in order to change password");
+                                    listener.onFailure(validationException);
+                                }
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    }, client::update);
+        });
     }
 
     /**
@@ -273,9 +266,7 @@ public class NativeUsersStore extends AbstractComponent {
      * method will not modify the enabled value.
      */
     public void putUser(final PutUserRequest request, final ActionListener<Boolean> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
-        } else if (request.passwordHash() == null) {
+        if (request.passwordHash() == null) {
             updateUserWithoutPassword(request, listener);
         } else {
             indexUser(request, listener);
@@ -366,9 +357,7 @@ public class NativeUsersStore extends AbstractComponent {
      */
     public void setEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                            final ActionListener<Void> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
-        } else if (ClientReservedRealm.isReserved(username, settings)) {
+        if (ClientReservedRealm.isReserved(username, settings)) {
             setReservedUserEnabled(username, enabled, refreshPolicy, true, listener);
         } else {
             setRegularUserEnabled(username, enabled, refreshPolicy, listener);
@@ -442,28 +431,24 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("users may not be deleted using a tribe node"));
-        } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
-                        INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
-                request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        new ActionListener<DeleteResponse>() {
-                            @Override
-                            public void onResponse(DeleteResponse deleteResponse) {
-                                clearRealmCache(deleteUserRequest.username(), listener,
-                                        deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                            }
+        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
+                    INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
+            request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<DeleteResponse>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            clearRealmCache(deleteUserRequest.username(), listener,
+                                    deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }, client::delete);
-            });
-        }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, client::delete);
+        });
     }
 
     /**

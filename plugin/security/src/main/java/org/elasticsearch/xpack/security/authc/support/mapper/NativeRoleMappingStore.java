@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -81,14 +80,12 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     private static final String SECURITY_GENERIC_TYPE = "doc";
 
     private final Client client;
-    private final boolean isTribeNode;
     private final SecurityLifecycleService securityLifecycleService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityLifecycleService securityLifecycleService) {
         super(settings);
         this.client = client;
-        this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 
@@ -164,9 +161,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private <Request, Result> void modifyMapping(String name, CheckedBiConsumer<Request, ActionListener<Result>, Exception> inner,
                                                  Request request, ActionListener<Result> listener) {
-        if (isTribeNode) {
-            listener.onFailure(new UnsupportedOperationException("role-mappings may not be modified using a tribe node"));
-        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));

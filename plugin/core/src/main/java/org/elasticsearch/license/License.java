@@ -76,7 +76,7 @@ public class License implements ToXContentObject {
      * <p>
      * Note: The mode indicates features that should be made available, but it does not indicate whether the license is active!
      *
-     * The id byte is used for ordering operation modes (used for merging license md in tribe node)
+     * The id byte is used for ordering operation modes
      */
     public enum OperationMode {
         MISSING((byte) 0),

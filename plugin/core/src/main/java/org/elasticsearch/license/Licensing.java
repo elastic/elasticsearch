@@ -29,15 +29,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.core.XPackClientActionPlugin.isTribeNode;
 import static org.elasticsearch.xpack.core.XPackPlugin.transportClientMode;
 
 public class Licensing implements ActionPlugin {
 
     public static final String NAME = "license";
     protected final Settings settings;
-    private final boolean isTransportClient;
-    private final boolean isTribeNode;
 
     // Until this is moved out to its own plugin (its currently in XPackPlugin.java, we need to make sure that any edits to this file
     // are also carried out in XPackClientPlugin.java
@@ -60,15 +57,10 @@ public class Licensing implements ActionPlugin {
 
     public Licensing(Settings settings) {
         this.settings = settings;
-        isTransportClient = transportClientMode(settings);
-        isTribeNode = isTribeNode(settings);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (isTribeNode) {
-            return Collections.singletonList(new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class));
-        }
         return Arrays.asList(new ActionHandler<>(PutLicenseAction.INSTANCE, TransportPutLicenseAction.class),
                 new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class),
                 new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class),
@@ -82,12 +74,10 @@ public class Licensing implements ActionPlugin {
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestGetLicenseAction(settings, restController));
-        if (false == isTribeNode) {
-            handlers.add(new RestPutLicenseAction(settings, restController));
-            handlers.add(new RestDeleteLicenseAction(settings, restController));
-            handlers.add(new RestGetTrialStatus(settings, restController));
-            handlers.add(new RestPostStartTrialLicense(settings, restController));
-        }
+        handlers.add(new RestPutLicenseAction(settings, restController));
+        handlers.add(new RestDeleteLicenseAction(settings, restController));
+        handlers.add(new RestGetTrialStatus(settings, restController));
+        handlers.add(new RestPostStartTrialLicense(settings, restController));
         return handlers;
     }
 

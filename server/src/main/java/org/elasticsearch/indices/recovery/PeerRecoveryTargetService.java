@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexCommits;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -66,9 +65,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -363,10 +362,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
             final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
-            if (logger.isDebugEnabled()) {
-                logger.debug("Start peer-recovery with safe commit [{}], global checkpoint [{}], existing commits [{}]",
-                    IndexCommits.commitDescription(safeCommit), globalCheckpoint,
-                    existingCommits.stream().map(IndexCommits::commitDescription).collect(Collectors.joining(",")));
+            if (logger.isTraceEnabled()) {
+                final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
+                for (IndexCommit commit : existingCommits) {
+                    descriptionOfExistingCommits.add(CombinedDeletionPolicy.commitDescription(commit));
+                }
+                logger.trace("Calculate starting seqno based on global checkpoint [{}], safe commit [{}], existing commits [{}]",
+                    globalCheckpoint, CombinedDeletionPolicy.commitDescription(safeCommit), descriptionOfExistingCommits);
             }
             if (seqNoStats.maxSeqNo <= globalCheckpoint) {
                 assert seqNoStats.localCheckpoint <= globalCheckpoint;

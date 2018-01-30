@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.store.Directory;
@@ -33,10 +32,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.LongSupplier;
-
-import static org.apache.lucene.index.IndexCommits.commitDescription;
 
 /**
  * An {@link IndexDeletionPolicy} that coordinates between Lucene's commits and the retention of translog generation files,
@@ -110,8 +108,12 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * (v6.2), may not have a safe commit. If that index has a snapshotted commit without translog and an unsafe commit,
      * the policy can consider the snapshotted commit as a safe commit for recovery even the commit does not have translog.
      */
-    private void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) {
-        commits.stream().filter(commit -> startingCommit.equals(commit) == false).forEach(this::deleteCommit);
+    private void keepOnlyStartingCommitOnInit(List<? extends IndexCommit> commits) throws IOException {
+        for (IndexCommit commit : commits) {
+            if (startingCommit.equals(commit) == false) {
+                this.deleteCommit(commit);
+            }
+        }
         assert startingCommit.isDeleted() == false : "Starting commit must not be deleted";
         lastCommit = startingCommit;
         safeCommit = startingCommit;
@@ -130,17 +132,16 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         updateTranslogDeletionPolicy();
     }
 
-    private void deleteCommit(IndexCommit commit) {
+    private void deleteCommit(IndexCommit commit) throws IOException {
         assert commit.isDeleted() == false : "Index commit [" + commitDescription(commit) + "] is deleted twice";
-        logger.debug(() -> new ParameterizedMessage("Delete index commit [{}]", commitDescription(commit)));
+        logger.debug("Delete index commit [{}]", commitDescription(commit));
         commit.delete();
         assert commit.isDeleted() : "Deletion commit [" + commitDescription(commit) + "] was suppressed";
     }
 
     private void updateTranslogDeletionPolicy() throws IOException {
         assert Thread.holdsLock(this);
-        logger.debug(() -> new ParameterizedMessage("Safe commit [{}], last commit [{}]",
-            commitDescription(safeCommit), commitDescription(lastCommit)));
+        logger.debug("Safe commit [{}], last commit [{}]", commitDescription(safeCommit), commitDescription(lastCommit));
         assert safeCommit.isDeleted() == false : "The safe commit must not be deleted";
         final long minRequiredGen = Long.parseLong(safeCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         assert lastCommit.isDeleted() == false : "The last commit must not be deleted";
@@ -242,6 +243,13 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns a description for a given {@link IndexCommit}. This should be only used for logging and debugging.
+     */
+    public static String commitDescription(IndexCommit commit) throws IOException {
+        return String.format(Locale.ROOT, "CommitPoint{segment[%s], userData[%s]}", commit.getSegmentsFileName(), commit.getUserData());
     }
 
     /**

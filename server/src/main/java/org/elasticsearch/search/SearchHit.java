@@ -69,7 +69,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
@@ -604,7 +604,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
                     fieldMap.put(field.getName(), field);
                 }, (p, c) -> {
                     List<Object> values = new ArrayList<>();
-                    values.add(parseStoredFieldsValue(p));
+                    values.add(parseFieldsValue(p));
                     return new DocumentField(metadatafield, values);
                 }, new ParseField(metadatafield), ValueType.VALUE);
             }
@@ -649,7 +649,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, () -> parser.getTokenLocation());
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -657,7 +657,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, () -> parser.getTokenLocation());
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }

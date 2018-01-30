@@ -2,8 +2,8 @@
 "Response format":
 
   - skip:
-      version: " - 6.1.99"
-      reason: the ranking evaluation feature is available since 6.2
+      version: " - 6.2.99"
+      reason: response format was updated in 6.3
 
   - do:
      indices.create:
@@ -90,8 +90,8 @@
 "Mean Reciprocal Rank":
 
   - skip:
-      version: " - 6.99.99"
-      reason: the ranking evaluation feature is only available on 7.0
+      version: " - 6.2.99"
+      reason: response format was updated in 6.3
 
   - do:
      indices.create:

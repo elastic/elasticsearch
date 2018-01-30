@@ -18,9 +18,9 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.QuantilesTests;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.QuantilesTests;
 
 import java.util.ArrayList;
 import java.util.Date;

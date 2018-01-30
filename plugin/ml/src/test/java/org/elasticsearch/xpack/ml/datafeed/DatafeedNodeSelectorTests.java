@@ -41,7 +41,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
 import static org.hamcrest.Matchers.containsString;

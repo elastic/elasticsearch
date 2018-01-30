@@ -7,8 +7,8 @@
 This section summarizes the changes that you need to be aware of when migrating
 your application from one version of {xpack} to another.
 
+* <<breaking-6.2.0-xes>>
 * <<breaking-6.1.0-xes>>
-//* <<breaking-6.0.1-xes>>
 * <<breaking-6.0.0-xes>>
 
 See also:
@@ -44,12 +44,12 @@ No breaking changes have been made (yet).
 
 No breaking changes have been made (yet).
 
-////
 [role="xpack"]
-[[breaking-6.0.1-xes]]
-== {xpack} Breaking changes in 6.0.1
+[[breaking-6.1.0-xes]]
+== {xpack} Breaking changes in 6.1
 
-////
+No breaking changes have been made (yet).
+
 
 [role="xpack"]
 [[breaking-6.0.0-xes]]
@@ -72,6 +72,13 @@ password (_"changeme"_). For more information, see
 communication when running in
 {ref}/bootstrap-checks.html#_development_vs_production_mode[production mode]. See
 {xpack-ref}/encrypting-communications.html[Encrypting Communications].
++
+--
+IMPORTANT: Before you start {es}, you must perform the steps described in
+{xpack-ref}/ssl-tls.html[Setting up TLS/SSL on a cluster]. Otherwise, errors
+occur at startup.
+
+--
 * A new bootstrap check enforces that HTTPS is used by the built-in token
 service when running in
 {ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].

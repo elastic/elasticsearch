@@ -106,6 +106,4 @@ include::modules/threadpool.asciidoc[]
 
 include::modules/transport.asciidoc[]
 
-include::modules/tribe.asciidoc[]
-
 include::modules/cross-cluster-search.asciidoc[]

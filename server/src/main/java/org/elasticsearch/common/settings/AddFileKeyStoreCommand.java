@@ -66,8 +66,8 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
-            keystore = KeyStoreWrapper.create(new char[0] /* always use empty passphrase for auto created keystore */);
-            keystore.save(env.configFile());
+            keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), new char[0] /* always use empty passphrase for auto created keystore */);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } else {
             keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
@@ -97,7 +97,7 @@ class AddFileKeyStoreCommand extends EnvironmentAwareCommand {
                 String.join(", ", argumentValues.subList(2, argumentValues.size())) + "] after filepath");
         }
         keystore.setFile(setting, Files.readAllBytes(file));
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), new char[0]);
     }
 
     @SuppressForbidden(reason="file arg for cli")

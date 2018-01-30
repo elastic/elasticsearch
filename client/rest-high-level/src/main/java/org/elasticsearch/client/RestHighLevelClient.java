@@ -54,6 +54,8 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -465,6 +467,27 @@ public class RestHighLevelClient implements Closeable {
                                        ActionListener<ClearScrollResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
                 listener, emptySet(), headers);
+    }
+
+    /**
+     * Executes a request using the Ranking Evaluation API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
+     * on elastic.co</a>
+     */
+    public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(rankEvalRequest, Request::rankEval, RankEvalResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Ranking Evaluation API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-rank-eval.html">Ranking Evaluation API
+     * on elastic.co</a>
+     */
+    public final void rankEvalAsync(RankEvalRequest rankEvalRequest, ActionListener<RankEvalResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(rankEvalRequest, Request::rankEval, RankEvalResponse::fromXContent, listener, emptySet(),
+                headers);
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

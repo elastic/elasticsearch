@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexCommits;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -93,6 +94,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
@@ -184,7 +186,7 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -421,6 +423,11 @@ public class InternalEngine extends Engine {
                 // Use the last commit
                 existingCommits = DirectoryReader.listCommits(store.directory());
                 startingIndexCommit = existingCommits.get(existingCommits.size() - 1);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Open engine with the last commit [{}], existing commits [{}]",
+                        IndexCommits.commitDescription(startingIndexCommit),
+                        existingCommits.stream().map(IndexCommits::commitDescription).collect(Collectors.joining(",")));
+                }
                 break;
             case OPEN_INDEX_AND_TRANSLOG:
                 // Use the safe commit
@@ -443,6 +450,11 @@ public class InternalEngine extends Engine {
                 } else {
                     // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
                     startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
+                }
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Open engine with the safe commit [{}], global checkpoint [{}], existing commits [{}]",
+                        IndexCommits.commitDescription(startingIndexCommit), lastSyncedGlobalCheckpoint,
+                        existingCommits.stream().map(IndexCommits::commitDescription).collect(Collectors.joining(",")));
                 }
                 break;
             default:

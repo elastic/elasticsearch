@@ -77,7 +77,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             if (captured.type.dynamic == false) {
                 try {
                     ref = new FunctionRef(
-                        locals.getDefinition(), locals.getDefinition().ClassToType(expected), captured.type.name, call, 1);
+                        locals.getDefinition(), expected, captured.type.name, call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {

@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import java.net.InetAddress;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;

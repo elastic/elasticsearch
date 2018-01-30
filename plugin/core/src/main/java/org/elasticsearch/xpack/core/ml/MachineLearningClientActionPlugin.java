@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-
 public interface MachineLearningClientActionPlugin {
 
 }

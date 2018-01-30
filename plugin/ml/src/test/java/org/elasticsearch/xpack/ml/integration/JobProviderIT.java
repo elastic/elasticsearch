@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.junit.Before;
 
 import java.io.IOException;

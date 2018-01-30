@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.StartDatafeedActionTests;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedActionTests;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -52,7 +52,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.ml.action.OpenJobActionTests.addJobTask;
+import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -199,7 +199,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         Consumer<Exception> handler = mockConsumer();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
-        DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
                 params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);
@@ -218,7 +218,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         Consumer<Exception> handler = mockConsumer();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
-        DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
                 params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);
@@ -234,7 +234,7 @@ public class DatafeedManagerTests extends ESTestCase {
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed_id", 0L);
-        DatafeedTask task = StartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
+        DatafeedTask task = TransportStartDatafeedActionTests.createDatafeedTask(1, "type", "action", null,
                 params, datafeedManager);
         task = spyDatafeedTask(task);
         datafeedManager.run(task, handler);

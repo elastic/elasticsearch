@@ -73,11 +73,9 @@ public class SocketEventHandler extends EventHandler {
      * @param context that was registered
      */
     protected void handleConnect(SocketChannelContext context) throws IOException {
-        // TODO: Test
         if (context.connect()) {
             SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
         }
-
     }
 
     /**

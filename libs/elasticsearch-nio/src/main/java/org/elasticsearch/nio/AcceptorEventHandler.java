@@ -68,9 +68,7 @@ public class AcceptorEventHandler extends EventHandler {
      * @param context that can accept a connection
      */
     protected void acceptChannel(ServerChannelContext context) throws IOException {
-        ChannelFactory<?, ?> channelFactory = context.getChannelFactory();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(context.getChannel(), selectorSupplier);
-        context.acceptChannel(nioSocketChannel);
+        context.acceptChannels(selectorSupplier);
     }
 
     /**

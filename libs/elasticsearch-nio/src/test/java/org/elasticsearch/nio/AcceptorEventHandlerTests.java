@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,11 +77,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel, null);
 
         handler.acceptChannel(context);
 
-        verify(channelFactory).acceptNioChannel(same(channel), same(selectorSupplier));
+        verify(channelFactory, times(2)).acceptNioChannel(same(channel), same(selectorSupplier));
     }
 
     @SuppressWarnings("unchecked")
@@ -92,12 +93,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
         channel.setContext(serverChannelContext);
         when(serverChannelContext.getChannel()).thenReturn(channel);
-        when(serverChannelContext.getChannelFactory()).thenReturn(channelFactory);
         when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel);
 
         handler.acceptChannel(serverChannelContext);
 
-        verify(serverChannelContext).acceptChannel(childChannel);
+        verify(serverChannelContext).acceptChannels(selectorSupplier);
     }
 
     private class DoNotRegisterContext extends ServerChannelContext {

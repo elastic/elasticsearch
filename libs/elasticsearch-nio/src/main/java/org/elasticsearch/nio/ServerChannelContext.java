@@ -42,12 +42,11 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
         this.acceptor = acceptor;
     }
 
-    public void acceptChannel(NioSocketChannel acceptedChannel) {
-        acceptor.accept(acceptedChannel);
-    }
-
-    public ChannelFactory<?, ?> getChannelFactory() {
-        return channelFactory;
+    public void acceptChannels(Supplier<SocketSelector> selectorSupplier) throws IOException {
+        NioSocketChannel acceptedChannel;
+        while ((acceptedChannel = channelFactory.acceptNioChannel(channel, selectorSupplier)) != null) {
+            acceptor.accept(acceptedChannel);
+        }
     }
 
     @Override

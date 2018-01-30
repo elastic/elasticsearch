@@ -95,16 +95,15 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testConnectDoesNotRemoveOP_CONNECTInterestIfIncomplete() throws IOException {
-        SelectionKeyUtils.setConnectAndReadInterested(channel.getContext().getSelectionKey());
+        SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
         handler.handleConnect(context);
-        assertEquals(SelectionKey.OP_READ, channel.getContext().getSelectionKey().interestOps());
+        assertEquals(SelectionKey.OP_READ, context.getSelectionKey().interestOps());
     }
 
     public void testConnectRemovesOP_CONNECTInterestIfComplete() throws IOException {
-        SelectionKeyUtils.setConnectAndReadInterested(channel.getContext().getSelectionKey());
+        SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
         handler.handleConnect(context);
-        // TODO: Fix assertion
-//        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, channel.getContext().getSelectionKey().interestOps());
+        assertEquals(SelectionKey.OP_READ, context.getSelectionKey().interestOps());
     }
 
     public void testConnectExceptionCallsExceptionHandler() throws IOException {
@@ -140,7 +139,6 @@ public class SocketEventHandlerTests extends ESTestCase {
         SocketChannelContext context = mock(SocketChannelContext.class);
 
         when(channel.getContext()).thenReturn(context);
-        when(context.getChannel()).thenReturn(channel);
         when(context.selectorShouldClose()).thenReturn(true);
         handler.postHandling(context);
 

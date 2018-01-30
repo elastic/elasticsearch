@@ -14,10 +14,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -33,27 +33,24 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     private final WatcherService watcherService;
     private final ExecutionService executionService;
     private final TriggerService triggerService;
-    private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                       ExecutionService executionService, TriggerService triggerService,
-                                       WatcherLifeCycleService lifeCycleService) {
+                                       ExecutionService executionService, TriggerService triggerService) {
         super(settings, WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT,
                 WatcherStatsResponse.Node.class);
         this.watcherService = watcherService;
         this.executionService = executionService;
         this.triggerService = triggerService;
-        this.lifeCycleService = lifeCycleService;
     }
 
     @Override
     protected WatcherStatsResponse newResponse(WatcherStatsRequest request, List<WatcherStatsResponse.Node> nodes,
                                                List<FailedNodeException> failures) {
-        return new WatcherStatsResponse(clusterService.getClusterName(), lifeCycleService.watcherMetaData(), nodes, failures);
+        return new WatcherStatsResponse(clusterService.getClusterName(), getWatcherMetaData(), nodes, failures);
     }
 
     @Override
@@ -83,4 +80,11 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
         return statsResponse;
     }
 
+    private WatcherMetaData getWatcherMetaData() {
+        WatcherMetaData watcherMetaData = clusterService.state().getMetaData().custom(WatcherMetaData.TYPE);
+        if (watcherMetaData == null) {
+            watcherMetaData = new WatcherMetaData(false);
+        }
+        return watcherMetaData;
+    }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -292,5 +293,10 @@ public class WatcherXContentParser implements XContentParser {
     @Override
     public void close() throws ElasticsearchException {
         parser.close();
+    }
+
+    @Override
+    public DeprecationHandler getDeprecationHandler() {
+        return parser.getDeprecationHandler();
     }
 }

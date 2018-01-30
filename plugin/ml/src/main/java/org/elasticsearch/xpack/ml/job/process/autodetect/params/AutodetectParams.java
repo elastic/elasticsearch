@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.job.process.autodetect.params;
+package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;

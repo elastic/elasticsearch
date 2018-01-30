@@ -26,7 +26,7 @@ import java.util.Objects;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * Response to perform an sql query
@@ -217,7 +217,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         List<Object> list = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (parser.currentToken().isValue()) {
-                list.add(parseStoredFieldsValue(parser));
+                list.add(parseFieldsValue(parser));
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 list.add(null);
             } else {

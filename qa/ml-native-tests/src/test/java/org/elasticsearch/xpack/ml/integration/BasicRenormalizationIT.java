@@ -107,19 +107,4 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         return job;
     }
-
-    private static List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount,
-                                             Function<Integer, Integer> timeToCountFunction) throws IOException {
-        List<String> data = new ArrayList<>();
-        long now = timestamp;
-        for (int bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
-            for (int count = 0; count < timeToCountFunction.apply(bucketIndex); count++) {
-                Map<String, Object> record = new HashMap<>();
-                record.put("time", now);
-                data.add(createJsonRecord(record));
-            }
-            now += bucketSpan.getMillis();
-        }
-        return data;
-    }
 }

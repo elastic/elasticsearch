@@ -39,8 +39,8 @@ No breaking changes have been made (yet).
 
 ////
 [role="xpack"]
-[[breaking-6.1.0-xes]]
-== {xpack} Breaking changes in 6.1
+[[breaking-6.2.0-xes]]
+== {xpack} Breaking changes in 6.2
 
 No breaking changes have been made (yet).
 

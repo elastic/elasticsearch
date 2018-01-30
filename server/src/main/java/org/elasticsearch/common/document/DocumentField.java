@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * A single field name and values part of {@link SearchHit} and {@link GetResult}.
@@ -139,7 +139,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            values.add(parseStoredFieldsValue(parser));
+            values.add(parseFieldsValue(parser));
         }
         return new DocumentField(fieldName, values);
     }

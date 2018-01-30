@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.IOUtils;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -45,7 +45,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -114,6 +113,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -127,6 +127,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         terminal.reset();
     }
 
+    @Override
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
     public void tearDown() throws Exception {
@@ -1190,6 +1191,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         return bytes -> MessageDigests.toHexString(digest.digest(bytes)) + s;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28415")
     public void testMetaPluginPolicyConfirmation() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path metaDir = createPluginDir(temp);

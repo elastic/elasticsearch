@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,6 +30,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
+
+    @After
+    public void cleanUpTest() {
+        cleanUp();
+    }
+
     public void testScheduledEvents() throws IOException {
 
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);

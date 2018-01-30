@@ -37,26 +37,24 @@ import static org.mockito.Mockito.when;
 public class AcceptorEventHandlerTests extends ESTestCase {
 
     private AcceptorEventHandler handler;
-    private SocketSelector socketSelector;
     private ChannelFactory channelFactory;
     private NioServerSocketChannel channel;
     private Consumer<NioSocketChannel> acceptor;
-    private AcceptingSelector selector;
     private DoNotRegisterContext context;
+    private RoundRobinSupplier<SocketSelector> selectorSupplier;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         channelFactory = mock(ChannelFactory.class);
-        socketSelector = mock(SocketSelector.class);
         acceptor = mock(Consumer.class);
         ArrayList<SocketSelector> selectors = new ArrayList<>();
-        selectors.add(socketSelector);
-        handler = new AcceptorEventHandler(logger, new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()])));
+        selectors.add(mock(SocketSelector.class));
+        selectorSupplier = new RoundRobinSupplier<>(selectors.toArray(new SocketSelector[selectors.size()]));
+        handler = new AcceptorEventHandler(logger, selectorSupplier);
 
-        selector = mock(AcceptingSelector.class);
         channel = new NioServerSocketChannel(mock(ServerSocketChannel.class));
-        context = new DoNotRegisterContext(channel, selector, acceptor);
+        context = new DoNotRegisterContext(channel, mock(AcceptingSelector.class), acceptor);
         channel.setContext(context);
     }
 
@@ -78,11 +76,11 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel(mock(SocketChannel.class));
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel);
 
         handler.acceptChannel(context);
 
-        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector));
+        verify(channelFactory).acceptNioChannel(same(channel), same(selectorSupplier));
     }
 
     @SuppressWarnings("unchecked")
@@ -95,7 +93,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         channel.setContext(serverChannelContext);
         when(serverChannelContext.getChannel()).thenReturn(channel);
         when(serverChannelContext.getChannelFactory()).thenReturn(channelFactory);
-        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector))).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(selectorSupplier))).thenReturn(childChannel);
 
         handler.acceptChannel(serverChannelContext);
 

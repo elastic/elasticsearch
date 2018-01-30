@@ -19,9 +19,11 @@
 
 package org.elasticsearch.nio;
 
+import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 

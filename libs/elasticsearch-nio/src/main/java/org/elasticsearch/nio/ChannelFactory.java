@@ -27,6 +27,7 @@ import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.function.Supplier;
 
 public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel, Socket extends NioSocketChannel> {
 
@@ -41,22 +42,30 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public Socket openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
+    public Socket openNioChannel(InetSocketAddress remoteAddress, Supplier<SocketSelector> supplier) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
+        SocketSelector selector = supplier.get();
         Socket channel = internalCreateChannel(selector, rawChannel);
         scheduleChannel(channel, selector);
         return channel;
     }
 
-    public Socket acceptNioChannel(NioChannel<ServerSocketChannel> serverChannel, SocketSelector selector) throws IOException {
+    public Socket acceptNioChannel(NioChannel<ServerSocketChannel> serverChannel, Supplier<SocketSelector> supplier) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
-        Socket channel = internalCreateChannel(selector, rawChannel);
-        scheduleChannel(channel, selector);
-        return channel;
+        // Null is returned if there are no pending sockets to accept
+        if (rawChannel == null) {
+            return null;
+        } else {
+            SocketSelector selector = supplier.get();
+            Socket channel = internalCreateChannel(selector, rawChannel);
+            scheduleChannel(channel, selector);
+            return channel;
+        }
     }
 
-    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, AcceptingSelector selector) throws IOException {
+    public ServerSocket openNioServerSocketChannel(InetSocketAddress address, Supplier<AcceptingSelector> supplier) throws IOException {
         ServerSocketChannel rawChannel = rawChannelFactory.openNioServerSocketChannel(address);
+        AcceptingSelector selector = supplier.get();
         ServerSocket serverChannel = internalCreateServerChannel(selector, rawChannel);
         scheduleServerChannel(serverChannel, selector);
         return serverChannel;
@@ -163,6 +172,9 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         SocketChannel acceptNioChannel(NioChannel<ServerSocketChannel> serverSocketChannel) throws IOException {
             ServerSocketChannel rawChannel = serverSocketChannel.getRawChannel();
             SocketChannel socketChannel = accept(rawChannel);
+            if (socketChannel == null) {
+                return null;
+            }
             try {
                 configureSocketChannel(socketChannel);
             } catch (IOException e) {

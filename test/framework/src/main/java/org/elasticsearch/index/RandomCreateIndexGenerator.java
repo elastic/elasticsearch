@@ -80,7 +80,7 @@ public final class RandomCreateIndexGenerator {
         return builder;
     }
 
-    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
+    public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
         builder.startObject("properties");
 
         int fieldsNo = randomIntBetween(0, 5);

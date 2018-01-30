@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -82,13 +83,10 @@ public class ResizeRequestTests extends ESTestCase {
         if (randomBoolean()) {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
             if (randomBoolean()) {
-                int aliasesNo = randomIntBetween(0, 2);
-                for (int i = 0; i < aliasesNo; i++) {
-                    createIndexRequest.alias(CreateIndexRequestTests.randomAlias());
-                }
+                RandomCreateIndexGenerator.randomAliases(createIndexRequest);
             }
             if (randomBoolean()) {
-                createIndexRequest.settings(CreateIndexRequestTests.randomIndexSettings());
+                createIndexRequest.settings(RandomCreateIndexGenerator.randomIndexSettings());
             }
             resizeRequest.setTargetIndex(createIndexRequest);
         }

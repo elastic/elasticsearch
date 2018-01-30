@@ -352,7 +352,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         // Also close the job in the current thread, so that we have two simultaneous close requests
         manager.closeJob(jobTask, false, "in main test thread");
 
-        closeThread.join(500);
+        // The 10 second timeout here is usually far in excess of what is required.  In the vast
+        // majority of cases the other thread will exit within a few milliseconds.  However, it
+        // has been observed that on some VMs the test can fail because the VM stalls at the
+        // wrong moment.  A 10 second timeout is on a par with the length of time assertBusy()
+        // would wait under these circumstances.
+        closeThread.join(10000);
         assertFalse(closeThread.isAlive());
 
         // Only one of the threads should have called AutodetectCommunicator.close()

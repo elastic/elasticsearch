@@ -2385,7 +2385,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogPath = createTempDir("testTranslogReplayWithFailure");
         try (Store store = createStore(directory)) {
             final int numDocs = randomIntBetween(1, 10);
-            try (final InternalEngine engine = createEngine(store, translogPath)) {
+            try (InternalEngine engine = createEngine(store, translogPath)) {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,

@@ -23,18 +23,23 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.util.Arrays;
@@ -72,6 +77,25 @@ class Elasticsearch extends EnvironmentAwareCommand {
      * Main entry point for starting elasticsearch
      */
     public static void main(final String[] args) throws Exception {
+        /*
+         * By default on Unix-like systems we create a randomized private temporary directory under /tmp in our startup scripts. We want to
+         * clean these up on a best-effort basis to minimize polluting /tmp. Therefore, we add a shutdown hook here to remove this private
+         * temporary directory on shutdown. Users do have the ability to specify a custom temporary directory and they might not want that
+         * directory removed so we provide an undocumented system property to control this behavior. We do not do this on Windows so
+         * deleting there is not necessary.
+         */
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (Constants.WINDOWS == false) {
+                final boolean deleteJavaIOTmpdir = Booleans.parseBoolean(System.getProperty("es.delete.java.io.tmpdir", "true"));
+                if (deleteJavaIOTmpdir) {
+                    try {
+                        IOUtils.rm(PathUtils.get(System.getProperty("java.io.tmpdir")));
+                    } catch (final IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+        }));
         // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
         // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
         System.setSecurityManager(new SecurityManager() {

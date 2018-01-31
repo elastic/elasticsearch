@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.flush;
 
+import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
@@ -35,21 +36,33 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FlushIT extends ESIntegTestCase {
     public void testWaitIfOngoing() throws InterruptedException {
@@ -223,5 +236,50 @@ public class FlushIT extends ESIntegTestCase {
         int numShards = client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test").getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1);
         assertThat(shardsResult.size(), equalTo(numShards));
         assertThat(shardsResult.get(0).failureReason(), equalTo("no active shards"));
+    }
+
+    private void indexDoc(Engine engine, String id) throws IOException {
+        final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
+        final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc));
+        assertThat(indexResult.getFailure(), nullValue());
+    }
+
+    public void testSyncedFlushFailIfNumDocsMismatch() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1)).get()
+        );
+        ensureGreen();
+        final Index index = clusterService().state().metaData().index("test").getIndex();
+        final ShardId shardId = new ShardId(index, 0);
+        final int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            index("test", "doc", Integer.toString(i));
+        }
+        // Index extra documents to one shard - synced-flush should fail as num docs are not equal.
+        Set<String> dataNodes = internalCluster().nodesInclude("test");
+        IndexShard misbehavedShard = internalCluster().getInstance(IndicesService.class, randomFrom(dataNodes)).getShardOrNull(shardId);
+        int extraDocs = between(1, 10);
+        for (int i = 0; i < extraDocs; i++) {
+            indexDoc(IndexShardTestCase.getEngine(misbehavedShard), "extra_" + i);
+        }
+        ShardsSyncedFlushResult result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(result.failureReason(), allOf(
+            containsString("Number of documents on shards are not equal"),
+            containsString("num docs[" + numDocs + "]"),
+            containsString("num docs[" + (numDocs + extraDocs) + "]")));
+        assertThat(result.syncId(), nullValue());
+        // Index extra documents to all shards - synced-flush should be ok.
+        for (String dataNode : dataNodes) {
+            final IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId);
+            for (int i = 0; i < extraDocs; i++) {
+                indexDoc(IndexShardTestCase.getEngine(shard), "extra_" + i);
+            }
+        }
+        result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(result.failureReason(), nullValue());
+        assertThat(result.syncId(), notNullValue());
     }
 }

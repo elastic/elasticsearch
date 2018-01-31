@@ -64,6 +64,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -72,6 +73,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -441,6 +443,9 @@ public final class Request {
         if (searchRequest.requestCache() != null) {
             params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
+        if (searchRequest.allowPartialSearchResults() != null) {
+            params.putParam("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
         params.putParam("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());
@@ -483,6 +488,16 @@ public final class Request {
         }
         String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
+        // TODO maybe indices should be propery of RankEvalRequest and not of the spec
+        List<String> indices = rankEvalRequest.getRankEvalSpec().getIndices();
+        String endpoint = endpoint(indices.toArray(new String[indices.size()]), Strings.EMPTY_ARRAY, "_rank_eval");
+        HttpEntity entity = null;
+        entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -687,7 +702,7 @@ public final class Request {
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
                 expandWildcards = "none";
             } else {
-                StringJoiner joiner  = new StringJoiner(",");
+                StringJoiner joiner = new StringJoiner(",");
                 if (indicesOptions.expandWildcardsOpen()) {
                     joiner.add("open");
                 }

@@ -138,7 +138,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
 
-        ensureWatcherStarted();
         stopWatcher();
         startWatcher();
 
@@ -148,7 +147,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1915")
     public void testLoadExistingWatchesUponStartup() throws Exception {
-        ensureWatcherStarted();
         stopWatcher();
 
         int numWatches = scaledRandomIntBetween(16, 128);
@@ -202,7 +200,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             ).get();
         }
 
-        ensureWatcherStarted();
         stopWatcher();
 
         DateTime now = DateTime.now(UTC);
@@ -249,7 +246,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
         ).get();
 
-        ensureWatcherStarted();
         stopWatcher();
 
         DateTime now = DateTime.now(UTC);
@@ -300,7 +296,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testManuallyStopped() throws Exception {
-        ensureWatcherStarted();
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
         assertThat(response.watcherMetaData().manuallyStopped(), is(false));
         stopWatcher();
@@ -323,7 +318,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         final String watchRecordIndex = HistoryStoreField.getHistoryIndexNameForTime(triggeredTime);
 
         logger.info("Stopping watcher");
-        ensureWatcherStarted();
         stopWatcher();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();

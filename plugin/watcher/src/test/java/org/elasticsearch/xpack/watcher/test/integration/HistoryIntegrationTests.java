@@ -90,7 +90,6 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
                         .addAction("_logger", loggingAction("#### randomLogging")))
                 .get();
 
-        ensureWatcherStarted();
         watcherClient().prepareExecuteWatch("test_watch").setRecordExecution(true).get();
 
         refresh(".watcher-history*");

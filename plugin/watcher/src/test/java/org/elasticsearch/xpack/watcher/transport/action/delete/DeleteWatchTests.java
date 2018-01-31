@@ -41,8 +41,6 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     // Also the watch history is checked, that the error has been marked as deleted
     // The mock webserver does not support count down latches, so we have to use sleep - sorry!
     public void testWatchDeletionDuringExecutionWorks() throws Exception {
-        ensureWatcherStarted();
-
         MockResponse response = new MockResponse();
         response.setBody("foo");
         response.setResponseCode(200);

@@ -122,13 +122,10 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(value, nullValue());
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
-        assertAcked(watcherClient.prepareWatchService().stop().get());
-        ensureWatcherStopped();
-        assertAcked(watcherClient.prepareWatchService().start().get());
-        ensureWatcherStarted();
+        stopWatcher();
+        startWatcher();
 
         // now lets execute the watch manually
-
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(message -> {
             assertThat(message.getSubject(), is("_subject"));

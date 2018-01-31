@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testDelete() throws Exception {
-        ensureWatcherStarted();
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
@@ -72,8 +71,6 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     // Also the watch history is checked, that the error has been marked as deleted
     // The mock webserver does not support count down latches, so we have to use sleep - sorry!
     public void testWatchDeletionDuringExecutionWorks() throws Exception {
-        ensureWatcherStarted();
-
         MockResponse response = new MockResponse();
         response.setBody("foo");
         response.setResponseCode(200);

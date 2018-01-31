@@ -157,7 +157,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(indexResponse.getId(), is("_id"));
 
         // now, let's restart
-        ensureWatcherStarted();
         stopWatcher();
         startWatcher();
 

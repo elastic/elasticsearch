@@ -6,21 +6,23 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
-import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
@@ -151,12 +153,12 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     @Override
     protected Detector createTestInstance() {
-        String function;
+        DetectorFunction function;
         Detector.Builder detector;
         if (randomBoolean()) {
             detector = new Detector.Builder(function = randomFrom(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS), null);
         } else {
-            Set<String> functions = new HashSet<>(Detector.FIELD_NAME_FUNCTIONS);
+            EnumSet<DetectorFunction> functions = EnumSet.copyOf(Detector.FIELD_NAME_FUNCTIONS);
             functions.removeAll(Detector.Builder.FUNCTIONS_WITHOUT_RULE_SUPPORT);
             detector = new Detector.Builder(function = randomFrom(functions), randomAlphaOfLengthBetween(1, 20));
         }
@@ -168,7 +170,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
             detector.setPartitionFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
         } else if (randomBoolean() && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function) == false) {
             detector.setOverFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
-        } else if (randomBoolean() && Detector.NO_BY_FIELD_NAME_FUNCTIONS.contains(function) == false) {
+        } else if (randomBoolean()) {
             detector.setByFieldName(fieldName = randomAlphaOfLengthBetween(6, 20));
         }
         if (randomBoolean()) {
@@ -295,216 +297,168 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
         });
     }
 
-    public void testVerify() throws Exception {
+    public void testVerify_GivenFunctionOnly() {
         // if nothing else is set the count functions (excluding distinct count)
         // are the only allowable functions
-        new Detector.Builder(Detector.COUNT, null).build();
+        new Detector.Builder(DetectorFunction.COUNT, null).build();
 
-        Set<String> difference = new HashSet<String>(Detector.ANALYSIS_FUNCTIONS);
-        difference.remove(Detector.COUNT);
-        difference.remove(Detector.HIGH_COUNT);
-        difference.remove(Detector.LOW_COUNT);
-        difference.remove(Detector.NON_ZERO_COUNT);
-        difference.remove(Detector.NZC);
-        difference.remove(Detector.LOW_NON_ZERO_COUNT);
-        difference.remove(Detector.LOW_NZC);
-        difference.remove(Detector.HIGH_NON_ZERO_COUNT);
-        difference.remove(Detector.HIGH_NZC);
-        difference.remove(Detector.TIME_OF_DAY);
-        difference.remove(Detector.TIME_OF_WEEK);
-        for (String f : difference) {
-            try {
-                new Detector.Builder(f, null).build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
+        EnumSet<DetectorFunction> difference = EnumSet.allOf(DetectorFunction.class);
+        difference.remove(DetectorFunction.COUNT);
+        difference.remove(DetectorFunction.HIGH_COUNT);
+        difference.remove(DetectorFunction.LOW_COUNT);
+        difference.remove(DetectorFunction.NON_ZERO_COUNT);
+        difference.remove(DetectorFunction.LOW_NON_ZERO_COUNT);
+        difference.remove(DetectorFunction.HIGH_NON_ZERO_COUNT);
+        difference.remove(DetectorFunction.TIME_OF_DAY);
+        difference.remove(DetectorFunction.TIME_OF_WEEK);
+        for (DetectorFunction f : difference) {
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                    () -> new Detector.Builder(f, null).build());
+            assertThat(e.getMessage(), equalTo("Unless a count or temporal function is used one of field_name," +
+                    " by_field_name or over_field_name must be set"));
         }
+    }
 
-        // certain fields aren't allowed with certain functions
-        // first do the over field
-        for (String f : new String[]{Detector.NON_ZERO_COUNT, Detector.NZC,
-                Detector.LOW_NON_ZERO_COUNT, Detector.LOW_NZC, Detector.HIGH_NON_ZERO_COUNT,
-                Detector.HIGH_NZC}) {
+    public void testVerify_GivenFunctionsNotSupportingOverField() {
+        EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
+                DetectorFunction.NON_ZERO_COUNT,
+                DetectorFunction.LOW_NON_ZERO_COUNT,
+                DetectorFunction.HIGH_NON_ZERO_COUNT
+        );
+        for (DetectorFunction f: noOverFieldFunctions) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
-            try {
-                builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
+            assertThat(e.getMessage(), equalTo("over_field_name cannot be used with function '" + f + "'"));
         }
+    }
 
-        // these functions cannot have just an over field
-        difference = new HashSet<>(Detector.ANALYSIS_FUNCTIONS);
-        difference.remove(Detector.COUNT);
-        difference.remove(Detector.HIGH_COUNT);
-        difference.remove(Detector.LOW_COUNT);
-        difference.remove(Detector.TIME_OF_DAY);
-        difference.remove(Detector.TIME_OF_WEEK);
-        for (String f : difference) {
+    public void testVerify_GivenFunctionsCannotHaveJustOverField() {
+        EnumSet<DetectorFunction> difference = EnumSet.allOf(DetectorFunction.class);
+        difference.remove(DetectorFunction.COUNT);
+        difference.remove(DetectorFunction.LOW_COUNT);
+        difference.remove(DetectorFunction.HIGH_COUNT);
+        difference.remove(DetectorFunction.TIME_OF_DAY);
+        difference.remove(DetectorFunction.TIME_OF_WEEK);
+        for (DetectorFunction f: difference) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
-            try {
-                builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
+            expectThrows(ElasticsearchStatusException.class, () -> builder.build());
         }
+    }
 
-        // these functions can have just an over field
-        for (String f : new String[]{Detector.COUNT, Detector.HIGH_COUNT,
-                Detector.LOW_COUNT}) {
+    public void testVerify_GivenFunctionsCanHaveJustOverField() {
+        EnumSet<DetectorFunction> noOverFieldFunctions = EnumSet.of(
+                DetectorFunction.COUNT,
+                DetectorFunction.LOW_COUNT,
+                DetectorFunction.HIGH_COUNT
+        );
+        for (DetectorFunction f: noOverFieldFunctions) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             builder.build();
         }
+    }
 
-        for (String f : new String[]{Detector.RARE, Detector.FREQ_RARE}) {
+    public void testVerify_GivenFunctionsCannotHaveFieldName() {
+        for (DetectorFunction f : Detector.COUNT_WITHOUT_FIELD_FUNCTIONS) {
+            Detector.Builder builder = new Detector.Builder(f, "field");
+            builder.setByFieldName("b");
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
+            assertThat(e.getMessage(), equalTo("field_name cannot be used with function '" + f + "'"));
+        }
+
+        // Nor rare
+        {
+            Detector.Builder builder = new Detector.Builder(DetectorFunction.RARE, "field");
+            builder.setByFieldName("b");
+            builder.setOverFieldName("over_field");
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
+            assertThat(e.getMessage(), equalTo("field_name cannot be used with function 'rare'"));
+        }
+
+        // Nor freq_rare
+        {
+            Detector.Builder builder = new Detector.Builder(DetectorFunction.FREQ_RARE, "field");
+            builder.setByFieldName("b");
+            builder.setOverFieldName("over_field");
+            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.build());
+            assertThat(e.getMessage(), equalTo("field_name cannot be used with function 'freq_rare'"));
+        }
+    }
+
+    public void testVerify_GivenFunctionsRequiringFieldName() {
+        // some functions require a fieldname
+        for (DetectorFunction f : Detector.FIELD_NAME_FUNCTIONS) {
+            Detector.Builder builder = new Detector.Builder(f, "f");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenFieldNameFunctionsAndOverField() {
+        // some functions require a fieldname
+        for (DetectorFunction f : Detector.FIELD_NAME_FUNCTIONS) {
+            Detector.Builder builder = new Detector.Builder(f, "f");
+            builder.setOverFieldName("some_over_field");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenFieldNameFunctionsAndByField() {
+        // some functions require a fieldname
+        for (DetectorFunction f : Detector.FIELD_NAME_FUNCTIONS) {
+            Detector.Builder builder = new Detector.Builder(f, "f");
+            builder.setByFieldName("some_by_field");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenCountFunctionsWithByField() {
+        // some functions require a fieldname
+        for (DetectorFunction f : Detector.COUNT_WITHOUT_FIELD_FUNCTIONS) {
+            Detector.Builder builder = new Detector.Builder(f, null);
+            builder.setByFieldName("some_by_field");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenCountFunctionsWithOverField() {
+        EnumSet<DetectorFunction> functions = EnumSet.copyOf(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS);
+        functions.removeAll(Detector.NO_OVER_FIELD_NAME_FUNCTIONS);
+        for (DetectorFunction f : functions) {
+            Detector.Builder builder = new Detector.Builder(f, null);
+            builder.setOverFieldName("some_over_field");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenCountFunctionsWithByAndOverFields() {
+        EnumSet<DetectorFunction> functions = EnumSet.copyOf(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS);
+        functions.removeAll(Detector.NO_OVER_FIELD_NAME_FUNCTIONS);
+        for (DetectorFunction f : functions) {
+            Detector.Builder builder = new Detector.Builder(f, null);
+            builder.setByFieldName("some_over_field");
+            builder.setOverFieldName("some_by_field");
+            builder.build();
+        }
+    }
+
+    public void testVerify_GivenRareAndFreqRareWithByAndOverFields() {
+        for (DetectorFunction f : EnumSet.of(DetectorFunction.RARE, DetectorFunction.FREQ_RARE)) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setOverFieldName("over_field");
             builder.setByFieldName("by_field");
             builder.build();
         }
+    }
 
-        // some functions require a fieldname
-        for (String f : new String[]{Detector.DISTINCT_COUNT, Detector.DC,
-                Detector.HIGH_DISTINCT_COUNT, Detector.HIGH_DC, Detector.LOW_DISTINCT_COUNT, Detector.LOW_DC,
-                Detector.INFO_CONTENT, Detector.LOW_INFO_CONTENT, Detector.HIGH_INFO_CONTENT,
-                Detector.METRIC, Detector.MEAN, Detector.HIGH_MEAN, Detector.LOW_MEAN, Detector.AVG,
-                Detector.HIGH_AVG, Detector.LOW_AVG, Detector.MAX, Detector.MIN, Detector.SUM,
-                Detector.LOW_SUM, Detector.HIGH_SUM, Detector.NON_NULL_SUM,
-                Detector.LOW_NON_NULL_SUM, Detector.HIGH_NON_NULL_SUM, Detector.POPULATION_VARIANCE,
-                Detector.LOW_POPULATION_VARIANCE, Detector.HIGH_POPULATION_VARIANCE}) {
-            Detector.Builder builder = new Detector.Builder(f, "f");
-            builder.setOverFieldName("over_field");
-            builder.build();
-        }
-
-        // these functions cannot have a field name
-        difference = new HashSet<>(Detector.ANALYSIS_FUNCTIONS);
-        difference.remove(Detector.METRIC);
-        difference.remove(Detector.MEAN);
-        difference.remove(Detector.LOW_MEAN);
-        difference.remove(Detector.HIGH_MEAN);
-        difference.remove(Detector.AVG);
-        difference.remove(Detector.LOW_AVG);
-        difference.remove(Detector.HIGH_AVG);
-        difference.remove(Detector.MEDIAN);
-        difference.remove(Detector.LOW_MEDIAN);
-        difference.remove(Detector.HIGH_MEDIAN);
-        difference.remove(Detector.MIN);
-        difference.remove(Detector.MAX);
-        difference.remove(Detector.SUM);
-        difference.remove(Detector.LOW_SUM);
-        difference.remove(Detector.HIGH_SUM);
-        difference.remove(Detector.NON_NULL_SUM);
-        difference.remove(Detector.LOW_NON_NULL_SUM);
-        difference.remove(Detector.HIGH_NON_NULL_SUM);
-        difference.remove(Detector.POPULATION_VARIANCE);
-        difference.remove(Detector.LOW_POPULATION_VARIANCE);
-        difference.remove(Detector.HIGH_POPULATION_VARIANCE);
-        difference.remove(Detector.DISTINCT_COUNT);
-        difference.remove(Detector.HIGH_DISTINCT_COUNT);
-        difference.remove(Detector.LOW_DISTINCT_COUNT);
-        difference.remove(Detector.DC);
-        difference.remove(Detector.LOW_DC);
-        difference.remove(Detector.HIGH_DC);
-        difference.remove(Detector.INFO_CONTENT);
-        difference.remove(Detector.LOW_INFO_CONTENT);
-        difference.remove(Detector.HIGH_INFO_CONTENT);
-        difference.remove(Detector.LAT_LONG);
-        for (String f : difference) {
-            Detector.Builder builder = new Detector.Builder(f, "f");
-            builder.setOverFieldName("over_field");
-            try {
-                builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
-        }
-
-        // these can have a by field
-        for (String f : new String[]{Detector.COUNT, Detector.HIGH_COUNT,
-                Detector.LOW_COUNT, Detector.RARE,
-                Detector.NON_ZERO_COUNT, Detector.NZC}) {
+    public void testVerify_GivenFunctionsThatCanHaveByField() {
+        for (DetectorFunction f : EnumSet.of(DetectorFunction.COUNT, DetectorFunction.HIGH_COUNT, DetectorFunction.LOW_COUNT,
+                DetectorFunction.RARE, DetectorFunction.NON_ZERO_COUNT, DetectorFunction.LOW_NON_ZERO_COUNT,
+                DetectorFunction.HIGH_NON_ZERO_COUNT)) {
             Detector.Builder builder = new Detector.Builder(f, null);
             builder.setByFieldName("b");
             builder.build();
-        }
-
-        Detector.Builder builder = new Detector.Builder(Detector.FREQ_RARE, null);
-        builder.setOverFieldName("over_field");
-        builder.setByFieldName("b");
-        builder.build();
-        builder = new Detector.Builder(Detector.FREQ_RARE, null);
-        builder.setOverFieldName("over_field");
-        builder.setByFieldName("b");
-        builder.build();
-
-        // some functions require a fieldname
-        int testedFunctionsCount = 0;
-        for (String f : Detector.FIELD_NAME_FUNCTIONS) {
-            testedFunctionsCount++;
-            builder = new Detector.Builder(f, "f");
-            builder.setByFieldName("b");
-            builder.build();
-        }
-        Assert.assertEquals(Detector.FIELD_NAME_FUNCTIONS.size(), testedFunctionsCount);
-
-        // these functions don't work with fieldname
-        testedFunctionsCount = 0;
-        for (String f : Detector.COUNT_WITHOUT_FIELD_FUNCTIONS) {
-            testedFunctionsCount++;
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("b");
-                builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
-        }
-        Assert.assertEquals(Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.size(), testedFunctionsCount);
-
-        builder = new Detector.Builder(Detector.FREQ_RARE, "field");
-        builder.setByFieldName("b");
-        builder.setOverFieldName("over_field");
-        try {
-            builder.build();
-            Assert.fail("ElasticsearchException not thrown when expected");
-        } catch (ElasticsearchException e) {
-        }
-
-        for (String f : new String[]{Detector.HIGH_COUNT,
-                Detector.LOW_COUNT, Detector.NON_ZERO_COUNT, Detector.NZC}) {
-            builder = new Detector.Builder(f, null);
-            builder.setByFieldName("by_field");
-            builder.build();
-        }
-
-        for (String f : new String[]{Detector.COUNT, Detector.HIGH_COUNT,
-                Detector.LOW_COUNT}) {
-            builder = new Detector.Builder(f, null);
-            builder.setOverFieldName("over_field");
-            builder.build();
-        }
-
-        for (String f : new String[]{Detector.HIGH_COUNT,
-                Detector.LOW_COUNT}) {
-            builder = new Detector.Builder(f, null);
-            builder.setByFieldName("by_field");
-            builder.setOverFieldName("over_field");
-            builder.build();
-        }
-
-        for (String f : new String[]{Detector.NON_ZERO_COUNT, Detector.NZC}) {
-            try {
-                builder = new Detector.Builder(f, "field");
-                builder.setByFieldName("by_field");
-                builder.setOverFieldName("over_field");
-                builder.build();
-                Assert.fail("ElasticsearchException not thrown when expected");
-            } catch (ElasticsearchException e) {
-            }
         }
     }
 

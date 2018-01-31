@@ -41,7 +41,7 @@ public final class DefaultDetectorDescription {
      * @param sb       the {@code StringBuilder} to append to
      */
     public static void appendOn(Detector detector, StringBuilder sb) {
-        if (isNotNullOrEmpty(detector.getFunction())) {
+        if (isNotNullOrEmpty(detector.getFunction().getFullName())) {
             sb.append(detector.getFunction());
             if (isNotNullOrEmpty(detector.getFieldName())) {
                 sb.append('(').append(quoteField(detector.getFieldName()))

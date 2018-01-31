@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -117,200 +118,96 @@ public class Detector implements ToXContentObject, Writeable {
         }
     }
 
-    public static final String COUNT = "count";
-    public static final String HIGH_COUNT = "high_count";
-    public static final String LOW_COUNT = "low_count";
-    public static final String NON_ZERO_COUNT = "non_zero_count";
-    public static final String LOW_NON_ZERO_COUNT = "low_non_zero_count";
-    public static final String HIGH_NON_ZERO_COUNT = "high_non_zero_count";
-    public static final String NZC = "nzc";
-    public static final String LOW_NZC = "low_nzc";
-    public static final String HIGH_NZC = "high_nzc";
-    public static final String DISTINCT_COUNT = "distinct_count";
-    public static final String LOW_DISTINCT_COUNT = "low_distinct_count";
-    public static final String HIGH_DISTINCT_COUNT = "high_distinct_count";
-    public static final String DC = "dc";
-    public static final String LOW_DC = "low_dc";
-    public static final String HIGH_DC = "high_dc";
-    public static final String RARE = "rare";
-    public static final String FREQ_RARE = "freq_rare";
-    public static final String INFO_CONTENT = "info_content";
-    public static final String LOW_INFO_CONTENT = "low_info_content";
-    public static final String HIGH_INFO_CONTENT = "high_info_content";
-    public static final String METRIC = "metric";
-    public static final String MEAN = "mean";
-    public static final String MEDIAN = "median";
-    public static final String LOW_MEDIAN = "low_median";
-    public static final String HIGH_MEDIAN = "high_median";
-    public static final String HIGH_MEAN = "high_mean";
-    public static final String LOW_MEAN = "low_mean";
-    public static final String AVG = "avg";
-    public static final String HIGH_AVG = "high_avg";
-    public static final String LOW_AVG = "low_avg";
-    public static final String MIN = "min";
-    public static final String MAX = "max";
-    public static final String SUM = "sum";
-    public static final String LOW_SUM = "low_sum";
-    public static final String HIGH_SUM = "high_sum";
-    public static final String NON_NULL_SUM = "non_null_sum";
-    public static final String LOW_NON_NULL_SUM = "low_non_null_sum";
-    public static final String HIGH_NON_NULL_SUM = "high_non_null_sum";
     public static final String BY = "by";
     public static final String OVER = "over";
-    /**
-     * Population variance is called varp to match Splunk
-     */
-    public static final String POPULATION_VARIANCE = "varp";
-    public static final String LOW_POPULATION_VARIANCE = "low_varp";
-    public static final String HIGH_POPULATION_VARIANCE = "high_varp";
-    public static final String TIME_OF_DAY = "time_of_day";
-    public static final String TIME_OF_WEEK = "time_of_week";
-    public static final String LAT_LONG = "lat_long";
-
-
-    /**
-     * The set of valid function names.
-     */
-    public static final Set<String> ANALYSIS_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    // The convention here is that synonyms (only) go on the same line
-                    COUNT,
-                    HIGH_COUNT,
-                    LOW_COUNT,
-                    NON_ZERO_COUNT, NZC,
-                    LOW_NON_ZERO_COUNT, LOW_NZC,
-                    HIGH_NON_ZERO_COUNT, HIGH_NZC,
-                    DISTINCT_COUNT, DC,
-                    LOW_DISTINCT_COUNT, LOW_DC,
-                    HIGH_DISTINCT_COUNT, HIGH_DC,
-                    RARE,
-                    FREQ_RARE,
-                    INFO_CONTENT,
-                    LOW_INFO_CONTENT,
-                    HIGH_INFO_CONTENT,
-                    METRIC,
-                    MEAN, AVG,
-                    HIGH_MEAN, HIGH_AVG,
-                    LOW_MEAN, LOW_AVG,
-                    MEDIAN,
-                    LOW_MEDIAN,
-                    HIGH_MEDIAN,
-                    MIN,
-                    MAX,
-                    SUM,
-                    LOW_SUM,
-                    HIGH_SUM,
-                    NON_NULL_SUM,
-                    LOW_NON_NULL_SUM,
-                    HIGH_NON_NULL_SUM,
-                    POPULATION_VARIANCE,
-                    LOW_POPULATION_VARIANCE,
-                    HIGH_POPULATION_VARIANCE,
-                    TIME_OF_DAY,
-                    TIME_OF_WEEK,
-                    LAT_LONG
-                    ));
 
     /**
      * The set of functions that do not require a field, by field or over field
      */
-    public static final Set<String> COUNT_WITHOUT_FIELD_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    COUNT,
-                    HIGH_COUNT,
-                    LOW_COUNT,
-                    NON_ZERO_COUNT, NZC,
-                    LOW_NON_ZERO_COUNT, LOW_NZC,
-                    HIGH_NON_ZERO_COUNT, HIGH_NZC,
-                    TIME_OF_DAY,
-                    TIME_OF_WEEK
-                    ));
+    public static final EnumSet<DetectorFunction> COUNT_WITHOUT_FIELD_FUNCTIONS = EnumSet.of(
+            DetectorFunction.COUNT,
+            DetectorFunction.HIGH_COUNT,
+            DetectorFunction.LOW_COUNT,
+            DetectorFunction.NON_ZERO_COUNT,
+            DetectorFunction.LOW_NON_ZERO_COUNT,
+            DetectorFunction.HIGH_NON_ZERO_COUNT,
+            DetectorFunction.TIME_OF_DAY,
+            DetectorFunction.TIME_OF_WEEK
+    );
 
     /**
      * The set of functions that require a fieldname
      */
-    public static final Set<String> FIELD_NAME_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    DISTINCT_COUNT, DC,
-                    LOW_DISTINCT_COUNT, LOW_DC,
-                    HIGH_DISTINCT_COUNT, HIGH_DC,
-                    INFO_CONTENT,
-                    LOW_INFO_CONTENT,
-                    HIGH_INFO_CONTENT,
-                    METRIC,
-                    MEAN, AVG,
-                    HIGH_MEAN, HIGH_AVG,
-                    LOW_MEAN, LOW_AVG,
-                    MEDIAN,
-                    LOW_MEDIAN,
-                    HIGH_MEDIAN,
-                    MIN,
-                    MAX,
-                    SUM,
-                    LOW_SUM,
-                    HIGH_SUM,
-                    NON_NULL_SUM,
-                    LOW_NON_NULL_SUM,
-                    HIGH_NON_NULL_SUM,
-                    POPULATION_VARIANCE,
-                    LOW_POPULATION_VARIANCE,
-                    HIGH_POPULATION_VARIANCE,
-                    LAT_LONG
-                    ));
+    public static final EnumSet<DetectorFunction> FIELD_NAME_FUNCTIONS = EnumSet.of(
+            DetectorFunction.DISTINCT_COUNT,
+            DetectorFunction.LOW_DISTINCT_COUNT,
+            DetectorFunction.HIGH_DISTINCT_COUNT,
+            DetectorFunction.INFO_CONTENT,
+            DetectorFunction.LOW_INFO_CONTENT,
+            DetectorFunction.HIGH_INFO_CONTENT,
+            DetectorFunction.METRIC,
+            DetectorFunction.MEAN, DetectorFunction.AVG,
+            DetectorFunction.HIGH_MEAN, DetectorFunction.HIGH_AVG,
+            DetectorFunction.LOW_MEAN, DetectorFunction.LOW_AVG,
+            DetectorFunction.MEDIAN,
+            DetectorFunction.LOW_MEDIAN,
+            DetectorFunction.HIGH_MEDIAN,
+            DetectorFunction.MIN,
+            DetectorFunction.MAX,
+            DetectorFunction.SUM,
+            DetectorFunction.LOW_SUM,
+            DetectorFunction.HIGH_SUM,
+            DetectorFunction.NON_NULL_SUM,
+            DetectorFunction.LOW_NON_NULL_SUM,
+            DetectorFunction.HIGH_NON_NULL_SUM,
+            DetectorFunction.VARP,
+            DetectorFunction.LOW_VARP,
+            DetectorFunction.HIGH_VARP,
+            DetectorFunction.LAT_LONG
+    );
 
     /**
      * The set of functions that require a by fieldname
      */
-    public static final Set<String> BY_FIELD_NAME_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    RARE,
-                    FREQ_RARE
-                    ));
+    public static final EnumSet<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = EnumSet.of(
+            DetectorFunction.RARE,
+            DetectorFunction.FREQ_RARE
+    );
 
     /**
      * The set of functions that require a over fieldname
      */
-    public static final Set<String> OVER_FIELD_NAME_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    FREQ_RARE
-                    ));
-
-    /**
-     * The set of functions that cannot have a by fieldname
-     */
-    public static final Set<String> NO_BY_FIELD_NAME_FUNCTIONS =
-            new HashSet<>();
+    public static final EnumSet<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
+            DetectorFunction.FREQ_RARE
+    );
 
     /**
      * The set of functions that cannot have an over fieldname
      */
-    public static final Set<String> NO_OVER_FIELD_NAME_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    NON_ZERO_COUNT, NZC,
-                    LOW_NON_ZERO_COUNT, LOW_NZC,
-                    HIGH_NON_ZERO_COUNT, HIGH_NZC
-                    ));
+    public static final EnumSet<DetectorFunction> NO_OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
+            DetectorFunction.NON_ZERO_COUNT,
+            DetectorFunction.LOW_NON_ZERO_COUNT,
+            DetectorFunction.HIGH_NON_ZERO_COUNT
+    );
 
     /**
      * The set of functions that must not be used with overlapping buckets
      */
-    public static final Set<String> NO_OVERLAPPING_BUCKETS_FUNCTIONS =
-            new HashSet<>(Arrays.asList(
-                    RARE,
-                    FREQ_RARE
-                    ));
+    public static final EnumSet<DetectorFunction> NO_OVERLAPPING_BUCKETS_FUNCTIONS = EnumSet.of(
+            DetectorFunction.RARE,
+            DetectorFunction.FREQ_RARE
+    );
 
     /**
      * The set of functions that should not be used with overlapping buckets
      * as they gain no benefit but have overhead
      */
-    public static final Set<String> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED =
-            new HashSet<>(Arrays.asList(
-                    MIN,
-                    MAX,
-                    TIME_OF_DAY,
-                    TIME_OF_WEEK
-                    ));
+    public static final EnumSet<DetectorFunction> OVERLAPPING_BUCKETS_FUNCTIONS_NOT_NEEDED = EnumSet.of(
+            DetectorFunction.MIN,
+            DetectorFunction.MAX,
+            DetectorFunction.TIME_OF_DAY,
+            DetectorFunction.TIME_OF_WEEK
+    );
 
     /**
      * field names cannot contain any of these characters
@@ -323,7 +220,7 @@ public class Detector implements ToXContentObject, Writeable {
 
 
     private final String detectorDescription;
-    private final String function;
+    private final DetectorFunction function;
     private final String fieldName;
     private final String byFieldName;
     private final String overFieldName;
@@ -335,7 +232,7 @@ public class Detector implements ToXContentObject, Writeable {
 
     public Detector(StreamInput in) throws IOException {
         detectorDescription = in.readString();
-        function = in.readString();
+        function = DetectorFunction.fromString(in.readString());
         fieldName = in.readOptionalString();
         byFieldName = in.readOptionalString();
         overFieldName = in.readOptionalString();
@@ -354,7 +251,7 @@ public class Detector implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(detectorDescription);
-        out.writeString(function);
+        out.writeString(function.getFullName());
         out.writeOptionalString(fieldName);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(overFieldName);
@@ -406,7 +303,7 @@ public class Detector implements ToXContentObject, Writeable {
         return builder;
     }
 
-    private Detector(String detectorDescription, String function, String fieldName, String byFieldName, String overFieldName,
+    private Detector(String detectorDescription, DetectorFunction function, String fieldName, String byFieldName, String overFieldName,
                      String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> rules,
                      int detectorIndex) {
         this.function = function;
@@ -426,12 +323,11 @@ public class Detector implements ToXContentObject, Writeable {
     }
 
     /**
-     * The analysis function used e.g. count, rare, min etc. There is no
-     * validation to check this value is one a predefined set
+     * The analysis function used e.g. count, rare, min etc.
      *
      * @return The function or <code>null</code> if not set
      */
-    public String getFunction() {
+    public DetectorFunction getFunction() {
         return function;
     }
 
@@ -577,10 +473,11 @@ public class Detector implements ToXContentObject, Writeable {
          * error-prone
          * </ul>
          */
-        static final Set<String> FUNCTIONS_WITHOUT_RULE_SUPPORT = new HashSet<>(Arrays.asList(Detector.LAT_LONG, Detector.METRIC));
+        static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_SUPPORT = EnumSet.of(
+                DetectorFunction.LAT_LONG, DetectorFunction.METRIC);
 
         private String detectorDescription;
-        private String function;
+        private DetectorFunction function;
         private String fieldName;
         private String byFieldName;
         private String overFieldName;
@@ -608,6 +505,10 @@ public class Detector implements ToXContentObject, Writeable {
         }
 
         public Builder(String function, String fieldName) {
+            this(DetectorFunction.fromString(function), fieldName);
+        }
+
+        public Builder(DetectorFunction function, String fieldName) {
             this.function = function;
             this.fieldName = fieldName;
         }
@@ -617,7 +518,7 @@ public class Detector implements ToXContentObject, Writeable {
         }
 
         public void setFunction(String function) {
-            this.function = function;
+            this.function = DetectorFunction.fromString(function);
         }
 
         public void setFieldName(String fieldName) {
@@ -657,13 +558,10 @@ public class Detector implements ToXContentObject, Writeable {
             boolean emptyByField = Strings.isEmpty(byFieldName);
             boolean emptyOverField = Strings.isEmpty(overFieldName);
             boolean emptyPartitionField = Strings.isEmpty(partitionFieldName);
-            if (Detector.ANALYSIS_FUNCTIONS.contains(function) == false) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_UNKNOWN_FUNCTION, function));
-            }
 
             if (emptyField && emptyByField && emptyOverField) {
                 if (!Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.contains(function)) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT));
+                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_ANALYSIS_FIELD_MUST_BE_SET));
                 }
             }
 
@@ -682,11 +580,6 @@ public class Detector implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_BYFIELD, function));
             }
 
-            if (!emptyByField && Detector.NO_BY_FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_BYFIELD_INCOMPATIBLE_FUNCTION, function));
-            }
-
             if (emptyOverField && Detector.OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD, function));
             }
@@ -702,7 +595,7 @@ public class Detector implements ToXContentObject, Writeable {
                 verifyFieldName(field);
             }
 
-            String function = this.function == null ? Detector.METRIC : this.function;
+            DetectorFunction function = this.function == null ? DetectorFunction.METRIC : this.function;
             if (rules.isEmpty() == false) {
                 if (FUNCTIONS_WITHOUT_RULE_SUPPORT.contains(function)) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
@@ -733,13 +626,13 @@ public class Detector implements ToXContentObject, Writeable {
             }
 
             // by/over field names cannot be "count", "over', "by" - this requirement dates back to the early
-            // days of the Splunk app and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
+            // days of the ML code and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
             // FIRST - see https://github.com/elastic/x-pack-elasticsearch/issues/858
-            if (COUNT.equals(byFieldName)) {
+            if (DetectorFunction.COUNT.getFullName().equals(byFieldName)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
                         BY_FIELD_NAME_FIELD.getPreferredName()));
             }
-            if (COUNT.equals(overFieldName)) {
+            if (DetectorFunction.COUNT.getFullName().equals(overFieldName)) {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
                         OVER_FIELD_NAME_FIELD.getPreferredName()));
             }

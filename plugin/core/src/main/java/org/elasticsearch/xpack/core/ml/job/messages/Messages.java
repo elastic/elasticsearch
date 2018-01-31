@@ -69,7 +69,6 @@ public final class Messages {
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
 
-    public static final String JOB_CONFIG_BYFIELD_INCOMPATIBLE_FUNCTION = "by_field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =
             "categorization_filters are not allowed to contain empty strings";
@@ -137,8 +136,8 @@ public final class Messages {
     public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";
     public static final String JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE =
             "Multiple bucket_span ''{0}'' must be a multiple of the main bucket_span ''{1}''";
-    public static final String JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT =
-            "Unless the function is 'count' one of field_name, by_field_name or over_field_name must be set";
+    public static final String JOB_CONFIG_ANALYSIS_FIELD_MUST_BE_SET =
+            "Unless a count or temporal function is used one of field_name, by_field_name or over_field_name must be set";
     public static final String JOB_CONFIG_NO_DETECTORS = "No detectors configured";
     public static final String JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION =
             "over_field_name cannot be used with function ''{0}''";

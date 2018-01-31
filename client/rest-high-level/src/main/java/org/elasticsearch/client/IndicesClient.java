@@ -217,7 +217,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public final boolean exists(GetIndexRequest request, Header... headers) throws IOException {
+    public boolean exists(GetIndexRequest request, Header... headers) throws IOException {
         return restHighLevelClient.performRequest(
             request,
             Request::indicesExist,
@@ -233,7 +233,7 @@ public final class IndicesClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-exists.html">
      * Indices Exists API on elastic.co</a>
      */
-    public final void existsAsync(GetIndexRequest request, ActionListener<Boolean> listener, Header... headers) {
+    public void existsAsync(GetIndexRequest request, ActionListener<Boolean> listener, Header... headers) {
         restHighLevelClient.performRequestAsync(
             request,
             Request::indicesExist,

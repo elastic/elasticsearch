@@ -1180,29 +1180,41 @@ public class RequestTests extends ESTestCase {
 
     private static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            request.includeDefaults(true);
-            expectedParams.put("include_defaults", Boolean.TRUE.toString());
+            boolean includeDefaults = randomBoolean();
+            request.includeDefaults(includeDefaults);
+            if (includeDefaults) {
+                expectedParams.put("include_defaults", String.valueOf(includeDefaults));
+            }
         }
     }
 
     private static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            request.humanReadable(true);
-            expectedParams.put("human", Boolean.TRUE.toString());
+            boolean humanReadable = randomBoolean();
+            request.humanReadable(humanReadable);
+            if (humanReadable) {
+                expectedParams.put("human", String.valueOf(humanReadable));
+            }
         }
     }
 
     private static void setRandomFlatSettings(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            request.flatSettings(true);
-            expectedParams.put("flat_settings", Boolean.TRUE.toString());
+            boolean flatSettings = randomBoolean();
+            request.flatSettings(flatSettings);
+            if (flatSettings) {
+                expectedParams.put("flat_settings", String.valueOf(flatSettings));
+            }
         }
     }
 
     private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            request.local(true);
-            expectedParams.put("local", Boolean.TRUE.toString());
+            boolean local = randomBoolean();
+            request.local(local);
+            if (local) {
+                expectedParams.put("local", String.valueOf(local));
+            }
         }
     }
 

@@ -80,7 +80,7 @@ Allocation::
 * Add node id to shard failure message {pull}28024[#28024] (issue: {issue}28018[#28018])
 
 Analysis::
-* Better wording in deprecation message {pull}28259[#28259]
+* Limit the analyzed text for highlighting (#27934) {pull}28176[#28176] (issue: {issue}27517[#27517])
 * Allow TrimFilter to be used in custom normalizers {pull}27758[#27758] (issue: {issue}27310[#27310])
 
 Circuit Breakers::
@@ -219,6 +219,7 @@ Translog::
 Aggregations::
 * Adds metadata to rewritten aggregations {pull}28185[#28185] (issue: {issue}28170[#28170])
 * Fix NPE on composite aggregation with sub-aggregations that need scores {pull}28129[#28129]
+* StringTerms.Bucket.getKeyAsNumber detection type {pull}28118[#28118] (issue: {issue}28012[#28012])
 * Fix incorrect results for aggregations nested under a nested aggregation {pull}27946[#27946] (issue: {issue}27912[#27912])
 * Fix global aggregation that requires breadth first and scores {pull}27942[#27942] (issues: {issue}22321[#22321], {issue}27928[#27928])
 * Fix composite aggregation when after term is missing in the shard {pull}27936[#27936]
@@ -238,6 +239,7 @@ Core::
 * Ensure logging is configured for CLI commands {pull}27523[#27523] (issue: {issue}27521[#27521])
 
 Engine::
+* Replica recovery could go into an endless flushing loop {pull}28350[#28350]
 * Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
 * Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
 * Reset LiveVersionMap on sync commit {pull}27534[#27534] (issue: {issue}27516[#27516])
@@ -256,6 +258,9 @@ Internal::
 * Never return null from Strings.tokenizeToStringArray {pull}28224[#28224] (issue: {issue}28213[#28213])
 * Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
 * Retain originalIndex info when rewriting FieldCapabilities requests {pull}27761[#27761]
+
+Java High Level REST Client::
+* REST high-level client: Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
 
 Java REST Client::
 * Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
@@ -277,6 +282,7 @@ Packaging::
 * Allow custom service names when installing on windows {pull}25255[#25255] (issue: {issue}25231[#25231])
 
 Percolator::
+* Do not take duplicate query extractions into account for minimum_should_match attribute {pull}28353[#28353] (issue: {issue}28315[#28315])
 * Avoid TooManyClauses exception if number of terms / ranges is exactly equal to 1024 {pull}27519[#27519] (issue: {issue}1[#1])
 
 Plugin Analysis ICU::
@@ -306,6 +312,9 @@ Recovery::
 Rollover::
 * Make index rollover action atomic {pull}28039[#28039] (issue: {issue}26976[#26976])
 
+Scripting::
+* Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
+
 Scroll::
 * Reject scroll query if size is 0 (#22552) {pull}27842[#27842] (issue: {issue}22552[#22552])
 * Fix scroll query with a sort that is a prefix of the index sort {pull}27498[#27498]
@@ -323,6 +332,8 @@ Sequence IDs::
 * Obey translog durability in global checkpoint sync {pull}27641[#27641]
 
 Settings::
+* Settings: Introduce settings updater for a list of settings {pull}28338[#28338] (issue: {issue}28047[#28047])
+*  Fix setting notification for complex setting (affixMap settings) that could cause transient settings to be ignored {pull}28317[#28317] (issue: {issue}28316[#28316])
 * Fix environment variable substitutions in list setting {pull}28106[#28106] (issue: {issue}27926[#27926])
 * Allow index settings to be reset by wildcards {pull}27671[#27671] (issue: {issue}27537[#27537])
 

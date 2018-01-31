@@ -34,7 +34,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -702,12 +701,16 @@ public final class Request {
         }
 
         Params withHuman(boolean human) {
-            putParam("human", Boolean.toString(human));
+            if (human) {
+                putParam("human", Boolean.toString(human));
+            }
             return this;
         }
 
         Params withLocal(boolean local) {
-            putParam("local", Boolean.toString(local));
+            if (local) {
+                putParam("local", Boolean.toString(local));
+            }
             return this;
         }
 

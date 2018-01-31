@@ -54,6 +54,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -252,74 +253,21 @@ public class RequestTests extends ESTestCase {
 
     public void testIndicesExist() {
         String[] indices = randomIndicesNames(1, 10);
-        boolean flatSettings = randomBoolean();
-        boolean includeDefaults = randomBoolean();
-        boolean local = randomBoolean();
-        boolean humanReadable = randomBoolean();
-        boolean ignoreUnavailable = randomBoolean();
-        boolean allowNoIndices = randomBoolean();
-        boolean expandToOpenIndices = randomBoolean();
-        boolean expandToClosedIndices = randomBoolean();
 
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-            ignoreUnavailable,
-            allowNoIndices,
-            expandToOpenIndices,
-            expandToClosedIndices
-        );
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(indices);
 
-        GetIndexRequest getIndexRequest = new GetIndexRequest()
-            .local(local)
-            .humanReadable(humanReadable)
-            .indicesOptions(indicesOptions)
-            .indices(indices)
-            .flatSettings(flatSettings)
-            .includeDefaults(includeDefaults);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
+        setRandomLocal(getIndexRequest, expectedParams);
+        setRandomFlatSettings(getIndexRequest, expectedParams);
+        setRandomHumanReadable(getIndexRequest, expectedParams);
+        setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
         final Request request = Request.indicesExist(getIndexRequest);
 
-        assertEquals("/" + String.join(",", indices), request.getEndpoint());
-        assertEquals(
-            flatSettings,
-            Boolean.valueOf(request.getParameters().get("flat_settings"))
-        );
-        assertEquals(
-            local,
-            Boolean.valueOf(request.getParameters().get("local"))
-        );
-        assertEquals(
-            humanReadable,
-            Boolean.valueOf(request.getParameters().get("human"))
-        );
-        assertEquals(
-            includeDefaults,
-            Boolean.valueOf(request.getParameters().get("include_defaults"))
-        );
-        assertEquals(
-            ignoreUnavailable,
-            Boolean.valueOf(request.getParameters().get("ignore_unavailable"))
-        );
-        assertEquals(
-            allowNoIndices,
-            Boolean.valueOf(request.getParameters().get("allow_no_indices"))
-        );
-        assertEquals(
-            getWildcardValue(expandToOpenIndices, expandToClosedIndices),
-            request.getParameters().get("expand_wildcards")
-        );
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
-    }
-
-    private String getWildcardValue(boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        if (expandToOpenIndices && expandToClosedIndices) {
-            return "open,closed";
-        } else if (!expandToOpenIndices && !expandToClosedIndices) {
-            return "none";
-        } if (expandToClosedIndices) {
-            return "closed";
-        } else {
-            return "open";
-        }
+        assertEquals("/" + String.join(",", indices), request.getEndpoint());
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -1227,6 +1175,34 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("expand_wildcards", "closed");
         } else {
             expectedParams.put("expand_wildcards", "none");
+        }
+    }
+
+    private static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            request.includeDefaults(true);
+            expectedParams.put("include_defaults", Boolean.TRUE.toString());
+        }
+    }
+
+    private static void setRandomHumanReadable(GetIndexRequest request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            request.humanReadable(true);
+            expectedParams.put("human", Boolean.TRUE.toString());
+        }
+    }
+
+    private static void setRandomFlatSettings(GetIndexRequest request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            request.flatSettings(true);
+            expectedParams.put("flat_settings", Boolean.TRUE.toString());
+        }
+    }
+
+    private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            request.local(true);
+            expectedParams.put("local", Boolean.TRUE.toString());
         }
     }
 

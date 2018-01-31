@@ -22,12 +22,12 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -363,6 +363,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::open-index-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
 
         {
@@ -483,7 +489,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testUpdateAliases() throws IOException {
+    public void testUpdateAliases() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -506,9 +512,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::update-aliases-request2
             AliasActions addIndexAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1")
-                    .filter("{\"term\":{\"year\":2016}}"); // <1>
+                .filter("{\"term\":{\"year\":2016}}"); // <1>
             AliasActions addIndicesAction = new AliasActions(AliasActions.Type.ADD).indices("index1", "index2").alias("alias2")
-                    .routing("1"); // <2>
+                .routing("1"); // <2>
             AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index("index3").alias("alias3"); // <3>
             AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index("index4"); // <4>
             // end::update-aliases-request2
@@ -530,11 +536,16 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             boolean acknowledged = indicesAliasesResponse.isAcknowledged(); // <1>
             // end::update-aliases-response
             assertTrue(acknowledged);
+        }
+        {
+            IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("async"); // <2>
+            request.addAliasAction(aliasAction);
 
             // tag::update-aliases-execute-async
             client.indices().updateAliasesAsync(request, new ActionListener<IndicesAliasesResponse>() {
                 @Override
-                public void onResponse(IndicesAliasesResponse indciesAliasesResponse) {
+                public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
                     // <1>
                 }
 
@@ -544,6 +555,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::update-aliases-execute-async
+
+            assertBusy(() -> assertTrue(client.indices().existsAlias(new GetAliasesRequest("async"))));
         }
-    }    
+    }
 }

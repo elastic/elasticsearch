@@ -242,13 +242,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             });
             // end::index-execute-async
 
-            assertTrue(awaitBusy(() -> {
-                try {
-                    return client.exists(new GetRequest("posts", "doc", "async"));
-                } catch (IOException e) {
-                    return false;
-                }
-            }));
+            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
         }
     }
 
@@ -510,13 +504,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             });
             // end::update-execute-async
 
-            assertTrue(awaitBusy(() -> {
-                try {
-                    return client.exists(new GetRequest("posts", "doc", "async"));
-                } catch (IOException e) {
-                    return false;
-                }
-            }));
+            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
         }
     }
 
@@ -628,13 +616,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             });
             // end::delete-execute-async
 
-            assertTrue(awaitBusy(() -> {
-                try {
-                    return client.exists(new GetRequest("posts", "doc", "async")) == false;
-                } catch (IOException e) {
-                    return false;
-                }
-            }));
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("posts", "doc", "async"))));
         }
     }
 

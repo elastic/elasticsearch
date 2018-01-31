@@ -49,7 +49,7 @@ public class BytesChannelContextTests extends ESTestCase {
     private BytesChannelContext context;
     private InboundChannelBuffer channelBuffer;
     private SocketSelector selector;
-    private Consumer exceptionHandler;
+    private Consumer<Exception> exceptionHandler;
     private BiConsumer<Void, Throwable> listener;
     private int messageLength;
 

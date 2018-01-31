@@ -128,7 +128,7 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=message:elasticsearch&size=0&terminate_after=1
+GET /_search?q=message:number&size=0&terminate_after=1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

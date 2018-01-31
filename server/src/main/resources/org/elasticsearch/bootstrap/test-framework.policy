@@ -48,7 +48,7 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
   // needed to fail tests on uncaught exceptions from other threads
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
   // needed for top threads handling
-  permission org.elasticsearch.ThreadPermission "modifyArbitraryThreadGroup";
+  permission org.elasticsearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };

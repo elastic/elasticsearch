@@ -626,7 +626,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private String resourceVersionQueryString() {
-        return "master_timeout=10s&filter_path=" + FILTER_PATH_RESOURCE_VERSION;
+        return "filter_path=" + FILTER_PATH_RESOURCE_VERSION;
     }
 
     private String watcherCheckQueryString() {
@@ -636,7 +636,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private String bulkQueryString() {
         final String pipelineName = MonitoringTemplateUtils.pipelineName(TEMPLATE_VERSION);
 
-        return "master_timeout=10s&pipeline=" + pipelineName + "&filter_path=" + "errors,items.*.error";
+        return "pipeline=" + pipelineName + "&filter_path=" + "errors,items.*.error";
     }
 
     private void enqueueGetClusterVersionResponse(Version v) throws IOException {

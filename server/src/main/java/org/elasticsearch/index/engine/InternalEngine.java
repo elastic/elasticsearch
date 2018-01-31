@@ -185,7 +185,7 @@ public class InternalEngine extends Engine {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), startingCommit);
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);

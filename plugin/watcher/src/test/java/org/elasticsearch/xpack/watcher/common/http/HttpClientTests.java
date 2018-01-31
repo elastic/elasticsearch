@@ -323,6 +323,50 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testProxyCanHaveDifferentSchemeThanRequest() throws Exception {
+        // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
+        // on top of that the proxy request is HTTPS but the real request is HTTP only
+        MockSecureSettings serverSecureSettings = new MockSecureSettings();
+        // We can't use the client created above for the server since it is only a truststore
+        serverSecureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        Settings serverSettings = Settings.builder()
+                .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+                .setSecureSettings(serverSecureSettings)
+                .build();
+        TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
+
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(), false)) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+            proxyServer.start();
+
+            Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
+            Settings settings = Settings.builder()
+                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                    .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
+                    .put("xpack.http.ssl.truststore.path", resource.toString())
+                    .setSecureSettings(secureSettings)
+                    .build();
+
+            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
+
+            HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
+                    .method(HttpMethod.GET)
+                    .scheme(Scheme.HTTP)
+                    .path("/");
+
+            HttpResponse response = httpClient.execute(requestBuilder.build());
+            assertThat(response.status(), equalTo(200));
+            assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
+
+            // ensure we hit the proxyServer and not the webserver
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
+        }
+    }
+
     public void testThatProxyCanBeOverriddenByRequest() throws Exception {
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
         try (MockWebServer proxyServer = new MockWebServer()) {
@@ -331,12 +375,13 @@ public class HttpClientTests extends ESTestCase {
             Settings settings = Settings.builder()
                     .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
                     .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort() + 1)
+                    .put(HttpSettings.PROXY_HOST.getKey(), "https")
                     .build();
             HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)
-                    .proxy(new HttpProxy("localhost", proxyServer.getPort()))
+                    .proxy(new HttpProxy("localhost", proxyServer.getPort(), Scheme.HTTP))
                     .path("/");
 
             HttpResponse response = httpClient.execute(requestBuilder.build());

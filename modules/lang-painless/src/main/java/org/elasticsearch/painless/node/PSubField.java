@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -55,7 +55,7 @@ final class PSubField extends AStoreable {
                  "Cannot write to read-only field [" + field.name + "] for type [" + field.type.name + "]."));
          }
 
-        actual = field.type;
+        actual = Definition.TypeToClass(field.type);
     }
 
     @Override
@@ -80,7 +80,7 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 

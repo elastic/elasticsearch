@@ -70,7 +70,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 // typed implementation
                 defPointer = "S" + captured.type.name + "." + call + ",1";
             }
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
         } else {
             defPointer = null;
             // static case
@@ -80,12 +80,12 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = ref.interfaceMethod.arguments.get(i);
-                        Definition.Type to = ref.delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = Definition.TypeToClass(ref.interfaceMethod.arguments.get(i));
+                        Class<?> to = Definition.TypeToClass(ref.delegateMethod.arguments.get(i));
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                    if (ref.interfaceMethod.rtn.clazz != void.class) {
                         AnalyzerCaster.getLegalCast(location,
                             Definition.TypeToClass(ref.delegateMethod.rtn), Definition.TypeToClass(ref.interfaceMethod.rtn), false, true);
                     }
@@ -108,8 +108,8 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
         } else if (ref == null) {
             // typed interface, dynamic implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(expected.type, captured.type.type);
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, expected.name);
+            Type methodType = Type.getMethodType(MethodWriter.getType(expected), captured.type.type);
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, Definition.ClassToName(expected));
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());

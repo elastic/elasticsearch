@@ -89,12 +89,14 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestRankEvalAction extends BaseRestHandler {
 
+    public static String ENDPOINT = "_rank_eval";
+
     public RestRankEvalAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_rank_eval", this);
-        controller.registerHandler(POST, "/_rank_eval", this);
-        controller.registerHandler(GET, "/{index}/_rank_eval", this);
-        controller.registerHandler(POST, "/{index}/_rank_eval", this);
+        controller.registerHandler(GET, "/" + ENDPOINT, this);
+        controller.registerHandler(POST, "/" + ENDPOINT, this);
+        controller.registerHandler(GET, "/{index}/" + ENDPOINT, this);
+        controller.registerHandler(POST, "/{index}/" + ENDPOINT, this);
     }
 
     @Override

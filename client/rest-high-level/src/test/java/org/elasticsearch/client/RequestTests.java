@@ -1028,12 +1028,7 @@ public class RequestTests extends ESTestCase {
         String[] aliases = randomIndicesNames(indices.length == 0 ? 1 : 0, 5);
         getAliasesRequest.aliases(aliases);
         Map<String, String> expectedParams = new HashMap<>();
-        if (randomBoolean()) {
-            boolean local = randomBoolean();
-            getAliasesRequest.local(local);
-        }
-        expectedParams.put("local", Boolean.toString(getAliasesRequest.local()));
-
+        setRandomLocal(getAliasesRequest, expectedParams);
         setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
 
         Request request = Request.existsAlias(getAliasesRequest);

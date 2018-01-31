@@ -522,12 +522,27 @@ public class TimeZoneRoundingTests extends ESTestCase {
         DateTimeZone tz = DateTimeZone.forID("Europe/Rome");
         Rounding rounding = new TimeUnitRounding(timeUnit, tz);
 
-        long timeAfterSecondMidnight = time("1978-10-01T06:00:00+01:00");
-        long floor = rounding.round(timeAfterSecondMidnight);
-        assertThat(floor, isDate(time("1978-10-01T00:00:00+02:00"), tz));
+        {
+            long timeBeforeFirstMidnight = time("1978-09-30T23:59:00+02:00");
+            long floor = rounding.round(timeBeforeFirstMidnight);
+            assertThat(floor, isDate(time("1978-09-30T00:00:00+02:00"), tz));
+        }
 
-        long prevFloor = rounding.round(floor - 1);
-        assertThat(prevFloor, lessThan(floor));
+        {
+            long timeBetweenMidnights = time("1978-10-01T00:30:00+02:00");
+            long floor = rounding.round(timeBetweenMidnights);
+            assertThat(floor, isDate(time("1978-10-01T00:00:00+02:00"), tz));
+        }
+
+        {
+            long timeAfterSecondMidnight = time("1978-10-01T00:30:00+01:00");
+            long floor = rounding.round(timeAfterSecondMidnight);
+            assertThat(floor, isDate(time("1978-10-01T00:00:00+02:00"), tz));
+
+            long prevFloor = rounding.round(floor - 1);
+            assertThat(prevFloor, lessThan(floor));
+            assertThat(prevFloor, isDate(time("1978-09-30T00:00:00+02:00"), tz));
+        }
     }
 
     /**

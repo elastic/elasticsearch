@@ -17,12 +17,16 @@
  * under the License.
  */
 
-esplugin {
-    description 'Tribe module'
-    classname 'org.elasticsearch.tribe.TribePlugin'
+package org.elasticsearch.index.fielddata;
+
+import java.io.IOException;
+
+public abstract class DocValueBits {
+
+    /**
+     * Advance this instance to the given document id
+     *
+     * @return true if there is a value for this document
+     */
+    public abstract boolean advanceExact(int doc) throws IOException;
 }
-
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-
-integTestRunner.enabled = false

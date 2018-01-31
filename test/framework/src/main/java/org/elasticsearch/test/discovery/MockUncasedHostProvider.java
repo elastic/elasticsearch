@@ -20,6 +20,7 @@ package org.elasticsearch.test.discovery;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 
@@ -27,6 +28,7 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -54,15 +56,19 @@ public final class MockUncasedHostProvider implements UnicastHostsProvider, Clos
 
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {
+        final DiscoveryNode localNode = getNode();
+        assert localNode != null;
         synchronized (activeNodesPerCluster) {
             Set<MockUncasedHostProvider> activeNodes = getActiveNodesForCurrentCluster();
             return activeNodes.stream()
                 .map(MockUncasedHostProvider::getNode)
-                .filter(n -> !localNodeSupplier.get().equals(n))
+                .filter(Objects::nonNull)
+                .filter(n -> localNode.equals(n) == false)
                 .collect(Collectors.toList());
         }
     }
 
+    @Nullable
     private DiscoveryNode getNode() {
         return localNodeSupplier.get();
     }

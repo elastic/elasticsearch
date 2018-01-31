@@ -76,22 +76,22 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
-                    ref = new FunctionRef(locals.getDefinition().ClassToType(expected), interfaceMethod, delegateMethod, 0);
+                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = interfaceMethod.arguments.get(i);
-                        Definition.Type to = delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = Definition.TypeToClass(interfaceMethod.arguments.get(i));
+                        Class<?> to = Definition.TypeToClass(delegateMethod.arguments.get(i));
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
+                    if (interfaceMethod.rtn.clazz != void.class) {
                         AnalyzerCaster.getLegalCast(
                             location, Definition.TypeToClass(delegateMethod.rtn), Definition.TypeToClass(interfaceMethod.rtn), false, true);
                     }
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(locals.getDefinition(), locals.getDefinition().ClassToType(expected), type, call, 0);
+                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

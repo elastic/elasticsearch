@@ -1099,6 +1099,7 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
+            resizeRequest.setTargetIndex(createIndexRequest);
         }
 
         Request request = function.apply(resizeRequest);

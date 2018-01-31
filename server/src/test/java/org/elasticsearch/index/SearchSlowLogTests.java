@@ -113,6 +113,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public Boolean allowPartialSearchResults() {
+                    return null;
+                }
+
+                @Override
                 public Scroll scroll() {
                     return null;
                 }

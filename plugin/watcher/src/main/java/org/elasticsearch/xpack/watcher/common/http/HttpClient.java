@@ -65,6 +65,7 @@ public class HttpClient extends AbstractComponent {
     private final CloseableHttpClient client;
     private final Integer proxyPort;
     private final String proxyHost;
+    private final String proxyScheme;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
@@ -78,6 +79,7 @@ public class HttpClient extends AbstractComponent {
 
         // proxy setup
         this.proxyHost = HttpSettings.PROXY_HOST.get(settings);
+        this.proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ? HttpSettings.PROXY_SCHEME.get(settings) : null;
         this.proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
             logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
@@ -139,10 +141,14 @@ public class HttpClient extends AbstractComponent {
 
         // proxy
         if (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) {
-            HttpHost proxy = new HttpHost(request.proxy.getHost(), request.proxy.getPort(), request.scheme.scheme());
+            // if a proxy scheme is configured use this, but fall back to the same than the request in case there was no special
+            // configuration given
+            String scheme = request.proxy.getScheme() != null ? request.proxy.getScheme().scheme() : request.scheme.scheme();
+            HttpHost proxy = new HttpHost(request.proxy.getHost(), request.proxy.getPort(), scheme);
             config.setProxy(proxy);
         } else if (proxyPort != null && Strings.hasText(proxyHost)) {
-            HttpHost proxy = new HttpHost(proxyHost, proxyPort, request.scheme.scheme());
+            String scheme = proxyScheme != null ? proxyScheme : request.scheme.scheme();
+            HttpHost proxy = new HttpHost(proxyHost, proxyPort, scheme);
             config.setProxy(proxy);
         }
 

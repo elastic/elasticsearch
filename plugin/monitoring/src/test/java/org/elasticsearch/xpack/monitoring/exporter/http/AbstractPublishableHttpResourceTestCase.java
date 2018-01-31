@@ -43,7 +43,7 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
 
     protected final String owner = getClass().getSimpleName();
     @Nullable
-    protected final TimeValue masterTimeout = randomFrom(TimeValue.timeValueMinutes(5), null);
+    protected final TimeValue masterTimeout = randomFrom(TimeValue.timeValueMinutes(5), TimeValue.MINUS_ONE, null);
 
     protected final RestClient client = mock(RestClient.class);
 
@@ -182,8 +182,10 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected void assertParameters(final PublishableHttpResource resource) {
         final Map<String, String> parameters = new HashMap<>(resource.getParameters());
 
-        if (masterTimeout != null) {
+        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
+        } else {
+            assertFalse(parameters.containsKey("master_timeout"));
         }
 
         assertThat(parameters.remove("filter_path"), is("$NONE"));
@@ -193,8 +195,10 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     protected void assertVersionParameters(final PublishableHttpResource resource) {
         final Map<String, String> parameters = new HashMap<>(resource.getParameters());
 
-        if (masterTimeout != null) {
+        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
+        } else {
+            assertFalse(parameters.containsKey("master_timeout"));
         }
 
         assertThat(parameters.remove("filter_path"), is("*.version"));

@@ -85,7 +85,7 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> BULK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","bulk.timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
     /**
      * Timeout used for initiating a connection.
      */
@@ -147,7 +147,7 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> TEMPLATE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.template.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
     /**
      * A boolean setting to enable or disable whether to create placeholders for the old templates.
      */
@@ -159,7 +159,7 @@ public class HttpExporter extends Exporter {
      */
     public static final Setting.AffixSetting<TimeValue> PIPELINE_CHECK_TIMEOUT_SETTING =
             Setting.affixKeySetting("xpack.monitoring.exporters.","index.pipeline.master_timeout",
-                    (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Property.Dynamic, Property.NodeScope));
 
     /**
      * Minimum supported version of the remote monitoring cluster (same major).
@@ -517,8 +517,8 @@ public class HttpExporter extends Exporter {
 
         final MapBuilder<String, String> params = new MapBuilder<>();
 
-        if (bulkTimeout != null) {
-            params.put("master_timeout", bulkTimeout.toString());
+        if (TimeValue.MINUS_ONE.equals(bulkTimeout) == false) {
+            params.put("timeout", bulkTimeout.toString());
         }
 
         // allow the use of ingest pipelines to be completely optional

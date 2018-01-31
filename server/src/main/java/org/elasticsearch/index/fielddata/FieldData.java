@@ -24,7 +24,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 
@@ -92,109 +91,64 @@ public enum FieldData {
     }
 
     /**
-     * Returns a {@link Bits} representing all documents from <code>dv</code> that have a value.
+     * Returns a {@link DocValueBits} representing all documents from <code>values</code> that have a value.
      */
-    public static Bits docsWithValue(final SortedBinaryDocValues dv, final int maxDoc) {
-        return new Bits() {
+    public static DocValueBits docsWithValue(final SortedBinaryDocValues values) {
+        return new DocValueBits() {
             @Override
-            public boolean get(int index) {
-                try {
-                    return dv.advanceExact(index);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
+            public boolean advanceExact(int doc) throws IOException {
+                return values.advanceExact(doc);
             }
         };
     }
 
     /**
-     * Returns a {@link Bits} representing all documents from <code>dv</code>
+     * Returns a {@link DocValueBits} representing all documents from <code>docValues</code>
      * that have a value.
      */
-    public static Bits docsWithValue(final SortedSetDocValues dv, final int maxDoc) {
-        return new Bits() {
+    public static DocValueBits docsWithValue(final SortedSetDocValues docValues) {
+        return new DocValueBits() {
             @Override
-            public boolean get(int index) {
-                try {
-                    return dv.advanceExact(index);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
             }
         };
     }
 
     /**
-     * Returns a Bits representing all documents from <code>dv</code> that have
+     * Returns a {@link DocValueBits} representing all documents from <code>pointValues</code> that have
      * a value.
      */
-    public static Bits docsWithValue(final MultiGeoPointValues dv, final int maxDoc) {
-        return new Bits() {
+    public static DocValueBits docsWithValue(final MultiGeoPointValues pointValues) {
+        return new DocValueBits() {
             @Override
-            public boolean get(int index) {
-                try {
-                    return dv.advanceExact(index);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
+            public boolean advanceExact(int doc) throws IOException {
+                return pointValues.advanceExact(doc);
             }
         };
     }
 
     /**
-     * Returns a Bits representing all documents from <code>dv</code> that have a value.
+     * Returns a {@link DocValueBits} representing all documents from <code>doubleValues</code> that have a value.
      */
-    public static Bits docsWithValue(final SortedNumericDoubleValues dv, final int maxDoc) {
-        return new Bits() {
+    public static DocValueBits docsWithValue(final SortedNumericDoubleValues doubleValues) {
+        return new DocValueBits() {
             @Override
-            public boolean get(int index) {
-                try {
-                    return dv.advanceExact(index);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
+            public boolean advanceExact(int doc) throws IOException {
+                return doubleValues.advanceExact(doc);
             }
         };
     }
 
     /**
-     * Returns a Bits representing all documents from <code>dv</code> that have
+     * Returns a {@link DocValueBits} representing all documents from <code>docValues</code> that have
      * a value.
      */
-    public static Bits docsWithValue(final SortedNumericDocValues dv, final int maxDoc) {
-        return new Bits() {
+    public static DocValueBits docsWithValue(final SortedNumericDocValues docValues) {
+        return new DocValueBits() {
             @Override
-            public boolean get(int index) {
-                try {
-                    return dv.advanceExact(index);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int length() {
-                return maxDoc;
+            public boolean advanceExact(int doc) throws IOException {
+                return docValues.advanceExact(doc);
             }
         };
     }

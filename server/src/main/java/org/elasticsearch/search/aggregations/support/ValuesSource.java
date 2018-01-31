@@ -27,12 +27,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -58,7 +58,7 @@ public abstract class ValuesSource {
      */
     public abstract SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException;
 
-    public abstract Bits docsWithValue(LeafReaderContext context) throws IOException;
+    public abstract DocValueBits docsWithValue(LeafReaderContext context) throws IOException;
 
     /** Whether this values source needs scores. */
     public boolean needsScores() {
@@ -68,10 +68,9 @@ public abstract class ValuesSource {
     public abstract static class Bytes extends ValuesSource {
 
         @Override
-        public Bits docsWithValue(LeafReaderContext context) throws IOException {
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes,
-                    context.reader().maxDoc());
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
         }
 
         public abstract static class WithOrdinals extends Bytes {
@@ -101,10 +100,9 @@ public abstract class ValuesSource {
             };
 
             @Override
-            public Bits docsWithValue(LeafReaderContext context) throws IOException {
+            public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
                 final SortedSetDocValues ordinals = ordinalsValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(ordinals,
-                        context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(ordinals);
             }
 
             public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context)
@@ -241,15 +239,13 @@ public abstract class ValuesSource {
         public abstract SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException;
 
         @Override
-        public Bits docsWithValue(LeafReaderContext context) throws IOException {
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             if (isFloatingPoint()) {
                 final SortedNumericDoubleValues values = doubleValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values,
-                        context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             } else {
                 final SortedNumericDocValues values = longValues(context);
-                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values,
-                        context.reader().maxDoc());
+                return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             }
         }
 
@@ -493,10 +489,9 @@ public abstract class ValuesSource {
         };
 
         @Override
-        public Bits docsWithValue(LeafReaderContext context) {
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
             final MultiGeoPointValues geoPoints = geoPointValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints,
-                    context.reader().maxDoc());
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(geoPoints);
         }
 
         public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);

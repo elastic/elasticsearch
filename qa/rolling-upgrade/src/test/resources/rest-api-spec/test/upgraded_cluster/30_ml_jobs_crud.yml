@@ -118,3 +118,12 @@ setup:
         }
       ]
     }
+
+---
+"Test get job with function shortcut should expand":
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: old-cluster-function-shortcut-expansion
+  - match: { count: 1 }
+  - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }

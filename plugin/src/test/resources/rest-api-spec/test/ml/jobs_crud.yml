@@ -1254,3 +1254,19 @@
         }
       ]
     }
+
+---
+"Test function shortcut expansion":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-function-shortcut-expansion
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"nzc","by_field_name":"airline"}]
+            },
+            "data_description" : {}
+          }
+  - match: { job_id: "jobs-function-shortcut-expansion" }
+  - match: { analysis_config.detectors.0.function: "non_zero_count"}

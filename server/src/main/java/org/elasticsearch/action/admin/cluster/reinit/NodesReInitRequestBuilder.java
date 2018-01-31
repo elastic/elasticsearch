@@ -40,52 +40,5 @@ public class NodesReInitRequestBuilder
         request.secureStorePassword(secureStorePassword);
         return this;
     }
-//
-//    /**
-//     * Sets the source containing the transient settings to be updated. They will not survive a full cluster restart
-//     */
-//    public ClusterReInitRequestBuilder setTransientSettings(String settings, XContentType xContentType) {
-//        request.transientSettings(settings, xContentType);
-//        return this;
-//    }
-//
-//    /**
-//     * Sets the transient settings to be updated. They will not survive a full cluster restart
-//     */
-//    public ClusterReInitRequestBuilder setTransientSettings(Map settings) {
-//        request.transientSettings(settings);
-//        return this;
-//    }
-//
-//    /**
-//     * Sets the persistent settings to be updated. They will get applied cross restarts
-//     */
-//    public ClusterReInitRequestBuilder setPersistentSettings(Settings settings) {
-//        request.persistentSettings(settings);
-//        return this;
-//    }
-//
-//    /**
-//     * Sets the persistent settings to be updated. They will get applied cross restarts
-//     */
-//    public ClusterReInitRequestBuilder setPersistentSettings(Settings.Builder settings) {
-//        request.persistentSettings(settings);
-//        return this;
-//    }
-//
-//    /**
-//     * Sets the source containing the persistent settings to be updated. They will get applied cross restarts
-//     */
-//    public ClusterReInitRequestBuilder setPersistentSettings(String settings, XContentType xContentType) {
-//        request.persistentSettings(settings, xContentType);
-//        return this;
-//    }
-//
-//    /**
-//     * Sets the persistent settings to be updated. They will get applied cross restarts
-//     */
-//    public ClusterReInitRequestBuilder setPersistentSettings(Map settings) {
-//        request.persistentSettings(settings);
-//        return this;
-//    }
+
 }

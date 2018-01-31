@@ -28,11 +28,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ReInitializablePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.List;
 
 public class TransportNodesReInitAction extends TransportNodesAction<NodesReInitRequest,
@@ -40,16 +45,23 @@ public class TransportNodesReInitAction extends TransportNodesAction<NodesReInit
                                                                     TransportNodesReInitAction.NodeRequest,
                                                                     NodesReInitResponse.NodeResponse> {
 
+    private final Environment environment;
+    private final PluginsService pluginsService;
+
     @Inject
-    public TransportNodesReInitAction(Settings settings, ThreadPool threadPool,
-                                     ClusterService clusterService, TransportService transportService,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportNodesReInitAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                      TransportService transportService, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver, Environment environment,
+                                      PluginsService pluginService) {
         super(settings, NodesReInitAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 NodesReInitRequest::new, NodeRequest::new, ThreadPool.Names.MANAGEMENT, NodesReInitResponse.NodeResponse.class);
+        this.environment = environment;
+        this.pluginsService = pluginService;
     }
 
     @Override
-    protected NodesReInitResponse newResponse(NodesReInitRequest request, List<NodesReInitResponse.NodeResponse> responses, List<FailedNodeException> failures) {
+    protected NodesReInitResponse newResponse(NodesReInitRequest request, List<NodesReInitResponse.NodeResponse> responses,
+                                              List<FailedNodeException> failures) {
         return new NodesReInitResponse(clusterService.getClusterName(), responses, failures);
     }
 
@@ -66,6 +78,25 @@ public class TransportNodesReInitAction extends TransportNodesAction<NodesReInit
     @Override
     protected NodesReInitResponse.NodeResponse nodeOperation(TransportNodesReInitAction.NodeRequest nodeStatsRequest) {
         final NodesReInitRequest request = nodeStatsRequest.request;
+        // open keystore
+        KeyStoreWrapper keystore = null;
+        try {
+            keystore = KeyStoreWrapper.load(environment.configFile());
+            keystore.decrypt(new char[0] /* use password from request */);
+        } catch (GeneralSecurityException | IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (keystore != null) {
+                keystore.close();
+            }
+        }
+
+        final Settings.Builder builder = Settings.builder().put(environment.settings(), false);
+        builder.setSecureSettings(keystore);
+
+        final boolean success = pluginsService.filterPlugins(ReInitializablePlugin.class).stream().map(p -> p.reinit(builder.build())).allMatch(
+                e -> e == true);
+
         return new NodesReInitResponse.NodeResponse(clusterService.localNode());
     }
 

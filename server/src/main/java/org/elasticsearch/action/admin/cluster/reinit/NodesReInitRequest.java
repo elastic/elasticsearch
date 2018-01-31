@@ -37,7 +37,7 @@ public class NodesReInitRequest extends BaseNodesRequest<NodesReInitRequest> {
 
     public NodesReInitRequest() {
     }
-    
+
     /**
      * Get usage from nodes based on the nodes ids specified. If none are
      * passed, usage for all nodes will be returned.

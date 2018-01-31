@@ -33,13 +33,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReInitializablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
 
     static {
         SpecialPermission.check();
@@ -50,7 +51,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (ClassNotFoundException e) {
+            } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
             return null;
@@ -91,5 +92,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             S3ClientSettings.READ_TIMEOUT_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING);
+    }
+
+    @Override
+    public boolean reinit(Settings settings) {
+        // TODO clientSettings
+        return false;
     }
 }

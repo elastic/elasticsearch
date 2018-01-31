@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +53,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.isIndexDeleted;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.isMoveFromRedToNonRed;
 
 /**
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
@@ -322,11 +324,7 @@ public class CompositeRolesStore extends AbstractComponent {
     }
 
     public void onSecurityIndexHealthChange(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        final boolean movedFromRedToNonRed = (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
-                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
-        final boolean indexDeleted = previousHealth != null && currentHealth == null;
-
-        if (movedFromRedToNonRed || indexDeleted) {
+        if (isMoveFromRedToNonRed(previousHealth, currentHealth) || isIndexDeleted(previousHealth, currentHealth)) {
             invalidateAll();
         }
     }

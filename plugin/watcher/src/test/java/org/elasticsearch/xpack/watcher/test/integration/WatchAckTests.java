@@ -237,11 +237,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     private void restartWatcherRandomly() throws Exception {
         if (randomBoolean()) {
-            ensureWatcherStarted();
             stopWatcher();
-            ensureWatcherStopped();
             startWatcher();
-            ensureWatcherStarted();
         }
     }
 }

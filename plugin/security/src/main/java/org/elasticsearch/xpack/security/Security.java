@@ -524,7 +524,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 SecurityNetty4HttpServerTransport.overrideSettings(builder, settings);
             }
             builder.put(SecuritySettings.addUserSettings(settings));
-            addTribeSettings(settings, builder);
             return builder.build();
         } else {
             return Settings.EMPTY;
@@ -720,64 +719,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
-    /**
-     * If the current node is a tribe node, we inject additional settings on each tribe client. We do this to make sure
-     * that every tribe cluster has x-pack installed and security is enabled. We do that by:
-     *
-     *    - making it mandatory on the tribe client (this means that the tribe node will fail at startup if x-pack is
-     *      not loaded on any tribe due to missing mandatory plugin)
-     *
-     *    - forcibly enabling it (that means it's not possible to disable security on the tribe clients)
-     */
-    private static void addTribeSettings(Settings settings, Settings.Builder settingsBuilder) {
-        Map<String, Settings> tribesSettings = settings.getGroups("tribe", true);
-        if (tribesSettings.isEmpty()) {
-            // it's not a tribe node
-            return;
-        }
-
-        for (Map.Entry<String, Settings> tribeSettings : tribesSettings.entrySet()) {
-            final String tribeName = tribeSettings.getKey();
-            final String tribePrefix = "tribe." + tribeName + ".";
-
-            if ("blocks".equals(tribeName) || "on_conflict".equals(tribeName) || "name".equals(tribeName)) {
-                continue;
-            }
-
-            final String tribeEnabledSetting = tribePrefix + XPackSettings.SECURITY_ENABLED.getKey();
-            if (settings.get(tribeEnabledSetting) != null) {
-                boolean enabled = XPackSettings.SECURITY_ENABLED.get(tribeSettings.getValue());
-                if (!enabled) {
-                    throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is ["
-                            + settings.get(tribeEnabledSetting) + "]");
-                }
-            } else {
-                //x-pack security must be enabled on every tribe if it's enabled on the tribe node
-                settingsBuilder.put(tribeEnabledSetting, true);
-            }
-
-            // we passed all the checks now we need to copy in all of the x-pack security settings
-            settings.keySet().forEach(k -> {
-                if (k.startsWith("xpack.security.")) {
-                    settingsBuilder.copy(tribePrefix + k, k, settings);
-                }
-            });
-        }
-
-        Map<String, Settings> realmsSettings = settings.getGroups(SecurityField.setting("authc.realms"), true);
-        final boolean hasNativeRealm = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings) ||
-                realmsSettings.isEmpty() ||
-                realmsSettings.entrySet().stream()
-                        .anyMatch((e) -> NativeRealmSettings.TYPE.equals(e.getValue().get("type")) && e.getValue()
-                                .getAsBoolean("enabled", true));
-        if (hasNativeRealm) {
-            if (settings.get("tribe.on_conflict", "").startsWith("prefer_") == false) {
-                throw new IllegalArgumentException("use of security on tribe nodes requires setting [tribe.on_conflict] to specify the " +
-                        "name of the tribe to prefer such as [prefer_t1] as the security index can exist in multiple tribes but only one" +
-                        " can be used by the tribe node");
-            }
-        }
-    }
 
     static boolean indexAuditLoggingEnabled(Settings settings) {
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {

@@ -416,9 +416,9 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(parameters.remove("filter_path"), equalTo("errors,items.*.error"));
 
         if (bulkTimeout != null) {
-            assertThat(parameters.remove("master_timeout"), equalTo(bulkTimeout.toString()));
+            assertThat(parameters.remove("timeout"), equalTo(bulkTimeout.toString()));
         } else {
-            assertThat(parameters.remove("master_timeout"), equalTo("10s"));
+            assertNull(parameters.remove("timeout"));
         }
 
         if (useIngest) {

@@ -49,7 +49,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -261,8 +260,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     private final Environment env;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private final boolean tribeNode;
-    private final boolean tribeNodeClient;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
@@ -272,8 +269,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.env = transportClientMode ? null : new Environment(settings, configPath);
-        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
-        this.tribeNodeClient = XPackClientActionPlugin.isTribeClientNode(settings);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -299,7 +294,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
-        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
+        if (enabled == false || transportClientMode) {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
             return Settings.EMPTY;
         }
@@ -384,7 +379,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     // this method can replace the entire contents of the overridden createComponents() method
     private Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                 NamedXContentRegistry xContentRegistry, Environment environment) {
-        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
+        if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
@@ -449,7 +444,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(ClusterService clusterService) {
-        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
+        if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
@@ -462,7 +457,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
 
-        if (tribeNodeClient || transportClientMode) {
+        if (transportClientMode) {
             return modules;
         }
 
@@ -478,7 +473,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (false == enabled || tribeNodeClient || tribeNode) {
+        if (false == enabled) {
             return emptyList();
         }
         return Arrays.asList(
@@ -528,7 +523,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (false == enabled || tribeNodeClient || tribeNode) {
+        if (false == enabled) {
             return emptyList();
         }
         return Arrays.asList(
@@ -587,7 +582,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || tribeNode || tribeNodeClient || transportClientMode) {
+        if (false == enabled || transportClientMode) {
             return emptyList();
         }
         int maxNumberOfJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);

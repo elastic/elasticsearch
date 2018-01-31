@@ -108,7 +108,7 @@ public abstract class PublishableHttpResource extends HttpResource {
      * Create a new {@link PublishableHttpResource}.
      *
      * @param resourceOwnerName The user-recognizable name.
-     * @param masterTimeout Master timeout to use with any request.
+     * @param masterTimeout timeout to use with any request.
      * @param baseParameters The base parameters to specify for the request.
      * @param dirty Whether the resource is dirty or not
      */
@@ -116,7 +116,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                                       final Map<String, String> baseParameters, final boolean dirty) {
         super(resourceOwnerName, dirty);
 
-        if (masterTimeout != null) {
+        if (masterTimeout != null && TimeValue.MINUS_ONE.equals(masterTimeout) == false) {
             final Map<String, String> parameters = new HashMap<>(baseParameters.size() + 1);
 
             parameters.putAll(baseParameters);

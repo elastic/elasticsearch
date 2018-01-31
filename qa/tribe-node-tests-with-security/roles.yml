@@ -1,4 +1,0 @@
-admin:
-  cluster: all
-  indices:
-    '*': all

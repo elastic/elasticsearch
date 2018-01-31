@@ -36,13 +36,6 @@ For more information about cross cluster search,
 see {ref}/modules-cross-cluster-search.html[Cross Cluster Search].
 
 [float]
-=== {xpackml} features are not supported on tribe nodes
-
-You cannot use {ml} features on tribe nodes. For more information about that
-type of node, see
-{ref}/modules-tribe.html[Tribe node].
-
-[float]
 === Anomaly Explorer omissions and limitations
 //See x-pack-elasticsearch/#844 and x-pack-kibana/#1461
 

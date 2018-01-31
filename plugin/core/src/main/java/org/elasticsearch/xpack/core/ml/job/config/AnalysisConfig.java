@@ -601,9 +601,9 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {
             if (Strings.isNullOrEmpty(summaryCountFieldName) == false &&
-                    detectors.stream().anyMatch(d -> Detector.METRIC.equals(d.getFunction()))) {
+                    detectors.stream().anyMatch(d -> DetectorFunction.METRIC.equals(d.getFunction()))) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC));
+                        Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC));
             }
         }
 
@@ -763,7 +763,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
             // If any detector function is rare/freq_rare, mustn't use overlapping buckets
             boolean mustNotUse = false;
 
-            List<String> illegalFunctions = new ArrayList<>();
+            List<DetectorFunction> illegalFunctions = new ArrayList<>();
             for (Detector d : detectors) {
                 if (Detector.NO_OVERLAPPING_BUCKETS_FUNCTIONS.contains(d.getFunction())) {
                     illegalFunctions.add(d.getFunction());

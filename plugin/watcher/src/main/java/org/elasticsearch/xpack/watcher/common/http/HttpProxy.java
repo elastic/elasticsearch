@@ -22,34 +22,37 @@ import java.net.Proxy;
 import java.net.UnknownHostException;
 import java.util.Objects;
 
-public class HttpProxy implements ToXContentFragment, Streamable {
+public class HttpProxy implements ToXContentFragment {
 
-    public static final HttpProxy NO_PROXY = new HttpProxy(null, null);
+    public static final HttpProxy NO_PROXY = new HttpProxy(null, null, null);
+
+    private static final ParseField HOST = new ParseField("host");
+    private static final ParseField PORT = new ParseField("port");
+    private static final ParseField SCHEME = new ParseField("scheme");
 
     private String host;
     private Integer port;
+    private Scheme scheme;
 
     public HttpProxy(String host, Integer port) {
         this.host = host;
         this.port = port;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        host = in.readOptionalString();
-        port = in.readOptionalVInt();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(host);
-        out.writeOptionalVInt(port);
+    public HttpProxy(String host, Integer port, Scheme scheme) {
+        this.host = host;
+        this.port = port;
+        this.scheme = scheme;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (Strings.hasText(host) && port != null) {
-            builder.startObject("proxy").field("host", host).field("port", port).endObject();
+            builder.startObject("proxy").field("host", host).field("port", port);
+            if (scheme != null) {
+                builder.field("scheme", scheme.scheme());
+            }
+            builder.endObject();
         }
         return builder;
     }
@@ -62,12 +65,8 @@ public class HttpProxy implements ToXContentFragment, Streamable {
         return port;
     }
 
-    public Proxy proxy() throws UnknownHostException {
-        if (Strings.hasText(host) && port != null) {
-            return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getByName(host), port));
-        }
-
-        return Proxy.NO_PROXY;
+    public Scheme getScheme() {
+        return scheme;
     }
 
     @Override
@@ -77,12 +76,12 @@ public class HttpProxy implements ToXContentFragment, Streamable {
 
         HttpProxy that = (HttpProxy) o;
 
-        return Objects.equals(port, that.port) && Objects.equals(host, that.host);
+        return Objects.equals(port, that.port) && Objects.equals(host, that.host) && Objects.equals(scheme, that.scheme);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(host, port);
+        return Objects.hash(host, port, scheme);
     }
 
 
@@ -91,13 +90,16 @@ public class HttpProxy implements ToXContentFragment, Streamable {
         String currentFieldName = null;
         String host = null;
         Integer port = null;
+        Scheme scheme = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.HOST.match(currentFieldName)) {
+            } else if (HOST.match(currentFieldName)) {
                 host = parser.text();
-            } else if (Field.PORT.match(currentFieldName)) {
+            } else if (SCHEME.match(currentFieldName)) {
+                scheme = Scheme.parse(parser.text());
+            } else if (PORT.match(currentFieldName)) {
                 port = parser.intValue();
                 if (port <= 0 || port >= 65535) {
                     throw new ElasticsearchParseException("Proxy port must be between 1 and 65534, but was " + port);
@@ -109,11 +111,6 @@ public class HttpProxy implements ToXContentFragment, Streamable {
             throw new ElasticsearchParseException("Proxy must contain 'port' and 'host' field");
         }
 
-        return new HttpProxy(host, port);
-    }
-
-    public interface Field {
-        ParseField HOST = new ParseField("host");
-        ParseField PORT = new ParseField("port");
+        return new HttpProxy(host, port, scheme);
     }
 }

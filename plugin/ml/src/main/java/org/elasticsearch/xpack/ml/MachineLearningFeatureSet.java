@@ -19,7 +19,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Platforms;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -72,9 +71,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         Map<String, Object> nativeCodeInfo = NativeController.UNKNOWN_NATIVE_CODE_INFO;
         // Don't try to get the native code version if ML is disabled - it causes too much controversy
         // if ML has been disabled because of some OS incompatibility.  Also don't try to get the native
-        // code version in the transport or tribe client - the controller process won't be running.
-        if (enabled && XPackPlugin.transportClientMode(environment.settings()) == false
-                && XPackClientActionPlugin.isTribeClientNode(environment.settings()) == false) {
+        // code version in the transport client - the controller process won't be running.
+        if (enabled && XPackPlugin.transportClientMode(environment.settings()) == false) {
             try {
                 if (isRunningOnMlPlatform(true)) {
                     NativeController nativeController = NativeControllerHolder.getNativeController(environment);

@@ -526,42 +526,6 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         return new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("min", "count").build()));
     }
 
-    public void testVerify_throws() {
-        // count works with no fields
-        Detector d = new Detector.Builder("count", null).build();
-        new AnalysisConfig.Builder(Collections.singletonList(d)).build();
-
-        try {
-            d = new Detector.Builder("distinct_count", null).build();
-            new AnalysisConfig.Builder(Collections.singletonList(d)).build();
-            assertTrue(false); // shouldn't get here
-        } catch (ElasticsearchException e) {
-            assertEquals("Unless the function is 'count' one of field_name, by_field_name or over_field_name must be set", e.getMessage());
-        }
-
-        // should work now
-        Detector.Builder builder = new Detector.Builder("distinct_count", "somefield");
-        builder.setOverFieldName("over_field");
-        new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
-
-        builder = new Detector.Builder("info_content", "somefield");
-        builder.setOverFieldName("over_field");
-        builder.build();
-        new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
-
-        builder.setByFieldName("by_field");
-        new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
-
-        try {
-            builder = new Detector.Builder("made_up_function", "somefield");
-            builder.setOverFieldName("over_field");
-            new AnalysisConfig.Builder(Collections.singletonList(builder.build())).build();
-            assertTrue(false); // shouldn't get here
-        } catch (ElasticsearchException e) {
-            assertEquals("Unknown function 'made_up_function'", e.getMessage());
-        }
-    }
-
     public void testVerify_GivenNegativeBucketSpan() {
         AnalysisConfig.Builder config = createValidConfig();
         config.setBucketSpan(TimeValue.timeValueSeconds(-1));
@@ -728,7 +692,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d));
         ac.setSummaryCountFieldName("my_summary_count");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, ac::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, DetectorFunction.METRIC), e.getMessage());
     }
 
     public void testMultipleBucketsConfig() {

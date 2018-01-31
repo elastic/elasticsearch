@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ElasticsearchException;
@@ -26,7 +27,6 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.security.auth.x500.X500Principal;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.net.SocketException;
@@ -147,6 +147,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(trustedCert);
         } catch (SSLHandshakeException | SocketException ex) {
+            logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
+                    trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
         }
     }

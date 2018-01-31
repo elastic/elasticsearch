@@ -469,7 +469,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
-    protected void ensureWatcherStarted() throws Exception {
+    protected void startWatcher() throws Exception {
         ensureWatcherTemplatesAdded();
         assertBusy(() -> {
             WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
@@ -478,6 +478,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .map(response -> Tuple.tuple(response.getNode().getName(), response.getWatcherState()))
                     .collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
+
+            boolean isStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
+            if (isStateStarted == false){
+                assertAcked(watcherClient().prepareWatchService().start().get());
+            }
 
             String message = String.format(Locale.ROOT, "Expected watcher to be started, but state was %s", currentStatesFromStatsRequest);
             assertThat(message, states, everyItem(is(WatcherState.STARTED)));
@@ -493,7 +498,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         });
     }
 
-    protected void ensureWatcherStopped() throws Exception {
+    protected void stopWatcher() throws Exception {
         assertBusy(() -> {
             WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));
@@ -502,19 +507,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
 
+            boolean isStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
+            if (isStateStopped == false){
+                assertAcked(watcherClient().prepareWatchService().stop().get());
+            }
+
             String message = String.format(Locale.ROOT, "Expected watcher to be stopped, but state was %s", currentStatesFromStatsRequest);
             assertThat(message, states, everyItem(is(WatcherState.STOPPED)));
         });
-    }
-
-    protected void startWatcher() throws Exception {
-        assertAcked(watcherClient().prepareWatchService().start().get());
-        ensureWatcherStarted();
-    }
-
-    protected void stopWatcher() throws Exception {
-        assertAcked(watcherClient().prepareWatchService().stop().get());
-        ensureWatcherStopped();
     }
 
     public static class NoopEmailService extends EmailService {

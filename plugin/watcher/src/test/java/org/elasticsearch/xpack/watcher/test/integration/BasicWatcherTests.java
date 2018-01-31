@@ -78,7 +78,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .addAction("_logger", loggingAction("_logging")
                                 .setCategory("_category")))
                 .get();
-        ensureWatcherStarted();
+
         timeWarp().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 

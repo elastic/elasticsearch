@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,22 +24,24 @@ public class HttpSettings {
     private static final TimeValue DEFAULT_CONNECTION_TIMEOUT = DEFAULT_READ_TIMEOUT;
 
     static final Setting<TimeValue> READ_TIMEOUT = Setting.timeSetting("xpack.http.default_read_timeout",
-            DEFAULT_READ_TIMEOUT, Setting.Property.NodeScope);
+            DEFAULT_READ_TIMEOUT, Property.NodeScope);
     static final Setting<TimeValue> CONNECTION_TIMEOUT = Setting.timeSetting("xpack.http.default_connection_timeout",
-            DEFAULT_CONNECTION_TIMEOUT, Setting.Property.NodeScope);
+            DEFAULT_CONNECTION_TIMEOUT, Property.NodeScope);
 
-    static final String PROXY_HOST_KEY = "xpack.http.proxy.host";
-    static final String PROXY_PORT_KEY = "xpack.http.proxy.port";
-    static final String SSL_KEY_PREFIX = "xpack.http.ssl.";
+    private static final String PROXY_HOST_KEY = "xpack.http.proxy.host";
+    private static final String PROXY_PORT_KEY = "xpack.http.proxy.port";
+    private static final String PROXY_SCHEME_KEY = "xpack.http.proxy.scheme";
+    private static final String SSL_KEY_PREFIX = "xpack.http.ssl.";
 
-    static final Setting<String> PROXY_HOST = Setting.simpleString(PROXY_HOST_KEY, Setting.Property.NodeScope);
-    static final Setting<Integer> PROXY_PORT = Setting.intSetting(PROXY_PORT_KEY, 0, 0, 0xFFFF, Setting.Property.NodeScope);
+    static final Setting<String> PROXY_HOST = Setting.simpleString(PROXY_HOST_KEY, Property.NodeScope);
+    static final Setting<String> PROXY_SCHEME = Setting.simpleString(PROXY_SCHEME_KEY, (v, s) -> Scheme.parse(v), Property.NodeScope);
+    static final Setting<Integer> PROXY_PORT = Setting.intSetting(PROXY_PORT_KEY, 0, 0, 0xFFFF, Property.NodeScope);
 
     static final Setting<ByteSizeValue> MAX_HTTP_RESPONSE_SIZE = Setting.byteSizeSetting("xpack.http.max_response_size",
             new ByteSizeValue(10, ByteSizeUnit.MB),   // default
             new ByteSizeValue(1, ByteSizeUnit.BYTES), // min
             new ByteSizeValue(50, ByteSizeUnit.MB),   // max
-            Setting.Property.NodeScope);
+            Property.NodeScope);
 
     private static final SSLConfigurationSettings SSL = SSLConfigurationSettings.withPrefix(SSL_KEY_PREFIX);
 
@@ -49,6 +52,7 @@ public class HttpSettings {
         settings.add(CONNECTION_TIMEOUT);
         settings.add(PROXY_HOST);
         settings.add(PROXY_PORT);
+        settings.add(PROXY_SCHEME);
         settings.add(MAX_HTTP_RESPONSE_SIZE);
         return settings;
     }

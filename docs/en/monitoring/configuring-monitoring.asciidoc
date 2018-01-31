@@ -12,5 +12,4 @@ can also adjust how monitoring data is displayed. For more information, see
 <<es-monitoring>>.
 
 include::indices.asciidoc[]
-include::tribe.asciidoc[]
 include::{xes-repo-dir}/settings/monitoring-settings.asciidoc[]

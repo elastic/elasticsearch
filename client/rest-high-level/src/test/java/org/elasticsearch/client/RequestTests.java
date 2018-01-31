@@ -845,6 +845,10 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
         if (randomBoolean()) {
+            searchRequest.allowPartialSearchResults(randomBoolean());
+            expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
+        if (randomBoolean()) {
             searchRequest.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
         }
         expectedParams.put("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));

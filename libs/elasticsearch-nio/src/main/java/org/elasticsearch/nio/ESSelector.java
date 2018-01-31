@@ -190,7 +190,7 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
-    public void queueChannelClose(NioChannel<?> channel) {
+    public void queueChannelClose(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
         assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
         channelsToClose.offer(context);

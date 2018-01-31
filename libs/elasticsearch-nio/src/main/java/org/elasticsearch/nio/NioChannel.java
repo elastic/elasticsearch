@@ -22,7 +22,6 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.NetworkChannel;
-import java.nio.channels.SelectableChannel;
 import java.util.function.BiConsumer;
 
 /**
@@ -30,17 +29,12 @@ import java.util.function.BiConsumer;
  * <p>
  * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
  * true until the channel is explicitly closed.
- *
- * @param <S> the type of raw channel this AbstractNioChannel uses
  */
-public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
-
-    private final S socketChannel;
+public abstract class NioChannel {
 
     private final InetSocketAddress localAddress;
 
-    NioChannel(S socketChannel) throws IOException {
-        this.socketChannel = socketChannel;
+    NioChannel(NetworkChannel socketChannel) throws IOException {
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
     }
 
@@ -50,10 +44,6 @@ public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
 
     public InetSocketAddress getLocalAddress() {
         return localAddress;
-    }
-
-    public S getRawChannel() {
-        return socketChannel;
     }
 
     /**
@@ -74,5 +64,7 @@ public abstract class NioChannel<S extends SelectableChannel & NetworkChannel> {
         getContext().closeChannel();
     }
 
-    public abstract ChannelContext<S> getContext();
+    public abstract NetworkChannel getRawChannel();
+
+    public abstract ChannelContext<?> getContext();
 }

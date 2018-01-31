@@ -120,7 +120,7 @@ public class ChannelContextTests extends ESTestCase {
         }
 
         @Override
-        public NioChannel<FakeRawChannel> getChannel() {
+        public NioChannel getChannel() {
             throw new UnsupportedOperationException("not implemented");
         }
     }

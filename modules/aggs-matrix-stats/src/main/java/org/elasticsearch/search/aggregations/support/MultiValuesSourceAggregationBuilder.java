@@ -103,7 +103,8 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         this.targetValueType = targetValueType;
     }
 
-    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected MultiValuesSourceAggregationBuilder(MultiValuesSourceAggregationBuilder<VS, AB> clone,
+                                                  Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.valuesSourceType = clone.valuesSourceType;
         this.targetValueType = clone.targetValueType;

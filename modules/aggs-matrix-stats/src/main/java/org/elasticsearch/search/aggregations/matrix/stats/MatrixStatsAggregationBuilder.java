@@ -47,7 +47,8 @@ public class MatrixStatsAggregationBuilder
         super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
-    protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected MatrixStatsAggregationBuilder(MatrixStatsAggregationBuilder clone,
+                                            AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.multiValueMode = clone.multiValueMode;
     }

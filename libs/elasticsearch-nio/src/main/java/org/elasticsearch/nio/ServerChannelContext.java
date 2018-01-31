@@ -65,4 +65,5 @@ public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
     public NioServerSocketChannel getChannel() {
         return channel;
     }
+
 }

@@ -195,7 +195,7 @@ public class NioTransport extends TcpTransport {
 
         @Override
         public TcpNioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
-            TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel, this, selector);
+            TcpNioServerSocketChannel nioChannel = new TcpNioServerSocketChannel(profileName, channel);
             ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, NioTransport.this::acceptChannel,
                 (e) -> {});
             nioChannel.setContext(context);

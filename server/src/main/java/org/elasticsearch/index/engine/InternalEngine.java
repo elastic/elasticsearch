@@ -1470,8 +1470,6 @@ public class InternalEngine extends Engine {
         if (uncommittedSizeOfCurrentCommit < flushThreshold) {
             return false;
         }
-        assert translog.uncommittedOperations() > 0 : "translog required to flush periodically but not contain any uncommitted operation; "
-            + "uncommitted translog size [" + uncommittedSizeOfCurrentCommit + "], flush threshold [" + flushThreshold + "]";
         /*
          * We should only flush ony if the shouldFlush condition can become false after flushing.
          * This condition will change if the `uncommittedSize` of the new commit is smaller than

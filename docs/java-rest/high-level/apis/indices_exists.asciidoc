@@ -20,11 +20,11 @@ Indices Exists API also accepts following optional arguments, through a `GetInde
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-request-optionals]
 --------------------------------------------------
-<1> Whether to return local information or retrieve the state from master node.
-<2> Return result in a format suitable for humans.
-<3> Whether to return all default setting for each of the indices.
-<4> Return settings in flat format.
-<5> Controls how unavailable indices are resolved and how wildcard expressions are expanded.
+<1> Whether to return local information or retrieve the state from master node
+<2> Return result in a format suitable for humans
+<3> Whether to return all default setting for each of the indices
+<4> Return settings in flat format
+<5> Controls how unavailable indices are resolved and how wildcard expressions are expanded
 
 [[java-rest-high-indices-sync]]
 ==== Synchronous Execution
@@ -44,8 +44,8 @@ The provided listener will be notified upon request completion or failure.
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-async]
 --------------------------------------------------
-<1> Called when the execution is successfully completed. The response is provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+<1> Called when the execution is successfully completed. The response is provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-indices-exists-response]]
 ==== Response

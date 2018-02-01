@@ -275,6 +275,7 @@ public class RequestTests extends ESTestCase {
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
         assertThat(expectedParams, equalTo(request.getParameters()));
+        assertNull(request.getEntity());
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {

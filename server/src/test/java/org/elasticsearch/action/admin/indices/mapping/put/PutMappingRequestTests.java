@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -172,7 +173,7 @@ public class PutMappingRequestTests extends ESTestCase {
         builder.startObject();
 
         if (randomBoolean()) {
-            CreateIndexRequestTests.randomMappingFields(builder, true);
+            RandomCreateIndexGenerator.randomMappingFields(builder, true);
         }
 
         builder.endObject();

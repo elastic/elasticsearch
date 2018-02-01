@@ -36,6 +36,9 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
@@ -47,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -334,7 +338,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
             // end::open-index-request-waitForActiveShards
 
-
             // tag::open-index-request-indicesOptions
             request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
             // end::open-index-request-indicesOptions
@@ -558,5 +561,126 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             assertBusy(() -> assertTrue(client.indices().existsAlias(new GetAliasesRequest("async"))));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testShrinkIndex() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Map<String, Object> nodes = getAsMap("_nodes");
+            String firstNode = ((Map<String, Object>) nodes.get("nodes")).keySet().iterator().next();
+            createIndex("source_index", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
+            updateIndexSettings("source_index", Settings.builder().put("index.routing.allocation.require._name", firstNode)
+                    .put("index.blocks.write", true));
+        }
+
+        // tag::shrink-index-request
+        ResizeRequest request = new ResizeRequest("target_index","source_index"); // <1>
+        // end::shrink-index-request
+
+        // tag::shrink-index-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::shrink-index-request-timeout
+        // tag::shrink-index-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::shrink-index-request-masterTimeout
+        // tag::shrink-index-request-waitForActiveShards
+        request.getTargetIndexRequest().waitForActiveShards(2); // <1>
+        request.getTargetIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        // end::shrink-index-request-waitForActiveShards
+        // tag::shrink-index-request-settings
+        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2)); // <1>
+        // end::shrink-index-request-settings
+        // tag::shrink-index-request-aliases
+        request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
+        // end::shrink-index-request-aliases
+
+        // tag::shrink-index-execute
+        ResizeResponse resizeResponse = client.indices().shrink(request);
+        // end::shrink-index-execute
+
+        // tag::shrink-index-response
+        boolean acknowledged = resizeResponse.isAcknowledged(); // <1>
+        boolean shardsAcked = resizeResponse.isShardsAcknowledged(); // <2>
+        // end::shrink-index-response
+        assertTrue(acknowledged);
+        assertTrue(shardsAcked);
+
+        // tag::shrink-index-execute-async
+        client.indices().shrinkAsync(request, new ActionListener<ResizeResponse>() {
+            @Override
+            public void onResponse(ResizeResponse resizeResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        });
+        // end::shrink-index-execute-async
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testSplitIndex() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("source_index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)
+                    .put("index.number_of_routing_shards", 4).build());
+            updateIndexSettings("source_index", Settings.builder().put("index.blocks.write", true));
+        }
+
+        // tag::split-index-request
+        ResizeRequest request = new ResizeRequest("target_index","source_index"); // <1>
+        request.setResizeType(ResizeType.SPLIT); // <2>
+        // end::split-index-request
+
+        // tag::split-index-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::split-index-request-timeout
+        // tag::split-index-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::split-index-request-masterTimeout
+        // tag::split-index-request-waitForActiveShards
+        request.getTargetIndexRequest().waitForActiveShards(2); // <1>
+        request.getTargetIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        // end::split-index-request-waitForActiveShards
+        // tag::split-index-request-settings
+        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        // end::split-index-request-settings
+        // tag::split-index-request-aliases
+        request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
+        // end::split-index-request-aliases
+
+        // tag::split-index-execute
+        ResizeResponse resizeResponse = client.indices().split(request);
+        // end::split-index-execute
+
+        // tag::split-index-response
+        boolean acknowledged = resizeResponse.isAcknowledged(); // <1>
+        boolean shardsAcked = resizeResponse.isShardsAcknowledged(); // <2>
+        // end::split-index-response
+        assertTrue(acknowledged);
+        assertTrue(shardsAcked);
+
+        // tag::split-index-execute-async
+        client.indices().splitAsync(request, new ActionListener<ResizeResponse>() {
+            @Override
+            public void onResponse(ResizeResponse resizeResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        });
+        // end::split-index-execute-async
     }
 }

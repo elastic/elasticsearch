@@ -28,12 +28,15 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<ReverseNestedAggregationBuilder> {
@@ -43,6 +46,17 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
 
     public ReverseNestedAggregationBuilder(String name) {
         super(name);
+    }
+
+    public ReverseNestedAggregationBuilder(ReverseNestedAggregationBuilder clone,
+                                           Builder factoriesBuilder, Map<String, Object> map) {
+        super(clone, factoriesBuilder, map);
+        this.path = clone.path;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ReverseNestedAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

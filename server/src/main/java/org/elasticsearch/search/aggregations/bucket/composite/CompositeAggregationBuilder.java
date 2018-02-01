@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -67,9 +68,23 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         this(name, null);
     }
 
+
     public CompositeAggregationBuilder(String name, List<CompositeValuesSourceBuilder<?>> sources) {
         super(name);
         this.sources = sources;
+    }
+
+    protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.sources = new ArrayList<>(clone.sources);
+        this.after = clone.after;
+        this.size = clone.size;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new CompositeAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     public CompositeAggregationBuilder(StreamInput in) throws IOException {

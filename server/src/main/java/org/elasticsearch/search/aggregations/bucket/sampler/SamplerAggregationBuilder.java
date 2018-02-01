@@ -25,11 +25,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class SamplerAggregationBuilder extends AbstractAggregationBuilder<SamplerAggregationBuilder> {
@@ -41,6 +44,16 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
 
     public SamplerAggregationBuilder(String name) {
         super(name);
+    }
+
+    protected SamplerAggregationBuilder(SamplerAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.shardSize = clone.shardSize;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new SamplerAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

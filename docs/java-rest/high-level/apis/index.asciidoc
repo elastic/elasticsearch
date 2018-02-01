@@ -1,12 +1,12 @@
-include::createindex.asciidoc[]
+include::create_index.asciidoc[]
 
-include::deleteindex.asciidoc[]
+include::delete_index.asciidoc[]
 
 include::open_index.asciidoc[]
 
 include::close_index.asciidoc[]
 
-include::putmapping.asciidoc[]
+include::put_mapping.asciidoc[]
 
 include::update_aliases.asciidoc[]
 

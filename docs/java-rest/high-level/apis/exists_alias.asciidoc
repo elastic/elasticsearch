@@ -54,9 +54,27 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[exists-alias-execu
 [[java-rest-high-exists-alias-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a exists alias request requires both a `GetAliasesRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[exists-alias-execute-async]
+--------------------------------------------------
+<1> The `GetAliasesRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for the `Boolean` response looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[exists-alias-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

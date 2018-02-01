@@ -36,6 +36,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -182,12 +184,12 @@ public final class Request {
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
-    
+
     static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
         Params parameters = Params.builder();
         parameters.withTimeout(indicesAliasesRequest.timeout());
         parameters.withMasterTimeout(indicesAliasesRequest.masterNodeTimeout());
-        
+
         HttpEntity entity = createEntity(indicesAliasesRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPost.METHOD_NAME, "/_aliases", parameters.getParams(), entity);
     }
@@ -496,7 +498,31 @@ public final class Request {
         HttpEntity entity = null;
         entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+    }
 
+    static Request split(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
+        }
+        return resize(resizeRequest);
+    }
+
+    static Request shrink(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
+        }
+        return resize(resizeRequest);
+    }
+
+    private static Request resize(ResizeRequest resizeRequest) throws IOException {
+        Params params = Params.builder();
+        params.withTimeout(resizeRequest.timeout());
+        params.withMasterTimeout(resizeRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(resizeRequest.getTargetIndexRequest().waitForActiveShards());
+        String endpoint = buildEndpoint(resizeRequest.getSourceIndex(), "_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT),
+                resizeRequest.getTargetIndexRequest().index());
+        HttpEntity entity = createEntity(resizeRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

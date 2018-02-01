@@ -139,6 +139,8 @@ public class ReplicationOperation<
 
     private void performOnReplicas(final ReplicaRequest replicaRequest, final long globalCheckpoint,
                                    final ReplicationGroup replicationGroup) {
+        // for total stats, add number of unassigned shards and
+        // number of initializing shards that are not ready yet to receive operations (recovery has not opened engine yet on the target)
         totalShards.addAndGet(replicationGroup.getSkippedShards().size());
 
         final ShardRouting primaryRouting = primary.routingEntry();

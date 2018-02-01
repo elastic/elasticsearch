@@ -168,6 +168,11 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 this.tracked = in.readBoolean();
             } else {
+                // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier ES versions.
+                // Non in-sync shard copies might be tracked or not. As this information here is only serialized during relocation hand-off,
+                // after which replica recoveries cannot complete anymore (i.e. they cannot move from in-sync == false to in-sync == true),
+                // we can treat non in-sync replica shard copies as untracked. They will go through a fresh recovery against the new
+                // primary and will become tracked again under this primary before they are marked as in-sync.
                 this.tracked = inSync;
             }
         }

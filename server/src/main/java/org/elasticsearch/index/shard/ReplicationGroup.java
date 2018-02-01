@@ -55,6 +55,8 @@ public class ReplicationGroup {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
+                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :
+                        "in-sync shard copy but not tracked: " + shard;
                     skippedShards.add(shard);
                 }
                 if (shard.relocating()) {
@@ -63,6 +65,8 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
+                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :
+                            "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }
@@ -92,7 +96,8 @@ public class ReplicationGroup {
     }
 
     /**
-     * Returns the subset of shards in the routing table that are unassigned or not required to replicate to. Includes relocation targets.
+     * Returns the subset of shards in the routing table that are unassigned or initializing and not ready yet to receive operations
+     * (i.e. engine not opened yet). Includes relocation targets.
      */
     public List<ShardRouting> getSkippedShards() {
         return skippedShards;

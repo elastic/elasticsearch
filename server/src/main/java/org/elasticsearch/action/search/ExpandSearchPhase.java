@@ -128,6 +128,9 @@ final class ExpandSearchPhase extends SearchPhase {
             .preference(orig.preference())
             .routing(orig.routing())
             .searchType(orig.searchType());
+        if (orig.allowPartialSearchResults() != null){
+            groupRequest.allowPartialSearchResults(orig.allowPartialSearchResults());
+        }
         if (orig.isMaxConcurrentShardRequestsSet()) {
             groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
         }

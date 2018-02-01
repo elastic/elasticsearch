@@ -12,6 +12,10 @@ include::update_aliases.asciidoc[]
 
 include::exists_alias.asciidoc[]
 
+include::shrink_index.asciidoc[]
+
+include::split_index.asciidoc[]
+
 include::_index.asciidoc[]
 
 include::get.asciidoc[]

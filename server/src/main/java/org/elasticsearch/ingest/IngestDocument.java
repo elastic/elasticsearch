@@ -615,7 +615,7 @@ public final class IngestDocument {
             return ((Date) value).clone();
         } else if (value instanceof ZonedDateTime) {
             ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
+            return ZonedDateTime.ofInstant(zonedDateTime.toLocalDateTime(), zonedDateTime.getOffset(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }

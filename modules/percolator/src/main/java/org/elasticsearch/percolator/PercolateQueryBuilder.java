@@ -57,6 +57,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -403,7 +404,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (DOCUMENTS_FIELD.match(currentFieldName)) {
+                if (DOCUMENTS_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     if (documentSpecified) {
                         throw new IllegalArgumentException("[" + PercolateQueryBuilder.NAME +
                             "] Either specified [document] or [documents], not both");
@@ -426,7 +427,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "] query does not field name [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (DOCUMENT_FIELD.match(currentFieldName)) {
+                if (DOCUMENT_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     if (documentsSpecified) {
                         throw new IllegalArgumentException("[" + PercolateQueryBuilder.NAME +
                             "] Either specified [document] or [documents], not both");
@@ -442,27 +443,27 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             "] query does not support field name [" + currentFieldName + "]");
                 }
             } else if (token.isValue() || token == XContentParser.Token.VALUE_NULL) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     field = parser.text();
-                } else if (NAME_FIELD.match(currentFieldName)) {
+                } else if (NAME_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     name = parser.textOrNull();
-                } else if (DOCUMENT_TYPE_FIELD.match(currentFieldName)) {
+                } else if (DOCUMENT_TYPE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     documentType = parser.textOrNull();
-                } else if (INDEXED_DOCUMENT_FIELD_INDEX.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_INDEX.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentIndex = parser.text();
-                } else if (INDEXED_DOCUMENT_FIELD_TYPE.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_TYPE.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentType = parser.text();
-                } else if (INDEXED_DOCUMENT_FIELD_ID.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_ID.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentId = parser.text();
-                } else if (INDEXED_DOCUMENT_FIELD_ROUTING.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_ROUTING.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentRouting = parser.text();
-                } else if (INDEXED_DOCUMENT_FIELD_PREFERENCE.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_PREFERENCE.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentPreference = parser.text();
-                } else if (INDEXED_DOCUMENT_FIELD_VERSION.match(currentFieldName)) {
+                } else if (INDEXED_DOCUMENT_FIELD_VERSION.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexedDocumentVersion = parser.longValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +

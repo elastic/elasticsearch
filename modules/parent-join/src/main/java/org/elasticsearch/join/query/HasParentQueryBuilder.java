@@ -29,6 +29,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
@@ -295,24 +296,24 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     iqb = parseInnerQueryBuilder(parser);
-                } else if (INNER_HITS_FIELD.match(currentFieldName)) {
+                } else if (INNER_HITS_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     innerHits = InnerHitBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                         "[has_parent] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (TYPE_FIELD.match(currentFieldName)) {
+                if (TYPE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     parentType = parser.text();
-                } else if (SCORE_FIELD.match(currentFieldName)) {
+                } else if (SCORE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     score = parser.booleanValue();
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

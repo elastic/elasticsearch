@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -160,15 +161,15 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
+                    if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                         analyzer = parser.text();
-                    } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
+                    } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                         fieldname = parser.text();
-                    } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
+                    } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                         sizeField = parser.intValue();
-                    } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
+                    } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                         shardSize = parser.intValue();
-                    } else if (RANDOM_SUFFIX_FIELD.match(currentFieldName)) {
+                    } else if (RANDOM_SUFFIX_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                         suffix = parser.text();
                     }
                 } else {

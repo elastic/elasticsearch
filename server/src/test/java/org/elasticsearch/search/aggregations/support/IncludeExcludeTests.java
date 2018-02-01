@@ -24,6 +24,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -268,10 +269,10 @@ public class IncludeExcludeTests extends ESTestCase {
         IncludeExclude exc = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             assertEquals(XContentParser.Token.FIELD_NAME, token);
-            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
+            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName(), LoggingDeprecationHandler.INSTANCE)) {
                 token = parser.nextToken();
                 inc = IncludeExclude.parseInclude(parser);
-            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
+            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName(), LoggingDeprecationHandler.INSTANCE)) {
                 token = parser.nextToken();
                 exc = IncludeExclude.parseExclude(parser);
             } else {

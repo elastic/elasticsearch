@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParser.NumericValuesSourceParser;
@@ -39,7 +40,7 @@ public class MatrixStatsParser extends NumericValuesSourceParser {
     @Override
     protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
                             Map<ParseField, Object> otherOptions) throws IOException {
-        if (MULTIVALUE_MODE_FIELD.match(currentFieldName)) {
+        if (MULTIVALUE_MODE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
             if (token == XContentParser.Token.VALUE_STRING) {
                 otherOptions.put(MULTIVALUE_MODE_FIELD, parser.text());
                 return true;

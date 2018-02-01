@@ -33,6 +33,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -257,27 +258,27 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     iqb = parseInnerQueryBuilder(parser);
-                } else if (INNER_HITS_FIELD.match(currentFieldName)) {
+                } else if (INNER_HITS_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     innerHitBuilder = InnerHitBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (TYPE_FIELD.match(currentFieldName)) {
+                if (TYPE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     childType = parser.text();
-                } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
+                } else if (SCORE_MODE_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     scoreMode = NestedQueryBuilder.parseScoreMode(parser.text());
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     boost = parser.floatValue();
-                } else if (MIN_CHILDREN_FIELD.match(currentFieldName)) {
+                } else if (MIN_CHILDREN_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     minChildren = parser.intValue(true);
-                } else if (MAX_CHILDREN_FIELD.match(currentFieldName)) {
+                } else if (MAX_CHILDREN_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     maxChildren = parser.intValue(true);
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, LoggingDeprecationHandler.INSTANCE)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[has_child] query does not support [" + currentFieldName + "]");

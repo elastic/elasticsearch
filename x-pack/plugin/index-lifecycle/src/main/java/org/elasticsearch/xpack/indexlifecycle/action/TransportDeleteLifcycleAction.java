@@ -13,19 +13,23 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Response;
 
+import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -58,7 +62,17 @@ public class TransportDeleteLifcycleAction extends TransportMasterNodeAction<Req
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
+                    public ClusterState execute(ClusterState currentState) {
+                        Iterator<IndexMetaData> indicesIt = currentState.metaData().indices().valuesIt();
+                        while(indicesIt.hasNext()) {
+                            IndexMetaData idxMeta = indicesIt.next();
+                            String indexPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+                            if (request.getPolicyName().equals(indexPolicy)) {
+                                throw new IllegalArgumentException("Cannot delete policy [" + request.getPolicyName()
+                                    + "]. It is being used by at least one index [" + idxMeta.getIndex().getName() + "]");
+                            }
+
+                        }
                         ClusterState.Builder newState = ClusterState.builder(currentState);
                         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
                         if (currentMetadata.getPolicies().containsKey(request.getPolicyName()) == false) {

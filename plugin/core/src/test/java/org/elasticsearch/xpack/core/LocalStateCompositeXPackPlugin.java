@@ -45,6 +45,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
@@ -56,7 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.nio.file.Path;
@@ -74,8 +75,10 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
+
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -377,6 +380,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         } else {
             return null;
         }
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
+        return filterPlugins(PersistentTaskPlugin.class).stream()
+                .map(p -> p.getPersistentTasksExecutor(clusterService))
+                .flatMap(List::stream)
+                .collect(toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

@@ -46,7 +46,7 @@ public class MlDailyManagementServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(triggerCount);
         try (MlDailyMaintenanceService service = createService(latch, client)) {
             service.start();
-            latch.await(1, TimeUnit.SECONDS);
+            latch.await(5, TimeUnit.SECONDS);
         }
 
         verify(client, Mockito.atLeast(triggerCount - 1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());

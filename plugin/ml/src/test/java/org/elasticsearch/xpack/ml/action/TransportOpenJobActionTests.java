@@ -41,8 +41,8 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 

@@ -12,6 +12,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -58,6 +59,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.isIndexDeleted;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.isMoveFromRedToNonRed;
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
@@ -78,6 +81,18 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
     private static final String SECURITY_GENERIC_TYPE = "doc";
+
+    private static final ActionListener<Object> NO_OP_ACTION_LISTENER = new ActionListener<Object>() {
+        @Override
+        public void onResponse(Object o) {
+            // nothing
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // nothing
+        }
+    };
 
     private final Client client;
     private final SecurityLifecycleService securityLifecycleService;
@@ -299,6 +314,17 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         usageStats.put("size", mappings.size());
         usageStats.put("enabled", mappings.stream().filter(ExpressionRoleMapping::isEnabled).count());
         listener.onResponse(usageStats);
+    }
+
+    public void onSecurityIndexHealthChange(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
+        if (isMoveFromRedToNonRed(previousHealth, currentHealth) || isIndexDeleted(previousHealth, currentHealth)) {
+            refreshRealms(NO_OP_ACTION_LISTENER, null);
+        }
+    }
+
+    public void onSecurityIndexOutOfDateChange(boolean prevOutOfDate, boolean outOfDate) {
+        assert prevOutOfDate != outOfDate : "this method should only be called if the two values are different";
+        refreshRealms(NO_OP_ACTION_LISTENER, null);
     }
 
     private <Result> void refreshRealms(ActionListener<Result> listener, Result result) {

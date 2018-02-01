@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -214,4 +215,21 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     public boolean isSecurityIndexOutOfDate() {
         return securityIndex.isIndexUpToDate() == false;
     }
+
+    /**
+     * Is the move from {@code previousHealth} to {@code currentHealth} a move from an unhealthy ("RED") index state to a healthy
+     * ("non-RED") state.
+     */
+    public static boolean isMoveFromRedToNonRed(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
+        return (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
+                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
+    }
+
+    /**
+     * Is the move from {@code previousHealth} to {@code currentHealth} a move from index-exists to index-deleted
+     */
+    public static boolean isIndexDeleted(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
+        return previousHealth != null && currentHealth == null;
+    }
+
 }

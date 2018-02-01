@@ -424,6 +424,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(realms);
         components.add(reservedRealm);
 
+        securityLifecycleService.addSecurityIndexHealthChangeListener(nativeRoleMappingStore::onSecurityIndexHealthChange);
+        securityLifecycleService.addSecurityIndexOutOfDateListener(nativeRoleMappingStore::onSecurityIndexOutOfDateChange);
+
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
         for (SecurityExtension extension : securityExtensions) {

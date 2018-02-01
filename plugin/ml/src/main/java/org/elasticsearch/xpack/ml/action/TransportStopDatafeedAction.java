@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;

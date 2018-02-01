@@ -85,44 +85,61 @@ public class RemoteCli implements Closeable {
         out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
         in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
 
-        // Start the CLI
-        String command;
-        if (security == null) {
-            command = elasticsearchAddress;
-        } else {
-            command = security.user + "@" + elasticsearchAddress;
-            if (security.https) {
-                command = "https://" + command;
-            } else if (randomBoolean()) {
-                command = "http://" + command;
+        try {
+            // Start the CLI
+            String command;
+            if (security == null) {
+                command = elasticsearchAddress;
+            } else {
+                command = security.user + "@" + elasticsearchAddress;
+                if (security.https) {
+                    command = "https://" + command;
+                } else if (randomBoolean()) {
+                    command = "http://" + command;
+                }
+                if (security.keystoreLocation != null) {
+                    command = command + " -keystore_location " + security.keystoreLocation;
+                }
             }
-            if (security.keystoreLocation != null) {
-                command = command + " -keystore_location " + security.keystoreLocation;
+            if (false == checkConnectionOnStartup) {
+                command += " -check false";
             }
-        }
-        if (false == checkConnectionOnStartup) {
-            command += " -check false";
-        }
-        /* Don't use println because it emits \r\n on windows but we put the
-        * terminal in unix mode to make the tests consistent. */
-        out.print(command + "\n");
-        out.flush();
-
-        // Feed it passwords if needed
-        if (security != null && security.keystoreLocation != null) {
-            assertEquals("keystore password: ", readUntil(s -> s.endsWith(": ")));
-            out.print(security.keystorePassword + "\n");
+            /* Don't use println because it emits \r\n on windows but we put the
+            * terminal in unix mode to make the tests consistent. */
+            out.print(command + "\n");
             out.flush();
-        }
-        if (security != null) {
-            assertEquals("password: ", readUntil(s -> s.endsWith(": ")));
-            out.print(security.password + "\n");
-            out.flush();
-        }
 
-        // Throw out the logo and warnings about making a dumb terminal
-        while (false == readLine().contains("SQL"));
-        // Throw out the empty line before all the good stuff
+            // Feed it passwords if needed
+            if (security != null && security.keystoreLocation != null) {
+                assertEquals("keystore password: ", readUntil(s -> s.endsWith(": ")));
+                out.print(security.keystorePassword + "\n");
+                out.flush();
+            }
+            if (security != null) {
+                assertEquals("password: ", readUntil(s -> s.endsWith(": ")));
+                out.print(security.password + "\n");
+                out.flush();
+            }
+
+            // Throw out the logo and warnings about making a dumb terminal
+            while (false == readLine().contains("SQL"));
+
+            assertConnectionTest();
+        } catch (AssertionError | Exception e) {
+            /* If there is an error during connection then try and
+             * force the socket shut. */
+            forceClose();
+            throw e;
+        }
+    }
+
+    /**
+     * Assert that result of the connection test. Default implementation
+     * asserts that the test passes but overridden to check places where
+     * we want to assert that it fails.
+     */
+    protected void assertConnectionTest() throws IOException {
+        // After the connection test passess we emit an empty line and then the prompt
         assertEquals("", readLine());
     }
 
@@ -146,11 +163,19 @@ public class RemoteCli implements Closeable {
             }
             assertThat("unconsumed lines", nonQuit, empty());
         } finally {
-            out.close();
-            in.close();
-            // Most importantly, close the socket so the next test can use the fixture
-            socket.close();
+            forceClose();
         }
+    }
+
+    /**
+     * Shutdown the connection to the remote CLI without attempting to shut
+     * the remote down in an orderly way.
+     */
+    public void forceClose() throws IOException {
+        out.close();
+        in.close();
+        // Most importantly, close the socket so the next test can use the fixture
+        socket.close();
     }
 
     /**

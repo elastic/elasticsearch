@@ -9,7 +9,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
-
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,6 +50,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
      * Perform security test actions using the CLI.
      */
     private static class CliActions implements Actions {
+        @Override
+        public String minimalPermissionsForAllActions() {
+            return "cli_or_jdbc_minimal";
+        }
+
         private SecurityConfig userSecurity(String user) {
             SecurityConfig admin = adminSecurityConfig();
             if (user == null) {
@@ -135,6 +140,11 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 assertEquals("---------------+---------------", cli.readLine());
                 for (String table : tables) {
                     String line = null;
+                    /*
+                     * Security automatically creates either a `.security` or a
+                     * `.security6` index but it might not have created the index
+                     * by the time the test runs.
+                     */
                     while (line == null || line.startsWith(".security")) {
                         line = cli.readLine();
                     }
@@ -169,6 +179,18 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 assertThat(cli.command(sql), containsString("[1;31mBad request"));
                 assertThat(cli.readLine(), containsString("Unknown column [" + column + "][1;23;31m][0m"));
             }
+        }
+
+        @Override
+        public void checkNoMonitorMain(String user) throws Exception {
+            @SuppressWarnings("resource")  // forceClose will close it
+            RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user)) {
+                @Override
+                protected void assertConnectionTest() throws IOException {
+                    assertThat(readLine(), containsString("action [cluster:monitor/main] is unauthorized for user [" + user + "]"));
+                }
+            };
+            cli.forceClose();
         }
     }
 

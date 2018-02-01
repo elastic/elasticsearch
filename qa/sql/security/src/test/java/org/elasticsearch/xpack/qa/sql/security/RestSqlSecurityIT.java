@@ -24,8 +24,10 @@ import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -34,9 +36,15 @@ import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.randomMode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static java.util.Collections.emptyMap;
 
 public class RestSqlSecurityIT extends SqlSecurityTestCase {
     private static class RestActions implements Actions {
+        @Override
+        public String minimalPermissionsForAllActions() {
+            return "rest_minimal";
+        }
+
         @Override
         public void queryWorksAsAdmin() throws Exception {
             String mode = randomMode();
@@ -121,6 +129,12 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             expected.put("rows", rows);
 
             Map<String, Object> actual = runSql(user, mode, "SHOW TABLES");
+            /*
+             * Security automatically creates either a `.security` or a
+             * `.security6` index but it might not have created the index
+             * by the time the test runs.
+             */
+            @SuppressWarnings("unchecked")
             List<List<String>> rowsNoSecurity = ((List<List<String>>) actual.get("rows"))
                     .stream()
                     .filter(ls -> ls.get(0).startsWith(".security") == false)
@@ -147,6 +161,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
             ResponseException e = expectThrows(ResponseException.class, () -> runSql(user, randomMode(), sql));
             assertThat(e.getMessage(), containsString("Unknown column [" + column + "]"));
+        }
+
+        @Override
+        public void checkNoMonitorMain(String user) throws Exception {
+            // Without monitor/main everything should work just fine
+            expectMatchesAdmin("SELECT * FROM test", user, "SELECT * FROM test");
+            expectMatchesAdmin("SHOW TABLES LIKE 'test'", user, "SHOW TABLES LIKE 'test'");
+            expectMatchesAdmin("DESCRIBE test", user, "DESCRIBE test");
         }
 
         private static Map<String, Object> runSql(@Nullable String asUser, String mode, String sql) throws IOException {
@@ -190,7 +212,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
      * paranoid we'd hack together something to test the others as well.
      */
     public void testHijackScrollFails() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", "rest_minimal");
 
         Map<String, Object> adminResponse = RestActions.runSql(null, randomMode(),
                 new StringEntity("{\"query\": \"SELECT * FROM test\", \"fetch_size\": 1}", ContentType.APPLICATION_JSON));

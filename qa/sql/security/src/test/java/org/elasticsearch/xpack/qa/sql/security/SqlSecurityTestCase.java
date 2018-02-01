@@ -53,6 +53,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
      * For methods that take {@code user} a {@code null} user means "use the admin".
      */
     protected interface Actions {
+        String minimalPermissionsForAllActions();
         void queryWorksAsAdmin() throws Exception;
         /**
          * Assert that running some sql as a user returns the same result as running it as
@@ -69,6 +70,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         void expectForbidden(String user, String sql) throws Exception;
         void expectUnknownIndex(String user, String sql) throws Exception;
         void expectUnknownColumn(String user, String sql, String column) throws Exception;
+        void checkNoMonitorMain(String user) throws Exception;
     }
 
     protected static final String SQL_ACTION_NAME = "indices:data/read/sql";
@@ -196,7 +198,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testQueryWithFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
         new AuditLogAsserter()
@@ -206,7 +208,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testScrollWithFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectScrollMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
         new AuditLogAsserter()
@@ -342,7 +344,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testShowTablesWorksAsFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE '%t'", "full_access", "SHOW TABLES");
         new AuditLogAsserter()
@@ -394,7 +396,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testDescribeWorksAsFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("DESCRIBE test", "full_access", "DESCRIBE test");
         new AuditLogAsserter()
@@ -453,6 +455,19 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("no_3s", "test")
             .assertLogs();
+    }
+
+    public void testNoMonitorMain() throws Exception {
+        createUser("no_monitor_main", "no_monitor_main");
+        actions.checkNoMonitorMain("no_monitor_main");
+    }
+
+    public void testNoGetIndex() throws Exception {
+        createUser("no_get_index", "no_get_index");
+
+        actions.expectForbidden("no_get_index", "SELECT * FROM test");
+        actions.expectForbidden("no_get_index", "SHOW TABLES LIKE 'test'");
+        actions.expectForbidden("no_get_index", "DESCRIBE test");
     }
 
     protected static void createUser(String name, String role) throws IOException {

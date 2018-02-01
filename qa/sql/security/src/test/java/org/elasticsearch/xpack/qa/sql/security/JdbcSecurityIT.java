@@ -17,6 +17,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLInvalidAuthorizationSpecException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
@@ -116,6 +117,11 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
     private static class JdbcActions implements Actions {
         @Override
+        public String minimalPermissionsForAllActions() {
+            return "cli_or_jdbc_minimal";
+        }
+
+        @Override
         public void queryWorksAsAdmin() throws Exception {
             try (Connection h2 = LocalH2.anonymousDb();
                     Connection es = es(adminProperties())) {
@@ -182,9 +188,11 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
             try (Connection es = es(userProperties(user))) {
                 ResultSet actual = es.createStatement().executeQuery("SHOW TABLES");
 
-                // depending on whether security is enabled and a test is run in isolation or suite
-                // .security or .security6 index can appear
-                // to filter these out, the result set is flatten to a list
+                /*
+                 * Security automatically creates either a `.security` or a
+                 * `.security6` index but it might not have created the index
+                 * by the time the test runs.
+                 */
                 List<String> actualList = new ArrayList<>();
 
                 while (actual.next()) {
@@ -215,6 +223,25 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
                 con -> con.createStatement().executeQuery(sql),
                 column);
         }
+
+        @Override
+        public void checkNoMonitorMain(String user) throws Exception {
+            // Most SQL actually works fine without monitor/main
+            expectMatchesAdmin("SELECT * FROM test", user, "SELECT * FROM test");
+            expectMatchesAdmin("SHOW TABLES LIKE 'test'", user, "SHOW TABLES LIKE 'test'");
+            expectMatchesAdmin("DESCRIBE test", user, "DESCRIBE test");
+
+            // But there are a few things that don't work
+            try (Connection es = es(userProperties(user))) {
+                expectUnauthorized("cluster:monitor/main", user, () -> es.getMetaData().getDatabaseMajorVersion());
+                expectUnauthorized("cluster:monitor/main", user, () -> es.getMetaData().getDatabaseMinorVersion());
+            }
+        }
+
+        private void expectUnauthorized(String action, String user, ThrowingRunnable r) {
+            SQLInvalidAuthorizationSpecException e = expectThrows(SQLInvalidAuthorizationSpecException.class, r);
+            assertEquals("action [" + action + "] is unauthorized for user [" + user + "]", e.getMessage());
+        }
     }
 
     public JdbcSecurityIT() {
@@ -223,7 +250,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
     // Metadata methods only available to JDBC
     public void testMetaDataGetTablesWithFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", "cli_or_jdbc_minimal");
 
         expectActionMatchesAdmin(
             con -> con.getMetaData().getTables("%", "%", "%t", null),
@@ -256,7 +283,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     }
 
     public void testMetaDataGetColumnsWorksAsFullAccess() throws Exception {
-        createUser("full_access", "read_all");
+        createUser("full_access", "cli_or_jdbc_minimal");
 
         expectActionMatchesAdmin(
             con -> con.getMetaData().getColumns("%", "%", "%t", "%"),

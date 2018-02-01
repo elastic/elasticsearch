@@ -259,9 +259,6 @@ Internal::
 * Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
 * Retain originalIndex info when rewriting FieldCapabilities requests {pull}27761[#27761]
 
-Java High Level REST Client::
-* REST high-level client: Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
-
 Java REST Client::
 * Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
 
@@ -282,7 +279,6 @@ Packaging::
 * Allow custom service names when installing on windows {pull}25255[#25255] (issue: {issue}25231[#25231])
 
 Percolator::
-* Do not take duplicate query extractions into account for minimum_should_match attribute {pull}28353[#28353] (issue: {issue}28315[#28315])
 * Avoid TooManyClauses exception if number of terms / ranges is exactly equal to 1024 {pull}27519[#27519] (issue: {issue}1[#1])
 
 Plugin Analysis ICU::

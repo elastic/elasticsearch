@@ -97,9 +97,27 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-execute]
 [[java-rest-high-document-get-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a get request requires both the `GetRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-execute-async]
+--------------------------------------------------
+<1> The `GetRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument.

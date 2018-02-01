@@ -66,9 +66,27 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute]
 [[java-rest-high-document-delete-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a delete request requires both the `DeleteRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-async]
+--------------------------------------------------
+<1> The `DeleteRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `DeleteResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

@@ -21,6 +21,7 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -33,7 +34,6 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,6 +41,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -118,8 +121,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
-            // tag::delete-index-execute-async
-            client.indices().deleteAsync(request, new ActionListener<DeleteIndexResponse>() {
+            // tag::delete-index-execute-listener
+            ActionListener<DeleteIndexResponse> listener = new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -129,14 +132,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::delete-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-index-execute-async
+            client.indices().deleteAsync(request, listener); // <1>
             // end::delete-index-execute-async
 
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "posts");
-                assertTrue(RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode());
-            });
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -206,8 +213,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             CreateIndexRequest request = new CreateIndexRequest("twitter");
-            // tag::create-index-execute-async
-            client.indices().createAsync(request, new ActionListener<CreateIndexResponse>() {
+
+            // tag::create-index-execute-listener
+            ActionListener<CreateIndexResponse> listener = new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -217,14 +225,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::create-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::create-index-execute-async
+            client.indices().createAsync(request, listener); // <1>
             // end::create-index-execute-async
 
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "twitter");
-                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-            });
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -269,8 +281,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
             assertTrue(shardsAcked);
 
-            // tag::open-index-execute-async
-            client.indices().openAsync(request, new ActionListener<OpenIndexResponse>() {
+            // tag::open-index-execute-listener
+            ActionListener<OpenIndexResponse> listener = new ActionListener<OpenIndexResponse>() {
                 @Override
                 public void onResponse(OpenIndexResponse openIndexResponse) {
                     // <1>
@@ -280,14 +292,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::open-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::open-index-execute-async
+            client.indices().openAsync(request, listener); // <1>
             // end::open-index-execute-async
 
-            assertBusy(() -> {
-                // TODO Use Indices Exist API instead once it exists
-                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
-                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
-            });
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
 
         {
@@ -304,7 +320,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testCloseIndex() throws IOException {
+    public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -339,8 +355,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::close-index-response
             assertTrue(acknowledged);
 
-            // tag::close-index-execute-async
-            client.indices().closeAsync(request, new ActionListener<CloseIndexResponse>() {
+            // tag::close-index-execute-listener
+            ActionListener<CloseIndexResponse> listener = new ActionListener<CloseIndexResponse>() {
                 @Override
                 public void onResponse(CloseIndexResponse closeIndexResponse) {
                     // <1>
@@ -350,8 +366,18 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::close-index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::close-index-execute-async
+            client.indices().closeAsync(request, listener); // <1>
             // end::close-index-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
 
         {

@@ -74,9 +74,27 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute]
 [[java-rest-high-document-bulk-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a bulk request requires both the `BulkRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute-async]
+--------------------------------------------------
+<1> The `BulkRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `BulkResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument and contains a list of individual results for each

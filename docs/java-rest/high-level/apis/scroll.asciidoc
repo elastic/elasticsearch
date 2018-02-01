@@ -84,9 +84,27 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-syn
 [[java-rest-high-search-scroll-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a search scroll request requires both the `SearchScrollRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-async]
+--------------------------------------------------
+<1> The `SearchScrollRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `SearchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
@@ -162,9 +180,27 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute]
 [[java-rest-high-clear-scroll-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a clear scroll request requires both the `ClearScrollRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute-async]
+--------------------------------------------------
+<1> The `ClearScrollRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `ClearScrollResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

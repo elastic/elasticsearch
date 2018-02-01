@@ -267,7 +267,7 @@ public class FlushIT extends ESIntegTestCase {
         }
         ShardsSyncedFlushResult result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
         assertThat(result.failureReason(), allOf(
-            containsString("Number of documents on shards are not equal"),
+            containsString("Inconsistent number of documents between shard copies"),
             containsString("num docs[" + numDocs + "]"),
             containsString("num docs[" + (numDocs + extraDocs) + "]")));
         assertThat(result.syncId(), nullValue());

@@ -209,18 +209,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                         actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "all shards failed to commit on pre-sync"));
                         return;
                     }
-                    // Abort if number of documents across these shards are not equal.
-                    final Set<Integer> numDocsSet = presyncResponses.values().stream().map(resp -> resp.numDocs)
-                        .filter(numDocs -> numDocs != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS).collect(Collectors.toSet());
-                    if (numDocsSet.size() > 1) {
-                        final String errorDetail = presyncResponses.entrySet().stream()
-                            .map(e -> "node[" + e.getKey() + "] num docs[" + e.getValue().numDocs() + "]")
-                            .collect(Collectors.joining(","));
-                        actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "Number of documents on shards are not equal {" + errorDetail + "}"));
-                        return;
-                    }
-                    final Map<String, Engine.CommitId> commitIds = presyncResponses.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().commitId()));
                     final ActionListener<InFlightOpsResponse> inflightOpsListener = new ActionListener<InFlightOpsResponse>() {
                         @Override
                         public void onResponse(InFlightOpsResponse response) {
@@ -229,9 +217,22 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             if (inflight != 0) {
                                 actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                             } else {
-                                // 3. now send the sync request to all the shards
-                                String syncId = UUIDs.randomBase64UUID();
-                                sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
+                                // 3. now send the sync request to all the shards but abort if num docs are not consistent across shards.
+                                final Set<Integer> numDocsSet = presyncResponses.values().stream().map(resp -> resp.numDocs)
+                                    .filter(numDocs -> numDocs != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS).collect(Collectors.toSet());
+                                if (numDocsSet.size() > 1) {
+                                    final String errorDetail = presyncResponses.entrySet().stream()
+                                        .map(e -> "node[" + e.getKey() + "] num docs[" + e.getValue().numDocs() + "]")
+                                        .collect(Collectors.joining(","));
+                                    logger.warn("[{}] failed to synced-flush because number of documents are inconsistent between shard copies; [{}]", shardId, errorDetail);
+                                    actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards,
+                                        "Inconsistent number of documents between shard copies {" + errorDetail + "}"));
+                                } else {
+                                    final Map<String, Engine.CommitId> commitIds = presyncResponses.entrySet().stream()
+                                        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().commitId()));
+                                    String syncId = UUIDs.randomBase64UUID();
+                                    sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
+                                }
                             }
                         }
 

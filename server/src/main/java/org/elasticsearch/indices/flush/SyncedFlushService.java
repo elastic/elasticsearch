@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -433,12 +434,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
-        Engine.CommitId commitId = indexShard.flush(flushRequest);
-        // If there is another commit between flush and get commit stats, the sync-flush will fail as commitId is mismatch,
-        // Therefore, it's safe to execute these two commands separately here.
-        final int numDocs = indexShard.commitStats().getNumDocs();
-        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, numDocs);
-        return new PreSyncedFlushResponse(commitId, numDocs);
+        indexShard.flush(flushRequest);
+        final CommitStats commitStats = indexShard.commitStats();
+        final Engine.CommitId commitId = commitStats.rawCommitId();
+        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
+        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs());
     }
 
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {

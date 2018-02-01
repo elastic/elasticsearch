@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
@@ -67,6 +69,15 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
      */
     public RangeAggregationBuilder(StreamInput in) throws IOException {
         super(in, InternalRange.FACTORY, Range::new);
+    }
+
+    protected RangeAggregationBuilder(RangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new RangeAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

@@ -17,12 +17,18 @@
  * under the License.
  */
 
-esplugin {
-    description 'Tribe module'
-    classname 'org.elasticsearch.tribe.TribePlugin'
+package org.elasticsearch.secure_sm;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Annotation to suppress forbidden-apis errors inside a whole class, a method, or a field.
+ */
+@Retention(RetentionPolicy.CLASS)
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
+@interface SuppressForbidden {
+    String reason();
 }
-
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-
-integTestRunner.enabled = false

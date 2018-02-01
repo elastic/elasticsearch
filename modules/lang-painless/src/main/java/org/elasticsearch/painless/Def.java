@@ -279,7 +279,7 @@ public final class Def {
                      captures[capture] = callSiteType.parameterType(i + 1 + capture);
                  }
                  MethodHandle filter;
-                 Definition.Type interfaceType = method.arguments.get(i - 1 - replaced);
+                 Definition.Type interfaceType = definition.ClassToType(method.arguments.get(i - 1 - replaced));
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.

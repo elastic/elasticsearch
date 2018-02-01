@@ -76,19 +76,17 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // static case
             if (captured.type.dynamic == false) {
                 try {
-                    ref = new FunctionRef(
-                        locals.getDefinition(), expected, captured.type.name, call, 1);
+                    ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = ref.interfaceMethod.arguments.get(i);
-                        Definition.Type to = ref.delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = ref.interfaceMethod.arguments.get(i);
+                        Class<?> to = ref.delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                        AnalyzerCaster.getLegalCast(location,
-                            Definition.TypeToClass(ref.delegateMethod.rtn), Definition.TypeToClass(ref.interfaceMethod.rtn), false, true);
+                    if (ref.interfaceMethod.rtn != void.class) {
+                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);

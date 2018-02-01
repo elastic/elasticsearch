@@ -7,4 +7,5 @@ The changes listed below have been released for the first time in Elasticsearch 
 [float]
 === Breaking changes
 
-No breaking changes have been made (yet)
+Core::
+* Tribe node has been removed in favor of Cross-Cluster-Search

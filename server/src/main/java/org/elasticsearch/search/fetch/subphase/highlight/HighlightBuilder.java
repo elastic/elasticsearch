@@ -110,7 +110,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         fields = new ArrayList<>();
     }
 
-    private HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery, List<Field> fields) {
+    public HighlightBuilder(HighlightBuilder template, QueryBuilder highlightQuery, List<Field> fields) {
         super(template, highlightQuery);
         this.encoder = template.encoder;
         this.useExplicitFieldOrder = template.useExplicitFieldOrder;

@@ -317,7 +317,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         final CountDown countDown = new CountDown(shards.size());
         final Map<ShardRouting, ShardSyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
         final int numDocsOnPrimary = numDocsOnPrimary(shards, preSyncResponses);
-
         for (final ShardRouting shard : shards) {
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
             if (node == null) {

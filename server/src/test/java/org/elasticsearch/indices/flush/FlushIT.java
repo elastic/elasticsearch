@@ -49,19 +49,16 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FlushIT extends ESIntegTestCase {
@@ -244,12 +241,13 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(indexResult.getFailure(), nullValue());
     }
 
-    public void testSyncedFlushFailIfNumDocsMismatch() throws Exception {
-        internalCluster().ensureAtLeastNumDataNodes(2);
+    public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
+        final int numberOfReplicas = internalCluster().numDataNodes() - 1;
         assertAcked(
             prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, internalCluster().numDataNodes() - 1)).get()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
         );
         ensureGreen();
         final Index index = clusterService().state().metaData().index("test").getIndex();
@@ -258,28 +256,28 @@ public class FlushIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             index("test", "doc", Integer.toString(i));
         }
-        // Index extra documents to one shard - synced-flush should fail as num docs are not equal.
-        Set<String> dataNodes = internalCluster().nodesInclude("test");
-        IndexShard misbehavedShard = internalCluster().getInstance(IndicesService.class, randomFrom(dataNodes)).getShardOrNull(shardId);
-        int extraDocs = between(1, 10);
+        final List<IndexShard> indexShards = internalCluster().nodesInclude("test").stream()
+            .map(node -> internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId))
+            .collect(Collectors.toList());
+        // Index extra documents to one replica - synced-flush should fail on that replica.
+        final IndexShard outOfSyncReplica = randomValueOtherThanMany(s -> s.routingEntry().primary(), () -> randomFrom(indexShards));
+        final int extraDocs = between(1, 10);
         for (int i = 0; i < extraDocs; i++) {
-            indexDoc(IndexShardTestCase.getEngine(misbehavedShard), "extra_" + i);
+            indexDoc(IndexShardTestCase.getEngine(outOfSyncReplica), "extra_" + i);
         }
-        ShardsSyncedFlushResult result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
-        assertThat(result.failureReason(), allOf(
-            containsString("Inconsistent number of documents between shard copies"),
-            containsString("num docs[" + numDocs + "]"),
-            containsString("num docs[" + (numDocs + extraDocs) + "]")));
-        assertThat(result.syncId(), nullValue());
+        final ShardsSyncedFlushResult partialResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(partialResult.totalShards(), equalTo(numberOfReplicas + 1));
+        assertThat(partialResult.successfulShards(), equalTo(numberOfReplicas));
+        assertThat(partialResult.shardResponses().get(outOfSyncReplica.routingEntry()).failureReason, equalTo(
+            "out of sync replica; num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
         // Index extra documents to all shards - synced-flush should be ok.
-        for (String dataNode : dataNodes) {
-            final IndexShard shard = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(shardId);
+        for (IndexShard indexShard : indexShards) {
             for (int i = 0; i < extraDocs; i++) {
-                indexDoc(IndexShardTestCase.getEngine(shard), "extra_" + i);
+                indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
             }
         }
-        result = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
-        assertThat(result.failureReason(), nullValue());
-        assertThat(result.syncId(), notNullValue());
+        final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(fullResult.totalShards(), equalTo(numberOfReplicas + 1));
+        assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
     }
 }

@@ -442,6 +442,9 @@ public final class Request {
         if (searchRequest.requestCache() != null) {
             params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
+        if (searchRequest.allowPartialSearchResults() != null) {
+            params.putParam("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
         params.putParam("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());

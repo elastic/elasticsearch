@@ -35,17 +35,6 @@ and enrich the document before indexing. With a heavy ingest load, it makes
 sense to use dedicated ingest nodes and to mark the master and data nodes as
 `node.ingest: false`.
 
-<<modules-tribe,Tribe node>>::
-
-A tribe node, configured via the `tribe.*` settings, is a special type  of
-coordinating only node that can connect to multiple clusters and perform
-search and other operations across all connected clusters.
-
-By default a node is a master-eligible node and a data node, plus it can
-pre-process documents through ingest pipelines. This is very convenient for
-small clusters but, as the cluster grows, it becomes important to consider
-separating dedicated master-eligible nodes from dedicated data nodes.
-
 [NOTE]
 [[coordinating-node]]
 .Coordinating node

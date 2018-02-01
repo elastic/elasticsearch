@@ -483,7 +483,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testIndicesAliases() throws IOException {
+    public void testUpdateAliases() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
         {

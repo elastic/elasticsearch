@@ -58,7 +58,7 @@ final class PSubMapShortcut extends AStoreable {
         getter = struct.methods.get(new Definition.MethodKey("get", 1));
         setter = struct.methods.get(new Definition.MethodKey("put", 2));
 
-        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1)) {
+        if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));
         }
 
@@ -72,12 +72,11 @@ final class PSubMapShortcut extends AStoreable {
         }
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
-            index.expected = setter != null ?
-                    Definition.TypeToClass(setter.arguments.get(0)) : Definition.TypeToClass(getter.arguments.get(0));
+            index.expected = setter != null ? setter.arguments.get(0) : getter.arguments.get(0);
             index.analyze(locals);
             index = index.cast(locals);
 
-            actual = setter != null ? Definition.TypeToClass(setter.arguments.get(1)) : Definition.TypeToClass(getter.rtn);
+            actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
             throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + struct.name + "]."));
         }
@@ -91,8 +90,8 @@ final class PSubMapShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn != getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -122,8 +121,8 @@ final class PSubMapShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn != getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -133,7 +132,7 @@ final class PSubMapShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.rtn).getSize());
     }
 
     @Override

@@ -309,7 +309,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 }
             }
         }
-        return -1;
+        return PreSyncedFlushResponse.UNKNOWN_NUM_DOCS;
     }
 
     void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, PreSyncedFlushResponse> preSyncResponses,
@@ -332,7 +332,8 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
-            if (preSyncedResponse.numDocs != numDocsOnPrimary && preSyncedResponse.numDocs != -1 && numDocsOnPrimary != -1) {
+            if (preSyncedResponse.numDocs != numDocsOnPrimary
+                && preSyncedResponse.numDocs != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS && numDocsOnPrimary != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS) {
                 logger.warn("{} can't to issue sync id [{}] for out of sync replica [{}] with num docs [{}]; num docs on primary [{}]",
                     shardId, syncId, shard, preSyncedResponse.numDocs, numDocsOnPrimary);
                 results.put(shard, new ShardSyncedFlushResponse("out of sync replica; " +

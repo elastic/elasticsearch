@@ -356,8 +356,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> getIndexResponse = getAsMap("target");
         Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
         assertNotNull(indexSettings);
-        assertEquals(2, indexSettings.get("number_of_shards"));
-        assertEquals(0, indexSettings.get("number_of_replicas"));
+        assertEquals("2", indexSettings.get("number_of_shards"));
+        assertEquals("0", indexSettings.get("number_of_replicas"));
         Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
@@ -378,8 +378,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> getIndexResponse = getAsMap("target");
         Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
         assertNotNull(indexSettings);
-        assertEquals(4, indexSettings.get("number_of_shards"));
-        assertEquals(0, indexSettings.get("number_of_replicas"));
+        assertEquals("4", indexSettings.get("number_of_shards"));
+        assertEquals("0", indexSettings.get("number_of_replicas"));
         Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }

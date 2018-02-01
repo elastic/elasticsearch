@@ -228,7 +228,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testOpenIndex() throws IOException {
+    public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -253,7 +253,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.waitForActiveShards(2); // <1>
             request.waitForActiveShards(ActiveShardCount.ONE); // <2>
             // end::open-index-request-waitForActiveShards
-
 
             // tag::open-index-request-indicesOptions
             request.indicesOptions(IndicesOptions.strictExpandOpen()); // <1>
@@ -283,6 +282,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             });
             // end::open-index-execute-async
+
+            assertBusy(() -> {
+                // TODO Use Indices Exist API instead once it exists
+                Response response = client.getLowLevelClient().performRequest("HEAD", "index");
+                assertTrue(RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode());
+            });
         }
 
         {

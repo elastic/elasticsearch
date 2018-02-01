@@ -130,17 +130,17 @@ public final class ELambda extends AExpression implements ILambda {
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                    "] in [" + Definition.ClassToName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn.equals(locals.getDefinition().voidType)) {
+            if (interfaceMethod.rtn == void.class) {
                 returnType = def.class;
             } else {
-                returnType = Definition.TypeToClass(interfaceMethod.rtn);
+                returnType = interfaceMethod.rtn;
             }
             // replace any null types with the actual type
             actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
-                    actualParamTypeStrs.add(interfaceMethod.arguments.get(i).name);
+                    actualParamTypeStrs.add(Definition.ClassToName(interfaceMethod.arguments.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -190,14 +190,13 @@ public final class ELambda extends AExpression implements ILambda {
 
             // check casts between the interface method and the delegate method are legal
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                Class<?> from = Definition.TypeToClass(interfaceMethod.arguments.get(i));
+                Class<?> from = interfaceMethod.arguments.get(i);
                 Class<?> to = Definition.TypeToClass(desugared.parameters.get(i + captures.size()).type);
                 AnalyzerCaster.getLegalCast(location, from, to, false, true);
             }
 
-            if (interfaceMethod.rtn.clazz != void.class) {
-                AnalyzerCaster.getLegalCast(
-                    location, Definition.TypeToClass(desugared.rtnType), Definition.TypeToClass(interfaceMethod.rtn), false, true);
+            if (interfaceMethod.rtn != void.class) {
+                AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
             }
 
             actual = expected;

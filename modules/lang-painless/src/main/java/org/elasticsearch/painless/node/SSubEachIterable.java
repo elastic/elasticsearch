@@ -73,8 +73,7 @@ final class SSubEachIterable extends AStatement {
     void analyze(Locals locals) {
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
-        iterator = locals.addVariable(location, locals.getDefinition().getType("Iterator"),
-                "#itr" + location.getOffset(), true);
+        iterator = locals.addVariable(location, Iterator.class, "#itr" + location.getOffset(), true);
 
         if (expression.actual == def.class) {
             method = null;
@@ -88,7 +87,7 @@ final class SSubEachIterable extends AStatement {
             }
         }
 
-        cast = AnalyzerCaster.getLegalCast(location, def.class, Definition.TypeToClass(variable.type), true, true);
+        cast = AnalyzerCaster.getLegalCast(location, def.class, variable.clazz, true, true);
     }
 
     @Override
@@ -105,21 +104,21 @@ final class SSubEachIterable extends AStatement {
             method.write(writer);
         }
 
-        writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ISTORE), iterator.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
 
         Label begin = new Label();
         Label end = new Label();
 
         writer.mark(begin);
 
-        writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
         writer.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         writer.ifZCmp(MethodWriter.EQ, end);
 
-        writer.visitVarInsn(iterator.type.type.getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
         writer.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
         writer.writeCast(cast);
-        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
+        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
             writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
@@ -135,6 +134,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(variable.type.name, variable.name, expression, block);
+        return singleLineToString(Definition.ClassToName(variable.clazz), variable.name, expression, block);
     }
 }

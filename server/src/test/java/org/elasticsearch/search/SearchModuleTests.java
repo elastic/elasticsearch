@@ -32,6 +32,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
@@ -336,6 +337,15 @@ public class SearchModuleTests extends ModuleTestCase {
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
      */
     private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TestAggregationBuilder> {
+        protected TestAggregationBuilder(TestAggregationBuilder clone,
+                                         Builder factoriesBuilder, Map<String, Object> metaData) {
+            super(clone, factoriesBuilder, metaData);
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+            return new TestAggregationBuilder(this, factoriesBuilder, metaData);
+        }
         /**
          * Read from a stream.
          */

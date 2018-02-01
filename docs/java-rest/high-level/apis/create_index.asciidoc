@@ -1,0 +1,117 @@
+[[java-rest-high-create-index]]
+=== Create Index API
+
+[[java-rest-high-create-index-request]]
+==== Create Index Request
+
+A `CreateIndexRequest` requires an `index` argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request]
+--------------------------------------------------
+<1> The index to create
+
+==== Index settings
+Each index created can have specific settings associated with it.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-settings]
+--------------------------------------------------
+<1> Settings for this index
+
+==== Index mappings
+An index may be created with mappings for its document types
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-mappings]
+--------------------------------------------------
+<1> The type to define
+<2> The mapping for this type, provided as a JSON string
+
+==== Index aliases
+Aliases can be set at index creation time
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-aliases]
+--------------------------------------------------
+<1> The alias to define
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index creation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index creation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the create index API returns a
+response, as an `int`.
+<2> The number of active shard copies to wait for before the create index API returns a
+response, as an `ActiveShardCount`.
+
+[[java-rest-high-create-index-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-execute]
+--------------------------------------------------
+
+[[java-rest-high-create-index-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a create index request requires both the `CreateIndexRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-execute-async]
+--------------------------------------------------
+<1> The `CreateIndexRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `CreateIndexResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-create-index-response]]
+==== Create Index Response
+
+The returned `CreateIndexResponse` allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for each shard in the index before timing out

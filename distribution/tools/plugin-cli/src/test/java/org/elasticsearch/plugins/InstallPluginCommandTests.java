@@ -1191,7 +1191,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         return bytes -> MessageDigests.toHexString(digest.digest(bytes)) + s;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28415")
     public void testMetaPluginPolicyConfirmation() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path metaDir = createPluginDir(temp);
@@ -1210,7 +1209,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertEquals("installation aborted by user", e.getMessage());
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        assertThat(Files.list(env.v2().pluginsFile()).collect(Collectors.toList()), empty());
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
 
         // explicitly do not install
         terminal.reset();
@@ -1218,7 +1219,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertEquals("installation aborted by user", e.getMessage());
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        assertThat(Files.list(env.v2().pluginsFile()).collect(Collectors.toList()), empty());
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
 
         // allow installation
         terminal.reset();

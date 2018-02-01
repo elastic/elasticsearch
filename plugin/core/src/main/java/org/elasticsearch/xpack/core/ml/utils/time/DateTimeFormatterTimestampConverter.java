@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.utils.time;
 
+import org.elasticsearch.cli.SuppressForbidden;
+
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -84,6 +86,11 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
         if (hasTimeZone) {
             return Instant.from(parsed);
         }
+        return toInstantUnsafelyIgnoringAmbiguity(parsed);
+    }
+
+    @SuppressForbidden(reason = "TODO https://github.com/elastic/x-pack-elasticsearch/issues/3810")
+    private Instant toInstantUnsafelyIgnoringAmbiguity(TemporalAccessor parsed) {
         return LocalDateTime.from(parsed).atZone(defaultZoneId).toInstant();
     }
 }

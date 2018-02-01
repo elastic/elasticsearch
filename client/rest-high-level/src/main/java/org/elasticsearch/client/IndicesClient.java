@@ -35,6 +35,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -139,9 +141,9 @@ public final class IndicesClient {
      * "https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html">
      * Index Aliases API on elastic.co</a>
      */
-    public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequestRequest, ActionListener<IndicesAliasesResponse> listener,
+    public void updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequest, ActionListener<IndicesAliasesResponse> listener,
             Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequestRequest, Request::updateAliases,
+        restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequest, Request::updateAliases,
                 IndicesAliasesResponse::fromXContent, listener, emptySet(), headers);
     }
 
@@ -242,5 +244,49 @@ public final class IndicesClient {
             Collections.emptySet(),
             headers
         );
+    }
+
+    /**
+     * Shrinks an index using the Shrink Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
+     * Shrink Index API on elastic.co</a>
+     */
+    public ResizeResponse shrink(ResizeRequest resizeRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, Request::shrink, ResizeResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously shrinks an index using the Shrink index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-shrink-index.html">
+     * Shrink Index API on elastic.co</a>
+     */
+    public void shrinkAsync(ResizeRequest resizeRequest, ActionListener<ResizeResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, Request::shrink, ResizeResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    /**
+     * Splits an index using the Split Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
+     * Shrink Index API on elastic.co</a>
+     */
+    public ResizeResponse split(ResizeRequest resizeRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, Request::split, ResizeResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously splits an index using the Split Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
+     * Split Index API on elastic.co</a>
+     */
+    public void splitAsync(ResizeRequest resizeRequest, ActionListener<ResizeResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, Request::split, ResizeResponse::fromXContent,
+                listener, emptySet(), headers);
     }
 }

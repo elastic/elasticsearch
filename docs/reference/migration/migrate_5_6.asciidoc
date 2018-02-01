@@ -33,3 +33,11 @@ previous behavior, Elasticsearch would skip the bootstrap checks if bound to a
 link-local address. Now that Elasticsearch no longer binds to such addresses
 when binding to localhost, the bootstrap checks now apply to link-local
 addresses.
+
+[float]
+=== Referencing Parent Documents
+
+Previously in Elasticsearch parent documents could be aggregated on or 
+referenced in a script using `_parent`. Now in order to reference a parent 
+document in an aggregation or script you must do `_parent#my_parent` as stated 
+in the <<mapping-parent-field,mapping a parent field documentation>>.

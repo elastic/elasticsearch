@@ -264,7 +264,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::create-index-whole-source
             request.source("{\n" +
                     "    \"settings\" : {\n" +
-                    "        \"number_of_shards\" : 1\n" +
+                    "        \"number_of_shards\" : 1,\n" +
                     "        \"number_of_replicas\" : 0\n" +
                     "    },\n" +
                     "    \"mappings\" : {\n" +

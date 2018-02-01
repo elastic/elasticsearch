@@ -50,9 +50,27 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-execut
 [[java-rest-high-put-mapping-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of a put mappings request requires both the `PutMappingRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-execute-async]
+--------------------------------------------------
+<1> The `PutMappingRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `PutMappingResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -57,6 +59,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -108,6 +111,9 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.Request.enforceSameContentType;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
+import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -315,20 +321,15 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testCreateIndex() throws IOException {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-
-        String indexName = "index-" + randomAlphaOfLengthBetween(2, 5);
-
-        createIndexRequest.index(indexName);
+        CreateIndexRequest createIndexRequest = randomCreateIndexRequest();
 
         Map<String, String> expectedParams = new HashMap<>();
-
         setRandomTimeout(createIndexRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(createIndexRequest, expectedParams);
         setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
 
         Request request = Request.createIndex(createIndexRequest);
-        assertEquals("/" + indexName, request.getEndpoint());
+        assertEquals("/" + createIndexRequest.index(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(createIndexRequest, request.getEntity());
@@ -1026,6 +1027,7 @@ public class RequestTests extends ESTestCase {
         if (Strings.hasLength(alias)) {
             expectedEndpoint.add(alias);
         }
+        assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
@@ -1055,6 +1057,64 @@ public class RequestTests extends ESTestCase {
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertToXContentBody(spec, request.getEntity());
+    }
+
+    public void testSplit() throws IOException {
+        resizeTest(ResizeType.SPLIT, Request::split);
+    }
+
+    public void testSplitWrongResizeType() {
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SHRINK);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.split(resizeRequest));
+        assertEquals("Wrong resize type [SHRINK] for indices split request", iae.getMessage());
+    }
+
+    public void testShrinkWrongResizeType() {
+        ResizeRequest resizeRequest = new ResizeRequest("target", "source");
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.shrink(resizeRequest));
+        assertEquals("Wrong resize type [SPLIT] for indices shrink request", iae.getMessage());
+    }
+
+    public void testShrink() throws IOException {
+        resizeTest(ResizeType.SHRINK, Request::shrink);
+    }
+
+    private static void resizeTest(ResizeType resizeType, CheckedFunction<ResizeRequest, Request, IOException> function)
+            throws IOException {
+        String[] indices = randomIndicesNames(2, 2);
+        ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
+        resizeRequest.setResizeType(resizeType);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(resizeRequest, expectedParams);
+        setRandomTimeout(resizeRequest::timeout, resizeRequest.timeout(), expectedParams);
+
+        if (randomBoolean()) {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(randomAlphaOfLengthBetween(3, 10));
+            if (randomBoolean()) {
+                createIndexRequest.settings(randomIndexSettings());
+            }
+            if (randomBoolean()) {
+                randomAliases(createIndexRequest);
+            }
+            if (randomBoolean()) {
+                setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+            }
+            resizeRequest.setTargetIndex(createIndexRequest);
+        } else {
+            if (randomBoolean()) {
+                setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
+            }
+        }
+
+        Request request = function.apply(resizeRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        String expectedEndpoint = "/" + resizeRequest.getSourceIndex() + "/_" + resizeType.name().toLowerCase(Locale.ROOT) + "/"
+                + resizeRequest.getTargetIndexRequest().index();
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(resizeRequest, request.getEntity());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

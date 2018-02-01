@@ -31,7 +31,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -52,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -73,6 +76,31 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     public TopHitsAggregationBuilder(String name) {
         super(name);
+    }
+
+    protected TopHitsAggregationBuilder(TopHitsAggregationBuilder clone,
+                                        Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.from = clone.from;
+        this.size = clone.size;
+        this.explain = clone.explain;
+        this.version = clone.version;
+        this.trackScores = clone.trackScores;
+        this.sorts = clone.sorts == null ? null : new ArrayList<>(clone.sorts);
+        this.highlightBuilder = clone.highlightBuilder == null ? null :
+            new HighlightBuilder(clone.highlightBuilder, clone.highlightBuilder.highlightQuery(), clone.highlightBuilder.fields());
+        this.storedFieldsContext = clone.storedFieldsContext == null ? null :
+            new StoredFieldsContext(clone.storedFieldsContext);
+        this.fieldDataFields = clone.fieldDataFields == null ? null : new ArrayList<>(clone.fieldDataFields);
+        this.scriptFields = clone.scriptFields == null ? null : new HashSet<>(clone.scriptFields);
+        this.fetchSourceContext = clone.fetchSourceContext == null ? null :
+            new FetchSourceContext(clone.fetchSourceContext.fetchSource(), clone.fetchSourceContext.includes(),
+                clone.fetchSourceContext.excludes());
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new TopHitsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

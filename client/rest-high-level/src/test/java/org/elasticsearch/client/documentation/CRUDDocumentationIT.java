@@ -59,7 +59,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.threadpool.Scheduler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -87,7 +86,7 @@ import static java.util.Collections.singletonMap;
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testIndex() throws IOException {
+    public void testIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -167,20 +166,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::index-response
-
-            // tag::index-execute-async
-            client.indexAsync(request, new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            });
-            // end::index-execute-async
         }
         {
             IndexRequest request = new IndexRequest("posts", "doc", "1");
@@ -240,9 +225,28 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             }
             // end::index-optype
         }
+        {
+            IndexRequest request = new IndexRequest("posts", "doc", "async").source("field", "value");
+
+            // tag::index-execute-async
+            client.indexAsync(request, new ActionListener<IndexResponse>() {
+                @Override
+                public void onResponse(IndexResponse indexResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::index-execute-async
+
+            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
+        }
     }
 
-    public void testUpdate() throws IOException {
+    public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             IndexRequest indexRequest = new IndexRequest("posts", "doc", "1").source("field", 0);
@@ -378,20 +382,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::update-failure
-
-            // tag::update-execute-async
-            client.updateAsync(request, new ActionListener<UpdateResponse>() {
-                @Override
-                public void onResponse(UpdateResponse updateResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            });
-            // end::update-execute-async
         }
         {
             //tag::update-docnotfound
@@ -497,9 +487,28 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.waitForActiveShards(ActiveShardCount.ALL); // <2>
             // end::update-request-active-shards
         }
+        {
+            UpdateRequest request = new UpdateRequest("posts", "doc", "async").doc("reason", "async update").docAsUpsert(true);
+
+            // tag::update-execute-async
+            client.updateAsync(request, new ActionListener<UpdateResponse>() {
+                @Override
+                public void onResponse(UpdateResponse updateResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::update-execute-async
+
+            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
+        }
     }
 
-    public void testDelete() throws IOException {
+    public void testDelete() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -536,20 +545,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::delete-response
-
-            // tag::delete-execute-async
-            client.deleteAsync(request, new ActionListener<DeleteResponse>() {
-                @Override
-                public void onResponse(DeleteResponse deleteResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            });
-            // end::delete-execute-async
         }
 
         {
@@ -600,6 +595,28 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::delete-conflict
+        }
+        {
+            IndexResponse indexResponse = client.index(new IndexRequest("posts", "doc", "async").source("field", "value"));
+            assertSame(indexResponse.status(), RestStatus.CREATED);
+
+            DeleteRequest request = new DeleteRequest("posts", "doc", "async");
+
+            // tag::delete-execute-async
+            client.deleteAsync(request, new ActionListener<DeleteResponse>() {
+                @Override
+                public void onResponse(DeleteResponse deleteResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::delete-execute-async
+
+            assertBusy(() -> assertFalse(client.exists(new GetRequest("posts", "doc", "async"))));
         }
     }
 

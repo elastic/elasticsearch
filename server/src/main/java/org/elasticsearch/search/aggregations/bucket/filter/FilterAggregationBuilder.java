@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -56,6 +57,17 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
         this.filter = filter;
+    }
+
+    protected FilterAggregationBuilder(FilterAggregationBuilder clone,
+                                       AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.filter = clone.filter;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new FilterAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

@@ -21,6 +21,10 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
@@ -38,9 +42,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -70,7 +77,6 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -423,7 +429,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return runningTasks;
     }
 
-    protected void assertOK(Response response) {
+    protected static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
@@ -432,7 +438,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in an non green state
      * @param index index to test for
      **/
-    protected void ensureGreen(String index) throws IOException {
+    protected static void ensureGreen(String index) throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_status", "green");
         params.put("wait_for_no_relocating_shards", "true");
@@ -445,7 +451,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
-    protected void ensureNoInitializingShards() throws IOException {
+    protected static void ensureNoInitializingShards() throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_no_initializing_shards", "true");
         params.put("timeout", "70s");
@@ -453,22 +459,64 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(client().performRequest("GET", "_cluster/health/", params));
     }
 
-    protected void createIndex(String name, Settings settings) throws IOException {
+    protected static void createIndex(String name, Settings settings) throws IOException {
         createIndex(name, settings, "");
     }
 
-    protected void createIndex(String name, Settings settings, String mapping) throws IOException {
-        assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
+    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
+        assertOK(client().performRequest(HttpPut.METHOD_NAME, name, Collections.emptyMap(),
             new StringEntity("{ \"settings\": " + Strings.toString(settings)
                 + ", \"mappings\" : {" + mapping + "} }", ContentType.APPLICATION_JSON)));
     }
 
-    protected void updateIndexSetting(String index, Settings.Builder settings) throws IOException {
-        updateIndexSetting(index, settings.build());
+    protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
+        updateIndexSettings(index, settings.build());
     }
 
-    private void updateIndexSetting(String index, Settings settings) throws IOException {
+    private static void updateIndexSettings(String index, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", index + "/_settings", Collections.emptyMap(),
             new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
+    }
+
+    protected static boolean indexExists(String index) throws IOException {
+        Response response = client().performRequest(HttpHead.METHOD_NAME, index);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    protected static void closeIndex(String index) throws IOException {
+        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_close");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+    }
+
+    protected static boolean aliasExists(String alias) throws IOException {
+        Response response = client().performRequest(HttpHead.METHOD_NAME, "/_alias/" + alias);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    protected static boolean aliasExists(String index, String alias) throws IOException {
+        Response response = client().performRequest(HttpHead.METHOD_NAME, "/" + index + "/_alias/" + alias);
+        return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
+        String endpoint = "/_alias";
+        if (false == Strings.isEmpty(index)) {
+            endpoint = index + endpoint;
+        }
+        if (false == Strings.isEmpty(alias)) {
+            endpoint = endpoint + "/" + alias;
+        }
+        Map<String, Object> getAliasResponse = getAsMap(endpoint);
+        return (Map<String, Object>)XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
+    }
+
+    protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
+        Response response = client().performRequest(HttpGet.METHOD_NAME, endpoint);
+        XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
+                response.getEntity().getContent(), false);
+        assertNotNull(responseEntity);
+        return responseEntity;
     }
 }

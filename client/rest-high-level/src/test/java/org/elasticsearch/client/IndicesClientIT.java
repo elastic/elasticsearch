@@ -45,6 +45,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -98,25 +99,18 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     execute(createIndexRequest, highLevelClient().indices()::create, highLevelClient().indices()::createAsync);
             assertTrue(createIndexResponse.isAcknowledged());
 
-            Map<String, Object> indexMetaData = getIndexMetadata(indexName);
+            Map<String, Object> getIndexResponse = getAsMap(indexName);
+            assertEquals("2", XContentMapValues.extractValue(indexName + ".settings.index.number_of_replicas", getIndexResponse));
 
-            Map<String, Object> settingsData = (Map) indexMetaData.get("settings");
-            Map<String, Object> indexSettings = (Map) settingsData.get("index");
-            assertEquals("2", indexSettings.get("number_of_replicas"));
-
-            Map<String, Object> aliasesData = (Map) indexMetaData.get("aliases");
-            Map<String, Object> aliasData = (Map) aliasesData.get("alias_name");
+            Map<String, Object> aliasData =
+                    (Map<String, Object>)XContentMapValues.extractValue(indexName + ".aliases.alias_name", getIndexResponse);
+            assertNotNull(aliasData);
             assertEquals("1", aliasData.get("index_routing"));
             Map<String, Object> filter = (Map) aliasData.get("filter");
             Map<String, Object> term = (Map) filter.get("term");
             assertEquals(2016, term.get("year"));
 
-            Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
-            Map<String, Object> typeData = (Map) mappingsData.get("type_name");
-            Map<String, Object> properties = (Map) typeData.get("properties");
-            Map<String, Object> field = (Map) properties.get("field");
-
-            assertEquals("text", field.get("type"));
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
         }
     }
 
@@ -139,13 +133,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                     execute(putMappingRequest, highLevelClient().indices()::putMapping, highLevelClient().indices()::putMappingAsync);
             assertTrue(putMappingResponse.isAcknowledged());
 
-            Map<String, Object> indexMetaData = getIndexMetadata(indexName);
-            Map<String, Object> mappingsData = (Map) indexMetaData.get("mappings");
-            Map<String, Object> typeData = (Map) mappingsData.get("type_name");
-            Map<String, Object> properties = (Map) typeData.get("properties");
-            Map<String, Object> field = (Map) properties.get("field");
-
-            assertEquals("text", field.get("type"));
+            Map<String, Object> getIndexResponse = getAsMap(indexName);
+            assertEquals("text", XContentMapValues.extractValue(indexName + ".mappings.type_name.properties.field.type", getIndexResponse));
         }
     }
 
@@ -364,13 +353,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeResponse resizeResponse = highLevelClient().indices().shrink(resizeRequest);
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
-        Map<String, Object> indexMetadata = getIndexMetadata("target");
-        Map<String, Object> settingsData = (Map) indexMetadata.get("settings");
-        Map<String, Object> indexSettings = (Map) settingsData.get("index");
-        assertEquals("2", indexSettings.get("number_of_shards"));
-        assertEquals("0", indexSettings.get("number_of_replicas"));
-        Map<String, Object> aliasesData = (Map) indexMetadata.get("aliases");
-        Map<String, Object> aliasData = (Map) aliasesData.get("alias");
+        Map<String, Object> getIndexResponse = getAsMap("target");
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        assertNotNull(indexSettings);
+        assertEquals(2, indexSettings.get("number_of_shards"));
+        assertEquals(0, indexSettings.get("number_of_replicas"));
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
 
@@ -387,13 +375,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         ResizeResponse resizeResponse = highLevelClient().indices().split(resizeRequest);
         assertTrue(resizeResponse.isAcknowledged());
         assertTrue(resizeResponse.isShardsAcknowledged());
-        Map<String, Object> indexMetadata = getIndexMetadata("target");
-        Map<String, Object> settingsData = (Map) indexMetadata.get("settings");
-        Map<String, Object> indexSettings = (Map) settingsData.get("index");
-        assertEquals("4", indexSettings.get("number_of_shards"));
-        assertEquals("0", indexSettings.get("number_of_replicas"));
-        Map<String, Object> aliasesData = (Map) indexMetadata.get("aliases");
-        Map<String, Object> aliasData = (Map) aliasesData.get("alias");
+        Map<String, Object> getIndexResponse = getAsMap("target");
+        Map<String, Object> indexSettings = (Map<String, Object>)XContentMapValues.extractValue("target.settings.index", getIndexResponse);
+        assertNotNull(indexSettings);
+        assertEquals(4, indexSettings.get("number_of_shards"));
+        assertEquals(0, indexSettings.get("number_of_replicas"));
+        Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
     }
 }

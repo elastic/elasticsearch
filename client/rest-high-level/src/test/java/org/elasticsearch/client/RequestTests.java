@@ -1067,14 +1067,14 @@ public class RequestTests extends ESTestCase {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SHRINK);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.split(resizeRequest));
-        assertEquals("Wrong resize type for indices.split request: SHRINK", iae.getMessage());
+        assertEquals("Wrong resize type [SHRINK] for indices split request", iae.getMessage());
     }
 
     public void testShrinkWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.shrink(resizeRequest));
-        assertEquals("Wrong resize type for indices.shrink request: SPLIT", iae.getMessage());
+        assertEquals("Wrong resize type [SPLIT] for indices shrink request", iae.getMessage());
     }
 
     public void testShrink() throws IOException {
@@ -1087,7 +1087,6 @@ public class RequestTests extends ESTestCase {
         ResizeRequest resizeRequest = new ResizeRequest(indices[0], indices[1]);
         resizeRequest.setResizeType(resizeType);
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         setRandomMasterTimeout(resizeRequest, expectedParams);
         setRandomTimeout(resizeRequest::timeout, resizeRequest.timeout(), expectedParams);
 
@@ -1099,7 +1098,14 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
+            if (randomBoolean()) {
+                setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
+            }
             resizeRequest.setTargetIndex(createIndexRequest);
+        } else {
+            if (randomBoolean()) {
+                setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
+            }
         }
 
         Request request = function.apply(resizeRequest);

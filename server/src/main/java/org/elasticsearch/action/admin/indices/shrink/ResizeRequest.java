@@ -180,14 +180,20 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
-        targetIndexRequest.settings().toXContent(builder, params);
-        builder.endObject();
-        builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
-        for (Alias alias : targetIndexRequest.aliases()) {
-            alias.toXContent(builder, params);
+        {
+            builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
+            {
+                targetIndexRequest.settings().toXContent(builder, params);
+            }
+            builder.endObject();
+            builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
+            {
+                for (Alias alias : targetIndexRequest.aliases()) {
+                    alias.toXContent(builder, params);
+                }
+            }
+            builder.endObject();
         }
-        builder.endObject();
         builder.endObject();
         return builder;
     }

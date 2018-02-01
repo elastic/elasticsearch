@@ -38,7 +38,8 @@ public final class RandomCreateIndexGenerator {
     private RandomCreateIndexGenerator() {}
 
     /**
-     * Returns a random {@link CreateIndexRequest}.
+     * Returns a random {@link CreateIndexRequest}. Randomizes the index name, the aliases,
+     * mappings and settings associated with the index.
      */
     public static CreateIndexRequest randomCreateIndexRequest() throws IOException {
         String index = randomAlphaOfLength(5);
@@ -54,6 +55,11 @@ public final class RandomCreateIndexGenerator {
         return request;
     }
 
+    /**
+     * Returns a {@link Settings} instance which include random values for
+     * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_SHARDS} and
+     * {@link org.elasticsearch.cluster.metadata.IndexMetaData#SETTING_NUMBER_OF_REPLICAS}
+     */
     public static Settings randomIndexSettings() {
         Settings.Builder builder = Settings.builder();
 
@@ -80,6 +86,9 @@ public final class RandomCreateIndexGenerator {
         return builder;
     }
 
+    /**
+     * Adds random mapping fields to the provided {@link XContentBuilder}
+     */
     public static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
         builder.startObject("properties");
 
@@ -99,6 +108,9 @@ public final class RandomCreateIndexGenerator {
         builder.endObject();
     }
 
+    /**
+     * Sets random aliases to the provided {@link CreateIndexRequest}
+     */
     public static void randomAliases(CreateIndexRequest request) {
         int aliasesNo = randomIntBetween(0, 2);
         for (int i = 0; i < aliasesNo; i++) {

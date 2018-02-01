@@ -76,7 +76,6 @@ public class ResizeResponseTests extends ESTestCase {
         assertEquals(resizeResponse.isAcknowledged(), parsedResizeResponse.isAcknowledged());
     }
 
-
     private static ResizeResponse createTestItem() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();

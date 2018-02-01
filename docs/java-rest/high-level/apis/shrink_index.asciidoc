@@ -37,22 +37,22 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-reque
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before the shrink index API
-returns a response, as an `int`.
-<2> The number of active shard copies to wait for before  the shrink index API
-returns a response, as an `ActiveShardCount`.
+returns a response, as an `int`
+<2> The number of active shard copies to wait for before the shrink index API
+returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-settings]
 --------------------------------------------------
 <1> The settings to apply to the target index, which include the number of
-shards to create for it.
+shards to create for it
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[shrink-index-request-aliases]
 --------------------------------------------------
-<1> The aliases to associate the target index with.
+<1> The aliases to associate the target index with
 
 [[java-rest-high-shrink-index-sync]]
 ==== Synchronous Execution

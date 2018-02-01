@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -498,11 +499,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static Map<String, Object> getIndexMetadata(String index) throws IOException {
-        return (Map<String, Object>) getAsMap(index).get(index);
-    }
-
-    @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
         if (false == Strings.isEmpty(index)) {
@@ -511,8 +507,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (false == Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
-        Map<String, Object> performGet = getAsMap(endpoint);
-        return (Map<String, Object>) ((Map<String, Object>) ((Map<String, Object>) performGet.get(index)).get("aliases")).get(alias);
+        Map<String, Object> getAliasResponse = getAsMap(endpoint);
+        return (Map<String, Object>)XContentMapValues.extractValue(index + ".aliases." + alias, getAliasResponse);
     }
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {

@@ -502,14 +502,14 @@ public final class Request {
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
-            throw new IllegalArgumentException("Wrong resize type for indices.split request: " + resizeRequest.getResizeType());
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
         }
         return resize(resizeRequest);
     }
 
     static Request shrink(ResizeRequest resizeRequest) throws IOException {
         if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
-            throw new IllegalArgumentException("Wrong resize type for indices.shrink request: " + resizeRequest.getResizeType());
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
         }
         return resize(resizeRequest);
     }

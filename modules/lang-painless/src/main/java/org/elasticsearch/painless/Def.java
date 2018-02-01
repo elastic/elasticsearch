@@ -363,10 +363,10 @@ public final class Def {
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
+             ref = new FunctionRef(clazz.clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(definition, clazz, type, call, captures.length);
+             ref = new FunctionRef(definition, clazz.clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              lookup,

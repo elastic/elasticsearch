@@ -19,7 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -78,12 +80,12 @@ public class SEach extends AStatement {
         locals = Locals.newLocalScope(locals);
         Variable variable = locals.addVariable(location, type, name, true);
 
-        if (expression.actual.dimensions > 0) {
+        if (expression.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual.dynamic || Iterable.class.isAssignableFrom(expression.actual.clazz)) {
+        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
             sub = new SSubEachIterable(location, variable, expression, block);
         } else {
-            throw createError(new IllegalArgumentException("Illegal for each type [" + expression.actual.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal for each type [" + Definition.ClassToName(expression.actual) + "]."));
         }
 
         sub.analyze(locals);

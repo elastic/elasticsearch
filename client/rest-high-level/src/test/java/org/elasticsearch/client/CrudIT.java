@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.ElasticsearchException;
@@ -144,7 +145,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
         StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
+        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
+                stringEntity);
         assertEquals(201, response.getStatusLine().getStatusCode());
         {
             GetRequest getRequest = new GetRequest("index", "type", "id");
@@ -172,7 +174,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         String document = "{\"field1\":\"value1\",\"field2\":\"value2\"}";
         StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response response = client().performRequest("PUT", "/index/type/id", Collections.singletonMap("refresh", "wait_for"), stringEntity);
+        Response response = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id", Collections.singletonMap("refresh", "wait_for"),
+                stringEntity);
         assertEquals(201, response.getStatusLine().getStatusCode());
         {
             GetRequest getRequest = new GetRequest("index", "type", "id").version(2);
@@ -267,12 +270,13 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         String document = "{\"field\":\"value1\"}";
         StringEntity stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        Response r = client().performRequest("PUT", "/index/type/id1", Collections.singletonMap("refresh", "true"), stringEntity);
+        Response r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id1", Collections.singletonMap("refresh", "true"),
+                stringEntity);
         assertEquals(201, r.getStatusLine().getStatusCode());
 
         document = "{\"field\":\"value2\"}";
         stringEntity = new StringEntity(document, ContentType.APPLICATION_JSON);
-        r = client().performRequest("PUT", "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
+        r = client().performRequest(HttpPut.METHOD_NAME, "/index/type/id2", Collections.singletonMap("refresh", "true"), stringEntity);
         assertEquals(201, r.getStatusLine().getStatusCode());
 
         {

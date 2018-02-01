@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -58,9 +59,9 @@ public final class SExpression extends AStatement {
             throw createError(new IllegalArgumentException("Not a statement."));
         }
 
-        boolean rtn = lastSource && !isVoid && expression.actual.clazz != void.class;
+        boolean rtn = lastSource && !isVoid && expression.actual != void.class;
 
-        expression.expected = rtn ? rtnType : expression.actual;
+        expression.expected = rtn ? Definition.TypeToClass(rtnType) : expression.actual;
         expression.internal = rtn;
         expression = expression.cast(locals);
 
@@ -78,7 +79,7 @@ public final class SExpression extends AStatement {
         if (methodEscape) {
             writer.returnValue();
         } else {
-            writer.writePop(expression.expected.type.getSize());
+            writer.writePop(MethodWriter.getType(expression.expected).getSize());
         }
     }
 

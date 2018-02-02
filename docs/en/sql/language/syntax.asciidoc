@@ -48,7 +48,10 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 [[sql-spec-syntax-order-by-score]]
 For sorting by score to be meaningful you need to include a full
-text query in the `WHERE` clause. For example:
+text query in the `WHERE` clause. If you include multiple full
+text queries in the `WHERE` clause then their scores will be
+combined using the same rules as Elasticsearch's
+<<query-dsl-bool-query,bool query>>. Here is a simple example:
 
 [source,js]
 --------------------------------------------------

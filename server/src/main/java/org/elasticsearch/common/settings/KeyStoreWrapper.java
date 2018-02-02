@@ -20,8 +20,6 @@
 package org.elasticsearch.common.settings;
 
 import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
@@ -333,10 +331,9 @@ public class KeyStoreWrapper implements SecureSettings {
         }
 
         Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv);
-        try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
-             CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
-             DataInputStream input = new DataInputStream(cipherStream)) {
-
+        byte decryptedBytes[] = cipher.doFinal(encryptedBytes);
+        try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(decryptedBytes);
+             DataInputStream input = new DataInputStream(bytesStream)) {
             entries.set(new HashMap<>());
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
@@ -356,11 +353,9 @@ public class KeyStoreWrapper implements SecureSettings {
     private byte[] encrypt(char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException, IOException {
         assert isLoaded();
 
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
-        try (CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
-             DataOutputStream output = new DataOutputStream(cipherStream)) {
-
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(bytes)) {
             output.writeInt(entries.get().size());
             for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
                 output.writeUTF(mapEntry.getKey());
@@ -370,8 +365,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 output.write(entry.bytes);
             }
         }
-
-        return bytes.toByteArray();
+        return cipher.doFinal(bytes.toByteArray());
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {

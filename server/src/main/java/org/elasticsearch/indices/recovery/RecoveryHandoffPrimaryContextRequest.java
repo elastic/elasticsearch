@@ -21,7 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -34,7 +34,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
-    private GlobalCheckpointTracker.PrimaryContext primaryContext;
+    private ReplicationTracker.PrimaryContext primaryContext;
 
     /**
      * Initialize an empty request (used to serialize into when reading from a stream).
@@ -50,7 +50,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
      * @param primaryContext the primary context
      */
     RecoveryHandoffPrimaryContextRequest(final long recoveryId, final ShardId shardId,
-                                         final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+                                         final ReplicationTracker.PrimaryContext primaryContext) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.primaryContext = primaryContext;
@@ -64,7 +64,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
         return shardId;
     }
 
-    GlobalCheckpointTracker.PrimaryContext primaryContext() {
+    ReplicationTracker.PrimaryContext primaryContext() {
         return primaryContext;
     }
 
@@ -73,7 +73,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        primaryContext = new GlobalCheckpointTracker.PrimaryContext(in);
+        primaryContext = new ReplicationTracker.PrimaryContext(in);
     }
 
     @Override

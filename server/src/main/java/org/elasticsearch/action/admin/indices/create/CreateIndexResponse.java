@@ -46,10 +46,14 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
 
     static {
-        declareAcknowledgedField(PARSER);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
+        declareFields(PARSER);
+    }
+
+    protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
+        declareAcknowledgedField(objectParser);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
+                ObjectParser.ValueType.BOOLEAN);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
     }
 
     private boolean shardsAcknowledged;
@@ -112,7 +116,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         return builder;
     }
 
-    public static CreateIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static CreateIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

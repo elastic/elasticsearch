@@ -157,6 +157,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         result.preference(searchRequest.preference());
         result.routing(searchRequest.routing());
         result.requestCache(searchRequest.requestCache());
+        result.allowPartialSearchResults(searchRequest.allowPartialSearchResults());
         result.scroll(searchRequest.scroll());
         if (searchRequest.source() != null) {
             result.source(searchRequest.source());

@@ -355,7 +355,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "rawtypes"})
     public void testSearchRequestSuggestions() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -667,7 +667,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch clearScrollLatch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, clearScrollLatch);
+            listener = new LatchedActionListener<>(listener, clearScrollLatch);
 
             // tag::clear-scroll-execute-async
             client.clearScrollAsync(request, listener); // <1>

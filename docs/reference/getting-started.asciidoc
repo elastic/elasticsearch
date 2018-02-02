@@ -858,7 +858,7 @@ GET /bank/_search
 
 Note that if `size` is not specified, it defaults to 10.
 
-This example does a `match_all` and returns documents 11 through 20:
+This example does a `match_all` and returns documents 10 through 19:
 
 [source,js]
 --------------------------------------------------

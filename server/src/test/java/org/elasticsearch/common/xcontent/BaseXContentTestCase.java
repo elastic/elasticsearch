@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -854,19 +855,19 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() throws IOException {
-        XContentBuilder.ensureNoSelfReferences(emptyMap());
-        XContentBuilder.ensureNoSelfReferences(null);
+        CollectionUtils.ensureNoSelfReferences(emptyMap());
+        CollectionUtils.ensureNoSelfReferences(null);
 
         Map<String, Object> map = new HashMap<>();
         map.put("field", map);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     /**
      * Test that the same map written multiple times do not trigger the self-reference check in
-     * {@link XContentBuilder#ensureNoSelfReferences(Object)}
+     * {@link CollectionUtils#ensureNoSelfReferences(Object)}
      */
     public void testRepeatedMapsAndNoSelfReferences() throws Exception {
         Map<String, Object> mapB = singletonMap("b", "B");
@@ -899,7 +900,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map1.put("map0", map0); // map 1 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingMapsTwoLevels() throws IOException {
@@ -917,7 +918,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map2.put("map0", map0); // map 2 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingObjectsArray() throws IOException {
@@ -930,13 +931,13 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
 
         e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
                 .array("field", values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterable() throws IOException {
@@ -949,7 +950,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", (Iterable) values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterableOneLevel() throws IOException {
@@ -964,7 +965,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", (Iterable) values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterableTwoLevels() throws IOException {
@@ -984,7 +985,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map2.put("map0", map0); // map 2 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testChecksForDuplicates() throws Exception {

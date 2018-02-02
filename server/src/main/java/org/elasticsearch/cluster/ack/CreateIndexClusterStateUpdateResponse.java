@@ -33,14 +33,7 @@ public class CreateIndexClusterStateUpdateResponse extends ClusterStateUpdateRes
 
     /**
      * Returns whether the requisite number of shard copies started before the completion of the operation.
-     * 
-     * @deprecated use {@link #isShardsAcknowledged()}
      */
-    @Deprecated
-    public boolean isShardsAcked() {
-        return shardsAcknowledged;
-    }
-    
     public boolean isShardsAcknowledged() {
         return shardsAcknowledged;
     }

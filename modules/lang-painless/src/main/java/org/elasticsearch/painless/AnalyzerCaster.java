@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Definition.def;
 
 import java.util.Objects;
@@ -31,26 +30,9 @@ import java.util.Objects;
  */
 public final class AnalyzerCaster {
 
-    private Definition definition;
-
-    public AnalyzerCaster(Definition definition) {
-        this.definition = definition;
-    }
-
-    public Cast getLegalCast(Location location, Type actualType, Type expectedType, boolean explicit, boolean internal) {
-        Objects.requireNonNull(actualType);
-        Objects.requireNonNull(expectedType);
-
-        Class<?> actual = actualType.clazz;
-        Class<?> expected = expectedType.clazz;
-
-        if (actualType.dynamic) {
-            actual = Definition.ObjectClassTodefClass(actual);
-        }
-
-        if (expectedType.dynamic) {
-            expected = Definition.ObjectClassTodefClass(expected);
-        }
+    public static Cast getLegalCast(Location location, Class<?> actual, Class<?> expected, boolean explicit, boolean internal) {
+        Objects.requireNonNull(actual);
+        Objects.requireNonNull(expected);
 
         if (actual == expected) {
             return null;
@@ -487,7 +469,7 @@ public final class AnalyzerCaster {
         }
     }
 
-    public Object constCast(Location location, final Object constant, final Cast cast) {
+    public static Object constCast(Location location, Object constant, Cast cast) {
         Class<?> fsort = cast.from;
         Class<?> tsort = cast.to;
 
@@ -498,7 +480,7 @@ public final class AnalyzerCaster {
         } else if (fsort == char.class && tsort == String.class) {
             return Utility.charToString((char)constant);
         } else if (fsort.isPrimitive() && fsort != boolean.class && tsort.isPrimitive() && tsort != boolean.class) {
-            final Number number;
+            Number number;
 
             if (fsort == char.class) {
                 number = (int)(char)constant;
@@ -523,224 +505,201 @@ public final class AnalyzerCaster {
         }
     }
 
-    public Type promoteNumeric(Type from, boolean decimal) {
-        Class<?> sort = from.clazz;
-
-        if (from.dynamic) {
-            return definition.DefType;
-        } else if ((sort == double.class) && decimal) {
-            return definition.doubleType;
-        } else if ((sort == float.class) && decimal) {
-            return  definition.floatType;
-        } else if (sort == long.class) {
-            return definition.longType;
-        } else if (sort == int.class || sort == char.class || sort == short.class || sort == byte.class) {
-            return definition.intType;
+    public static Class<?> promoteNumeric(Class<?> from, boolean decimal) {
+        if (from == def.class || from == double.class && decimal || from == float.class && decimal || from == long.class) {
+            return from;
+        } else if (from == int.class || from == char.class || from == short.class || from == byte.class) {
+            return int.class;
         }
 
         return null;
     }
 
-    public Type promoteNumeric(Type from0, Type from1, boolean decimal) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return definition.DefType;
+    public static Class<?> promoteNumeric(Class<?> from0, Class<?> from1, boolean decimal) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
         if (decimal) {
-            if (sort0 == double.class || sort1 == double.class) {
-                return definition.doubleType;
-            } else if (sort0 == float.class || sort1 == float.class) {
-                return definition.floatType;
+            if (from0 == double.class || from1 == double.class) {
+                return double.class;
+            } else if (from0 == float.class || from1 == float.class) {
+                return float.class;
             }
         }
 
-        if (sort0 == long.class || sort1 == long.class) {
-            return definition.longType;
-        } else if (sort0 == int.class   || sort1 == int.class   ||
-                   sort0 == char.class  || sort1 == char.class  ||
-                   sort0 == short.class || sort1 == short.class ||
-                   sort0 == byte.class  || sort1 == byte.class) {
-            return definition.intType;
+        if (from0 == long.class || from1 == long.class) {
+            return long.class;
+        } else if (from0 == int.class   || from1 == int.class   ||
+                   from0 == char.class  || from1 == char.class  ||
+                   from0 == short.class || from1 == short.class ||
+                   from0 == byte.class  || from1 == byte.class) {
+            return int.class;
         }
 
         return null;
     }
 
-    public Type promoteAdd(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (sort0 == String.class || sort1 == String.class) {
-            return definition.StringType;
+    public static Class<?> promoteAdd(Class<?> from0, Class<?> from1) {
+        if (from0 == String.class || from1 == String.class) {
+            return String.class;
         }
 
         return promoteNumeric(from0, from1, true);
     }
 
-    public Type promoteXor(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return definition.DefType;
+    public static Class<?> promoteXor(Class<?> from0, Class<?> from1) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0 == boolean.class || sort1 == boolean.class) {
-            return definition.booleanType;
+        if (from0 == boolean.class || from1 == boolean.class) {
+            return boolean.class;
         }
 
         return promoteNumeric(from0, from1, false);
     }
 
-    public Type promoteEquality(Type from0, Type from1) {
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return definition.DefType;
+    public static Class<?> promoteEquality(Class<?> from0, Class<?> from1) {
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0.isPrimitive() && sort1.isPrimitive()) {
-            if (sort0 == boolean.class && sort1 == boolean.class) {
-                return definition.booleanType;
+        if (from0.isPrimitive() && from1.isPrimitive()) {
+            if (from0 == boolean.class && from1 == boolean.class) {
+                return boolean.class;
             }
 
             return promoteNumeric(from0, from1, true);
         }
 
-        return definition.ObjectType;
+        return Object.class;
     }
 
-    public Type promoteConditional(Type from0, Type from1, Object const0, Object const1) {
-        if (from0.equals(from1)) {
+    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1) {
+        if (from0 == from1) {
             return from0;
         }
 
-        Class<?> sort0 = from0.clazz;
-        Class<?> sort1 = from1.clazz;
-
-        if (from0.dynamic || from1.dynamic) {
-            return definition.DefType;
+        if (from0 == def.class || from1 == def.class) {
+            return def.class;
         }
 
-        if (sort0.isPrimitive() && sort1.isPrimitive()) {
-            if (sort0 == boolean.class && sort1 == boolean.class) {
-                return definition.booleanType;
+        if (from0.isPrimitive() && from1.isPrimitive()) {
+            if (from0 == boolean.class && from1 == boolean.class) {
+                return boolean.class;
             }
 
-            if (sort0 == double.class || sort1 == double.class) {
-                return definition.doubleType;
-            } else if (sort0 == float.class || sort1 == float.class) {
-                return definition.floatType;
-            } else if (sort0 == long.class || sort1 == long.class) {
-                return definition.longType;
+            if (from0 == double.class || from1 == double.class) {
+                return double.class;
+            } else if (from0 == float.class || from1 == float.class) {
+                return float.class;
+            } else if (from0 == long.class || from1 == long.class) {
+                return long.class;
             } else {
-                if (sort0 == byte.class) {
-                    if (sort1 == byte.class) {
-                        return definition.byteType;
-                    } else if (sort1 == short.class) {
+                if (from0 == byte.class) {
+                    if (from1 == byte.class) {
+                        return byte.class;
+                    } else if (from1 == short.class) {
                         if (const1 != null) {
                             final short constant = (short)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.shortType;
-                    } else if (sort1 == char.class) {
-                        return definition.intType;
-                    } else if (sort1 == int.class) {
+                        return short.class;
+                    } else if (from1 == char.class) {
+                        return int.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.intType;
+                        return int.class;
                     }
-                } else if (sort0 == short.class) {
-                    if (sort1 == byte.class) {
+                } else if (from0 == short.class) {
+                    if (from1 == byte.class) {
                         if (const0 != null) {
                             final short constant = (short)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.shortType;
-                    } else if (sort1 == short.class) {
-                        return definition.shortType;
-                    } else if (sort1 == char.class) {
-                        return definition.intType;
-                    } else if (sort1 == int.class) {
+                        return short.class;
+                    } else if (from1 == short.class) {
+                        return short.class;
+                    } else if (from1 == char.class) {
+                        return int.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return definition.shortType;
+                                return short.class;
                             }
                         }
 
-                        return definition.intType;
+                        return int.class;
                     }
-                } else if (sort0 == char.class) {
-                    if (sort1 == byte.class) {
-                        return definition.intType;
-                    } else if (sort1 == short.class) {
-                        return definition.intType;
-                    } else if (sort1 == char.class) {
-                        return definition.charType;
-                    } else if (sort1 == int.class) {
+                } else if (from0 == char.class) {
+                    if (from1 == byte.class) {
+                        return int.class;
+                    } else if (from1 == short.class) {
+                        return int.class;
+                    } else if (from1 == char.class) {
+                        return char.class;
+                    } else if (from1 == int.class) {
                         if (const1 != null) {
                             final int constant = (int)const1;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.intType;
+                        return int.class;
                     }
-                } else if (sort0 == int.class) {
-                    if (sort1 == byte.class) {
+                } else if (from0 == int.class) {
+                    if (from1 == byte.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.intType;
-                    } else if (sort1 == short.class) {
+                        return int.class;
+                    } else if (from1 == short.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.intType;
-                    } else if (sort1 == char.class) {
+                        return int.class;
+                    } else if (from1 == char.class) {
                         if (const0 != null) {
                             final int constant = (int)const0;
 
                             if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return definition.byteType;
+                                return byte.class;
                             }
                         }
 
-                        return definition.intType;
-                    } else if (sort1 == int.class) {
-                        return definition.intType;
+                        return int.class;
+                    } else if (from1 == int.class) {
+                        return int.class;
                     }
                 }
             }
@@ -750,6 +709,10 @@ public final class AnalyzerCaster {
         // TODO: to calculate the highest upper bound for the two types and return that.
         // TODO: However, for now we just return objectType that may require an extra cast.
 
-        return definition.ObjectType;
+        return Object.class;
+    }
+
+    private AnalyzerCaster() {
+
     }
 }

@@ -16,7 +16,8 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-string]
 <4> Document source provided as a `String`
 
 ==== Providing the document source
-The document source can be provided in different ways:
+The document source can be provided in different ways in addition to the
+`String` example shown above:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -104,9 +105,27 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute]
 [[java-rest-high-document-index-async]]
 ==== Asynchronous Execution
 
+The asynchronous execution of an index request requires both the `IndexRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute-async]
+--------------------------------------------------
+<1> The `IndexRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `IndexResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument

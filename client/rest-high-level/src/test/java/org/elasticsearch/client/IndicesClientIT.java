@@ -59,50 +59,56 @@ import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
-    public void testIndexExistsIfIndexPresent() throws IOException {
-        String indexName = "test_index_exists_index_present";
-        createIndex(indexName, Settings.EMPTY);
+    public void testIndicesExists() throws IOException {
+        // Index present
+        {
+            String indexName = "test_index_exists_index_present";
+            createIndex(indexName, Settings.EMPTY);
 
-        GetIndexRequest request = new GetIndexRequest();
-        request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(indexName);
 
-        boolean response = execute(
-            request,
-            highLevelClient().indices()::exists,
-            highLevelClient().indices()::existsAsync
-        );
-        assertTrue(response);
-    }
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertTrue(response);
+        }
 
-    public void testIndexExistsIfIndexNotPresent() throws IOException {
-        String indexName = "non_existent_index";
+        // Index doesn't exist
+        {
+            String indexName = "non_existent_index";
 
-        GetIndexRequest request = new GetIndexRequest();
-        request.indices(indexName);
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(indexName);
 
-        boolean response = execute(
-            request,
-            highLevelClient().indices()::exists,
-            highLevelClient().indices()::existsAsync
-        );
-        assertFalse(response);
-    }
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertFalse(response);
+        }
 
-    public void testIndexExistsIfOneIndexPresentOneIsnt() throws IOException {
-        String existingIndex = "test_index_exists_index_present";
-        createIndex(existingIndex, Settings.EMPTY);
+        // One index exists, one doesn't
+        {
+            String existingIndex = "apples";
+            createIndex(existingIndex, Settings.EMPTY);
 
-        String nonExistentIndex = "non_existent_index";
+            String nonExistentIndex = "oranges";
 
-        GetIndexRequest request = new GetIndexRequest();
-        request.indices(existingIndex, nonExistentIndex);
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(existingIndex, nonExistentIndex);
 
-        boolean response = execute(
-            request,
-            highLevelClient().indices()::exists,
-            highLevelClient().indices()::existsAsync
-        );
-        assertFalse(response);
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertFalse(response);
+        }
+
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

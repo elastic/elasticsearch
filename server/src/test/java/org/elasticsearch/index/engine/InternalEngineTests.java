@@ -602,9 +602,10 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(rarely() || localCheckpoint.get() == SequenceNumbers.NO_OPS_PERFORMED ?
                 SequenceNumbers.UNASSIGNED_SEQ_NO : randomIntBetween(0, (int) localCheckpoint.get()));
 
-            engine.flush(true, true);
+            final Engine.CommitId commitId = engine.flush(true, true);
 
             CommitStats stats2 = engine.commitStats();
+            assertThat(stats2.getRawCommitId(), equalTo(commitId));
             assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
             assertThat(stats2.getId(), notNullValue());
             assertThat(stats2.getId(), not(equalTo(stats1.getId())));

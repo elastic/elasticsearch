@@ -105,6 +105,7 @@ Response:
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
+[[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

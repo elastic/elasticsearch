@@ -59,16 +59,6 @@ public class XContentHelper {
 
     /**
      * Creates a parser for the bytes using the supplied content-type
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)} instead
-     */
-    @Deprecated
-    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes,
-                                              XContentType xContentType) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes, xContentType);
-    }
-
-    /**
-     * Creates a parser for the bytes using the supplied content-type
      */
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
                                               BytesReference bytes, XContentType xContentType) throws IOException {

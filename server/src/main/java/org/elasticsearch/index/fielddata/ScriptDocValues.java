@@ -97,6 +97,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(Longs.class));
 
         private final SortedNumericDocValues in;
+        /**
+         * Callback for deprecated fields. In production this should always point to
+         * {@link #deprecationLogger} but tests will override it so they can test that
+         * we use the required permissions when calling it.
+         */
         private final Consumer<String> deprecationCallback;
         private long[] values = new long[0];
         private int count;
@@ -186,7 +191,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         /**
          * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method.
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
          */
         private void deprecated(String message) {
             // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
@@ -206,6 +212,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private static final ReadableDateTime EPOCH = new DateTime(0, DateTimeZone.UTC);
 
         private final SortedNumericDocValues in;
+        /**
+         * Callback for deprecated fields. In production this should always point to
+         * {@link #deprecationLogger} but tests will override it so they can test that
+         * we use the required permissions when calling it.
+         */
         private final Consumer<String> deprecationCallback;
         /**
          * Values wrapped in {@link MutableDateTime}. Null by default an allocated on first usage so we allocate a reasonably size. We keep
@@ -318,7 +329,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         /**
          * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method.
+         * script calling this method. We need to do this to prevent errors when rolling
+         * the log file.
          */
         private void deprecated(String message) {
             // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts

@@ -280,7 +280,9 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      * Remove allocation id of this shard from the set of in-sync shard copies
      */
     void removeAllocationId(ShardRouting shardRouting) {
-        changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
+        if (shardRouting.active()) {
+            changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
+        }
     }
 
     /**

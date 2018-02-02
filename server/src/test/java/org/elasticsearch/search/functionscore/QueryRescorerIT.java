@@ -19,30 +19,33 @@
 
 package org.elasticsearch.search.functionscore;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -67,11 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class QueryRescorerIT extends ESIntegTestCase {
     public void testEnforceWindowSize() {
@@ -747,5 +746,43 @@ public class QueryRescorerIT extends ESIntegTestCase {
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));
         }
+    }
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("doc", ImmutableMap.of("properties", ImmutableMap.of("access", ImmutableMap.of("type", "keyword"))))
+        );
+
+        indexDocument(1, "elasticsearch", "public", 30);
+        indexDocument(2, "logstash", "public", 20);
+        indexDocument(3, "the kibana", "public", 10);
+        indexDocument(4, "xpack", "private", 20);
+        indexDocument(5, "beats", "private", 5);
+        indexDocument(6, "security", "private", 2);
+
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(new RangeQueryBuilder("maintainers").gt(3))
+            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "the")))
+            .setCollapse(new CollapseBuilder("access"))
+            .execute()
+            .actionGet();
+
+        SearchHit[] searchHits = searchResponse.getHits().getHits();
+
+        // assert 2 hits in result + one score == 1, other > 1
+        // make this test stable
+    }
+
+    private void indexDocument(int id, String name, String access, int maintainers) throws IOException {
+        XContentBuilder docBuilder =jsonBuilder()
+            .startObject()
+            .field("name", name)
+            .field("access", access)
+            .field("maintainers", maintainers)
+            .endObject();
+
+        client().prepareIndex("test", "doc", Integer.toString(id)).setSource(docBuilder).execute().actionGet();
     }
 }

@@ -339,18 +339,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),
                 searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(),
                 searchContext.trackTotalHits(), hasFilterCollector);
-        } else if (searchContext.collapse() != null) {
-            boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
-            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
-            final boolean rescore = searchContext.rescore().isEmpty() == false;
-            if (rescore) {
-                assert searchContext.sort() == null;
-                for (RescoreContext rescoreContext : searchContext.rescore()) {
-                    numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
-                }
-            }
-            return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                searchContext.sort(), numDocs, trackScores, rescore);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -359,6 +347,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 for (RescoreContext rescoreContext : searchContext.rescore()) {
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
+            }
+            if (searchContext.collapse() != null) {
+                boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
+                return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
+                    searchContext.sort(), numDocs, trackScores, rescore);
             }
             return new SimpleTopDocsCollectorContext(reader, query, searchContext.sort(), searchContext.searchAfter(), numDocs,
                                                      searchContext.trackScores(), searchContext.trackTotalHits(), hasFilterCollector) {

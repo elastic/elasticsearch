@@ -436,7 +436,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         logger.trace("{} performing pre sync flush", request.shardId());
         indexShard.flush(flushRequest);
         final CommitStats commitStats = indexShard.commitStats();
-        final Engine.CommitId commitId = commitStats.rawCommitId();
+        final Engine.CommitId commitId = commitStats.getRawCommitId();
         logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
         return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs());
     }

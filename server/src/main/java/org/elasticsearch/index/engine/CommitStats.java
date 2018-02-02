@@ -72,7 +72,7 @@ public final class CommitStats implements Streamable, ToXContentFragment {
     /**
      * A raw version of the commit id (see {@link SegmentInfos#getId()}
      */
-    public Engine.CommitId rawCommitId() {
+    public Engine.CommitId getRawCommitId() {
         return new Engine.CommitId(Base64.getDecoder().decode(id));
     }
 

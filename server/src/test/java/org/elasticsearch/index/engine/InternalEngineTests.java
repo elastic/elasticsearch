@@ -605,7 +605,7 @@ public class InternalEngineTests extends EngineTestCase {
             final Engine.CommitId commitId = engine.flush(true, true);
 
             CommitStats stats2 = engine.commitStats();
-            assertThat(stats2.rawCommitId(), equalTo(commitId));
+            assertThat(stats2.getRawCommitId(), equalTo(commitId));
             assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
             assertThat(stats2.getId(), notNullValue());
             assertThat(stats2.getId(), not(equalTo(stats1.getId())));

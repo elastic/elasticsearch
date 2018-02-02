@@ -101,9 +101,6 @@ if (isEclipse) {
   project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
 }
 
-// delete this
-List branches = []
-
 // look for extra plugins for elasticsearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
 if (extraProjects.exists()) {

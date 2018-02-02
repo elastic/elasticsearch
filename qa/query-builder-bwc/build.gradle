@@ -83,7 +83,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-      Version version = versionCollection.snapshotVersionsIndexCompatibleWithCurrent.first()
+      final def version = versionCollection.snapshotVersionsIndexCompatibleWithCurrent.first()
       dependsOn "v${version}#bwcTest"
   }
 }

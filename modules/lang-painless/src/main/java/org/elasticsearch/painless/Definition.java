@@ -307,9 +307,12 @@ public final class Definition {
         public final Map<String, Field> staticMembers;
         public final Map<String, Field> members;
 
-        private final SetOnce<Method> functionalMethod;
+        public final Map<String, MethodHandle> getters;
+        public final Map<String, MethodHandle> setters;
 
-        private Struct(final String name, final Class<?> clazz, final org.objectweb.asm.Type type) {
+        public final Method functionalMethod;
+
+        private Struct(String name, Class<?> clazz, org.objectweb.asm.Type type) {
             this.name = name;
             this.clazz = clazz;
             this.type = type;
@@ -321,10 +324,13 @@ public final class Definition {
             staticMembers = new HashMap<>();
             members = new HashMap<>();
 
-            functionalMethod = new SetOnce<>();
+            getters = new HashMap<>();
+            setters = new HashMap<>();
+
+            functionalMethod = null;
         }
 
-        private Struct(final Struct struct) {
+        private Struct(Struct struct, Method functionalMethod) {
             name = struct.name;
             clazz = struct.clazz;
             type = struct.type;
@@ -336,11 +342,14 @@ public final class Definition {
             staticMembers = Collections.unmodifiableMap(struct.staticMembers);
             members = Collections.unmodifiableMap(struct.members);
 
-            functionalMethod = struct.functionalMethod;
+            getters = Collections.unmodifiableMap(struct.getters);
+            setters = Collections.unmodifiableMap(struct.setters);
+
+            this.functionalMethod = functionalMethod;
         }
 
-        private Struct freeze() {
-            return new Struct(this);
+        private Struct freeze(Method functionalMethod) {
+            return new Struct(this, functionalMethod);
         }
 
         @Override
@@ -361,14 +370,6 @@ public final class Definition {
         @Override
         public int hashCode() {
             return name.hashCode();
-        }
-
-        /**
-         * If this class is a functional interface according to JLS, returns its method.
-         * Otherwise returns null.
-         */
-        public Method getFunctionalMethod() {
-            return functionalMethod.get();
         }
     }
 
@@ -415,25 +416,6 @@ public final class Definition {
             this.unboxTo = unboxTo;
             this.boxFrom = boxFrom;
             this.boxTo = boxTo;
-        }
-    }
-
-    public static final class RuntimeClass {
-        private final Struct struct;
-        public final Map<MethodKey, Method> methods;
-        public final Map<String, MethodHandle> getters;
-        public final Map<String, MethodHandle> setters;
-
-        private RuntimeClass(final Struct struct, final Map<MethodKey, Method> methods,
-                             final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
-            this.struct = struct;
-            this.methods = Collections.unmodifiableMap(methods);
-            this.getters = Collections.unmodifiableMap(getters);
-            this.setters = Collections.unmodifiableMap(setters);
-        }
-
-        public Struct getStruct() {
-            return struct;
         }
     }
 
@@ -569,7 +551,9 @@ public final class Definition {
     }
 
     public static String ClassToName(Class<?> clazz) {
-        if (clazz.isArray()) {
+        if (clazz.isLocalClass() || clazz.isAnonymousClass()) {
+            return null;
+        } else if (clazz.isArray()) {
             Class<?> component = clazz.getComponentType();
             int dimensions = 1;
 
@@ -609,7 +593,7 @@ public final class Definition {
             if (component == def.class) {
                 return getType(structsMap.get(def.class.getSimpleName()), dimensions);
             } else {
-                return getType(runtimeMap.get(component).struct, dimensions);
+                return getType(structsMap.get(ClassToName(component)), dimensions);
             }
         } else if (clazz == def.class) {
             return getType(structsMap.get(def.class.getSimpleName()), 0);
@@ -618,16 +602,16 @@ public final class Definition {
         return getType(structsMap.get(ClassToName(clazz)), 0);
     }
 
+    public Struct RuntimeClassToStruct(Class<?> clazz) {
+        return structsMap.get(ClassToName(clazz));
+    }
+
     public static Class<?> TypeToClass(Type type) {
         if (def.class.getSimpleName().equals(type.struct.name)) {
             return ObjectClassTodefClass(type.clazz);
         }
 
         return type.clazz;
-    }
-
-    public RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return runtimeMap.get(clazz);
     }
 
     public Class<?> getClassFromBinaryName(String name) {
@@ -659,14 +643,12 @@ public final class Definition {
 
     // INTERNAL IMPLEMENTATION:
 
-    private final Map<Class<?>, RuntimeClass> runtimeMap;
     private final Map<String, Struct> structsMap;
     private final Map<String, Type> simpleTypesMap;
 
     public Definition(List<Whitelist> whitelists) {
         structsMap = new HashMap<>();
         simpleTypesMap = new HashMap<>();
-        runtimeMap = new HashMap<>();
 
         Map<Class<?>, Struct> javaClassesToPainlessStructs = new HashMap<>();
         String origin = null;
@@ -787,17 +769,6 @@ public final class Definition {
             }
         }
 
-        // mark functional interfaces (or set null, to mark class is not)
-        for (String painlessStructName : structsMap.keySet()) {
-            Struct painlessStruct = structsMap.get(painlessStructName);
-
-            if (painlessStruct.name.equals(painlessStructName) == false) {
-                continue;
-            }
-
-            painlessStruct.functionalMethod.set(computeFunctionalInterfaceMethod(painlessStruct));
-        }
-
         // precompute runtime classes
         for (String painlessStructName : structsMap.keySet()) {
             Struct painlessStruct = structsMap.get(painlessStructName);
@@ -815,7 +786,7 @@ public final class Definition {
                 continue;
             }
 
-            entry.setValue(entry.getValue().freeze());
+            entry.setValue(entry.getValue().freeze(computeFunctionalInterfaceMethod(entry.getValue())));
         }
 
         voidType = getType("void");
@@ -1272,51 +1243,45 @@ public final class Definition {
      * Precomputes a more efficient structure for dynamic method/field access.
      */
     private void addRuntimeClass(final Struct struct) {
-        final Map<MethodKey, Method> methods = struct.methods;
-        final Map<String, MethodHandle> getters = new HashMap<>();
-        final Map<String, MethodHandle> setters = new HashMap<>();
-
-        // add all members
-        for (final Map.Entry<String, Field> member : struct.members.entrySet()) {
-            getters.put(member.getKey(), member.getValue().getter);
-            setters.put(member.getKey(), member.getValue().setter);
-        }
-
         // add all getters/setters
-        for (final Map.Entry<MethodKey, Method> method : methods.entrySet()) {
-            final String name = method.getKey().name;
-            final Method m = method.getValue();
+        for (Map.Entry<MethodKey, Method> method : struct.methods.entrySet()) {
+            String name = method.getKey().name;
+            Method m = method.getValue();
 
             if (m.arguments.size() == 0 &&
                 name.startsWith("get") &&
                 name.length() > 3 &&
                 Character.isUpperCase(name.charAt(3))) {
-                final StringBuilder newName = new StringBuilder();
+                StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(3)));
                 newName.append(name.substring(4));
-                getters.putIfAbsent(newName.toString(), m.handle);
+                struct.getters.putIfAbsent(newName.toString(), m.handle);
             } else if (m.arguments.size() == 0 &&
                 name.startsWith("is") &&
                 name.length() > 2 &&
                 Character.isUpperCase(name.charAt(2))) {
-                final StringBuilder newName = new StringBuilder();
+                StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(2)));
                 newName.append(name.substring(3));
-                getters.putIfAbsent(newName.toString(), m.handle);
+                struct.getters.putIfAbsent(newName.toString(), m.handle);
             }
 
             if (m.arguments.size() == 1 &&
                 name.startsWith("set") &&
                 name.length() > 3 &&
                 Character.isUpperCase(name.charAt(3))) {
-                final StringBuilder newName = new StringBuilder();
+                StringBuilder newName = new StringBuilder();
                 newName.append(Character.toLowerCase(name.charAt(3)));
                 newName.append(name.substring(4));
-                setters.putIfAbsent(newName.toString(), m.handle);
+                struct.setters.putIfAbsent(newName.toString(), m.handle);
             }
         }
 
-        runtimeMap.put(struct.clazz, new RuntimeClass(struct, methods, getters, setters));
+        // add all members
+        for (Map.Entry<String, Field> member : struct.members.entrySet()) {
+            struct.getters.put(member.getKey(), member.getValue().getter);
+            struct.setters.put(member.getKey(), member.getValue().setter);
+        }
     }
 
     /** computes the functional interface method for a class, or returns null */

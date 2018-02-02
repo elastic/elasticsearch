@@ -346,6 +346,8 @@ public class KeyStoreWrapper implements SecureSettings {
                 }
                 entries.get().put(setting, new Entry(entryType, entryBytes));
             }
+        } finally {
+            Arrays.fill(decryptedBytes, (byte) 0);
         }
     }
 
@@ -364,8 +366,12 @@ public class KeyStoreWrapper implements SecureSettings {
                 output.writeInt(entry.bytes.length);
                 output.write(entry.bytes);
             }
+            return cipher.doFinal(bytes.toByteArray());
+        } finally {
+            final int bufferSize = bytes.size();
+            bytes.reset();
+            bytes.write(new byte[bufferSize]);
         }
-        return cipher.doFinal(bytes.toByteArray());
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {

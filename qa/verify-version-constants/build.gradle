@@ -58,7 +58,7 @@ test.enabled = false
 
 task integTest {
   if (project.bwc_tests_enabled) {
-    Version version = versionCollection.snapshotVersionsIndexCompatibleWithCurrent.first()
+    final def version = versionCollection.snapshotVersionsIndexCompatibleWithCurrent.first()
     dependsOn "v${version}#bwcTest"
   }
 }

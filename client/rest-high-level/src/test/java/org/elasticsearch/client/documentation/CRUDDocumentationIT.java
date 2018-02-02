@@ -61,7 +61,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -88,7 +87,6 @@ import static java.util.Collections.singletonMap;
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -246,7 +244,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::index-execute-async
             client.indexAsync(request, listener); // <1>
@@ -256,7 +254,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -517,7 +514,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::update-execute-async
             client.updateAsync(request, listener); // <1>
@@ -527,7 +524,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testDelete() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -638,7 +634,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::delete-execute-async
             client.deleteAsync(request, listener); // <1>
@@ -648,7 +644,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testBulk() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -741,7 +736,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::bulk-execute-async
             client.bulkAsync(request, listener); // <1>
@@ -751,7 +746,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -896,7 +890,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             //tag::get-execute-async
             client.getAsync(request, listener); // <1>
@@ -930,7 +924,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testBulkProcessor() throws InterruptedException, IOException {
+    public void testBulkProcessor() throws InterruptedException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::bulk-processor-init

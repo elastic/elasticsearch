@@ -193,11 +193,10 @@ public class ScriptClassInfo {
         if (componentType == Object.class) {
             struct = definition.getType("def").struct;
         } else {
-            Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(componentType);
-            if (runtimeClass == null) {
+            if (definition.RuntimeClassToStruct(componentType) == null) {
                 throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
             }
-            struct = runtimeClass.getStruct();
+            struct = definition.RuntimeClassToStruct(componentType);
         }
         return Definition.TypeToClass(definition.getType(struct, dimensions));
     }

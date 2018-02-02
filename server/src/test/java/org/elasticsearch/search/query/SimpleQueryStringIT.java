@@ -278,7 +278,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 client().prepareIndex("test2", "type1", "10").setSource("field", 5));
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field")).get();
+        SearchResponse searchResponse = client().prepareSearch().setAllowPartialSearchResults(true)
+                .setQuery(simpleQueryStringQuery("foo").field("field")).get();
         assertFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");

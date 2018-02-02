@@ -66,6 +66,7 @@ built-in authentication mechanism, you can authenticate on the Storage service u
 https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
 
 To create a service account file:
+
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
 3. Got to the https://console.cloud.google.com/permissions[Permission] tab

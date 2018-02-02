@@ -3,10 +3,10 @@
 == SQL JDBC
 
 Elasticsearch's SQL jdbc driver is a rich, fully featured JDBC driver for Elasticsearch.
-It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database, 
+It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database,
 pure Java driver that converts JDBC calls to Elasticsearch SQL.
 
-TODO add example of resolving the artifact in maven and gradle.
+// TODO add example of resolving the artifact in maven and gradle.
 
 You can connect to it using the two APIs offered
 by JDBC, namely `java.sql.Driver` and `DriverManager`:

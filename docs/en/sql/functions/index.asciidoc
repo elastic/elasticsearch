@@ -126,17 +126,17 @@ include-tagged::{sql-specs}/math.sql-spec[abs]
 
 * https://en.wikipedia.org/wiki/Rounding#Round_half_up[Round] (`ROUND`)
 
-TODO make the example in the tests presentable
+// TODO make the example in the tests presentable
 
 NOTE: This rounds "half up" meaning that `ROUND(-1.5)` results in `-1`.
 
 * https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Ceiling] (`CEIL`)
 
-TODO make the example in the tests presentable
+// TODO make the example in the tests presentable
 
 * https://en.wikipedia.org/wiki/Floor_and_ceiling_functions[Floor] (`FLOOR`)
 
-TODO make the example in the tests presentable
+// TODO make the example in the tests presentable
 
 * https://en.wikipedia.org/wiki/Natural_logarithm[Natural logarithm] (`LOG`)
 
@@ -161,7 +161,7 @@ include-tagged::{sql-specs}/math.sql-spec[sqrt]
 
 * https://en.wikipedia.org/wiki/Cube_root[Cube root] (`CBRT`)
 
-TODO make the example in the tests presentable
+// TODO make the example in the tests presentable
 
 * https://en.wikipedia.org/wiki/Exponential_function[e^x^] (`EXP`)
 

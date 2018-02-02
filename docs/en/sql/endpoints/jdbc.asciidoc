@@ -2,8 +2,9 @@
 [[sql-jdbc]]
 == SQL JDBC
 
-Elasticsearch's SQL jdbc driver is a fully featured JDBC driver
-for Elasticsearch.
+Elasticsearch's SQL jdbc driver is a rich, fully featured JDBC driver for Elasticsearch.
+It is Type 4 driver, meaning it is a platform independent, stand-alone, Direct to Database, 
+pure Java driver that converts JDBC calls to Elasticsearch SQL.
 
 TODO add example of resolving the artifact in maven and gradle.
 
@@ -15,7 +16,7 @@ by JDBC, namely `java.sql.Driver` and `DriverManager`:
 include-tagged::{jdbc-tests}/JdbcIntegrationTestCase.java[connect-dm]
 --------------------------------------------------
 <1> The server and port on which Elasticsearch is listening for
-HTTP traffic. The port is usually 9200.
+HTTP traffic. The port is by default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
@@ -25,7 +26,7 @@ or `javax.sql.DataSource` through
 include-tagged::{jdbc-tests}/JdbcIntegrationTestCase.java[connect-ds]
 --------------------------------------------------
 <1> The server and port on which Elasticsearch is listening for
-HTTP traffic. The port is usually 9200.
+HTTP traffic. By default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 

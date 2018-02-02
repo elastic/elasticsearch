@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.Header;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -99,9 +98,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(indicesOptions); // <5>
             // end::indices-exists-request-optionals
 
-            Header[] headers = new Header[0];
             // tag::indices-exists-response
-            boolean exists = client.indices().exists(request, headers);
+            boolean exists = client.indices().exists(request);
             // end::indices-exists-response
             assertTrue(exists);
         }
@@ -118,24 +116,27 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             GetIndexRequest request = new GetIndexRequest();
             request.indices("twitter");
-            Header[] headers = new Header[0];
+
+            // tag::indices-exists-execute-listener
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean exists) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::indices-exists-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::indices-exists-async
-            client.indices().existsAsync(
-                request,
-                new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean exists) {
-                        // <1>
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        // <2>
-                    }
-                },
-                headers
-            );
+            client.indices().existsAsync(request, listener); // <1>
             // end::indices-exists-async
         }
     }
@@ -188,7 +189,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testDeleteIndexAsync() throws Exception {
         final RestHighLevelClient client = highLevelClient();
 
@@ -216,7 +216,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::delete-index-execute-async
             client.indices().deleteAsync(request, listener); // <1>
@@ -365,7 +365,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testCreateIndexAsync() throws Exception {
         final RestHighLevelClient client = highLevelClient();
 
@@ -388,7 +387,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::create-index-execute-async
             client.indices().createAsync(request, listener); // <1>
@@ -494,7 +493,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPutMappingAsync() throws Exception {
         final RestHighLevelClient client = highLevelClient();
 
@@ -522,7 +520,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-mapping-execute-async
             client.indices().putMappingAsync(request, listener); // <1>
@@ -532,7 +530,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testOpenIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -590,7 +587,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::open-index-execute-async
             client.indices().openAsync(request, listener); // <1>
@@ -613,7 +610,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -665,7 +661,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::close-index-execute-async
             client.indices().closeAsync(request, listener); // <1>
@@ -675,7 +671,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testExistsAlias() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -728,7 +723,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::exists-alias-execute-async
             client.indices().existsAliasAsync(request, listener); // <1>
@@ -808,7 +803,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::update-aliases-execute-async
             client.indices().updateAliasesAsync(request, listener); // <1>
@@ -880,7 +875,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
-        listener = new LatchedActionListener(listener, latch);
+        listener = new LatchedActionListener<>(listener, latch);
 
         // tag::shrink-index-execute-async
         client.indices().shrinkAsync(request, listener); // <1>
@@ -950,7 +945,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // Replace the empty listener by a blocking listener in test
         final CountDownLatch latch = new CountDownLatch(1);
-        listener = new LatchedActionListener(listener, latch);
+        listener = new LatchedActionListener<>(listener, latch);
 
         // tag::split-index-execute-async
         client.indices().splitAsync(request,listener); // <1>

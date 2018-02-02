@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.client.shared;
 
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSocketFactory;
-import javax.sql.rowset.serial.SerialException;
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -33,8 +30,17 @@ import java.util.Base64;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocketFactory;
+import javax.sql.rowset.serial.SerialException;
+
 import static java.util.Collections.emptyMap;
 
+/**
+ * Low-level http client using the built-in {@link HttpURLConnection}.
+ * As such, it has a stateless, on-demand, request-response flow without
+ * any connection pooling or sharing.
+ */
 public class JreHttpUrlConnection implements Closeable {
     /**
      * State added to {@link SQLException}s when the server encounters an

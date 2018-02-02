@@ -23,6 +23,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.sql.client.shared.StringUtils.EMPTY;
 
+/**
+ * JDBC specific HTTP client.
+ * Since JDBC is not thread-safe, neither is this class.
+ */
 public class JdbcHttpClient {
     private final HttpClient httpClient;
     private final JdbcConfiguration conCfg;

@@ -7,47 +7,12 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
-import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
 import java.util.Arrays;
 
 public class ReflectionUtils {
 
-    @SuppressWarnings("unchecked")
-    public static <E> Class<E> detectType(Type t) {
-        if (t instanceof Class<?>) {
-            return (Class<E>) t;
-        }
-        if (t instanceof ParameterizedType) {
-            Type[] typeArguments = ((ParameterizedType) t).getActualTypeArguments();
-            if (typeArguments.length != 1) {
-                throw new SqlIllegalArgumentException("Unexpected number of type arguments {} for {}", Arrays.toString(typeArguments), t);
-            }
-
-            return detectType(typeArguments[0]);
-        }
-        if (t instanceof WildcardType) {
-            WildcardType wt = (WildcardType) t;
-            if (wt.getLowerBounds().length == 1) {
-                return detectType(wt.getLowerBounds()[0]);
-            }
-            Type[] upperBounds = wt.getUpperBounds();
-
-            if (upperBounds.length != 1) {
-                throw new SqlIllegalArgumentException("Unexpected number of upper bounds {} for {}", Arrays.toString(upperBounds), t);
-            }
-
-            return detectType(upperBounds[0]);
-        }
-        if (t instanceof GenericArrayType) {
-            return detectType(((GenericArrayType) t).getGenericComponentType());
-        }
-
-        throw new SqlIllegalArgumentException("Unrecognized type {}", t);
-    }
-    
     @SuppressWarnings("unchecked")
     public static <E> Class<E> detectSuperTypeForRuleLike(Class<?> c) {
         Class<?> clazz = c;

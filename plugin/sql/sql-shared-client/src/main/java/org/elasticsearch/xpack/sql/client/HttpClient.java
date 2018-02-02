@@ -38,7 +38,9 @@ import java.sql.SQLException;
 import java.util.function.Function;
 
 /**
- * A specialized high-level REST client with support for SQL-related functions
+ * A specialized high-level REST client with support for SQL-related functions.
+ * Similar to JDBC and the underlying HTTP connection, this class is not thread-safe
+ * and follows a request-response flow.
  */
 public class HttpClient {
 
@@ -85,7 +87,7 @@ public class HttpClient {
         return response.isSucceeded();
     }
     
-    private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request, 
+    private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request,
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {
         BytesReference requestBytes = toXContent(request);

@@ -66,7 +66,7 @@ public class ReflectionUtils {
         throw new SqlIllegalArgumentException("Unexpected class structure for class {}", c);
     }
     
-    // remove packaging from the name - strategy used for naming rules by default  
+    // remove packaging from the name - strategy used for naming rules by default
     public static String ruleLikeNaming(Class<?> c) {
         String className = c.getName();
         int parentPackage = className.lastIndexOf(".");

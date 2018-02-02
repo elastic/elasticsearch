@@ -86,7 +86,6 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
@@ -830,7 +829,7 @@ abstract class QueryTranslator {
 
     abstract static class AggTranslator<F extends Function> {
 
-        private final Class<F> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
+        private final Class<?> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
 
         @SuppressWarnings("unchecked")
         public final LeafAgg apply(String id, String parent, Function f) {

@@ -101,7 +101,7 @@ import static org.hamcrest.Matchers.greaterThan;
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings({"unused", "unchecked", "rawtypes"})
+    @SuppressWarnings({"unused", "unchecked"})
     public void testSearch() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -192,7 +192,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener(listener, latch);
+            listener = new LatchedActionListener<>(listener, latch);
 
             // tag::search-execute-async
             client.searchAsync(searchRequest, listener); // <1>
@@ -355,7 +355,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({ "unused", "rawtypes" })
+    @SuppressWarnings("unused")
     public void testSearchRequestSuggestions() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -461,6 +461,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSearchRequestProfiling() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -529,7 +530,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings("unchecked")
     public void testScroll() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -616,7 +617,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            scrollListener = new LatchedActionListener(scrollListener, latch);
+            scrollListener = new LatchedActionListener<>(scrollListener, latch);
 
             // tag::search-scroll-execute-async
             client.searchScrollAsync(scrollRequest, scrollListener); // <1>

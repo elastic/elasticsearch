@@ -58,7 +58,7 @@ include-tagged::{jdbc-tests}/SimpleExampleTestCase.java[simple_example]
 If you are using Security you need to add a few permissions to
 users so they can run SQL. To run SQL a user needs `read` and
 `indices:admin/get`. Some parts of the API require
-`"cluster:monitor/main"`. The following example configures a
+`cluster:monitor/main`. The following example configures a
 role that can run SQL in JDBC querying the `test` and `bort`
 indices:
 

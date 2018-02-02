@@ -16,7 +16,8 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-string]
 <4> Document source provided as a `String`
 
 ==== Providing the document source
-The document source can be provided in different ways:
+The document source can be provided in different ways in addition to the
+`String` example shown above:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

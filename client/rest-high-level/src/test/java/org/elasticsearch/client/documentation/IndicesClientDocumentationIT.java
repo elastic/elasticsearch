@@ -46,10 +46,14 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -172,24 +176,78 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             );
             // end::create-index-request-settings
 
-            // tag::create-index-request-mappings
-            request.mapping("tweet", // <1>
-                "{\n" +
-                "  \"tweet\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"message\": {\n" +
-                "        \"type\": \"text\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", // <2>
-                XContentType.JSON);
-            // end::create-index-request-mappings
+            {
+                // tag::create-index-request-mappings
+                request.mapping("tweet", // <1>
+                        "{\n" +
+                        "  \"tweet\": {\n" +
+                        "    \"properties\": {\n" +
+                        "      \"message\": {\n" +
+                        "        \"type\": \"text\"\n" +
+                        "      }\n" +
+                        "    }\n" +
+                        "  }\n" +
+                        "}", // <2>
+                        XContentType.JSON);
+                // end::create-index-request-mappings
+                CreateIndexResponse createIndexResponse = client.indices().create(request);
+                assertTrue(createIndexResponse.isAcknowledged());
+            }
 
+            {
+                request = new CreateIndexRequest("twitter2");
+                //tag::create-index-mappings-map
+                Map<String, Object> jsonMap = new HashMap<>();
+                Map<String, Object> message = new HashMap<>();
+                message.put("type", "text");
+                Map<String, Object> properties = new HashMap<>();
+                properties.put("message", message);
+                Map<String, Object> tweet = new HashMap<>();
+                tweet.put("properties", properties);
+                jsonMap.put("tweet", tweet);
+                request.mapping("tweet", jsonMap); // <1>
+                //end::create-index-mappings-map
+                CreateIndexResponse createIndexResponse = client.indices().create(request);
+                assertTrue(createIndexResponse.isAcknowledged());
+            }
+            {
+                request = new CreateIndexRequest("twitter3");
+                //tag::create-index-mappings-xcontent
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                {
+                    builder.startObject("tweet");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("message");
+                            {
+                                builder.field("type", "text");
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                request.mapping("tweet", builder); // <1>
+                //end::create-index-mappings-xcontent
+                CreateIndexResponse createIndexResponse = client.indices().create(request);
+                assertTrue(createIndexResponse.isAcknowledged());
+            }
+            {
+                request = new CreateIndexRequest("twitter4");
+                //tag::create-index-mappings-shortcut
+                request.mapping("tweet", "message", "type=text"); // <1>
+                //end::create-index-mappings-shortcut
+                CreateIndexResponse createIndexResponse = client.indices().create(request);
+                assertTrue(createIndexResponse.isAcknowledged());
+            }
+
+            request = new CreateIndexRequest("twitter5");
             // tag::create-index-request-aliases
-            request.alias(
-                new Alias("twitter_alias")  // <1>
-            );
+            request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "kimchy")));  // <1>
             // end::create-index-request-aliases
 
             // tag::create-index-request-timeout
@@ -204,6 +262,30 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.waitForActiveShards(2); // <1>
             request.waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
             // end::create-index-request-waitForActiveShards
+            {
+                CreateIndexResponse createIndexResponse = client.indices().create(request);
+                assertTrue(createIndexResponse.isAcknowledged());
+            }
+
+            request = new CreateIndexRequest("twitter6");
+            // tag::create-index-whole-source
+            request.source("{\n" +
+                    "    \"settings\" : {\n" +
+                    "        \"number_of_shards\" : 1,\n" +
+                    "        \"number_of_replicas\" : 0\n" +
+                    "    },\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"tweet\" : {\n" +
+                    "            \"properties\" : {\n" +
+                    "                \"message\" : { \"type\" : \"text\" }\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    },\n" +
+                    "    \"aliases\" : {\n" +
+                    "        \"twitter_alias\" : {}\n" +
+                    "    }\n" +
+                    "}", XContentType.JSON); // <1>
+            // end::create-index-whole-source
 
             // tag::create-index-execute
             CreateIndexResponse createIndexResponse = client.indices().create(request);
@@ -278,6 +360,54 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 "}", // <1>
                 XContentType.JSON);
             // end::put-mapping-request-source
+
+            {
+                //tag::put-mapping-map
+                Map<String, Object> jsonMap = new HashMap<>();
+                Map<String, Object> message = new HashMap<>();
+                message.put("type", "text");
+                Map<String, Object> properties = new HashMap<>();
+                properties.put("message", message);
+                Map<String, Object> tweet = new HashMap<>();
+                tweet.put("properties", properties);
+                jsonMap.put("tweet", tweet);
+                request.source(jsonMap); // <1>
+                //end::put-mapping-map
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
+            {
+                //tag::put-mapping-xcontent
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                {
+                    builder.startObject("tweet");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("message");
+                            {
+                                builder.field("type", "text");
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                request.source(builder); // <1>
+                //end::put-mapping-xcontent
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
+            {
+                //tag::put-mapping-shortcut
+                request.source("message", "type=text"); // <1>
+                //end::put-mapping-shortcut
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
 
             // tag::put-mapping-request-timeout
             request.timeout(TimeValue.timeValueMinutes(2)); // <1>

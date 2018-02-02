@@ -35,16 +35,30 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-res
 
 [[java-rest-high-indices-async]]
 ==== Asynchronous Execution
-As is the case with many other APIs, the Indices Exists API has an asynchronous variant in the
-Java High Level REST Client.
-The asynchronous variant returns void and accept an extra `ActionListener` as an argument.
-The provided listener will be notified upon request completion or failure.
+The asynchronous execution of an indices exists request requires both the
+`GetIndexRequest` instance and an `ActionListener` instance to be passed
+to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-async]
 --------------------------------------------------
-<1> Called when the execution is successfully completed. The response is provided as an argument
+<1> The `GetIndexRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for the Indices Exists looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[indices-exists-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-indices-exists-response]]

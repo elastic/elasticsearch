@@ -1022,38 +1022,40 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     indexWriter.addDocuments(generateDocsWithNested(Integer.toString(i), i, nestedValues));
                 }
                 indexWriter.commit();
-                for (boolean withScore : new boolean[]{true, false}) {
-                    NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
-                        .subAggregation(new TermsAggregationBuilder("terms", ValueType.LONG)
-                            .field("nested_value")
-                            // force the breadth_first mode
-                            .collectMode(Aggregator.SubAggCollectionMode.BREADTH_FIRST)
-                            .order(BucketOrder.key(true))
-                            .subAggregation(
-                                new TopHitsAggregationBuilder("top_hits")
-                                    .sort(withScore ? new ScoreSortBuilder() : new FieldSortBuilder("_doc"))
-                                    .storedField("_none_")
-                            )
-                        );
-                    MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                    fieldType.setHasDocValues(true);
-                    fieldType.setName("nested_value");
-                    try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
-                        InternalNested result = search(newSearcher(indexReader, false, true),
-                            // match root document only
-                            new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
-                        InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                        assertThat(terms.getBuckets().size(), equalTo(9));
-                        int ptr = 9;
-                        for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                            InternalTopHits topHits = bucket.getAggregations().get("top_hits");
-                            assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
-                            if (withScore) {
-                                assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
-                            } else {
-                                assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+                for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
+                    for (boolean withScore : new boolean[]{true, false}) {
+                        NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
+                            .subAggregation(new TermsAggregationBuilder("terms", ValueType.LONG)
+                                .field("nested_value")
+                                // force the breadth_first mode
+                                .collectMode(mode)
+                                .order(BucketOrder.key(true))
+                                .subAggregation(
+                                    new TopHitsAggregationBuilder("top_hits")
+                                        .sort(withScore ? new ScoreSortBuilder() : new FieldSortBuilder("_doc"))
+                                        .storedField("_none_")
+                                )
+                            );
+                        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                        fieldType.setHasDocValues(true);
+                        fieldType.setName("nested_value");
+                        try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                            InternalNested result = search(newSearcher(indexReader, false, true),
+                                // match root document only
+                                new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
+                            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                            assertThat(terms.getBuckets().size(), equalTo(9));
+                            int ptr = 9;
+                            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                                InternalTopHits topHits = bucket.getAggregations().get("top_hits");
+                                assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
+                                if (withScore) {
+                                    assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
+                                } else {
+                                    assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+                                }
+                                --ptr;
                             }
-                            --ptr;
                         }
                     }
                 }

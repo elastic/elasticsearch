@@ -27,26 +27,14 @@ import java.util.regex.Matcher
  */
 class VersionCollection {
 
-    static void main(String[] args) throws Exception {
-
-        VersionCollection vc = new VersionCollection(new File('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-
-        println("indx-" + vc.versionsIndexCompatibleWithCurrent)
-        println("wire-" + vc.versionsWireCompatibleWithCurrent)
-
-        println("indx-" + vc.snapshotVersionsIndexCompatibleWithCurrent)
-        println("wire-" + vc.snapshotVersionsWireCompatibleWithCurrent)
-
-        println("Version: ${vc.currentVersion} NMS: ${vc.nextMinorSnapshot}, SMS: ${vc.stagedMinorSnapshot}, " +
-                "NBS: ${vc.nextBugfixSnapshot}, MBS: ${vc.maintenanceBugfixSnapshot}")
-    }
-
     private final List<Version> versions
     Version nextMinorSnapshot
     Version stagedMinorSnapshot
     Version nextBugfixSnapshot
     Version maintenanceBugfixSnapshot
     final Version currentVersion
+    private final TreeSet<Version> versionSet = new TreeSet<>()
+
 
     private final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
 
@@ -58,7 +46,6 @@ class VersionCollection {
 
         List<Version> versions = []
         // This class should be converted wholesale to use the treeset
-        TreeSet<Version> versionSet = new TreeSet<>()
 
         for (final String line : versionLines) {
             final Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_alpha\d+|_beta\d+|_rc\d+)? .*/
@@ -204,53 +191,19 @@ class VersionCollection {
     }
 
     /**
-     * @return The snapshot at the end of the previous minor series in the current major series, or null if this is the first minor series.
-     */
-    Version getBWCSnapshotForCurrentMajor() {
-        return getLastSnapshotWithMajor(currentVersion.major)
-    }
-
-    /**
-     * @return The snapshot at the end of the previous major series, which must not be null.
-     */
-    Version getBWCSnapshotForPreviousMajor() {
-        Version version = getLastSnapshotWithMajor(currentVersion.major - 1)
-        assert version != null : "getBWCSnapshotForPreviousMajor(): found no versions in the previous major"
-        return version
-    }
-
-    private Version getLastSnapshotWithMajor(int targetMajor) {
-        final String currentVersion = currentVersion.toString()
-        final int snapshotIndex = versions.findLastIndexOf {
-            it.major == targetMajor && it.before(currentVersion) && it.snapshot == buildSnapshot
-        }
-        return snapshotIndex == -1 ? null : versions[snapshotIndex]
-    }
-
-    private List<Version> versionsOnOrAfterExceptCurrent(Version minVersion) {
-        final String minVersionString = minVersion.toString()
-        return Collections.unmodifiableList(versions.findAll {
-            it.onOrAfter(minVersionString) && it != currentVersion
-        })
-    }
-
-    /**
+     * Index compat supports 1 previous entire major version. For instance, any 6.x test for this would test all of 5 up to that 6.x version
+     *
      * @return All earlier versions that should be tested for index BWC with the current version.
      */
     List<Version> getVersionsIndexCompatibleWithCurrent() {
-        final Version firstVersionOfCurrentMajor = versions.find { it.major >= currentVersion.major - 1 }
-        return versionsOnOrAfterExceptCurrent(firstVersionOfCurrentMajor)
+        int actualMajor = (currentVersion.major == 5 ? 2 : currentVersion.major - 1)
+        return versionSet.tailSet(Version.fromString("${actualMajor}.0.0")).headSet(currentVersion).asList();
+
     }
 
-    private Version getMinimumWireCompatibilityVersion() {
-        final int firstIndexOfThisMajor = versions.findIndexOf { it.major == currentVersion.major }
-        if (firstIndexOfThisMajor == 0) {
-            return versions[0]
-        }
-        final Version lastVersionOfEarlierMajor = versions[firstIndexOfThisMajor - 1]
-        return versions.find { it.major == lastVersionOfEarlierMajor.major && it.minor == lastVersionOfEarlierMajor.minor }
-    }
-
+    /**
+     * Ensures the types of snapshot are not null and are also in the index compat list
+     */
     List<Version> getSnapshotVersionsIndexCompatibleWithCurrent() {
         List<Version> compatSnapshots = []
         List<Version> allCompatVersions = getVersionsIndexCompatibleWithCurrent()
@@ -270,12 +223,19 @@ class VersionCollection {
         return compatSnapshots;
     }
     /**
+     * Wire compat supports the last minor of the previous major. For instance, any 6.x test would test 5.6 up to that 6.x version
+     *
      * @return All earlier versions that should be tested for wire BWC with the current version.
      */
     List<Version> getVersionsWireCompatibleWithCurrent() {
-        return versionsOnOrAfterExceptCurrent(minimumWireCompatibilityVersion)
+        // Get the last minor of the previous major
+        Version lowerBound = versionSet.headSet(Version.fromString("${currentVersion.major}.0.0")).last()
+        return versionSet.tailSet(Version.fromString("${lowerBound.major}.${lowerBound.minor}.0")).headSet(currentVersion).toList()
     }
 
+    /**
+     * Ensures the types of snapshot are not null and are also in the wire compat list
+     */
     List<Version> getSnapshotVersionsWireCompatibleWithCurrent() {
         List<Version> compatSnapshots = []
         List<Version> allCompatVersions = getVersionsWireCompatibleWithCurrent()
@@ -291,19 +251,23 @@ class VersionCollection {
         if (allCompatVersions.contains(maintenanceBugfixSnapshot)) {
             compatSnapshots.add(maintenanceBugfixSnapshot)
         }
+        // There was no wire compat for the 2.x line
+        compatSnapshots.removeAll {it.major == 2}
 
         return compatSnapshots;
     }
 
     /**
      * Uses basic logic about our releases to determine if this version has been previously released
-     * @param version
-     * @return
      */
     private boolean isReleased(Version version) {
         return version.revision > 0 || (version.revision > 1 && currentVersion.equals(Version.fromString("5.1.2")))
     }
 
+    /**
+     * Validates that the count of non suffixed (alpha/beta/rc) versions in a given major to major+1 is greater than 1.
+     * This means that there is more than just a major.0.0 or major.0.0-alpha in a branch to signify it has been prevously released.
+     */
     private boolean isMajorReleased(Version version, TreeSet<Version> items) {
         return items
             .tailSet(Version.fromString("${version.major}.0.0"))

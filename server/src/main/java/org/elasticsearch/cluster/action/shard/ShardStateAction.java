@@ -114,7 +114,7 @@ public class ShardStateAction extends AbstractComponent {
                         if (isMasterChannelException(exp)) {
                             waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
                         } else {
-                            logger.warn("unexpected failure while sending request [{}] to [{}] for shard entry [{}]", actionName, masterNode, request);
+                            logger.warn(new ParameterizedMessage("unexpected failure while sending request [{}] to [{}] for shard entry [{}]", actionName, masterNode, request), exp);
                             listener.onFailure(exp instanceof RemoteTransportException ? (Exception) (exp.getCause() instanceof Exception ? exp.getCause() : new ElasticsearchException(exp.getCause())) : exp);
                         }
                     }

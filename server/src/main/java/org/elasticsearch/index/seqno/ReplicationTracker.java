@@ -165,7 +165,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.localCheckpoint = in.readZLong();
             this.globalCheckpoint = in.readZLong();
             this.inSync = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                 this.tracked = in.readBoolean();
             } else {
                 // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier ES versions.
@@ -182,7 +182,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
             out.writeBoolean(inSync);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
                 out.writeBoolean(tracked);
             }
         }

@@ -34,6 +34,9 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         RandomizedTestingTask newTestTask = tasks.create(properties)
         newTestTask.classpath = oldTestTask.classpath
         newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+        // since gradle 4.5, tasks immutable dependencies are "hidden" (do not show up in dependsOn)
+        // so we must explicitly add a dependency on generating the test classpath
+        newTestTask.dependsOn('testClasses')
 
         // hack so check task depends on custom test
         Task checkTask = tasks.findByPath('check')

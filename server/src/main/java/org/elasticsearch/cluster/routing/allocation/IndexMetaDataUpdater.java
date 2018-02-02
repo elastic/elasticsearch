@@ -73,6 +73,11 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
         if (failedShard.active() && failedShard.primary()) {
+            Updates updates = changes(failedShard.shardId());
+            if (updates.firstFailedPrimary == null) {
+                // more than one primary can be failed (because of batching, primary can be failed, replica promoted and then failed...)
+                updates.firstFailedPrimary = failedShard;
+            }
             increasePrimaryTerm(failedShard.shardId());
         }
     }
@@ -275,16 +280,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      * Remove allocation id of this shard from the set of in-sync shard copies
      */
     void removeAllocationId(ShardRouting shardRouting) {
-        if (shardRouting.active()) {
-            if (shardRouting.primary()) {
-                Updates updates = changes(shardRouting.shardId());
-                if (updates.firstFailedPrimary == null) {
-                    // more than one primary can be failed (because of batching, primary can be failed, replica promoted and then failed...)
-                    updates.firstFailedPrimary = shardRouting;
-                }
-            }
-            changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
-        }
+        changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
     }
 
     /**

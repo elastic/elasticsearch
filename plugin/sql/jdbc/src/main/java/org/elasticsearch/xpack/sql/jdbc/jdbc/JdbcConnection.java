@@ -332,14 +332,12 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         checkOpenClientInfo();
-        // no-op
         throw new SQLClientInfoException("Unsupported operation", null);
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
         checkOpenClientInfo();
-        // no-op
         throw new SQLClientInfoException("Unsupported operation", null);
     }
 

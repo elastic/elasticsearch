@@ -11,9 +11,10 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -91,8 +92,36 @@ public class EsRelation extends LeafPlan {
         return Objects.equals(index, other.index);
     }
 
+    private static final int TO_STRING_LIMIT = 52;
+
+    private static <E> String limitedToString(Collection<E> c) {
+        Iterator<E> it = c.iterator();
+        if (!it.hasNext()) {
+            return "[]";
+        }
+
+        // ..]
+        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
+        sb.append('[');
+        for (;;) {
+            E e = it.next();
+            String next = e == c ? "(this Collection)" : String.valueOf(e);
+            if (next.length() + sb.length() > TO_STRING_LIMIT) {
+                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
+                sb.append('.').append('.').append(']');
+                return sb.toString();
+            } else {
+                sb.append(next);
+            }
+            if (!it.hasNext()) {
+                return sb.append(']').toString();
+            }
+            sb.append(',').append(' ');
+        }
+    }
+
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + StringUtils.limitedToString(attrs);
+        return nodeName() + "[" + index + "]" + limitedToString(attrs);
     }
 }

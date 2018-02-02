@@ -136,6 +136,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static java.util.Arrays.asList;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
@@ -341,11 +342,10 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     public void testUnknownRoleCausesDenial() {
-        @SuppressWarnings("unchecked")
-        Tuple<String, TransportRequest> tuple = randomFrom(
+        Tuple<String, TransportRequest> tuple = randomFrom(asList(
                 new Tuple<>(SearchAction.NAME, new SearchRequest()),
                 new Tuple<>(IndicesExistsAction.NAME, new IndicesExistsRequest()),
-                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()));
+                new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())));
         String action = tuple.v1();
         TransportRequest request = tuple.v2();
         User user = new User("test user", "non-existent-role");

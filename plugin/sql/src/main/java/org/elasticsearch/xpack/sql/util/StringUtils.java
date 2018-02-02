@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
@@ -28,40 +26,6 @@ public abstract class StringUtils {
 
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
-
-    private static final int TO_STRING_LIMIT = 52;
-
-    public static String limitedToString(Object o) {
-        String s = String.valueOf(o);
-        return s.length() > TO_STRING_LIMIT ? s.substring(0, TO_STRING_LIMIT).concat("...") : s;
-    }
-
-    public static <E> String limitedToString(Collection<E> c) {
-        Iterator<E> it = c.iterator();
-        if (!it.hasNext()) {
-            return "[]";
-        }
-
-        // ..]
-        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
-        sb.append('[');
-        for (;;) {
-            E e = it.next();
-            String next = e == c ? "(this Collection)" : String.valueOf(e);
-            if (next.length() + sb.length() > TO_STRING_LIMIT) {
-                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
-                sb.append('.').append('.').append(']');
-                return sb.toString();
-            }
-            else {
-                sb.append(next);
-            }
-            if (!it.hasNext()) {
-                return sb.append(']').toString();
-            }
-            sb.append(',').append(' ');
-        }
-    }
 
     //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {

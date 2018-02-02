@@ -81,7 +81,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public boolean nullsAreSortedAtEnd() throws SQLException {
-        return false;
+        // missing/null values are sorted (by default) last
+        return true;
     }
 
     @Override

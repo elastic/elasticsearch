@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
-// Debug marker interface for compatible proxy.
+/**
+ *  Debug marker interface for compatible proxy.
+ */
 interface DebugProxy {
 
 }

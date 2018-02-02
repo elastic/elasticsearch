@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.StringUtils;
-import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 
 import java.net.URI;
 import java.sql.DriverPropertyInfo;
@@ -25,16 +25,15 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
 import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
 
-//
-// Supports the following syntax
-//
-// jdbc:es://[host|ip]
-// jdbc:es://[host|ip]:port/(prefix)
-// jdbc:es://[host|ip]:port/(prefix)(?options=value&)
-//
-// Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
-//
-
+/**
+ / Supports the following syntax
+ /
+ / jdbc:es://[host|ip]
+ / jdbc:es://[host|ip]:port/(prefix)
+ / jdbc:es://[host|ip]:port/(prefix)(?options=value&)
+ /
+ / Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
+ */
 //TODO: beef this up for Security/SSL
 public class JdbcConfiguration extends ConnectionConfiguration {
     static final String URL_PREFIX = "jdbc:es://";

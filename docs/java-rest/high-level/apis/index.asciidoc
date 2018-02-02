@@ -1,12 +1,8 @@
 include::create_index.asciidoc[]
 
-<<<<<<< HEAD
 include::indices_exists.asciidoc[]
 
-include::deleteindex.asciidoc[]
-=======
 include::delete_index.asciidoc[]
->>>>>>> master
 
 include::open_index.asciidoc[]
 

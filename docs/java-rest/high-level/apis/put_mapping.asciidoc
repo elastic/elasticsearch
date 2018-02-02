@@ -23,8 +23,8 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-reques
 <1> The mapping source provided as a `String`
 
 ==== Providing the mapping source
-The mapping source can be provided in different ways besides the
-`String` example showed above:
+The mapping source can be provided in different ways in addition to
+the `String` example shown above:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

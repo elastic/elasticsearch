@@ -31,8 +31,8 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-reque
 <1> The type to define
 <2> The mapping for this type, provided as a JSON string
 
-The mapping source can be provided in different ways besides the
-`String` example showed above:
+The mapping source can be provided in different ways in addition to the
+`String` example shown above:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -527,4 +527,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         assertEquals(shard.snapshotStoreMetadata().size(), snapshotStatus.numberOfFiles());
         assertNull(snapshotStatus.failure());
     }
+    /**
+     * Helper method to access (package-protected) engine from tests
+     */
+    public static Engine getEngine(IndexShard indexShard) {
+        return indexShard.getEngine();
+    }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  */
@@ -55,12 +56,12 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
-        assertEquals("exactly one commit id", 1, commitIds.size());
+        Map<String, SyncedFlushService.PreSyncedFlushResponse> preSyncedResponses = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
+        assertEquals("exactly one commit id", 1, preSyncedResponses.size());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
         String syncId = UUIDs.base64UUID();
         SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
+        flushService.sendSyncRequests(syncId, activeShards, state, preSyncedResponses, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
         ShardsSyncedFlushResult syncedFlushResult = listener.result;
@@ -74,7 +75,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
         SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId); // pull another commit and make sure we can't sync-flush with the old one
         listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
+        flushService.sendSyncRequests(syncId, activeShards, state, preSyncedResponses, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
         syncedFlushResult = listener.result;
@@ -174,15 +175,15 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, Engine.CommitId> commitIds = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
-        assertEquals("exactly one commit id", 1, commitIds.size());
+        Map<String, SyncedFlushService.PreSyncedFlushResponse> preSyncedResponses = SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
+        assertEquals("exactly one commit id", 1, preSyncedResponses.size());
         if (randomBoolean()) {
             client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON).get();
         }
         client().admin().indices().prepareFlush("test").setForce(true).get();
         String syncId = UUIDs.base64UUID();
         final SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
+        flushService.sendSyncRequests(syncId, activeShards, state, preSyncedResponses, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
         ShardsSyncedFlushResult syncedFlushResult = listener.result;
@@ -207,12 +208,12 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         final IndexShardRoutingTable shardRoutingTable = flushService.getShardRoutingTable(shardId, state);
         final List<ShardRouting> activeShards = shardRoutingTable.activeShards();
         assertEquals("exactly one active shard", 1, activeShards.size());
-        Map<String, Engine.CommitId> commitIds =  SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
-        assertEquals("exactly one commit id", 1, commitIds.size());
-        commitIds.clear(); // wipe it...
+        Map<String, SyncedFlushService.PreSyncedFlushResponse> preSyncedResponses =  SyncedFlushUtil.sendPreSyncRequests(flushService, activeShards, state, shardId);
+        assertEquals("exactly one commit id", 1, preSyncedResponses.size());
+        preSyncedResponses.clear(); // wipe it...
         String syncId = UUIDs.base64UUID();
         SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener();
-        flushService.sendSyncRequests(syncId, activeShards, state, commitIds, shardId, shardRoutingTable.size(), listener);
+        flushService.sendSyncRequests(syncId, activeShards, state, preSyncedResponses, shardId, shardRoutingTable.size(), listener);
         listener.latch.await();
         assertNull(listener.error);
         ShardsSyncedFlushResult syncedFlushResult = listener.result;

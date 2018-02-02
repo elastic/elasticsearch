@@ -30,6 +30,7 @@ task bwcTest {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 }
+
 for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
   String baseName = "v${version}"
 

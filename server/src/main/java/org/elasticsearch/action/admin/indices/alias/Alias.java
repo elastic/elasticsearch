@@ -205,16 +205,16 @@ public class Alias implements Streamable, ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (FILTER.match(currentFieldName)) {
+                if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
                     alias.filter(filter);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ROUTING.match(currentFieldName)) {
+                if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.routing(parser.text());
-                } else if (INDEX_ROUTING.match(currentFieldName)) {
+                } else if (INDEX_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.indexRouting(parser.text());
-                } else if (SEARCH_ROUTING.match(currentFieldName)) {
+                } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
                 }
             }

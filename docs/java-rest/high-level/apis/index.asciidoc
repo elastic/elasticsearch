@@ -1,5 +1,7 @@
 include::create_index.asciidoc[]
 
+include::indices_exists.asciidoc[]
+
 include::delete_index.asciidoc[]
 
 include::open_index.asciidoc[]

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.Header;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -74,6 +76,69 @@ import java.util.concurrent.TimeUnit;
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    public void testIndicesExist() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::indices-exists-request
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices("twitter"); // <1>
+            // end::indices-exists-request
+
+            IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+            // tag::indices-exists-request-optionals
+            request.local(false); // <1>
+            request.humanReadable(true); // <2>
+            request.includeDefaults(false); // <3>
+            request.flatSettings(false); // <4>
+            request.indicesOptions(indicesOptions); // <5>
+            // end::indices-exists-request-optionals
+
+            Header[] headers = new Header[0];
+            // tag::indices-exists-response
+            boolean exists = client.indices().exists(request, headers);
+            // end::indices-exists-response
+            assertTrue(exists);
+        }
+    }
+
+    public void testIndicesExistAsync() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("twitter"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices("twitter");
+            Header[] headers = new Header[0];
+
+            // tag::indices-exists-async
+            client.indices().existsAsync(
+                request,
+                new ActionListener<Boolean>() {
+                    @Override
+                    public void onResponse(Boolean exists) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                },
+                headers
+            );
+            // end::indices-exists-async
+        }
+    }
     public void testDeleteIndex() throws IOException {
         RestHighLevelClient client = highLevelClient();
 

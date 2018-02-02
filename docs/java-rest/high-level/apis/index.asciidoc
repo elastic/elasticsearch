@@ -1,16 +1,22 @@
-include::createindex.asciidoc[]
+include::create_index.asciidoc[]
 
-include::deleteindex.asciidoc[]
+include::indices_exists.asciidoc[]
+
+include::delete_index.asciidoc[]
 
 include::open_index.asciidoc[]
 
 include::close_index.asciidoc[]
 
-include::putmapping.asciidoc[]
+include::put_mapping.asciidoc[]
 
 include::update_aliases.asciidoc[]
 
 include::exists_alias.asciidoc[]
+
+include::shrink_index.asciidoc[]
+
+include::split_index.asciidoc[]
 
 include::_index.asciidoc[]
 

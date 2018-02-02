@@ -137,9 +137,6 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_1_ID = 6000199;
     public static final Version V_6_0_1 =
         new Version(V_6_0_1_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final int V_6_0_2_ID = 6000299;
-    public static final Version V_6_0_2 =
-        new Version(V_6_0_2_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final int V_6_1_0_ID = 6010099;
     public static final Version V_6_1_0 = new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_1_ID = 6010199;
@@ -155,8 +152,10 @@ public class Version implements Comparable<Version> {
     public static final int V_6_3_0_ID = 6030099;
     public static final Version V_6_3_0 = new Version(V_6_3_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
     public static final int V_7_0_0_alpha1_ID = 7000001;
+    //public static final // edited to remove from regex for testing, pls re-add to 1 single line
     public static final Version V_7_0_0_alpha1 =
         new Version(V_7_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+
     public static final Version CURRENT = V_7_0_0_alpha1;
 
     static {
@@ -186,8 +185,8 @@ public class Version implements Comparable<Version> {
                 return V_6_1_1;
             case V_6_1_0_ID:
                 return V_6_1_0;
-            case V_6_0_2_ID:
-                return V_6_0_2;
+//            case V_6_0_2_ID:
+//                return V_6_0_2;
             case V_6_0_1_ID:
                 return V_6_0_1;
             case V_6_0_0_ID:

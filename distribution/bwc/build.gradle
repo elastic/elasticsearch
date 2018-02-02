@@ -29,14 +29,28 @@ import java.util.regex.Matcher
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
-final Matcher match = project.name =~ /bwc-snapshot-(\d+\.(\d+|x))/
-if (!match.matches()) {
-  throw new InvalidUserDataException("Unsupport project name ${project.name}")
-}
-String bwcBranch = match.group(1)
+subprojects {
 
-if (project.hasProperty('bwcVersion')) {
-  Version bwcVersion = project.ext.bwcVersion
+  Version bwcVersion
+  if (project.name == 'next-minor-snapshot') {
+    bwcVersion = versionCollection.nextMinorSnapshot
+  } else if (project.name == 'staged-minor-snapshot') {
+    bwcVersion = versionCollection.stagedMinorSnapshot
+  } else if (project.name == 'maintenance-bugfix-snapshot') {
+    bwcVersion = versionCollection.maintenanceBugfixSnapshot
+  } else if (project.name == 'next-bugfix-snapshot') {
+    bwcVersion = versionCollection.nextBugfixSnapshot
+  } else {
+      throw new InvalidUserDataException("Unsupported project name ${project.name}")
+  }
+
+  String bwcBranch
+  if (project.name == 'next-minor-snapshot') {
+    // this is always a .x series
+    bwcBranch = "${bwcVersion.major}.x"
+  } else {
+    bwcBranch = "${bwcVersion.major}.${bwcVersion.minor}"
+  }
 
   apply plugin: 'distribution'
   // Not published so no need to assemble

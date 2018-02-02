@@ -207,15 +207,18 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
-  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
-    if (version.branch != null) {
-      final String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
+    if (versionCollection.nextMinorSnapshot) {
+        addBWCSnapshotSubstitutions(':distribution:bwc:next-minor-snapshot', versionCollection.nextMinorSnapshot, ext)
     }
-  }
+    if (versionCollection.stagedMinorSnapshot) {
+        addBWCSnapshotSubstitutions(':distribution:bwc:staged-minor-snapshot', versionCollection.stagedMinorSnapshot, ext)
+    }
+    if (versionCollection.nextBugfixSnapshot) {
+        addBWCSnapshotSubstitutions(':distribution:bwc:next-bugfix-snapshot', versionCollection.nextBugfixSnapshot, ext)
+    }
+    if (versionCollection.maintenanceBugfixSnapshot) {
+        addBWCSnapshotSubstitutions(':distribution:bwc:maintenance-bugfix-snapshot', versionCollection.maintenanceBugfixSnapshot, ext)
+    }
 
   project.afterEvaluate {
     configurations.all {
@@ -442,4 +445,11 @@ gradle.projectsEvaluated {
       }
     }
   }
+}
+
+void addBWCSnapshotSubstitutions(String snapshotProject, Version version, ExtraPropertiesExtension ext) {
+    project(snapshotProject).ext.bwcVersion = version
+    ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
+    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
 }

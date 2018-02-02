@@ -51,11 +51,11 @@ public class Version {
 
         int suffixOffset = 0
         if (suffix.contains("alpha")) {
-          suffixOffset += suffix.replaceAll(~/[^\d.]/, '').toInteger()
+          suffixOffset += Integer.parseInt(suffix.substring(6))
         } else if (suffix.contains("beta")) {
-          suffixOffset += 25+suffix.replaceAll(~/[^\d.]/, '').toInteger()
+          suffixOffset += 25 + Integer.parseInt(suffix.substring(5))
         } else if (suffix.contains("rc")) {
-          suffixOffset += 50+suffix.replaceAll(~/[^\d.]/, '').toInteger()
+          suffixOffset += 50 + Integer.parseInt(suffix.substring(3));
         }
 
         this.id = major * 1000000 + minor * 10000 + revision * 100 + suffixOffset

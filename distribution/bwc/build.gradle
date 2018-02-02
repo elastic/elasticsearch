@@ -44,6 +44,11 @@ subprojects {
       throw new InvalidUserDataException("Unsupported project name ${project.name}")
   }
 
+  if (bwcVersion == null) {
+    throw new GradleException("Could not find a valid branch for ${project.name}. Please make sure that the project being" +
+            " invoked makes sense against the ${versionCollection.actualVersion} version")
+  }
+
   String bwcBranch
   if (project.name == 'next-minor-snapshot') {
     // this is always a .x series

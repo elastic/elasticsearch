@@ -423,7 +423,7 @@ public class ShardStateActionTests extends ESTestCase {
 
     public void testShardEntryBWCSerialize() throws Exception {
         final Version bwcVersion = randomValueOtherThanMany(
-            version -> version.onOrAfter(Version.V_7_0_0_alpha1), () -> VersionUtils.randomVersion(random()));
+            version -> version.onOrAfter(Version.V_6_3_0), () -> VersionUtils.randomVersion(random()));
         final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
         final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
         final String reason = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);

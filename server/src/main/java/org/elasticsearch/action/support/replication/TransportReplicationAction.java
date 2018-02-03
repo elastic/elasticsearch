@@ -1172,6 +1172,30 @@ public abstract class TransportReplicationAction<
             // "alive" if it were to be marked as stale.
             onSuccess.run();
         }
+
+        protected final ShardStateAction.Listener createShardActionListener(final Runnable onSuccess,
+                                                                            final Consumer<Exception> onPrimaryDemoted,
+                                                                            final Consumer<Exception> onIgnoredFailure) {
+            return new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    onSuccess.run();
+                }
+
+                @Override
+                public void onFailure(Exception shardFailedError) {
+                    if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                        onPrimaryDemoted.accept(shardFailedError);
+                    } else {
+                        // these can occur if the node is shutting down and are okay
+                        // any other exception here is not expected and merits investigation
+                        assert shardFailedError instanceof TransportException ||
+                            shardFailedError instanceof NodeClosedException : shardFailedError;
+                        onIgnoredFailure.accept(shardFailedError);
+                    }
+                }
+            };
+        }
     }
 
     /**

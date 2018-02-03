@@ -191,7 +191,7 @@ The following parameters are accepted by `nested` fields:
 
 Because nested documents are indexed as separate documents, they can only be
 accessed  within the scope of the `nested` query, the
-`nested`/`reverse_nested`, or <<nested-inner-hits,nested inner hits>>.
+`nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
 
 For instance, if a string field within a nested document has
 <<index-options,`index_options`>> set to `offsets` to allow use of the postings

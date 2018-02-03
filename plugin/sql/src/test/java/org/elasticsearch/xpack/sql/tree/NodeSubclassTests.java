@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.sql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
@@ -441,7 +441,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              * use a simple one. Without this we're very prone to
              * stackoverflow errors while building the tree.
              */
-            return new UnresolvedAttribute(LocationTests.randomLocation(), randomAlphaOfLength(5));
+            return UnresolvedAttributeTests.randomUnresolvedAttribute();
         }
         if (Node.class.isAssignableFrom(argClass)) {
             /*
@@ -502,7 +502,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     }
 
-    private static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+    public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             nodeClass = randomFrom(subclassesOf(nodeClass));
         }

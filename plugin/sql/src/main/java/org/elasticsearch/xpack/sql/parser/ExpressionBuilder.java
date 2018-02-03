@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Neg;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Extract;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
@@ -75,19 +74,20 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 
+import static java.util.Collections.singletonList;
+
 abstract class ExpressionBuilder extends IdentifierBuilder {
     /**
      * Time zone that we're executing in. Set on functions that deal
      * with dates and times for use later in the evaluation process.
      */
-    private final DateTimeZone timeZone;
+    private final DateTimeZone timeZone; // TODO remove me
 
     protected ExpressionBuilder(DateTimeZone timeZone) {
         this.timeZone = timeZone;
@@ -366,25 +366,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitFunctionCall(FunctionCallContext ctx) {
         String name = visitIdentifier(ctx.identifier());
-        boolean isDistinct = false;
-        if (ctx.setQuantifier() != null) {
-            isDistinct = ctx.setQuantifier().DISTINCT() != null;
-        }
-
-        return new UnresolvedFunction(source(ctx), name, isDistinct, expressions(ctx.expression()));
+        boolean isDistinct = ctx.setQuantifier() != null && ctx.setQuantifier().DISTINCT() != null;
+        UnresolvedFunction.ResolutionType resolutionType =
+                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
+        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(ctx.expression()));
     }
 
     @Override
     public Object visitExtract(ExtractContext ctx) {
-        Location source = source(ctx);
         String fieldString = visitIdentifier(ctx.field);
-        Extract extract = null;
-        try {
-            extract = Extract.valueOf(fieldString.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            throw new ParsingException(source, "Invalid EXTRACT field {}", fieldString);
-        }
-        return extract.toFunction(source, expression(ctx.valueExpression()), timeZone);
+        return new UnresolvedFunction(source(ctx), fieldString,
+                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(ctx.valueExpression())));
     }
 
     @Override

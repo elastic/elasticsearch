@@ -76,6 +76,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:41: Unknown column [xxx]", verify("SELECT * FROM test ORDER BY DAY_oF_YEAR(xxx)"));
     }
 
+    public void testMissingExtract() {
+        assertEquals("1:8: Unknown datetime field [ZAZ]", verify("SELECT EXTRACT(ZAZ FROM date) FROM test"));
+    }
+
+    public void testMissingExtractSimilar() {
+        assertEquals("1:8: Unknown datetime field [DAP], did you mean [DAY]?", verify("SELECT EXTRACT(DAP FROM date) FROM test"));
+    }
+
+    public void testMissingExtractSimilarMany() {
+        assertEquals("1:8: Unknown datetime field [DOP], did you mean any of [DOM, DOW, DOY]?",
+            verify("SELECT EXTRACT(DOP FROM date) FROM test"));
+    }
+
+    public void testExtractNonDateTime() {
+        assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", verify("SELECT EXTRACT(ABS FROM date) FROM test"));
+    }
+
     public void testMultipleColumns() {
         // xxx offset is that of the order by field
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",

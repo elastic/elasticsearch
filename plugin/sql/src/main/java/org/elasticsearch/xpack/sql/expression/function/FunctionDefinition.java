@@ -7,25 +7,34 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.function.BiFunction;
 import org.joda.time.DateTimeZone;
 
 import static java.lang.String.format;
 
 public class FunctionDefinition {
-
+    /**
+     * Converts an {@link UnresolvedFunction} into the a proper {@link Function}.
+     */
+    @FunctionalInterface
+    public interface Builder {
+        Function build(UnresolvedFunction uf, boolean distinct, DateTimeZone tz);
+    }
     private final String name;
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
-    private final BiFunction<UnresolvedFunction, DateTimeZone, Function> builder;
+    /**
+     * Is this a datetime function comaptible with {@code EXTRACT}.
+     */
+    private final boolean datetime;
+    private final Builder builder;
     private final FunctionType type;
 
-    FunctionDefinition(String name, List<String> aliases,
-            Class<? extends Function> clazz, BiFunction<UnresolvedFunction, DateTimeZone, Function> builder) {
+    FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz,
+            boolean datetime, Builder builder) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
+        this.datetime = datetime;
         this.builder = builder;
         this.type = FunctionType.of(clazz);
     }
@@ -46,8 +55,15 @@ public class FunctionDefinition {
         return clazz;
     }
 
-    BiFunction<UnresolvedFunction, DateTimeZone, Function> builder() {
+    Builder builder() {
         return builder;
+    }
+
+    /**
+     * Is this a datetime function comaptible with {@code EXTRACT}.
+     */
+    boolean datetime() {
+        return datetime;
     }
 
     @Override

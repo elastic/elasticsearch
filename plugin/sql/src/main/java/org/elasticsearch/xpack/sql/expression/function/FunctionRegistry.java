@@ -164,12 +164,12 @@ public class FunctionRegistry {
         }
     }
 
-    public Function resolveFunction(UnresolvedFunction ur, DateTimeZone timeZone) {
-        FunctionDefinition def = defs.get(normalize(ur.name()));
+    public FunctionDefinition resolveFunction(String name) {
+        FunctionDefinition def = defs.get(normalize(name));
         if (def == null) {
-            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", ur.name());
+            throw new SqlIllegalArgumentException("Cannot find function {}; this should have been caught during analysis", name);
         }
-        return def.builder().apply(ur, timeZone);
+        return def;
     }
 
     public String concreteFunctionName(String alias) {
@@ -182,16 +182,20 @@ public class FunctionRegistry {
     }
 
     public Collection<FunctionDefinition> listFunctions() {
+        // It is worth double checking if we need this copy. These are immutable anyway.
         return defs.entrySet().stream()
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz(), e.getValue().builder()))
+                .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
+                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
                 .collect(toList());
     }
 
     public Collection<FunctionDefinition> listFunctions(String pattern) {
+        // It is worth double checking if we need this copy. These are immutable anyway.
         Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz(), e.getValue().builder()))
+                .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
+                        e.getValue().clazz(), e.getValue().datetime(), e.getValue().builder()))
                 .collect(toList());
     }
 
@@ -210,7 +214,7 @@ public class FunctionRegistry {
             }
             return ctorRef.apply(location);
         };
-        return def(function, builder, aliases);
+        return def(function, builder, false, aliases);
     }
 
     /**
@@ -229,7 +233,7 @@ public class FunctionRegistry {
             }
             return ctorRef.apply(location, children.get(0));
         };
-        return def(function, builder, aliases);
+        return def(function, builder, false, aliases);
     }
 
     /**
@@ -245,19 +249,19 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), distinct);
         };
-        return def(function, builder, aliases);
+        return def(function, builder, false, aliases);
     }
     interface DistinctAwareUnaryFunctionBuilder<T> {
         T build(Location location, Expression target, boolean distinct);
     }
 
     /**
-     * Build a {@linkplain FunctionDefinition} for a unary function that is
-     * aware of time zone and does not support {@code DISTINCT}.
+     * Build a {@linkplain FunctionDefinition} for a unary function that
+     * operates on a datetime.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            TimeZoneAwareUnaryFunctionBuilder<T> ctorRef, String... aliases) {
+            DatetimeUnaryFunctionBuilder<T> ctorRef, String... aliases) {
         FunctionBuilder builder = (location, children, distinct, tz) -> {
             if (children.size() != 1) {
                 throw new IllegalArgumentException("expects exactly one argument");
@@ -267,9 +271,9 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), tz);
         };
-        return def(function, builder, aliases);
+        return def(function, builder, true, aliases);
     }
-    interface TimeZoneAwareUnaryFunctionBuilder<T> {
+    interface DatetimeUnaryFunctionBuilder<T> {
         T build(Location location, Expression target, DateTimeZone tz);
     }
 
@@ -289,23 +293,24 @@ public class FunctionRegistry {
             }
             return ctorRef.build(location, children.get(0), children.get(1));
         };
-        return def(function, builder, aliases);
+        return def(function, builder, false, aliases);
     }
     interface BinaryFunctionBuilder<T> {
         T build(Location location, Expression lhs, Expression rhs);
     }
 
-    private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder, String... aliases) {
+    private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
+            boolean datetime, String... aliases) {
         String primaryName = normalize(function.getSimpleName());
-        BiFunction<UnresolvedFunction, DateTimeZone, Function> realBuilder = (uf, tz) -> {
+        FunctionDefinition.Builder realBuilder = (uf, distinct, tz) -> {
             try {
-                return builder.build(uf.location(), uf.children(), uf.distinct(), tz);
+                return builder.build(uf.location(), uf.children(), distinct, tz);
             } catch (IllegalArgumentException e) {
                 throw new ParsingException("error building [" + primaryName + "]: " + e.getMessage(), e,
                         uf.location().getLineNumber(), uf.location().getColumnNumber());
             }
         };
-        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, realBuilder);
+        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, datetime, realBuilder);
     }
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, DateTimeZone tz);

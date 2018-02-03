@@ -763,14 +763,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     String name = uf.name();
 
                     if (hasStar(uf.arguments())) {
-                        if (uf.distinct()) {
-                            throw new AnalysisException(uf, "DISTINCT and wildcard/star are not compatible");
-                        }
-                        // TODO: might be removed
-                        // dedicated count optimization
-                        if (name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(),
-                                singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                        uf = uf.preprocessStar();
+                        if (uf.analyzed()) {
+                            return uf;
                         }
                     }
 
@@ -792,21 +787,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                     // not seen before, use the registry
                     if (!functionRegistry.functionExists(name)) {
-
-                        // try to find alternatives
-                        Set<String> names = new LinkedHashSet<>();
-                        for (FunctionDefinition def : functionRegistry.listFunctions()) {
-                            names.add(def.name());
-                            names.addAll(def.aliases());
-                        }
-
-                        List<String> matches = StringUtils.findSimilar(normalizedName, names);
-                        String message = matches.isEmpty() ?
-                                uf.unresolvedMessage() : UnresolvedFunction.errorMessage(normalizedName, matches);
-                        return new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.children(), true, message);
+                        return uf.missing(normalizedName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    Function f = functionRegistry.resolveFunction(uf, timeZone);
+                    FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
+                    Function f = uf.buildResolved(timeZone, def);
 
                     list.add(f);
                     return f;

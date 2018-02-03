@@ -12,7 +12,7 @@ include-tagged::{sql-specs}/select.sql-spec[wildcardWithOrder]
 
 
 [[sql-spec-syntax-order-by]]
-==== ORDER BY
+==== `ORDER BY`
 
 Elasticsearch supports `ORDER BY` for consistent ordering. You add
 any field in the index that has <<doc-values,`doc_values`>> or
@@ -101,3 +101,23 @@ POST /_xpack/sql
 --------------------------------------------------
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/ s/\(/\\\(/ s/\)/\\\)/]
 // TESTRESPONSE[_cat]
+
+
+[[sql-spec-syntax-extract]]
+==== `EXTRACT`
+
+Elasticsearch supports `EXTRACT` to extract fields from datetimes.
+You can run any <<sql-functions-datetime,datetime function>>
+with `EXTRACT(<datetime_function> FROM <expression>)`. So
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/datetime.csv-spec[extractDayOfYear]
+--------------------------------------------------
+
+is the equivalent to
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/datetime.csv-spec[dayOfYear]
+--------------------------------------------------

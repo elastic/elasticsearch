@@ -5,6 +5,7 @@
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "unsupported" : { "type" : "ip_range" },
+        "date" : { "type" : "date"},
         "some" : {
             "properties" : {
                 "dotted" : {

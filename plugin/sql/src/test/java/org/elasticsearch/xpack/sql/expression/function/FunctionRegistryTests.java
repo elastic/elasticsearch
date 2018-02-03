@@ -20,129 +20,144 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.sql.expression.function.FunctionRegistry.def;
+import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.DISTINCT;
+import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.EXTRACT;
+import static org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType.STANDARD;
 import static org.hamcrest.Matchers.endsWith;
 import static org.mockito.Mockito.mock;
 import static java.util.Collections.emptyList;
 
 public class FunctionRegistryTests extends ESTestCase {
     public void testNoArgFunction() {
-        UnresolvedFunction ur = uf(false);
+        UnresolvedFunction ur = uf(STANDARD);
         FunctionRegistry r = new FunctionRegistry(Arrays.asList(def(Dummy.class, Dummy::new)));
-        assertEquals(ur.location(), r.resolveFunction(ur, randomDateTimeZone()).location());
+        FunctionDefinition def = r.resolveFunction(ur.name());
+        assertEquals(ur.location(), ur.buildResolved(randomDateTimeZone(), def).location());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(true), randomDateTimeZone()));
+                uf(DISTINCT).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // Any children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class)), randomDateTimeZone()));
+                uf(STANDARD, mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects no arguments"));
     }
 
     public void testUnaryFunction() {
-        UnresolvedFunction ur = uf(false, mock(Expression.class));
+        UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
         FunctionRegistry r = new FunctionRegistry(Arrays.asList(def(Dummy.class, (Location l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new Dummy(l);
         })));
-        assertEquals(ur.location(), r.resolveFunction(ur, randomDateTimeZone()).location());
+        FunctionDefinition def = r.resolveFunction(ur.name());
+        assertFalse(def.datetime());
+        assertEquals(ur.location(), ur.buildResolved(randomDateTimeZone(), def).location());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(true, mock(Expression.class)), randomDateTimeZone()));
+                uf(DISTINCT, mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false), randomDateTimeZone()));
+                uf(STANDARD).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class), mock(Expression.class)), randomDateTimeZone()));
+            uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
     public void testUnaryDistinctAwareFunction() {
-        UnresolvedFunction ur = uf(randomBoolean(), mock(Expression.class));
+        boolean urIsDistinct = randomBoolean();
+        UnresolvedFunction ur = uf(urIsDistinct ? DISTINCT : STANDARD, mock(Expression.class));
         FunctionRegistry r = new FunctionRegistry(Arrays.asList(def(Dummy.class, (Location l, Expression e, boolean distinct) -> {
-            assertEquals(ur.distinct(), distinct);
+            assertEquals(urIsDistinct, distinct);
             assertSame(e, ur.children().get(0));
             return new Dummy(l);
         })));
-        assertEquals(ur.location(), r.resolveFunction(ur, randomDateTimeZone()).location());
+        FunctionDefinition def = r.resolveFunction(ur.name());
+        assertEquals(ur.location(), ur.buildResolved(randomDateTimeZone(), def).location());
+        assertFalse(def.datetime());
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false), randomDateTimeZone()));
+                uf(STANDARD).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class), mock(Expression.class)), randomDateTimeZone()));
+                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
-    public void testTimeZoneAwareFunction() {
-        UnresolvedFunction ur = uf(false, mock(Expression.class));
+    public void testDateTimeFunction() {
+        boolean urIsExtract = randomBoolean();
+        UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
         DateTimeZone providedTimeZone = randomDateTimeZone();
         FunctionRegistry r = new FunctionRegistry(Arrays.asList(def(Dummy.class, (Location l, Expression e, DateTimeZone tz) -> {
             assertEquals(providedTimeZone, tz);
             assertSame(e, ur.children().get(0));
             return new Dummy(l);
         })));
-        assertEquals(ur.location(), r.resolveFunction(ur, providedTimeZone).location());
+        FunctionDefinition def = r.resolveFunction(ur.name());
+        assertEquals(ur.location(), ur.buildResolved(providedTimeZone, def).location());
+        assertTrue(def.datetime());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(true, mock(Expression.class)), randomDateTimeZone()));
+                uf(DISTINCT, mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false), randomDateTimeZone()));
+                uf(STANDARD).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class), mock(Expression.class)), randomDateTimeZone()));
+                uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
     public void testBinaryFunction() {
-        UnresolvedFunction ur = uf(false, mock(Expression.class), mock(Expression.class));
+        UnresolvedFunction ur = uf(STANDARD, mock(Expression.class), mock(Expression.class));
         FunctionRegistry r = new FunctionRegistry(Arrays.asList(def(Dummy.class, (Location l, Expression lhs, Expression rhs) -> {
             assertSame(lhs, ur.children().get(0));
             assertSame(rhs, ur.children().get(1));
             return new Dummy(l);
         })));
-        assertEquals(ur.location(), r.resolveFunction(ur, randomDateTimeZone()).location());
+        FunctionDefinition def = r.resolveFunction(ur.name());
+        assertEquals(ur.location(), ur.buildResolved(randomDateTimeZone(), def).location());
+        assertFalse(def.datetime());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(true, mock(Expression.class), mock(Expression.class)), randomDateTimeZone()));
+                uf(DISTINCT, mock(Expression.class), mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false), randomDateTimeZone()));
+                uf(STANDARD).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // One child isn't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class)), randomDateTimeZone()));
+                uf(STANDARD, mock(Expression.class)).buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // Many children aren't supported
         e = expectThrows(ParsingException.class, () ->
-            r.resolveFunction(uf(false, mock(Expression.class), mock(Expression.class), mock(Expression.class)), randomDateTimeZone()));
+                uf(STANDARD, mock(Expression.class), mock(Expression.class), mock(Expression.class))
+                    .buildResolved(randomDateTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
 
-    private UnresolvedFunction uf(boolean distinct, Expression... children) {
-        return new UnresolvedFunction(LocationTests.randomLocation(), "dummy", distinct, Arrays.asList(children));
+    private UnresolvedFunction uf(UnresolvedFunction.ResolutionType resolutionType, Expression... children) {
+        return new UnresolvedFunction(LocationTests.randomLocation(), "dummy", resolutionType, Arrays.asList(children));
     }
 
     public static class Dummy extends ScalarFunction {

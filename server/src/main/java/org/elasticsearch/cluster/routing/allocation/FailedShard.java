@@ -30,18 +30,20 @@ public class FailedShard {
     private final ShardRouting routingEntry;
     private final String message;
     private final Exception failure;
+    private final boolean markAsStale;
 
-    public FailedShard(ShardRouting routingEntry, String message, Exception failure) {
+    public FailedShard(ShardRouting routingEntry, String message, Exception failure, boolean markAsStale) {
         assert routingEntry.assignedToNode() : "only assigned shards can be failed " + routingEntry;
         this.routingEntry = routingEntry;
         this.message = message;
         this.failure = failure;
+        this.markAsStale = markAsStale;
     }
 
     @Override
     public String toString() {
         return "failed shard, shard " + routingEntry + ", message [" + message + "], failure [" +
-                   ExceptionsHelper.detailedMessage(failure) + "]";
+                   ExceptionsHelper.detailedMessage(failure) + "], markAsStale [" + markAsStale + "]";
     }
 
     /**
@@ -65,5 +67,12 @@ public class FailedShard {
     @Nullable
     public Exception getFailure() {
         return failure;
+    }
+
+    /**
+     * Whether or not to mark the shard as stale (eg. removing from in-sync set) when failing the shard.
+     */
+    public boolean markAsStale() {
+        return markAsStale;
     }
 }

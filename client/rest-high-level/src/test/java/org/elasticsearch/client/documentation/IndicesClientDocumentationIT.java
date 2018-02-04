@@ -411,19 +411,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.type("tweet"); // <2>
             // end::put-mapping-request
 
-            // tag::put-mapping-request-source
-            request.source(
-                "{\n" +
-                "  \"tweet\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"message\": {\n" +
-                "        \"type\": \"text\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", // <1>
-                XContentType.JSON);
-            // end::put-mapping-request-source
+            {
+                // tag::put-mapping-request-source
+                request.source(
+                    "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                    XContentType.JSON);
+                // end::put-mapping-request-source
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
 
             {
                 //tag::put-mapping-map
@@ -432,9 +434,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
-                Map<String, Object> tweet = new HashMap<>();
-                tweet.put("properties", properties);
-                jsonMap.put("tweet", tweet);
+                jsonMap.put("properties", properties);
                 request.source(jsonMap); // <1>
                 //end::put-mapping-map
                 PutMappingResponse putMappingResponse = client.indices().putMapping(request);
@@ -445,15 +445,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject();
                 {
-                    builder.startObject("tweet");
+                    builder.startObject("properties");
                     {
-                        builder.startObject("properties");
+                        builder.startObject("message");
                         {
-                            builder.startObject("message");
-                            {
-                                builder.field("type", "text");
-                            }
-                            builder.endObject();
+                            builder.field("type", "text");
                         }
                         builder.endObject();
                     }

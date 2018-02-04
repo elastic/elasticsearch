@@ -111,6 +111,8 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_6_6 = new Version(V_5_6_6_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_7_ID = 5060799;
     public static final Version V_5_6_7 = new Version(V_5_6_7_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_8_ID = 5060899;
+    public static final Version V_5_6_8 = new Version(V_5_6_8_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -146,6 +148,8 @@ public class Version implements Comparable<Version> {
     public static final Version V_6_1_2 = new Version(V_6_1_2_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_3_ID = 6010399;
     public static final Version V_6_1_3 = new Version(V_6_1_3_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final int V_6_1_4_ID = 6010499;
+    public static final Version V_6_1_4 = new Version(V_6_1_4_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_2_0_ID = 6020099;
     public static final Version V_6_2_0 = new Version(V_6_2_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
     public static final int V_6_3_0_ID = 6030099;
@@ -172,6 +176,8 @@ public class Version implements Comparable<Version> {
                 return V_6_3_0;
             case V_6_2_0_ID:
                 return V_6_2_0;
+            case V_6_1_4_ID:
+                return V_6_1_4;
             case V_6_1_3_ID:
                 return V_6_1_3;
             case V_6_1_2_ID:
@@ -198,6 +204,8 @@ public class Version implements Comparable<Version> {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_8_ID:
+                return V_5_6_8;
             case V_5_6_7_ID:
                 return V_5_6_7;
             case V_5_6_6_ID:

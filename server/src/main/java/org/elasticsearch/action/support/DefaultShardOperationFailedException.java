@@ -38,13 +38,13 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
+    private static final String REASON = "reason";
+
     private static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
-        "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1], (Throwable) arg[2]));
+        "failures", true, arg -> new DefaultShardOperationFailedException((ElasticsearchException) arg[0]));
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField(Fields.INDEX));
-        PARSER.declareInt(constructorArg(), new ParseField(Fields.SHARD_ID));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(Fields.REASON));
+        PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
     }
 
     private String index;
@@ -133,12 +133,11 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index", index());
         builder.field("shard", shardId());
+        builder.field("index", index());
         builder.field("status", status.name());
         if (reason != null) {
-            builder.field("reason");
-            builder.startObject();
+            builder.startObject("reason");
             ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
@@ -147,11 +146,5 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     public static DefaultShardOperationFailedException fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
-    }
-
-    private static final class Fields {
-        static final String INDEX = "index";
-        static final String SHARD_ID = "shardId";
-        static final String REASON = "reason";
     }
 }

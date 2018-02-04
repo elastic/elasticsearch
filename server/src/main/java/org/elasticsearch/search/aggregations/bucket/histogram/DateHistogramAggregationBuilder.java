@@ -27,6 +27,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -134,6 +136,23 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
         super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
+    }
+
+    protected DateHistogramAggregationBuilder(DateHistogramAggregationBuilder clone,
+                                              Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.interval = clone.interval;
+        this.dateHistogramInterval = clone.dateHistogramInterval;
+        this.offset = clone.offset;
+        this.extendedBounds = clone.extendedBounds;
+        this.order = clone.order;
+        this.keyed = clone.keyed;
+        this.minDocCount = clone.minDocCount;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new DateHistogramAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /** Read from a stream, for internal use only. */

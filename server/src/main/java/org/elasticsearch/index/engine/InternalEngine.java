@@ -184,7 +184,7 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -1477,14 +1477,7 @@ public class InternalEngine extends Engine {
          * thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */
         final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
-        /*
-         * If flushThreshold is too small, we may repeatedly flush even there is no uncommitted operation
-         * as #sizeOfGensAboveSeqNoInByte and #uncommittedSizeInBytes can return different values.
-         * An empty translog file has non-zero `uncommittedSize` (the translog header), and method #sizeOfGensAboveSeqNoInBytes can
-         * return 0 now(no translog gen contains ops above local checkpoint) but method #uncommittedSizeInBytes will return an actual
-         * non-zero value after rolling a new translog generation. This can be avoided by checking the actual uncommitted operations.
-         */
-        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit && translog.uncommittedOperations() > 0;
+        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
     }
 
     @Override

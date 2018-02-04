@@ -62,7 +62,7 @@ public class RestRefreshAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(RefreshResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(response.getStatus(), builder);
             }

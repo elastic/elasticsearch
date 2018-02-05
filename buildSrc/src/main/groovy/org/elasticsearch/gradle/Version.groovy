@@ -35,9 +35,7 @@ public class Version {
     final int id
     final boolean snapshot
     /**
-     * Suffix on the version name. Unlike Version.java the build does not
-     * consider alphas and betas different versions, it just preserves the
-     * suffix that the version was declared with in Version.java.
+     * Suffix on the version name.
      */
     final String suffix
 

@@ -208,19 +208,17 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
-  def addBWCSnapshotSubstitutions = { String snapshotProject, Version version ->
-    if (version != null) {
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
+  versionCollection.snapshotProjectNames.each { snapshotName ->
+
+    Version snapshot = versionCollection.getCorrelatedNameToSnapshot(snapshotName)
+    if (snapshot != null ) {
+      String snapshotProject = ":distribution:bwc:${snapshotName}"
+      project(snapshotProject).ext.bwcVersion = snapshot
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
     }
   }
-
-  addBWCSnapshotSubstitutions(':distribution:bwc:next-minor-snapshot', versionCollection.nextMinorSnapshot)
-  addBWCSnapshotSubstitutions(':distribution:bwc:staged-minor-snapshot', versionCollection.stagedMinorSnapshot)
-  addBWCSnapshotSubstitutions(':distribution:bwc:next-bugfix-snapshot', versionCollection.nextBugfixSnapshot)
-  addBWCSnapshotSubstitutions(':distribution:bwc:maintenance-bugfix-snapshot', versionCollection.maintenanceBugfixSnapshot)
 
   project.afterEvaluate {
     configurations.all {

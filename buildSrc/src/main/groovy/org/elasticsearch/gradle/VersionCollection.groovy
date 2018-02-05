@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle
 
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 
 import java.util.regex.Matcher
 
@@ -58,6 +59,12 @@ class VersionCollection {
     Version maintenanceBugfixSnapshot
     final Version currentVersion
     private final TreeSet<Version> versionSet = new TreeSet<>()
+    final List<String> snapshotProjectNames = ['next-minor-snapshot',
+                                               'staged-minor-snapshot',
+                                               'next-bugfix-snapshot',
+                                               'maintenance-bugfix-snapshot']
+
+
 
     // When we roll 8.0 its very likely these will need to be extracted from this class
     private final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
@@ -244,6 +251,28 @@ class VersionCollection {
         compatSnapshots.removeAll {it.major == 2}
 
         return compatSnapshots;
+    }
+
+    /**
+     * Grabs the proper snapshot based on the name passed in. These names should correspond with gradle project names under bwc. If you
+     * are editing this if/else it is only because you added another project under :distribution:bwc. Do not modify this method or its
+     * reasoning for throwing the exception unless you are sure that it will not harm :distribution:bwc.
+     */
+    Version getCorrelatedNameToSnapshot(String snapshotProjectName) {
+        if (snapshotProjectName == 'next-minor-snapshot') {
+            return nextMinorSnapshot
+        } else if (snapshotProjectName == 'staged-minor-snapshot') {
+            return stagedMinorSnapshot
+        } else if (snapshotProjectName == 'maintenance-bugfix-snapshot') {
+            return maintenanceBugfixSnapshot
+        } else if (snapshotProjectName == 'next-bugfix-snapshot') {
+            return nextBugfixSnapshot
+        } else {
+            throw new InvalidUserDataException("Unsupported project name ${project.name}")
+        }
+
+        throw new GradleException("Could not find a valid snapshot for ${snapshotProjectName}. Please make sure that the project being" +
+            " invoked makes sense against the ${actualVersion} version")
     }
 
     /**

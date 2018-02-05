@@ -65,7 +65,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -435,7 +435,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
-                    new GlobalCheckpointTracker(shardId, allocationId.getId(), indexSettings,
+                    new ReplicationTracker(shardId, allocationId.getId(), indexSettings,
                         SequenceNumbers.UNASSIGNED_SEQ_NO) : globalCheckpointSupplier);
         return config;
     }

@@ -29,11 +29,16 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -61,6 +66,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -69,6 +75,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -132,7 +139,7 @@ public final class Request {
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
-        String endpoint = endpoint(deleteIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(deleteIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(deleteIndexRequest.timeout());
@@ -143,7 +150,7 @@ public final class Request {
     }
 
     static Request openIndex(OpenIndexRequest openIndexRequest) {
-        String endpoint = endpoint(openIndexRequest.indices(), Strings.EMPTY_ARRAY, "_open");
+        String endpoint = endpoint(openIndexRequest.indices(), "_open");
 
         Params parameters = Params.builder();
 
@@ -156,7 +163,7 @@ public final class Request {
     }
 
     static Request closeIndex(CloseIndexRequest closeIndexRequest) {
-        String endpoint = endpoint(closeIndexRequest.indices(), Strings.EMPTY_ARRAY, "_close");
+        String endpoint = endpoint(closeIndexRequest.indices(), "_close");
 
         Params parameters = Params.builder();
 
@@ -168,7 +175,7 @@ public final class Request {
     }
 
     static Request createIndex(CreateIndexRequest createIndexRequest) throws IOException {
-        String endpoint = endpoint(createIndexRequest.indices(), Strings.EMPTY_ARRAY, "");
+        String endpoint = endpoint(createIndexRequest.indices());
 
         Params parameters = Params.builder();
         parameters.withTimeout(createIndexRequest.timeout());
@@ -177,6 +184,15 @@ public final class Request {
 
         HttpEntity entity = createEntity(createIndexRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request updateAliases(IndicesAliasesRequest indicesAliasesRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(indicesAliasesRequest.timeout());
+        parameters.withMasterTimeout(indicesAliasesRequest.masterNodeTimeout());
+
+        HttpEntity entity = createEntity(indicesAliasesRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, "/_aliases", parameters.getParams(), entity);
     }
 
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {
@@ -348,7 +364,7 @@ public final class Request {
         parameters.withRealtime(multiGetRequest.realtime());
         parameters.withRefresh(multiGetRequest.refresh());
         HttpEntity entity = createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, "/_mget", parameters.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_mget", parameters.getParams(), entity);
     }
 
     static Request index(IndexRequest indexRequest) {
@@ -429,6 +445,9 @@ public final class Request {
         if (searchRequest.requestCache() != null) {
             params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
+        if (searchRequest.allowPartialSearchResults() != null) {
+            params.putParam("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
+        }
         params.putParam("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
         if (searchRequest.scroll() != null) {
             params.putParam("scroll", searchRequest.scroll().keepAlive());
@@ -437,17 +456,17 @@ public final class Request {
         if (searchRequest.source() != null) {
             entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
         }
-        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
         HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+        return new Request(HttpDelete.METHOD_NAME, "/_search/scroll", Collections.emptyMap(), entity);
     }
 
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
@@ -459,7 +478,52 @@ public final class Request {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         HttpEntity entity = new ByteArrayEntity(source, createContentType(xContent.type()));
-        return new Request("GET", "/_msearch", params.getParams(), entity);
+        return new Request(HttpPost.METHOD_NAME, "/_msearch", params.getParams(), entity);
+    }
+
+    static Request existsAlias(GetAliasesRequest getAliasesRequest) {
+        Params params = Params.builder();
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        if (getAliasesRequest.indices().length == 0 && getAliasesRequest.aliases().length == 0) {
+            throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
+        }
+        String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
+        // TODO maybe indices should be propery of RankEvalRequest and not of the spec
+        List<String> indices = rankEvalRequest.getRankEvalSpec().getIndices();
+        String endpoint = endpoint(indices.toArray(new String[indices.size()]), Strings.EMPTY_ARRAY, "_rank_eval");
+        HttpEntity entity = null;
+        entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+    }
+
+    static Request split(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.SPLIT) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices split request");
+        }
+        return resize(resizeRequest);
+    }
+
+    static Request shrink(ResizeRequest resizeRequest) throws IOException {
+        if (resizeRequest.getResizeType() != ResizeType.SHRINK) {
+            throw new IllegalArgumentException("Wrong resize type [" + resizeRequest.getResizeType() + "] for indices shrink request");
+        }
+        return resize(resizeRequest);
+    }
+
+    private static Request resize(ResizeRequest resizeRequest) throws IOException {
+        Params params = Params.builder();
+        params.withTimeout(resizeRequest.timeout());
+        params.withMasterTimeout(resizeRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(resizeRequest.getTargetIndexRequest().waitForActiveShards());
+        String endpoint = buildEndpoint(resizeRequest.getSourceIndex(), "_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT),
+                resizeRequest.getTargetIndexRequest().index());
+        HttpEntity entity = createEntity(resizeRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -467,8 +531,28 @@ public final class Request {
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
+    static String endpoint(String index, String type, String id) {
+        return buildEndpoint(index, type, id);
+    }
+
+    static String endpoint(String index, String type, String id, String endpoint) {
+        return buildEndpoint(index, type, id, endpoint);
+    }
+
+    static String endpoint(String[] indices) {
+        return buildEndpoint(String.join(",", indices));
+    }
+
+    static String endpoint(String[] indices, String endpoint) {
+        return buildEndpoint(String.join(",", indices), endpoint);
+    }
+
     static String endpoint(String[] indices, String[] types, String endpoint) {
-        return endpoint(String.join(",", indices), String.join(",", types), endpoint);
+        return buildEndpoint(String.join(",", indices), String.join(",", types), endpoint);
+    }
+
+    static String endpoint(String[] indices, String endpoint, String[] suffixes) {
+        return buildEndpoint(String.join(",", indices), endpoint, String.join(",", suffixes));
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {
@@ -476,9 +560,9 @@ public final class Request {
     }
 
     /**
-     * Utility method to build request's endpoint.
+     * Utility method to build request's endpoint given its parts as strings
      */
-    static String endpoint(String... parts) {
+    static String buildEndpoint(String... parts) {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
@@ -497,6 +581,17 @@ public final class Request {
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    static Request indicesExist(GetIndexRequest request) {
+        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
+        Params params = Params.builder();
+        params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
+        params.withIndicesOptions(request.indicesOptions());
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**
@@ -633,7 +728,7 @@ public final class Request {
             if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
                 expandWildcards = "none";
             } else {
-                StringJoiner joiner  = new StringJoiner(",");
+                StringJoiner joiner = new StringJoiner(",");
                 if (indicesOptions.expandWildcardsOpen()) {
                     joiner.add("open");
                 }
@@ -643,6 +738,34 @@ public final class Request {
                 expandWildcards = joiner.toString();
             }
             putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withHuman(boolean human) {
+            if (human) {
+                putParam("human", Boolean.toString(human));
+            }
+            return this;
+        }
+
+        Params withLocal(boolean local) {
+            if (local) {
+                putParam("local", Boolean.toString(local));
+            }
+            return this;
+        }
+
+        Params withFlatSettings(boolean flatSettings) {
+            if (flatSettings) {
+                return putParam("flat_settings", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withIncludeDefaults(boolean includeDefaults) {
+            if (includeDefaults) {
+                return putParam("include_defaults", Boolean.TRUE.toString());
+            }
             return this;
         }
 

@@ -63,8 +63,8 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }
-            keystore = KeyStoreWrapper.create(new char[0] /* always use empty passphrase for auto created keystore */);
-            keystore.save(env.configFile());
+            keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), new char[0] /* always use empty passphrase for auto created keystore */);
             terminal.println("Created elasticsearch keystore in " + env.configFile());
         } else {
             keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
@@ -94,6 +94,6 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         } catch (IllegalArgumentException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
         }
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), new char[0]);
     }
 }

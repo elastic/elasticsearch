@@ -567,6 +567,9 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                jvmArg '--illegal-access=warn'
+            }
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD

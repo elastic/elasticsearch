@@ -420,7 +420,7 @@ public class IndexShardTests extends IndexShardTestCase {
      * This test makes sure that people can use the shard routing entry to check whether a shard was already promoted to
      * a primary. Concretely this means, that when we publish the routing entry via {@link IndexShard#routingEntry()} the following
      * should have happened
-     * 1) Internal state (ala GlobalCheckpointTracker) have been updated
+     * 1) Internal state (ala ReplicationTracker) have been updated
      * 2) Primary term is set to the new term
      */
     public void testPublishingOrderOnPromotion() throws IOException, BrokenBarrierException, InterruptedException {
@@ -1585,7 +1585,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         // check that local checkpoint of new primary is properly tracked after recovery
         assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(newShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
+        assertThat(newShard.getReplicationTracker().getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId())
                 .getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(newShard, totalOps);
         closeShards(newShard);
@@ -1604,7 +1604,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // check that local checkpoint of new primary is properly tracked after primary relocation
         assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
-        assertThat(primaryTarget.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+        assertThat(primaryTarget.getReplicationTracker().getTrackedLocalCheckpointForShard(
             primaryTarget.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(totalOps - 1L));
         assertDocCount(primaryTarget, totalOps);
         closeShards(primarySource, primaryTarget);
@@ -1815,9 +1815,9 @@ public class IndexShardTests extends IndexShardTestCase {
         }));
         assertThat(target.getLocalCheckpoint(), equalTo(0L));
         assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
-        assertThat(target.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.getReplicationTracker().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
-        assertThat(target.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+        assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
             target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
 
         assertDocs(target, "0");
@@ -2261,9 +2261,9 @@ public class IndexShardTests extends IndexShardTestCase {
             }
             // check that local checkpoint of new primary is properly tracked after recovery
             assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
-            assertThat(targetShard.getGlobalCheckpointTracker().getGlobalCheckpoint(), equalTo(1L));
+            assertThat(targetShard.getReplicationTracker().getGlobalCheckpoint(), equalTo(1L));
             IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
-            assertThat(targetShard.getGlobalCheckpointTracker().getTrackedLocalCheckpointForShard(
+            assertThat(targetShard.getReplicationTracker().getTrackedLocalCheckpointForShard(
                 targetShard.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(1L));
             assertDocCount(targetShard, 2);
         }

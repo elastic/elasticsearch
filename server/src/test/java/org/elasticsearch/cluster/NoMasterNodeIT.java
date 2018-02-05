@@ -198,13 +198,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client().prepareGet("test1", "type1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = client().prepareSearch("test1").setSize(0).get();
+        SearchResponse countResponse = client().prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
         assertHitCount(countResponse, 1L);
 
-        SearchResponse searchResponse = client().prepareSearch("test1").get();
+        SearchResponse searchResponse = client().prepareSearch("test1").setAllowPartialSearchResults(true).get();
         assertHitCount(searchResponse, 1L);
 
-        countResponse = client().prepareSearch("test2").setSize(0).get();
+        countResponse = client().prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(2));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 

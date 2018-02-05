@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
@@ -41,6 +43,14 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
         protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, valuesSourceType, targetValueType);
+        }
+
+        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+            super(clone, factoriesBuilder, metaData);
+            if (factoriesBuilder.count() > 0) {
+                throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
+                    + getType() + "] cannot accept sub-aggregations");
+            }
         }
 
         /**
@@ -59,7 +69,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
 
         @Override
-        public AB subAggregations(Builder subFactories) {
+        public final AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
                     + getType() + "] cannot accept sub-aggregations");
         }
@@ -82,6 +92,20 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
+    }
+
+    protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
+                                             Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.valuesSourceType = clone.valuesSourceType;
+        this.targetValueType = clone.targetValueType;
+        this.field = clone.field;
+        this.valueType = clone.valueType;
+        this.format = clone.format;
+        this.missing = clone.missing;
+        this.timeZone = clone.timeZone;
+        this.config = clone.config;
+        this.script = clone.script;
     }
 
     /**

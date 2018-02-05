@@ -61,7 +61,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -463,7 +463,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
         final long startingSeqNo;
         if (snapshot.size() > 0) {
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
+            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
@@ -641,7 +641,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return indexShard.getEngine();
     }
 
-    public static GlobalCheckpointTracker getGlobalCheckpointTracker(IndexShard indexShard) {
-        return indexShard.getGlobalCheckpointTracker();
+    public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {
+        return indexShard.getReplicationTracker();
     }
 }

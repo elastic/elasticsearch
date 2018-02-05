@@ -26,7 +26,6 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -52,7 +51,7 @@ class NettyChannelAdaptor extends EmbeddedChannel {
 
                 try {
                     ByteBuf message = (ByteBuf) msg;
-                    BytesReference bytesReference = Netty4Utils.toBytesReference(message);
+                    BytesReference bytesReference = ByteBufBytesReference.toBytesReference(message);
                     promise.addListener((f) -> message.release());
                     messages.add(new Tuple<>(bytesReference, promise));
                 } catch (Exception e) {

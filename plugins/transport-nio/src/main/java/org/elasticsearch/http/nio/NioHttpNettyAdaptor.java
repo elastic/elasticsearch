@@ -32,9 +32,9 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
-import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
+import org.elasticsearch.http.nio.cors.Netty4CorsConfig;
+import org.elasticsearch.http.nio.cors.Netty4CorsHandler;
+import org.elasticsearch.http.nio.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.nio.NioSocketChannel;
 
 import java.util.function.BiConsumer;
@@ -46,7 +46,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEAD
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
-import static org.elasticsearch.http.netty4.Netty4HttpServerTransport.SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS;
 
 public class NioHttpNettyAdaptor {
 
@@ -77,7 +76,8 @@ public class NioHttpNettyAdaptor {
         this.maxChunkSize = Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes());
         this.maxHeaderSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
         this.maxInitialLineLength = Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes());
-        this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
+        // TODO: Do we need?
+        this.maxCompositeBufferComponents = -1;
     }
 
     protected NettyChannelAdaptor getAdaptor(NioSocketChannel channel) {

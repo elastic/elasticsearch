@@ -17,18 +17,14 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedResponse;
-import org.elasticsearch.nio.NioChannel;
+import org.elasticsearch.http.nio.cors.Netty4CorsConfigBuilder;
+import org.elasticsearch.http.nio.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.http.nio.pipelining.HttpPipelinedResponse;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.netty4.ByteBufBytesReference;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -39,7 +35,6 @@ import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class NioHttpNettyAdaptorTests extends ESTestCase {
 
@@ -142,7 +137,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         assertFalse(message.v2().isDone());
 
-        HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(message.v1()));
+        HttpResponse response = responseDecoder.decode(ByteBufBytesReference.toByteBuf(message.v1()));
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());
         assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, response.status());
     }
@@ -157,7 +152,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         channelAdaptor.writeOutbound(defaultFullHttpResponse);
         Tuple<BytesReference, ChannelPromise> encodedMessage = channelAdaptor.popMessage();
 
-        HttpResponse response = responseDecoder.decode(Netty4Utils.toByteBuf(encodedMessage.v1()));
+        HttpResponse response = responseDecoder.decode(ByteBufBytesReference.toByteBuf(encodedMessage.v1()));
 
         assertEquals(HttpResponseStatus.OK, response.status());
         assertEquals(HttpVersion.HTTP_1_1, response.protocolVersion());

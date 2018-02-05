@@ -6,8 +6,8 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.http.nio.cors.Netty4CorsConfig;
+import org.elasticsearch.http.nio.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.nio.NioSocketChannel;
 
 public class NioHttpRequestHandler {

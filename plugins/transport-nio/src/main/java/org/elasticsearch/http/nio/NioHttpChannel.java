@@ -21,14 +21,13 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
-import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
+import org.elasticsearch.http.nio.cors.Netty4CorsConfig;
+import org.elasticsearch.http.nio.cors.Netty4CorsHandler;
+import org.elasticsearch.http.nio.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.util.Collections;
 import java.util.EnumMap;
@@ -77,7 +76,7 @@ final class NioHttpChannel extends AbstractRestChannel {
     public void sendResponse(RestResponse response) {
         // if the response object was created upstream, then use it;
         // otherwise, create a new one
-        ByteBuf buffer = Netty4Utils.toByteBuf(response.content());
+        ByteBuf buffer = ByteBufBytesReference.toByteBuf(response.content());
         final FullHttpResponse resp;
         if (HttpMethod.HEAD.equals(nettyRequest.method())) {
             resp = newResponse(Unpooled.EMPTY_BUFFER);
@@ -128,7 +127,7 @@ final class NioHttpChannel extends AbstractRestChannel {
             } else {
                 msg = resp;
             }
-//            nioChannel.getWriteContext().sendMessage(msg, promise);
+//            nioChannel.getContext().sendMessage(msg, promise);
             releaseContent = false;
             releaseBytesStreamOutput = false;
         } finally {

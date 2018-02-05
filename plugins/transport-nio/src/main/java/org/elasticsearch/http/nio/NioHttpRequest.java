@@ -8,7 +8,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.SocketAddress;
 import java.util.AbstractMap;
@@ -30,7 +29,7 @@ class NioHttpRequest extends RestRequest {
         this.request = request;
         this.channel = channel;
         if (request.content().isReadable()) {
-            this.content = Netty4Utils.toBytesReference(request.content());
+            this.content = ByteBufBytesReference.toBytesReference(request.content());
         } else {
             this.content = BytesArray.EMPTY;
         }

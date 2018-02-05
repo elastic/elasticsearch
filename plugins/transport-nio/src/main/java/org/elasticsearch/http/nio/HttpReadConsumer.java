@@ -1,10 +1,10 @@
 package org.elasticsearch.http.nio;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.SelectionKeyUtils;
 import org.elasticsearch.nio.SocketChannelContext;
 
 import java.nio.ByteBuffer;
@@ -24,8 +24,6 @@ public class HttpReadConsumer implements SocketChannelContext.ReadConsumer {
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) {
-        boolean noPendingWritesPriorToDecode = !nettyPipelineAdaptor.hasMessages();
-
         ByteBuf inboundBytes = toByteBuf(channelBuffer);
 
         int readDelta = inboundBytes.readableBytes();

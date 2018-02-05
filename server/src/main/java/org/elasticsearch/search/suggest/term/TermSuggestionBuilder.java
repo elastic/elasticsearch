@@ -396,33 +396,33 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
+                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.analyzer(parser.text());
-                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fieldname = parser.text();
-                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.size(parser.intValue());
-                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.shardSize(parser.intValue());
-                } else if (SUGGESTMODE_FIELD.match(currentFieldName)) {
+                } else if (SUGGESTMODE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.suggestMode(SuggestMode.resolve(parser.text()));
-                } else if (ACCURACY_FIELD.match(currentFieldName)) {
+                } else if (ACCURACY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.accuracy(parser.floatValue());
-                } else if (SORT_FIELD.match(currentFieldName)) {
+                } else if (SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.sort(SortBy.resolve(parser.text()));
-                } else if (STRING_DISTANCE_FIELD.match(currentFieldName)) {
+                } else if (STRING_DISTANCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
-                } else if (MAX_EDITS_FIELD.match(currentFieldName)) {
+                } else if (MAX_EDITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.maxEdits(parser.intValue());
-                } else if (MAX_INSPECTIONS_FIELD.match(currentFieldName)) {
+                } else if (MAX_INSPECTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.maxInspections(parser.intValue());
-                } else if (MAX_TERM_FREQ_FIELD.match(currentFieldName)) {
+                } else if (MAX_TERM_FREQ_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.maxTermFreq(parser.floatValue());
-                } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                } else if (PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.prefixLength(parser.intValue());
-                } else if (MIN_WORD_LENGTH_FIELD.match(currentFieldName)) {
+                } else if (MIN_WORD_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.minWordLength(parser.intValue());
-                } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
+                } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

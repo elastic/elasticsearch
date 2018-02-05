@@ -259,21 +259,21 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (OTHER_BUCKET_FIELD.match(currentFieldName)) {
+                if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName)) {
+                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucketKey = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     keyedFilters = new ArrayList<>();
                     String key = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -289,7 +289,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder filter = parseInnerQueryBuilder(parser);

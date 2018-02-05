@@ -110,7 +110,7 @@ public final class Laplace extends SmoothingModel {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             }
-            if (token.isValue() && ALPHA_FIELD.match(fieldName)) {
+            if (token.isValue() && ALPHA_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 alpha = parser.doubleValue();
             }
         }

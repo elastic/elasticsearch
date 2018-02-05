@@ -143,7 +143,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (INCLUDES_FIELD.match(currentFieldName)) {
+                    if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> includesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -154,7 +154,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
-                    } else if (EXCLUDES_FIELD.match(currentFieldName)) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -170,9 +170,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                                 + " in [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (INCLUDES_FIELD.match(currentFieldName)) {
+                    if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         includes = new String[] {parser.text()};
-                    } else if (EXCLUDES_FIELD.match(currentFieldName)) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludes = new String[] {parser.text()};
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token

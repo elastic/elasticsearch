@@ -206,20 +206,20 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT_FIELD.match(currentFieldName)) {
+                if (FORMAT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     format = parser.text();
-                } else if (BUCKETS_PATH_FIELD.match(currentFieldName)) {
+                } else if (BUCKETS_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (GAP_POLICY_FIELD.match(currentFieldName)) {
+                } else if (GAP_POLICY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
-                } else if (UNIT_FIELD.match(currentFieldName)) {
+                } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     units = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH_FIELD.match(currentFieldName)) {
+                if (BUCKETS_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

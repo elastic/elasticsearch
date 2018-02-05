@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
@@ -67,7 +68,7 @@ public class HoltWintersModel extends MovAvgModel {
             }
             SeasonalityType result = null;
             for (SeasonalityType policy : values()) {
-                if (policy.parseField.match(text)) {
+                if (policy.parseField.match(text, LoggingDeprecationHandler.INSTANCE)) {
                     result = policy;
                     break;
                 }

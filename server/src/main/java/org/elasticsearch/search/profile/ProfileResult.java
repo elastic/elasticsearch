@@ -176,21 +176,21 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (TYPE.match(currentFieldName)) {
+                if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
-                } else if (DESCRIPTION.match(currentFieldName)) {
+                } else if (DESCRIPTION.match(currentFieldName, parser.getDeprecationHandler())) {
                     description = parser.text();
-                } else if (NODE_TIME.match(currentFieldName)) {
+                } else if (NODE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                     // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
                     parser.text();
-                } else if (NODE_TIME_RAW.match(currentFieldName)) {
+                } else if (NODE_TIME_RAW.match(currentFieldName, parser.getDeprecationHandler())) {
                     // skip, total time is calculate by adding up 'timings' values in ProfileResult ctor
                     parser.longValue();
                 } else {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BREAKDOWN.match(currentFieldName)) {
+                if (BREAKDOWN.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         ensureExpectedToken(parser.currentToken(), XContentParser.Token.FIELD_NAME, parser::getTokenLocation);
                         String name = parser.currentName();
@@ -202,7 +202,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (CHILDREN.match(currentFieldName)) {
+                if (CHILDREN.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         children.add(ProfileResult.fromXContent(parser));
                     }

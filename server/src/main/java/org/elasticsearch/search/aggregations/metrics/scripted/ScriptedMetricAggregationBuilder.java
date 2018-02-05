@@ -255,16 +255,16 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
-                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
+                if (INIT_SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     initScript = Script.parse(parser);
-                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
+                } else if (MAP_SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     mapScript = Script.parse(parser);
-                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
+                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     combineScript = Script.parse(parser);
-                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
+                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     reduceScript = Script.parse(parser);
                 } else if (token == XContentParser.Token.START_OBJECT &&
-                        PARAMS_FIELD.match(currentFieldName)) {
+                        PARAMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

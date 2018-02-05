@@ -104,9 +104,9 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (NUM_PARTITIONS_FIELD.match(currentFieldName)) {
+                } else if (NUM_PARTITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     numPartitions = parser.intValue();
-                } else if (PARTITION_FIELD.match(currentFieldName)) {
+                } else if (PARTITION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     partition = parser.intValue();
                 } else {
                     throw new ElasticsearchParseException(

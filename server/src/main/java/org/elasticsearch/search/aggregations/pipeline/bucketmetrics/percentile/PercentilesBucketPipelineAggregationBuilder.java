@@ -135,7 +135,7 @@ public class PercentilesBucketPipelineAggregationBuilder
         @Override
         protected boolean token(XContentParser parser, String field, XContentParser.Token token, Map<String, Object> params)
                 throws IOException {
-            if (PERCENTS_FIELD.match(field) && token == XContentParser.Token.START_ARRAY) {
+            if (PERCENTS_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.START_ARRAY) {
                 DoubleArrayList percents = new DoubleArrayList(10);
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());

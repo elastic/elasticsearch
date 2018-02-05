@@ -170,6 +170,7 @@ is no password to manage or reset.
 From time-to-time you may find a reference to one of these users inside your
 logs, including <<auditing, audit logs>>.
 
+[[how-authc-works]]
 === How Authentication Works
 
 Authentication in {security} is handled by one or more authentication services
@@ -202,6 +203,13 @@ _file_::
 An internal realm where users are defined in files stored on each node in the
 Elasticsearch cluster. This realm supports an authentication token in the form
 of username and password, and is always available. See <<file-realm>>.
+
+_saml_::
+A realm that facilitates authentication using the SAML 2.0 Web SSO protocol.
+This realm is designed to support authentication through {kib}, and is non
+intended for use in the REST API.  See <<saml-realm>>.
+
+
 
 {security} also supports custom realms. If you need to integrate with another
 authentication system, you can build a custom realm plugin. For more information,
@@ -321,6 +329,10 @@ include::authentication/pki-realm.asciidoc[]
 
 include::authentication/file-realm.asciidoc[]
 
+include::authentication/saml-realm.asciidoc[]
+
 include::authentication/custom-realm.asciidoc[]
 
 include::authentication/user-cache.asciidoc[]
+
+include::authentication/saml-guide.asciidoc[]

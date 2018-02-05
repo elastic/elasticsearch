@@ -90,7 +90,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReIn
 
     @Override
     public boolean reinit(Settings settings) {
-        // TODO clientSettings
-        return false;
+        this.awsS3Service.updateClientSettings(settings);
+        return true;
     }
 }

@@ -31,7 +31,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -94,6 +93,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
 
@@ -184,7 +184,7 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -518,6 +518,27 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        final boolean synced = translog.ensureSynced(locations);
+        if (synced) {
+            revisitIndexDeletionPolicyOnTranslogSynced();
+        }
+        return synced;
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translog.sync();
+        revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
+        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     @Override
@@ -1442,6 +1463,24 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldPeriodicallyFlush() {
+        ensureOpen();
+        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
+        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+            return false;
+        }
+        /*
+         * We should only flush ony if the shouldFlush condition can become false after flushing.
+         * This condition will change if the `uncommittedSize` of the new commit is smaller than
+         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
+         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
+         */
+        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
+        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
+    }
+
+    @Override
     public CommitId flush() throws EngineException {
         return flush(false, false);
     }
@@ -1471,7 +1510,9 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (indexWriter.hasUncommittedChanges() || force) {
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+                // newly created commit points to a different translog generation (can free translog)
+                if (indexWriter.hasUncommittedChanges() || force || shouldPeriodicallyFlush()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

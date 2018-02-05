@@ -162,12 +162,12 @@ public class NodeToStringTests extends ESTestCase {
     public void testECast() {
         Location l = new Location(getTestName(), 0);
         AExpression child = new EConstant(l, "test");
-        Cast cast = Cast.standard(definition.StringType, definition.IntegerType, true);
+        Cast cast = Cast.standard(String.class, Integer.class, true);
         assertEquals("(ECast java.lang.Integer (EConstant String 'test'))", new ECast(l, child, cast).toString());
 
         l = new Location(getTestName(), 1);
         child = new EBinary(l, Operation.ADD, new EConstant(l, "test"), new EConstant(l, 12));
-        cast = Cast.standard(definition.IntegerType, definition.BooleanType, true);
+        cast = Cast.standard(Integer.class, Boolean.class, true);
         assertEquals("(ECast java.lang.Boolean (EBinary (EConstant String 'test') + (EConstant Integer 12)))",
             new ECast(l, child, cast).toString());
     }
@@ -397,7 +397,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubBrace() {
         Location l = new Location(getTestName(), 0);
-        PSubBrace node = new PSubBrace(l, definition.intType, new ENumeric(l, "1", 10));
+        PSubBrace node = new PSubBrace(l, int.class, new ENumeric(l, "1", 10));
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubBrace (EVariable a) (ENumeric 1))", node.toString());
     }
@@ -763,7 +763,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachArray() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", definition.intType, 5, false);
+        Variable v = new Variable(l, "test", int.class, 5, false);
         AExpression e = new ENewArray(l, "int", Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)), true);
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachArray node = new SSubEachArray(l, v, e, b);
@@ -775,7 +775,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testSSubEachIterable() {
         Location l = new Location(getTestName(), 0);
-        Variable v = new Variable(l, "test", definition.intType, 5, false);
+        Variable v = new Variable(l, "test", int.class, 5, false);
         AExpression e = new EListInit(l, Arrays.asList(new EConstant(l, 1), new EConstant(l, 2), new EConstant(l, 3)));
         SBlock b = new SBlock(l, singletonList(new SReturn(l, new EConstant(l, 5))));
         SSubEachIterable node = new SSubEachIterable(l, v, e, b);

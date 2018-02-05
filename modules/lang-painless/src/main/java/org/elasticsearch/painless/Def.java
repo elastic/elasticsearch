@@ -279,7 +279,7 @@ public final class Def {
                      captures[capture] = callSiteType.parameterType(i + 1 + capture);
                  }
                  MethodHandle filter;
-                 Definition.Type interfaceType = method.arguments.get(i - 1 - replaced);
+                 Definition.Type interfaceType = definition.ClassToType(method.arguments.get(i - 1 - replaced));
                  if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
@@ -363,10 +363,10 @@ public final class Def {
                  }
                  throw new IllegalArgumentException("Unknown call [" + call + "] with [" + arity + "] arguments.");
              }
-             ref = new FunctionRef(clazz, interfaceMethod, call, handle.type(), captures.length);
+             ref = new FunctionRef(clazz.clazz, interfaceMethod, call, handle.type(), captures.length);
          } else {
              // whitelist lookup
-             ref = new FunctionRef(definition, clazz, type, call, captures.length);
+             ref = new FunctionRef(definition, clazz.clazz, type, call, captures.length);
          }
          final CallSite callSite = LambdaBootstrap.lambdaBootstrap(
              lookup,

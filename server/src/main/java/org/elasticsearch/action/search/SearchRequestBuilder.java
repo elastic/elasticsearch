@@ -488,6 +488,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
+    
+
+    /**
+     * Sets if this request should allow partial results.  (If method is not called,
+     * will default to the cluster level setting).
+     */
+    public SearchRequestBuilder setAllowPartialSearchResults(boolean allowPartialSearchResults) {
+        request.allowPartialSearchResults(allowPartialSearchResults);
+        return this;
+    }    
 
     /**
      * Should the query be profiled. Defaults to <code>false</code>

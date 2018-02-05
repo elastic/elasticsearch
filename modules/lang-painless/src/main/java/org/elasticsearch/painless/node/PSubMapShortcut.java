@@ -20,17 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
+import org.elasticsearch.painless.Definition.Struct;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a map load/store shortcut. (Internal only.)
@@ -60,7 +58,7 @@ final class PSubMapShortcut extends AStoreable {
         getter = struct.methods.get(new Definition.MethodKey("get", 1));
         setter = struct.methods.get(new Definition.MethodKey("put", 2));
 
-        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1)) {
+        if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + struct.name + "]."));
         }
 
@@ -92,8 +90,8 @@ final class PSubMapShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn != getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -108,7 +106,7 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -123,8 +121,8 @@ final class PSubMapShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn != getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -134,7 +132,7 @@ final class PSubMapShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.rtn).getSize());
     }
 
     @Override

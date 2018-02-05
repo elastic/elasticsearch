@@ -291,7 +291,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(Mapper mergeWith) {
         SourceFieldMapper sourceMergeWith = (SourceFieldMapper) mergeWith;
         List<String> conflicts = new ArrayList<>();
         if (this.enabled != sourceMergeWith.enabled) {

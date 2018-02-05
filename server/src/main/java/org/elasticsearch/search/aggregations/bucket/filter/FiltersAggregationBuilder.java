@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -94,6 +96,19 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         this.filters = keyedFilters;
         this.keyed = false;
+    }
+
+    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.filters = new ArrayList<>(clone.filters);
+        this.keyed = clone.keyed;
+        this.otherBucket = clone.otherBucket;
+        this.otherBucketKey = clone.otherBucketKey;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new FiltersAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

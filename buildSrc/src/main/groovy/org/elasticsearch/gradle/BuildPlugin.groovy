@@ -567,6 +567,9 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                jvmArg '--illegal-access=warn'
+            }
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
@@ -659,7 +662,10 @@ class BuildPlugin implements Plugin<Project> {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
-        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+        // only require dependency licenses for non-elasticsearch deps
+        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
+            it.group.startsWith('org.elasticsearch') == false
+        } - project.configurations.provided
     }
 
     private static configureDependenciesInfo(Project project) {

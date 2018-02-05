@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -57,6 +58,58 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
+
+    public void testIndicesExists() throws IOException {
+        // Index present
+        {
+            String indexName = "test_index_exists_index_present";
+            createIndex(indexName, Settings.EMPTY);
+
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(indexName);
+
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertTrue(response);
+        }
+
+        // Index doesn't exist
+        {
+            String indexName = "non_existent_index";
+
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(indexName);
+
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertFalse(response);
+        }
+
+        // One index exists, one doesn't
+        {
+            String existingIndex = "apples";
+            createIndex(existingIndex, Settings.EMPTY);
+
+            String nonExistentIndex = "oranges";
+
+            GetIndexRequest request = new GetIndexRequest();
+            request.indices(existingIndex, nonExistentIndex);
+
+            boolean response = execute(
+                request,
+                highLevelClient().indices()::exists,
+                highLevelClient().indices()::existsAsync
+            );
+            assertFalse(response);
+        }
+
+    }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void testCreateIndex() throws IOException {

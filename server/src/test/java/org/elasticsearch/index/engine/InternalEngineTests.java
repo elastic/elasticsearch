@@ -109,7 +109,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -602,9 +602,10 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(rarely() || localCheckpoint.get() == SequenceNumbers.NO_OPS_PERFORMED ?
                 SequenceNumbers.UNASSIGNED_SEQ_NO : randomIntBetween(0, (int) localCheckpoint.get()));
 
-            engine.flush(true, true);
+            final Engine.CommitId commitId = engine.flush(true, true);
 
             CommitStats stats2 = engine.commitStats();
+            assertThat(stats2.getRawCommitId(), equalTo(commitId));
             assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
             assertThat(stats2.getId(), notNullValue());
             assertThat(stats2.getId(), not(equalTo(stats1.getId())));
@@ -1968,7 +1969,7 @@ public class InternalEngineTests extends EngineTestCase {
             final ShardRouting primary = TestShardRouting.newShardRouting("test", shardId.id(), "node1", null, true,
                 ShardRoutingState.STARTED, allocationId);
             final ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node2", false, ShardRoutingState.STARTED);
-            GlobalCheckpointTracker gcpTracker = (GlobalCheckpointTracker) initialEngine.config().getGlobalCheckpointSupplier();
+            ReplicationTracker gcpTracker = (ReplicationTracker) initialEngine.config().getGlobalCheckpointSupplier();
             gcpTracker.updateFromMaster(1L, new HashSet<>(Arrays.asList(primary.allocationId().getId(),
                 replica.allocationId().getId())),
                 new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica).build(), Collections.emptySet());

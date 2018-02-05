@@ -20,7 +20,32 @@ A description of the fields to create on the mapping; if not defined, the mappin
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-request-source]
 --------------------------------------------------
-<1> The mapping source
+<1> The mapping source provided as a `String`
+
+==== Providing the mapping source
+The mapping source can be provided in different ways in addition to
+the `String` example shown above:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-map]
+--------------------------------------------------
+<1> Mapping source provided as a `Map` which gets automatically converted
+to JSON format
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-xcontent]
+--------------------------------------------------
+<1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
+built-in helpers to generate JSON content
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-shortcut]
+--------------------------------------------------
+<1> Mapping source provided as `Object` key-pairs, which gets converted to
+JSON format
 
 ==== Optional arguments
 The following arguments can optionally be provided:

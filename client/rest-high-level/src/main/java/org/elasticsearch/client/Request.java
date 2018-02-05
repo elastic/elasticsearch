@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -582,6 +583,17 @@ public final class Request {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
+    static Request indicesExist(GetIndexRequest request) {
+        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
+        Params params = Params.builder();
+        params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
+        params.withIndicesOptions(request.indicesOptions());
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
     /**
      * Utility class to build request's parameters map and centralize all parameter names.
      */
@@ -729,8 +741,31 @@ public final class Request {
             return this;
         }
 
+        Params withHuman(boolean human) {
+            if (human) {
+                putParam("human", Boolean.toString(human));
+            }
+            return this;
+        }
+
         Params withLocal(boolean local) {
-            putParam("local", Boolean.toString(local));
+            if (local) {
+                putParam("local", Boolean.toString(local));
+            }
+            return this;
+        }
+
+        Params withFlatSettings(boolean flatSettings) {
+            if (flatSettings) {
+                return putParam("flat_settings", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withIncludeDefaults(boolean includeDefaults) {
+            if (includeDefaults) {
+                return putParam("include_defaults", Boolean.TRUE.toString());
+            }
             return this;
         }
 

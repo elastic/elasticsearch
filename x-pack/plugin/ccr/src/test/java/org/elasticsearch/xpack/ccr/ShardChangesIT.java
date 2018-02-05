@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
 import java.util.Arrays;

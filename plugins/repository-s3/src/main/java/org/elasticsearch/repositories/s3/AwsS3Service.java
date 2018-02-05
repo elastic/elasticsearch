@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 
 interface AwsS3Service extends LifecycleComponent {
@@ -28,5 +29,12 @@ interface AwsS3Service extends LifecycleComponent {
     /**
      * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
      */
-    AmazonS3 client(Settings repositorySettings);
+    AmazonS3Wrapper client(String clientName);
+
+    void updateClientSettings(Settings settings);
+
+    static interface AmazonS3Wrapper extends Releasable {
+        AmazonS3 client();
+    }
+
 }

@@ -28,6 +28,8 @@ import java.util.Set;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.BasicAWSCredentials;
+
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -151,6 +153,26 @@ class S3ClientSettings {
             clients.put("default", getClientSettings(settings, "default"));
         }
         return Collections.unmodifiableMap(clients);
+    }
+
+    // backcompat for reading keys out of repository settings
+    static BasicAWSCredentials loadCreadentials(DeprecationLogger deprecationLogger, Settings repositorySettings) {
+        if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
+            if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
+                throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey()
+                        + " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
+            }
+            try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
+                    SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
+                deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                        + "store these in named clients and the elasticsearch keystore for secure settings.");
+                return new BasicAWSCredentials(key.toString(), secret.toString());
+            }
+        } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
+            throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey()
+                    + " must be accompanied by setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() + "]");
+        }
+        return null;
     }
 
     // pkg private for tests

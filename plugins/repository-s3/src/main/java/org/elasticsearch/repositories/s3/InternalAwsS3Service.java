@@ -28,66 +28,93 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
-    // pkg private for tests
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    private final ReadWriteLock lock;
+    private final ConcurrentHashMap<String, AmazonS3> clientsCache;
+    private volatile Map<String, S3ClientSettings> clientsSettings;
 
-    private final Map<String, S3ClientSettings> clientsSettings;
-
-    private final Map<String, AmazonS3Client> clientsCache = new HashMap<>();
-
-    InternalAwsS3Service(Settings settings, Map<String, S3ClientSettings> clientsSettings) {
+    InternalAwsS3Service(Settings settings) {
         super(settings);
-        this.clientsSettings = clientsSettings;
+        this.lock = new ReentrantReadWriteLock();
+        this.clientsCache = new ConcurrentHashMap<>();
+        updateClientSettings(settings);
     }
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings) {
-        String clientName = CLIENT_NAME.get(repositorySettings);
-        AmazonS3Client client = clientsCache.get(clientName);
-        if (client != null) {
-            return client;
+    public void updateClientSettings(Settings settings) {
+        lock.writeLock().lock();
+        try {
+            // clear previously cached clients
+            assert clientsSettings.containsKey("default") : "always at least have 'default'";
+            for (final AmazonS3 client : clientsCache.values()) {
+                client.shutdown();
+            }
+            clientsCache.clear();
+            // reload secure settings
+            clientsSettings = S3ClientSettings.load(settings);
+        } finally {
+            lock.writeLock().unlock();
         }
+    }
 
-        S3ClientSettings clientSettings = clientsSettings.get(clientName);
+    @Override
+    public AmazonS3Wrapper client(String clientName) {
+        return new AmazonS3Wrapper() {
+            private final AmazonS3 client;
+            {
+                lock.readLock().lock();
+                client = rawClient(clientName);
+            }
+
+            @Override
+            public void close() {
+                lock.readLock().unlock();
+            }
+
+            @Override
+            public AmazonS3 client() {
+                return client;
+            }
+        };
+    }
+
+    private AmazonS3 rawClient(String clientName) {
+        // the mapping function is applied at most once
+        return clientsCache.computeIfAbsent(clientName, c -> buildClient(c));
+    }
+
+    // does not require synchronization because it is called inside computeIfAbsent
+    private AmazonS3 buildClient(String clientName) {
+        final S3ClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: " +
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
-
         logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
-
-        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
-        ClientConfiguration configuration = buildConfiguration(clientSettings);
-
-        client = new AmazonS3Client(credentials, configuration);
-
+        final AWSCredentialsProvider credentials = buildCredentials(clientSettings);
+        final ClientConfiguration configuration = buildConfiguration(clientSettings);
+        final AmazonS3Client client = new AmazonS3Client(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
             client.setEndpoint(clientSettings.endpoint);
         }
-
-        clientsCache.put(clientName, client);
         return client;
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
+    ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
+        final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
         clientConfiguration.setResponseMetadataCacheSize(0);
@@ -109,27 +136,8 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
-                                                   S3ClientSettings clientSettings, Settings repositorySettings) {
-
-
-        BasicAWSCredentials credentials = clientSettings.credentials;
-        if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
-            if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
-                throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() +
-                    " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
-            }
-            try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
-                 SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
-                credentials = new BasicAWSCredentials(key.toString(), secret.toString());
-            }
-            // backcompat for reading keys out of repository settings
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead " +
-                "store these in named clients and the elasticsearch keystore for secure settings.");
-        } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
-            throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey() +
-                " must be accompanied by setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() + "]");
-        }
+    AWSCredentialsProvider buildCredentials(S3ClientSettings clientSettings) {
+        final BasicAWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using instance profile credentials");
             return new PrivilegedInstanceProfileCredentialsProvider();
@@ -149,10 +157,9 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        for (AmazonS3Client client : clientsCache.values()) {
+        for (final AmazonS3 client : clientsCache.values()) {
             client.shutdown();
         }
-
         // Ensure that IdleConnectionReaper is shutdown
         IdleConnectionReaper.shutdown();
     }

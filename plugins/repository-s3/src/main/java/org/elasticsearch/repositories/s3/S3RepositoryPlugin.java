@@ -58,23 +58,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReIn
         });
     }
 
-    private final Map<String, S3ClientSettings> clientsSettings;
+    private final AwsS3Service awsS3Service;
 
     public S3RepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        clientsSettings = S3ClientSettings.load(settings);
-        assert clientsSettings.isEmpty() == false : "always at least have 'default'";
-    }
-
-    // overridable for tests
-    protected AwsS3Service createStorageService(Settings settings) {
-        return new InternalAwsS3Service(settings, clientsSettings);
+        this.awsS3Service = new InternalAwsS3Service(settings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(S3Repository.TYPE,
-            (metadata) -> new S3Repository(metadata, env.settings(), namedXContentRegistry, createStorageService(env.settings())));
+            (metadata) -> new S3Repository(metadata, env.settings(), namedXContentRegistry, awsS3Service));
     }
 
     @Override

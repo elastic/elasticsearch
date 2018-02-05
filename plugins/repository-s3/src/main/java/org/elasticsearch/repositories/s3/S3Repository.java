@@ -36,6 +36,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -135,6 +137,8 @@ class S3Repository extends BlobStoreRepository {
      */
     static final Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
 
+    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+
     /**
      * Specifies the path within bucket to repository data. Defaults to root directory.
      */
@@ -151,8 +155,8 @@ class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    S3Repository(RepositoryMetaData metadata, Settings settings,
-                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+    S3Repository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
+            AwsS3Service awsService) throws IOException {
         super(metadata, settings, namedXContentRegistry);
 
         String bucket = BUCKET_SETTING.get(metadata.settings());
@@ -174,13 +178,15 @@ class S3Repository extends BlobStoreRepository {
         // Parse and validate the user's S3 Storage Class setting
         String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+        String clientName = CLIENT_NAME.get(metadata.settings());
 
         logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        AmazonS3 client = s3Service.client(metadata.settings());
-        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        // TODO overridden credentials from cluster state
+        S3ClientSettings.loadCreadentials(deprecationLogger, metadata.settings());
+        blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {

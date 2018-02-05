@@ -113,27 +113,24 @@ class VersionCollection {
             } else {
                 // caveat 3 - if our currentVersion is a X.0.0, we need to check X-1 minors to see if they are released
                 if (currentVersion.minor == 0) {
-                    TreeSet<Version> previousMajorSet = getMajorSet(currentVersion.major - 1)
-                    // for each minor in this set, if its unreleased, it should be a snapshot, if it has been releasd, just grab the first released branch
-                    for (int minor = previousMajorSet.last().minor; minor >= 0; minor--) {
-                        TreeSet<Version> minorSet = getMinorSetForMajor(currentVersion.major - 1, minor)
-                        if (minorSet.size() == 1) {
-                            // caveat 1 - This should only ever contain 2 branches in flight. An example is 6.x is frozen, and 6.2 is cut but not yet released
-                            // there is some simple logic to make sure that in the case of more than 2, it will bail. The order is that the minor
-                            // snapshot is fufilled first, and then the staged minor snapshot
+                    for (Version version: getMinorTips(currentVersion.major - 1)) {
+                        if (isReleased(version) == false) {
+                            // caveat 1 - This should only ever contain 2 non released branches in flight. An example is 6.x is frozen,
+                            // and 6.2 is cut but not yet released there is some simple logic to make sure that in the case of more than 2,
+                            // it will bail. The order is that the minor snapshot is fufilled first, and then the staged minor snapshot
                             if (nextMinorSnapshot == null) {
                                 // it has not been set yet
-                                nextMinorSnapshot = removeAndReaddAsSnapshot(minorSet.first())
+                                nextMinorSnapshot = removeAndReaddAsSnapshot(version)
                             } else if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = removeAndReaddAsSnapshot(minorSet.first())
+                                stagedMinorSnapshot = removeAndReaddAsSnapshot(version)
                             } else {
                                 throw new GradleException("More than 2 snapshot version existed for the next minor and staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = removeAndReaddAsSnapshot(minorSet.last())
+                            nextBugfixSnapshot = removeAndReaddAsSnapshot(version)
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
-                            break;
+                            break
                         }
                     }
                     // caveat 0 - now dip back 2 versions to get the last supported snapshot version of the line
@@ -142,19 +139,18 @@ class VersionCollection {
                 } else {
                     // caveat 3 did not apply. version is not a X.0.0, so we are somewhere on a X.Y line
                     // only check till minor == 0 of the major
-                    for (int minor = currentVersion.minor - 1; minor >= 0; minor--) {
-                        TreeSet minorSet = getMinorSetForMajor(currentVersion.major, minor)
-                        if (minorSet.size() == 1) {
-                            // caveat 1 - This should only ever contain 0 or 1 branch in flight. An example is 6.x is frozen, and 6.2 is cut but not yet released
-                            // there is some simple logic to make sure that in the case of more than 1, it will bail
+                    for (Version version: getMinorTips(currentVersion.major)) {
+                        if (isReleased(version) == false) {
+                            // caveat 1 - This should only ever contain 0 or 1 branch in flight. An example is 6.x is frozen, and 6.2 is cut
+                            // but not yet released there is some simple logic to make sure that in the case of more than 1, it will bail
                             if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = removeAndReaddAsSnapshot(minorSet.first())
+                                stagedMinorSnapshot = removeAndReaddAsSnapshot(version)
                             } else {
                                 throw new GradleException("More than 1 snapshot version existed for the staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = removeAndReaddAsSnapshot(minorSet.last())
+                            nextBugfixSnapshot = removeAndReaddAsSnapshot(version)
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
                             break;
                         }
@@ -313,5 +309,22 @@ class VersionCollection {
         return versionSet
             .tailSet(Version.fromString("${major}.0.0"))
             .headSet(currentVersion)
+    }
+
+    /**
+     * Gets the tip of each minor set and puts it in a list.
+     *
+     * examples:
+     *  [1.0.0, 1.1.0, 1.1.1, 1.2.0, 1.3.1] will return [1.0.0, 1.1.1, 1.2.0, 1.3.1]
+     *  [1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.0.4] will return [1.0.4]
+     */
+    private List<Version> getMinorTips(Integer major) {
+        TreeSet<Version> majorSet = getMajorSet(major)
+        List<Version> minorList = new ArrayList<>()
+        for (int minor = majorSet.last().minor; minor >= 0; minor--) {
+            TreeSet<Version> minorSetInMajor = getMinorSetForMajor(major, minor)
+            minorList.add(minorSetInMajor.last())
+        }
+        return minorList
     }
 }

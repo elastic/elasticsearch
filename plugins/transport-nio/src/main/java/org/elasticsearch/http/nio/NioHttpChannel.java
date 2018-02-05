@@ -127,7 +127,8 @@ final class NioHttpChannel extends AbstractRestChannel {
             } else {
                 msg = resp;
             }
-//            nioChannel.getContext().sendMessage(msg, promise);
+            // TODO: Send message
+            nioChannel.getContext().sendMessage(null, promise);
             releaseContent = false;
             releaseBytesStreamOutput = false;
         } finally {

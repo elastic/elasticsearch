@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.Unpooled;
@@ -12,7 +31,7 @@ import org.elasticsearch.nio.NioSocketChannel;
 
 public class NioHttpRequestHandler {
 
-    //    private final NioHttpTransport transport;
+    private final NioHttpTransport transport;
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
     private final Netty4CorsConfig corsConfig;
@@ -20,10 +39,10 @@ public class NioHttpRequestHandler {
     private final boolean httpPipeliningEnabled;
     private final boolean resetCookies;
 
-    public NioHttpRequestHandler(Object transport, NamedXContentRegistry xContentRegistry, boolean detailedErrorsEnabled,
+    public NioHttpRequestHandler(NioHttpTransport transport, NamedXContentRegistry xContentRegistry, boolean detailedErrorsEnabled,
                                  ThreadContext threadContext, boolean httpPipeliningEnabled, Netty4CorsConfig corsConfig,
                                  boolean resetCookies) {
-//        this.transport = transport;
+        this.transport = transport;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
         this.threadContext = threadContext;
         this.httpPipeliningEnabled = httpPipeliningEnabled;
@@ -49,11 +68,11 @@ public class NioHttpRequestHandler {
         final NioHttpChannel httpChannel = new NioHttpChannel(httpRequest, channel, nettyChannel, pipelinedRequest, detailedErrorsEnabled,
             threadContext, corsConfig, resetCookies);
 
-//        if (request.decoderResult().isSuccess()) {
-//            transport.dispatchRequest(httpRequest, httpChannel);
-//        } else {
-//            assert request.decoderResult().isFailure();
-//            transport.dispatchBadRequest(httpRequest, httpChannel, request.decoderResult().cause());
-//        }
+        if (request.decoderResult().isSuccess()) {
+            transport.dispatchRequest(httpRequest, httpChannel);
+        } else {
+            assert request.decoderResult().isFailure();
+            transport.dispatchBadRequest(httpRequest, httpChannel, request.decoderResult().cause());
+        }
     }
 }

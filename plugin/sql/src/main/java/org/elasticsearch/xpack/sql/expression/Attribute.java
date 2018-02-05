@@ -18,6 +18,22 @@ import java.util.List;
  * {@link Expression}s that can be converted into Elasticsearch
  * sorts, aggregations, or queries. They can also be extracted
  * from the result of a search.
+ *
+ * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
+ * expressions (ABS(foo), A, B+C) get converted to attributes and the user can
+ * only see Attributes.
+ *
+ * In the statement {@code SELECT foo FROM TABLE WHERE foo > 10 + 1} 10+1 is an
+ * expression. It's not named - meaning there's no alias for it (defined by the
+ * user) and as such there's no attribute - no column to be returned to the user.
+ * It's an expression used for filtering so it doesn't appear in the result set
+ * (derived table). "foo" on the other hand is an expression, a named expression
+ * (it has a name) and also an attribute - it's a column in the result set.
+ *
+ * Another example {@code SELECT foo FROM ... WHERE bar > 10 +1} "foo" gets
+ * converted into an Attribute, bar does not. That's because bar is used for
+ * filtering alone but it's not part of the projection meaning the user doesn't
+ * need it in the derived table.
  */
 public abstract class Attribute extends NamedExpression {
 

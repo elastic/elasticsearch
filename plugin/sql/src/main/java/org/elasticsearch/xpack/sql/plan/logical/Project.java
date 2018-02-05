@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+/**
+ * A {@code Project} is a {@code Plan} with one child. In {@code SELECT x FROM y}, the "SELECT" statement is a Project.
+ */
 public class Project extends UnaryPlan {
 
     private final List<? extends NamedExpression> projections;

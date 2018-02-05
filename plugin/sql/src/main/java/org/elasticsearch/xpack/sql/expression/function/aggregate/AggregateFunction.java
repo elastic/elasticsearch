@@ -16,6 +16,9 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
+/**
+ * A type of {@code Function} that takes multiple values and extracts a single value out of them. For example, {@code AVG()}.
+ */
 public abstract class AggregateFunction extends Function {
 
     private final Expression field;

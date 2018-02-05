@@ -11,6 +11,11 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
+/**
+ * A {@code Filter} is a type of Plan that performs filtering of results. In
+ * {@code SELECT x FROM y WHERE z ..} the "WHERE" clause is a Filter. A
+ * {@code Filter} has a "condition" Expression that does the filtering.
+ */
 public class Filter extends UnaryPlan {
 
     private final Expression condition;

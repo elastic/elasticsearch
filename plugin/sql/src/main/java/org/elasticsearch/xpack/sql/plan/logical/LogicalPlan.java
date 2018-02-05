@@ -12,6 +12,10 @@ import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.List;
 
+/**
+ * A LogicalPlan is <b>what</b> (not the "how") a user told us they want to do.
+ * For example, a logical plan in English would be: "I want to get from DEN to SFO".
+ */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
 
     /**

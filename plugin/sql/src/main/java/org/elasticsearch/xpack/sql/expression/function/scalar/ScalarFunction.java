@@ -23,6 +23,12 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
+/**
+ * A {@code ScalarFunction} is a {@code Function} that takes values from some
+ * operation and converts each to another value. An example would be
+ * {@code ABS()}, which takes one value at a time, applies a function to the
+ * value (abs) and returns a new value.
+ */
 public abstract class ScalarFunction extends Function {
 
     private ScalarFunctionAttribute lazyAttribute = null;

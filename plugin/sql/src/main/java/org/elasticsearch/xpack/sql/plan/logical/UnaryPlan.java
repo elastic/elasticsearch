@@ -12,6 +12,10 @@ import java.util.Objects;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+/**
+ * A {@code UnaryPlan} is a {@code LogicalPlan} with exactly one child, for example, {@code WHERE x} in a
+ * SQL statement is an {@code UnaryPlan}.
+ */
 public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;

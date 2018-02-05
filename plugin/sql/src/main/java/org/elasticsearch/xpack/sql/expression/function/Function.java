@@ -15,6 +15,10 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.util.List;
 import java.util.StringJoiner;
 
+/**
+ * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
+ * function is always a {@code NamedExpression}.
+ */
 public abstract class Function extends NamedExpression {
 
     private final String functionName, name;

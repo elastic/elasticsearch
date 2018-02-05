@@ -19,6 +19,9 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+/**
+ * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
+ */
 public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends Node<PlanType> {
 
     private AttributeSet lazyOutputSet;

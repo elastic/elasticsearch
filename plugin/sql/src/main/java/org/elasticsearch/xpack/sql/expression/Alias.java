@@ -15,6 +15,14 @@ import static java.util.Collections.singletonList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * An {@code Alias} is a {@code NamedExpression} that gets renamed to something else through the Alias.
+ *
+ * For example, in the statement {@code 5 + 2 AS x}, {@code x} is an alias which is points to {@code ADD(5, 2)}.
+ *
+ * And in {@code SELECT col AS x} "col" is a named expression that gets renamed to "x" through an alias.
+ *
+ */
 public class Alias extends NamedExpression {
 
     private final Expression child;

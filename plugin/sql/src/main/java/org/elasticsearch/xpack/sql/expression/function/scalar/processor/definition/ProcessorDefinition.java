@@ -14,6 +14,14 @@ import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.List;
 
+/**
+ * Contains the tree for processing a function, so for example, the {@code ProcessorDefinition} of:
+ *
+ * ABS(MAX(foo)) + CAST(bar)
+ *
+ * Is an {@code Add} Function with left {@code ABS} over an aggregate (MAX), and
+ * right being a {@code CAST} function.
+ */
 public abstract class ProcessorDefinition extends Node<ProcessorDefinition> implements FieldExtraction {
 
     private final Expression expression;

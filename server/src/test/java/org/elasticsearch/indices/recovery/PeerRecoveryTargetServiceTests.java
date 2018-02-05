@@ -33,7 +33,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             {
                 recoveryEmptyReplica(replica);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(0L));
                 recoveryTarget.decRef();
             }
             // Last commit is good - use it.
@@ -49,7 +49,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
                 replica.getTranslog().sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
             // Global checkpoint does not advance, last commit is not good - use the previous commit
@@ -63,7 +63,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
                 flushShard(replica);
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
             }
             // Advances the global checkpoint, a safe commit also advances
@@ -71,7 +71,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
                 replica.getTranslog().sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
-                assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(initDocs + moreDocs));
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
                 recoveryTarget.decRef();
             }
         } finally {

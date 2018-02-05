@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ExtendedStatsAggregationBuilder
@@ -58,6 +60,17 @@ public class ExtendedStatsAggregationBuilder
 
     public ExtendedStatsAggregationBuilder(String name) {
         super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+    }
+
+    protected ExtendedStatsAggregationBuilder(ExtendedStatsAggregationBuilder clone,
+                                              Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.sigma = clone.sigma;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ExtendedStatsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

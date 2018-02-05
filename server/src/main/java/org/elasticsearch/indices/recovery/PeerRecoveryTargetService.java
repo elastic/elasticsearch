@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
@@ -64,6 +65,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -320,7 +322,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         final long startingSeqNo;
         if (metadataSnapshot.size() > 0) {
-            startingSeqNo = getStartingSeqNo(recoveryTarget);
+            startingSeqNo = getStartingSeqNo(logger, recoveryTarget);
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
@@ -354,12 +356,20 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @return the starting sequence number or {@link SequenceNumbers#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
      * failed
      */
-    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+    public static long getStartingSeqNo(final Logger logger, final RecoveryTarget recoveryTarget) {
         try {
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
             final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
+            if (logger.isTraceEnabled()) {
+                final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
+                for (IndexCommit commit : existingCommits) {
+                    descriptionOfExistingCommits.add(CombinedDeletionPolicy.commitDescription(commit));
+                }
+                logger.trace("Calculate starting seqno based on global checkpoint [{}], safe commit [{}], existing commits [{}]",
+                    globalCheckpoint, CombinedDeletionPolicy.commitDescription(safeCommit), descriptionOfExistingCommits);
+            }
             if (seqNoStats.maxSeqNo <= globalCheckpoint) {
                 assert seqNoStats.localCheckpoint <= globalCheckpoint;
                 /*

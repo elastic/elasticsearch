@@ -11,6 +11,8 @@ Indices APIs::
 * <<java-rest-high-put-mapping>>
 * <<java-rest-high-update-aliases>>
 * <<java-rest-high-exists-alias>>
+* <<java-rest-high-shrink-index>>
+* <<java-rest-high-split-index>>
 
 Single document APIs::
 * <<java-rest-high-document-index>>

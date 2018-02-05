@@ -62,8 +62,10 @@ The following parameters are accepted by `keyword` fields:
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index any string longer than this value.  Defaults to
-    `2147483647` so that all values would be accepted.
+    Do not index any string longer than this value.  Defaults to `2147483647`
+    so that all values would be accepted. Please however note that default
+    dynamic mapping rules create a sub `keyword` field that overrides this
+    default by setting `ignore_above: 256`.
 
 <<mapping-index,`index`>>::
 

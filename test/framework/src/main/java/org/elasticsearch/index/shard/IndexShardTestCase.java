@@ -462,7 +462,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final Store.MetadataSnapshot snapshot = getMetadataSnapshotOrEmpty(replica);
         final long startingSeqNo;
         if (snapshot.size() > 0) {
-            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget);
+            startingSeqNo = PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget);
         } else {
             startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }

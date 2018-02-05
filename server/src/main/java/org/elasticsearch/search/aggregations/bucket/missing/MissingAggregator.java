@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.Bits;
+import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -49,17 +49,21 @@ public class MissingAggregator extends BucketsAggregator implements SingleBucket
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-
-        final Bits docsWithValue;
+        final DocValueBits docsWithValue;
         if (valuesSource != null) {
             docsWithValue = valuesSource.docsWithValue(ctx);
         } else {
-            docsWithValue = new Bits.MatchNoBits(ctx.reader().maxDoc());
+            docsWithValue = new DocValueBits() {
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return false;
+                }
+            };
         }
         return new LeafBucketCollectorBase(sub, docsWithValue) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (docsWithValue != null && !docsWithValue.get(doc)) {
+                if (docsWithValue.advanceExact(doc) == false) {
                     collectBucket(sub, doc, bucket);
                 }
             }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,6 +51,11 @@ public abstract class AggregationBuilder
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
         this.name = name;
+    }
+
+    protected AggregationBuilder(AggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder) {
+        this.name = clone.name;
+        this.factoriesBuilder = factoriesBuilder;
     }
 
     /** Return this aggregation's name. */
@@ -96,15 +102,22 @@ public abstract class AggregationBuilder
     @Override
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
 
+    /**
+     * Create a shallow copy of this builder and replacing {@link #factoriesBuilder} and <code>metaData</code>.
+     * Used by {@link #rewrite(QueryRewriteContext)}.
+     */
+    protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData);
+
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
-        if (rewritten == this) {
-            return rewritten;
-        }
-        rewritten.setMetaData(getMetaData());
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
-        rewritten.subAggregations(rewrittenSubAggs);
-        return rewritten;
+        if (rewritten != this) {
+            return rewritten.setMetaData(getMetaData()).subAggregations(rewrittenSubAggs);
+        } else if (rewrittenSubAggs != factoriesBuilder) {
+            return shallowCopy(rewrittenSubAggs, getMetaData());
+        } else {
+            return this;
+        }
     }
 
     /**

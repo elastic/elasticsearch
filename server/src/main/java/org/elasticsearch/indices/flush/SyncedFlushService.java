@@ -533,7 +533,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
                 numDocs = in.readInt();
             } else {
                 numDocs = UNKNOWN_NUM_DOCS;
@@ -544,7 +544,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
                 out.writeInt(numDocs);
             }
         }

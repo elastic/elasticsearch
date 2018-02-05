@@ -1,0 +1,33 @@
+[[release-notes-6.1.3]]
+== 6.1.3 Release Notes
+
+[[bug-6.1.3]]
+[float]
+=== Bug fixes
+
+Engine::
+* Replica recovery could go into an endless flushing loop {pull}28350[#28350]
+
+Internal::
+* Never return null from Strings.tokenizeToStringArray {pull}28224[#28224] (issue: {issue}28213[#28213])
+* Fallback to TransportMasterNodeAction for cluster health retries {pull}28195[#28195] (issue: {issue}28169[#28169])
+
+Mapping::
+* Allow update of `eager_global_ordinals` on `_parent`. {pull}28014[#28014] (issue: {issue}24407[#24407])
+
+Scripting::
+* Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
+
+Settings::
+*  Fix setting notification for complex setting (affixMap settings) that could cause transient settings to be ignored {pull}28317[#28317] (issue: {issue}28316[#28316])
+* Fix environment variable substitutions in list setting {pull}28106[#28106] (issue: {issue}27926[#27926])
+
+Snapshot/Restore::
+* Avoid concurrent snapshot finalizations when deleting an INIT snapshot {pull}28078[#28078] (issues: {issue}27214[#27214], {issue}27931[#27931], {issue}27974[#27974])
+* Do not start snapshots that are deleted during initialization {pull}27931[#27931]
+
+
+
+
+
+

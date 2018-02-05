@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public final class CardinalityAggregationBuilder
@@ -65,6 +67,11 @@ public final class CardinalityAggregationBuilder
         super(name, ValuesSourceType.ANY, targetValueType);
     }
 
+    public CardinalityAggregationBuilder(CardinalityAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.precisionThreshold = clone.precisionThreshold;
+    }
+
     /**
      * Read from a stream.
      */
@@ -73,6 +80,11 @@ public final class CardinalityAggregationBuilder
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new CardinalityAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     @Override

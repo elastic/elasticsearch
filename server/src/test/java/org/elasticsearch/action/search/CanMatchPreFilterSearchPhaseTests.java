@@ -76,12 +76,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
             new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
             2, randomBoolean(), primaryNode, replicaNode);
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+        
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            new SearchRequest(), null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
@@ -153,12 +156,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
             new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
             2, randomBoolean(), primaryNode, replicaNode);
+
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
+        
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
-            new SearchRequest(), null, shardsIter, timeProvider, 0, null,
+            searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -207,6 +214,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final GroupShardsIterator<SearchShardIterator> shardsIter =
                 SearchAsyncActionTests.getShardsIter("idx", originalIndices, 4096, randomBoolean(), primaryNode, replicaNode);
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
                 logger,
                 searchTransportService,
@@ -214,13 +223,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(),
                 EsExecutors.newDirectExecutorService(),
-                new SearchRequest(),
+                searchRequest,
                 null,
                 shardsIter,
                 timeProvider,
                 0,
                 null,
-                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", null, iter, logger, randomIntBetween(1, 32), executor) {
+                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", searchRequest,
+                        iter, logger, randomIntBetween(1, 32), executor) {
                     @Override
                     void onPhaseDone() {
                         latch.countDown();

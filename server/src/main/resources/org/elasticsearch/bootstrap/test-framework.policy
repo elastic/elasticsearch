@@ -48,7 +48,7 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
   // needed to fail tests on uncaught exceptions from other threads
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
   // needed for top threads handling
-  permission org.elasticsearch.ThreadPermission "modifyArbitraryThreadGroup";
+  permission org.elasticsearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
@@ -60,6 +60,11 @@ grant codeBase "${codebase.junit}" {
 
 grant codeBase "${codebase.mocksocket}" {
   // mocksocket makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};
+
+grant codeBase "${codebase.elasticsearch-nio}" {
+  // elasticsearch-nio makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,connect";
 };
 

@@ -2,8 +2,8 @@
 == Cross Cluster Search
 
 The _cross cluster search_ feature allows any node to act as a federated client across
-multiple clusters. In contrast to the <<modules-tribe,tribe node>> feature, a  cross cluster search node won't
-join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
+multiple clusters. A cross cluster search node won't join the remote cluster, instead
+it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
 Cross cluster search works by configuring a remote cluster in the cluster state and connecting only to a

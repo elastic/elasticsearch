@@ -57,7 +57,7 @@ abstract class GeoJsonParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String fieldName = parser.currentName();
 
-                if (ShapeParser.FIELD_TYPE.match(fieldName)) {
+                if (ShapeParser.FIELD_TYPE.match(fieldName, parser.getDeprecationHandler())) {
                     parser.nextToken();
                     final GeoShapeType type = GeoShapeType.forName(parser.text());
                     if (shapeType != null && shapeType.equals(type) == false) {
@@ -66,10 +66,10 @@ abstract class GeoJsonParser {
                     } else {
                         shapeType = type;
                     }
-                } else if (ShapeParser.FIELD_COORDINATES.match(fieldName)) {
+                } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, parser.getDeprecationHandler())) {
                     parser.nextToken();
                     coordinateNode = parseCoordinates(parser);
-                } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName)) {
+                } else if (ShapeParser.FIELD_GEOMETRIES.match(fieldName, parser.getDeprecationHandler())) {
                     if (shapeType == null) {
                         shapeType = GeoShapeType.GEOMETRYCOLLECTION;
                     } else if (shapeType.equals(GeoShapeType.GEOMETRYCOLLECTION) == false) {
@@ -78,7 +78,7 @@ abstract class GeoJsonParser {
                     }
                     parser.nextToken();
                     geometryCollections = parseGeometries(parser, shapeMapper);
-                } else if (CircleBuilder.FIELD_RADIUS.match(fieldName)) {
+                } else if (CircleBuilder.FIELD_RADIUS.match(fieldName, parser.getDeprecationHandler())) {
                     if (shapeType == null) {
                         shapeType = GeoShapeType.CIRCLE;
                     } else if (shapeType != null && shapeType.equals(GeoShapeType.CIRCLE) == false) {
@@ -87,7 +87,7 @@ abstract class GeoJsonParser {
                     }
                     parser.nextToken();
                     radius = DistanceUnit.Distance.parseDistance(parser.text());
-                } else if (ShapeParser.FIELD_ORIENTATION.match(fieldName)) {
+                } else if (ShapeParser.FIELD_ORIENTATION.match(fieldName, parser.getDeprecationHandler())) {
                     if (shapeType != null
                         && (shapeType.equals(GeoShapeType.POLYGON) || shapeType.equals(GeoShapeType.MULTIPOLYGON)) == false) {
                         malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";

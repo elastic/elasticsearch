@@ -37,6 +37,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -380,14 +381,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     public CreateIndexRequest source(Map<String, ?> source) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (SETTINGS.match(name)) {
+            if (SETTINGS.match(name, LoggingDeprecationHandler.INSTANCE)) {
                 settings((Map<String, Object>) entry.getValue());
-            } else if (MAPPINGS.match(name)) {
+            } else if (MAPPINGS.match(name, LoggingDeprecationHandler.INSTANCE)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
-            } else if (ALIASES.match(name)) {
+            } else if (ALIASES.match(name, LoggingDeprecationHandler.INSTANCE)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?

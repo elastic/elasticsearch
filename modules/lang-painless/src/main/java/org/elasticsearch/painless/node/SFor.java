@@ -77,7 +77,7 @@ public final class SFor extends AStatement {
         locals = Locals.newLocalScope(locals);
 
         if (initializer != null) {
-            if (initializer instanceof AStatement) {
+            if (initializer instanceof SDeclBlock) {
                 initializer.analyze(locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
@@ -88,6 +88,9 @@ public final class SFor extends AStatement {
                 if (!initializer.statement) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
+
+                initializer.expected = initializer.actual;
+                this.initializer = initializer.cast(locals);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -120,6 +123,9 @@ public final class SFor extends AStatement {
             if (!afterthought.statement) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
+
+            afterthought.expected = afterthought.actual;
+            afterthought = afterthought.cast(locals);
         }
 
         if (block != null) {
@@ -198,6 +204,7 @@ public final class SFor extends AStatement {
         if (afterthought != null) {
             writer.mark(begin);
             afterthought.write(writer, globals);
+            writer.writePop(afterthought.expected.type.getSize());
         }
 
         if (afterthought != null || !allEscape) {

@@ -20,10 +20,13 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -32,15 +35,22 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -48,6 +58,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.util.UUID;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +75,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ShardStateActionTests extends ESTestCase {
     private static ThreadPool THREAD_POOL;
@@ -90,9 +103,9 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, ShardEntry shardEntry, Listener listener, Predicate<ClusterState> changePredicate) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
             onBeforeWaitForNewMasterAndRetry.run();
-            super.waitForNewMasterAndRetry(actionName, observer, shardEntry, listener, changePredicate);
+            super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
         }
     }
@@ -160,8 +173,8 @@ public class ShardStateActionTests extends ESTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, capturedRequests.length);
         // the request is a shard failed request
-        assertThat(capturedRequests[0].request, is(instanceOf(ShardStateAction.ShardEntry.class)));
-        ShardStateAction.ShardEntry shardEntry = (ShardStateAction.ShardEntry) capturedRequests[0].request;
+        assertThat(capturedRequests[0].request, is(instanceOf(ShardStateAction.FailedShardEntry.class)));
+        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request;
         // for the right shard
         assertEquals(shardEntry.shardId, shardRouting.shardId());
         assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
@@ -342,7 +355,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
-        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, "test",
+        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, randomBoolean(), "test",
             getSimulatedFailure(), new ShardStateAction.Listener() {
             @Override
             public void onSuccess() {
@@ -406,5 +419,37 @@ public class ShardStateActionTests extends ESTestCase {
 
     private Exception getSimulatedFailure() {
         return new CorruptIndexException("simulated", (String) null);
+    }
+
+    public void testShardEntryBWCSerialize() throws Exception {
+        final Version bwcVersion = randomValueOtherThanMany(
+            version -> version.onOrAfter(Version.V_6_3_0), () -> VersionUtils.randomVersion(random()));
+        final ShardId shardId = new ShardId(randomRealisticUnicodeOfLengthBetween(10, 100), UUID.randomUUID().toString(), between(0, 1000));
+        final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        final String reason = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
+        try (StreamInput in = serialize(new StartedShardEntry(shardId, allocationId, reason), bwcVersion).streamInput()) {
+            in.setVersion(bwcVersion);
+            final FailedShardEntry failedShardEntry = new FailedShardEntry(in);
+            assertThat(failedShardEntry.shardId, equalTo(shardId));
+            assertThat(failedShardEntry.allocationId, equalTo(allocationId));
+            assertThat(failedShardEntry.message, equalTo(reason));
+            assertThat(failedShardEntry.failure, nullValue());
+            assertThat(failedShardEntry.markAsStale, equalTo(true));
+        }
+        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L, reason, null, false), bwcVersion).streamInput()) {
+            in.setVersion(bwcVersion);
+            final StartedShardEntry startedShardEntry = new StartedShardEntry(in);
+            assertThat(startedShardEntry.shardId, equalTo(shardId));
+            assertThat(startedShardEntry.allocationId, equalTo(allocationId));
+            assertThat(startedShardEntry.message, equalTo(reason));
+        }
+    }
+
+    BytesReference serialize(Writeable writeable, Version version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            writeable.writeTo(out);
+            return out.bytes();
+        }
     }
 }

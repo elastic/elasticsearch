@@ -164,6 +164,9 @@ class BulkByScrollParallelizationHelper {
                     .requestCache(request.requestCache())
                     .scroll(request.scroll())
                     .indicesOptions(request.indicesOptions());
+            if (request.allowPartialSearchResults() != null) {
+                slices[slice].allowPartialSearchResults(request.allowPartialSearchResults());
+            }
         }
         return slices;
     }

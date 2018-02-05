@@ -270,6 +270,10 @@ public class MultiSearchRequestTests extends ESTestCase {
         for (int j = 0; j < numSearchRequest; j++) {
             SearchRequest searchRequest = createSimpleSearchRequest();
 
+            if (randomBoolean()) {
+                searchRequest.allowPartialSearchResults(true);
+            }
+            
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
 

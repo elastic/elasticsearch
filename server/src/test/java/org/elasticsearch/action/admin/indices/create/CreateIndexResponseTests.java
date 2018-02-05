@@ -117,7 +117,7 @@ public class CreateIndexResponseTests extends ESTestCase {
     /**
      * Returns a random {@link CreateIndexResponse}.
      */
-    private static CreateIndexResponse createTestItem() throws IOException {
+    private static CreateIndexResponse createTestItem() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
         String index = randomAlphaOfLength(5);

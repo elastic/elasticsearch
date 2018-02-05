@@ -30,19 +30,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -67,11 +69,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class QueryRescorerIT extends ESIntegTestCase {
     public void testEnforceWindowSize() {
@@ -747,5 +745,56 @@ public class QueryRescorerIT extends ESIntegTestCase {
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));
         }
+    }
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping(
+                "type1",
+                jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("group")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject())
+        );
+
+        indexDocument(1, "value", "a");
+        indexDocument(2, "one value", "a");
+        indexDocument(3, "one one two value", "b");
+        // should be highest on rescore, but filtered out during collapse
+        indexDocument(4, "one two two value", "b");
+
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setTypes("type1")
+            .setQuery(new MatchQueryBuilder("name", "one"))
+            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "the")))
+            .setCollapse(new CollapseBuilder("group"))
+            .execute()
+            .actionGet();
+
+        assertThat(searchResponse.getHits().totalHits, equalTo(3L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+
+        Map<String, Float> collapsedHits = Arrays
+            .stream(searchResponse.getHits().getHits())
+            .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
+
+        assertThat(collapsedHits.keySet(), containsInAnyOrder("2", "3"));
+        assertThat(collapsedHits.get("3"), greaterThan(collapsedHits.get("2")));
+    }
+
+    private void indexDocument(int id, String name, String group) throws IOException {
+        XContentBuilder docBuilder =jsonBuilder()
+            .startObject()
+            .field("name", name)
+            .field("group", group)
+            .endObject();
+
+        client().prepareIndex("test", "type1", Integer.toString(id)).setSource(docBuilder).execute().actionGet();
     }
 }

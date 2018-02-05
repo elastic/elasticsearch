@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -247,7 +248,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         }
 
         BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source, XContentType.JSON)) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.JSON)) {
             return DataCounts.PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new RuntimeException(e);

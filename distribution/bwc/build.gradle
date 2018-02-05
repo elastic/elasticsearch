@@ -31,11 +31,11 @@ import java.util.regex.Matcher
  */
 subprojects {
 
-  Version bwcVersion = versionCollection.getCorrelatedNameToSnapshot(project.name)
+  Version bwcVersion = bwcVersions.getCorrelatedNameToSnapshot(project.name)
 
   if (bwcVersion == null) {
     throw new GradleException("Could not find a valid snapshot for ${project.name}. Please make sure that the project being" +
-        " invoked makes sense against the ${versionCollection.currentVersion} version")
+        " invoked makes sense against the ${bwcVersions.currentVersion} version")
   }
 
   String bwcBranch

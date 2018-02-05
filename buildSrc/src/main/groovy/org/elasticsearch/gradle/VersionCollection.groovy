@@ -91,7 +91,7 @@ class VersionCollection {
         }
 
         if (versionSet.empty) {
-            throw new GradleException("Unexpectedly found no version constants in Versions.java");
+            throw new GradleException("Unexpectedly found no version constants in Versions.java")
         }
 
         // If the major version has been released, then remove all of the alpha/beta/rc versions that exist in the set
@@ -159,7 +159,7 @@ class VersionCollection {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
                             nextBugfixSnapshot = removeAndReaddAsSnapshot(version)
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
-                            break;
+                            break
                         }
                     }
                     // caveat 0 - now dip back 1 version to get the last supported snapshot version of the line
@@ -189,8 +189,7 @@ class VersionCollection {
         return versionSet
             .tailSet(Version.fromString("${actualMajor}.0.0"))
             .headSet(currentVersion)
-            .asList();
-
+            .asList()
     }
 
     /**
@@ -212,7 +211,7 @@ class VersionCollection {
             compatSnapshots.add(maintenanceBugfixSnapshot)
         }
 
-        return compatSnapshots;
+        return compatSnapshots
     }
 
     /**
@@ -250,7 +249,7 @@ class VersionCollection {
         // There was no wire compat for the 2.x line
         compatSnapshots.removeAll {it.major == 2}
 
-        return compatSnapshots;
+        return compatSnapshots
     }
 
     /**
@@ -268,7 +267,7 @@ class VersionCollection {
         } else if (snapshotProjectName == 'next-bugfix-snapshot') {
             return nextBugfixSnapshot
         } else {
-            throw new InvalidUserDataException("Unsupported project name ${project.name}")
+            throw new InvalidUserDataException("Unsupported project name ${snapshotProjectName}")
         }
     }
 

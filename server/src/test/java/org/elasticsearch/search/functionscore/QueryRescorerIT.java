@@ -770,7 +770,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         );
 
         indexDocument(1, "value", "a");
-        indexDocument(2, "one value", "a");
+        indexDocument(2, "one one value", "a");
         indexDocument(3, "one one two value", "b");
         // should be highest on rescore, but filtered out during collapse
         indexDocument(4, "one two two value", "b");
@@ -780,7 +780,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setTypes("type1")
             .setQuery(new MatchQueryBuilder("name", "one"))
-            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "the")))
+            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "two")))
             .setCollapse(new CollapseBuilder("group"))
             .execute()
             .actionGet();

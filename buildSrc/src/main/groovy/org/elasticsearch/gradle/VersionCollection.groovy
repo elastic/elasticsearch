@@ -270,9 +270,6 @@ class VersionCollection {
         } else {
             throw new InvalidUserDataException("Unsupported project name ${project.name}")
         }
-
-        throw new GradleException("Could not find a valid snapshot for ${snapshotProjectName}. Please make sure that the project being" +
-            " invoked makes sense against the ${actualVersion} version")
     }
 
     /**

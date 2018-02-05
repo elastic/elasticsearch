@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
-import org.elasticsearch.xpack.core.persistent.AllocatedPersistentTask;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 
 import java.util.Arrays;
 import java.util.Optional;

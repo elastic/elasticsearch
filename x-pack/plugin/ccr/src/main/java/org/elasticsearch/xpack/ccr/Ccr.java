@@ -24,8 +24,11 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -35,8 +38,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackClientActionPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
@@ -47,17 +48,8 @@ import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsActio
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.rest.RestFollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowIndexAction;
-import org.elasticsearch.xpack.core.persistent.CompletionPersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksClusterService;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksExecutor;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.xpack.core.persistent.PersistentTasksService;
-import org.elasticsearch.xpack.core.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.StartPersistentTaskAction;
-import org.elasticsearch.xpack.core.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -72,14 +64,15 @@ import static org.elasticsearch.xpack.ccr.CcrSettings.CCR_FOLLOWING_INDEX_SETTIN
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, EnginePlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
 
     private final boolean enabled;
     private final Settings settings;
-    private final boolean tribeNode;
-    private final boolean tribeNodeClient;
+
+    private Client client;
+    private ThreadPool threadPool;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -89,36 +82,28 @@ public class Ccr extends Plugin implements ActionPlugin, EnginePlugin {
     public Ccr(final Settings settings) {
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
-        this.tribeNode = XPackClientActionPlugin.isTribeNode(settings);
-        this.tribeNodeClient = XPackClientActionPlugin.isTribeClientNode(settings);
     }
 
-    // TODO: Persistent tasks infra was all moved to ml after the xpack split. Need to move this to a common place where ML can use it too.
+    // TODO: remove this hack when Client and ThreadPool are added to:
+    // PersistentTaskPlugin#getPersistentTasksExecutor(...) signature.
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        List<Object> components = new ArrayList<>();
-        PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
-
-        List<PersistentTasksExecutor<?>> tasksExecutors = new ArrayList<>();
-        tasksExecutors.addAll(createPersistentTasksExecutors(client, threadPool));
-
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
-        PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(settings, registry, clusterService);
-        components.add(persistentTasksClusterService);
-        components.add(persistentTasksService);
-        components.add(registry);
-        return components;
+        this.client = client;
+        this.threadPool = threadPool;
+        return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
+                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry);
     }
 
-    public List<PersistentTasksExecutor<?>> createPersistentTasksExecutors(Client client, ThreadPool threadPool) {
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
         return Collections.singletonList(new ShardFollowTasksExecutor(settings, client, threadPool));
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled == false || tribeNodeClient || tribeNode) {
+        if (enabled == false) {
             return emptyList();
         }
 
@@ -126,13 +111,7 @@ public class Ccr extends Plugin implements ActionPlugin, EnginePlugin {
                 new ActionHandler<>(ShardChangesAction.INSTANCE, ShardChangesAction.TransportAction.class),
                 new ActionHandler<>(FollowExistingIndexAction.INSTANCE, FollowExistingIndexAction.TransportAction.class),
                 new ActionHandler<>(UnfollowIndexAction.INSTANCE, UnfollowIndexAction.TransportAction.class),
-                new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class),
-
-                // TODO: See not above createComponents(...) method:
-                new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),
-                new ActionHandler<>(RemovePersistentTaskAction.INSTANCE, RemovePersistentTaskAction.TransportAction.class),
-                new ActionHandler<>(CompletionPersistentTaskAction.INSTANCE, CompletionPersistentTaskAction.TransportAction.class)
+                new ActionHandler<>(BulkShardOperationsAction.INSTANCE, TransportBulkShardOperationsAction.class)
         );
     }
 
@@ -194,7 +173,7 @@ public class Ccr extends Plugin implements ActionPlugin, EnginePlugin {
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (enabled == false || tribeNode || tribeNodeClient) {
+        if (enabled == false) {
             return Collections.emptyList();
         }
 

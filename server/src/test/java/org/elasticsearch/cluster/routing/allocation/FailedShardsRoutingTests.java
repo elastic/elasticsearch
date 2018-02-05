@@ -117,7 +117,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node3 being initialized");
-        clusterState = allocation.applyFailedShard(clusterState, clusterState.getRoutingNodes().node("node3").iterator().next());
+        clusterState = allocation.applyFailedShard(clusterState, clusterState.getRoutingNodes().node("node3").iterator().next(), randomBoolean());
 
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(STARTED));
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
@@ -132,7 +132,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node3").iterator().next().state(), equalTo(INITIALIZING));
 
         logger.info("--> fail primary shard recovering instance on node1 being relocated");
-        clusterState = allocation.applyFailedShard(clusterState, clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next());
+        clusterState = allocation.applyFailedShard(clusterState, clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next(), randomBoolean());
 
         // check promotion of replica to primary
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));
@@ -200,7 +200,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("fail the primary shard, will have no place to be rerouted to (single node), so stays unassigned");
         ShardRouting shardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        newState = strategy.applyFailedShard(clusterState, shardToFail);
+        newState = strategy.applyFailedShard(clusterState, shardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -249,7 +249,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("fail the first shard, will have no place to be rerouted to (single node), so stays unassigned");
         ShardRouting firstShard = clusterState.getRoutingNodes().node("node1").iterator().next();
-        newState = strategy.applyFailedShard(clusterState, firstShard);
+        newState = strategy.applyFailedShard(clusterState, firstShard, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -305,7 +305,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
             logger.info("failing shard on node [{}]", failedNode);
             ShardRouting shardToFail = routingNodes.node(failedNode).iterator().next();
             if (shardRoutingsToFail.contains(shardToFail) == false) {
-                failedShards.add(new FailedShard(shardToFail, null, null));
+                failedShards.add(new FailedShard(shardToFail, null, null, randomBoolean()));
                 failedNodes.add(failedNode);
                 shardRoutingsToFail.add(shardToFail);
             }
@@ -364,7 +364,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("fail the first shard, will start INITIALIZING on the second node");
         final ShardRouting firstShard = clusterState.getRoutingNodes().node(nodeHoldingPrimary).iterator().next();
-        newState = strategy.applyFailedShard(clusterState, firstShard);
+        newState = strategy.applyFailedShard(clusterState, firstShard, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -455,7 +455,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         logger.info("Fail the shards on node 3");
         ShardRouting shardToFail = routingNodes.node("node3").iterator().next();
-        newState = strategy.applyFailedShard(clusterState, shardToFail);
+        newState = strategy.applyFailedShard(clusterState, shardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingNodes = clusterState.getRoutingNodes();
@@ -507,7 +507,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         // fail the primary shard, check replicas get removed as well...
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
+        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         // the primary gets allocated on another node, replicas are initializing
@@ -550,7 +550,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         // fail the primary shard, check one replica gets elected to primary, others become INITIALIZING (from it)
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
+        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(1));
@@ -620,7 +620,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         // fail the primary shard again and make sure the correct replica is promoted
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
+        ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         // the primary gets allocated on another node
@@ -649,7 +649,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         // fail the primary shard again, and ensure the same thing happens
         ShardRouting secondPrimaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        newState = allocation.applyFailedShard(clusterState, secondPrimaryShardToFail);
+        newState = allocation.applyFailedShard(clusterState, secondPrimaryShardToFail, randomBoolean());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         // the primary gets allocated on another node

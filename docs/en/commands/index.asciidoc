@@ -10,6 +10,7 @@
 * <<certgen>>
 * <<certutil>>
 * <<migrate-tool>>
+* <<saml-metadata>>
 * <<setup-passwords>>
 * <<syskeygen>>
 * <<users-command>>
@@ -19,6 +20,7 @@
 include::certgen.asciidoc[]
 include::certutil.asciidoc[]
 include::migrate-tool.asciidoc[]
+include::saml-metadata.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::syskeygen.asciidoc[]
 include::users-command.asciidoc[]

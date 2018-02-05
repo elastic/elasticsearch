@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search.functionscore;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -45,6 +43,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -750,39 +749,52 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     public void testRescoreAfterCollapse() throws Exception {
         assertAcked(prepareCreate("test")
-            .addMapping("doc", ImmutableMap.of("properties", ImmutableMap.of("access", ImmutableMap.of("type", "keyword"))))
+            .addMapping(
+                "type1",
+                jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject("group")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject())
         );
 
-        indexDocument(1, "elasticsearch", "public", 30);
-        indexDocument(2, "logstash", "public", 20);
-        indexDocument(3, "the kibana", "public", 10);
-        indexDocument(4, "xpack", "private", 20);
-        indexDocument(5, "beats", "private", 5);
-        indexDocument(6, "security", "private", 2);
+        indexDocument(1, "value", "a");
+        indexDocument(2, "one value", "a");
+        indexDocument(3, "one one two value", "b");
+        // should be highest on rescore, but filtered out during collapse
+        indexDocument(4, "one two two value", "b");
 
         refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new RangeQueryBuilder("maintainers").gt(3))
+            .setTypes("type1")
+            .setQuery(new MatchQueryBuilder("name", "one"))
             .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "the")))
-            .setCollapse(new CollapseBuilder("access"))
+            .setCollapse(new CollapseBuilder("group"))
             .execute()
             .actionGet();
 
-        SearchHit[] searchHits = searchResponse.getHits().getHits();
+        assertThat(searchResponse.getHits().totalHits, equalTo(3L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
-        // assert 2 hits in result + one score == 1, other > 1
-        // make this test stable
+        Map<String, Float> collapsedHits = Arrays
+            .stream(searchResponse.getHits().getHits())
+            .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
+
+        assertThat(collapsedHits.keySet(), containsInAnyOrder("2", "3"));
+        assertThat(collapsedHits.get("3"), greaterThan(collapsedHits.get("2")));
     }
 
-    private void indexDocument(int id, String name, String access, int maintainers) throws IOException {
+    private void indexDocument(int id, String name, String group) throws IOException {
         XContentBuilder docBuilder =jsonBuilder()
             .startObject()
             .field("name", name)
-            .field("access", access)
-            .field("maintainers", maintainers)
+            .field("group", group)
             .endObject();
 
-        client().prepareIndex("test", "doc", Integer.toString(id)).setSource(docBuilder).execute().actionGet();
+        client().prepareIndex("test", "type1", Integer.toString(id)).setSource(docBuilder).execute().actionGet();
     }
 }

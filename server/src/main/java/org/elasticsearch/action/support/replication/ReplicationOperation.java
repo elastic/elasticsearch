@@ -354,7 +354,9 @@ public class ReplicationOperation<
          * Checks if the given replica exception can be ignored by this replication request.
          * Some exceptions can be lenient by non-write requests but must be strictly handled by write requests.
          */
-        boolean canIgnoreReplicaFailureException(Exception replicaException);
+        default boolean canIgnoreReplicaFailureException(Exception replicaException) {
+            return false;
+        }
 
         /**
          * Fail the specified shard if needed, removing it from the current set

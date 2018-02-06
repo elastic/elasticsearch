@@ -76,7 +76,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
         configureRepositories(project)
@@ -297,7 +296,7 @@ class BuildPlugin implements Plugin<Project> {
 
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
-        project.configurations.provided.dependencies.all(disableTransitiveDeps)
+        project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
     }
 
     /** Adds repositories used by ES dependencies */
@@ -665,7 +664,7 @@ class BuildPlugin implements Plugin<Project> {
         // only require dependency licenses for non-elasticsearch deps
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
-        } - project.configurations.provided
+        } - project.configurations.compileOnly
     }
 
     private static configureDependenciesInfo(Project project) {

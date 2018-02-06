@@ -20,8 +20,8 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  provided "org.elasticsearch:elasticsearch:${version}"
-  provided "org.elasticsearch:elasticsearch-cli:${version}"
+  compileOnly "org.elasticsearch:elasticsearch:${version}"
+  compileOnly "org.elasticsearch:elasticsearch-cli:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
   testCompile 'com.google.jimfs:jimfs:1.1'
   testCompile 'com.google.guava:guava:18.0'

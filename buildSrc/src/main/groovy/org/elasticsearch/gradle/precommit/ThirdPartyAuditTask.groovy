@@ -90,9 +90,9 @@ public class ThirdPartyAuditTask extends AntTask {
 
             // we don't want provided dependencies, which we have already scanned. e.g. don't
             // scan ES core's dependencies for every single plugin
-            Configuration provided = project.configurations.findByName('provided')
-            if (provided != null) {
-                jars -= provided
+            Configuration compileOnly = project.configurations.findByName('compileOnly')
+            if (compileOnly != null) {
+                jars -= compileOnly
             }
             inputs.files(jars)
             onlyIf { jars.isEmpty() == false }

@@ -10,20 +10,25 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
@@ -36,6 +41,70 @@ import static org.hamcrest.Matchers.is;
 public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
+
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        TestCluster testCluster = super.buildTestCluster(scope, seed);
+        return new TestCluster(seed) {
+
+            @Override
+            public void afterTest() throws IOException {
+                testCluster.afterTest();
+            }
+
+            @Override
+            public Client client() {
+                return testCluster.client();
+            }
+
+            @Override
+            public int size() {
+                return testCluster.size();
+            }
+
+            @Override
+            public int numDataNodes() {
+                return testCluster.numDataNodes();
+            }
+
+            @Override
+            public int numDataAndMasterNodes() {
+                return testCluster.numDataAndMasterNodes();
+            }
+
+            @Override
+            public InetSocketAddress[] httpAddresses() {
+                return testCluster.httpAddresses();
+            }
+
+            @Override
+            public void close() throws IOException {
+                testCluster.close();
+            }
+
+            @Override
+            public void ensureEstimatedStats() {
+                // stats are not going to be accurate for these tests since the index audit trail
+                // is running and changing the values so we wrap the test cluster to skip these
+                // checks
+            }
+
+            @Override
+            public String getClusterName() {
+                return testCluster.getClusterName();
+            }
+
+            @Override
+            public Iterable<Client> getClients() {
+                return testCluster.getClients();
+            }
+
+            @Override
+            public NamedWriteableRegistry getNamedWriteableRegistry() {
+                return testCluster.getNamedWriteableRegistry();
+            }
+        };
+    }
 
     public void testIndexAuditTrailWorking() throws Exception {
         Response response = getRestClient().performRequest("GET", "/",

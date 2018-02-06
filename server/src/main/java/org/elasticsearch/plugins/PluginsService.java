@@ -317,7 +317,11 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+        return getPluginBundles(pluginsDirectory, true);
+    }
+
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory, final boolean enforceVersion) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
         Set<Bundle> bundles = new LinkedHashSet<>();
 
@@ -326,10 +330,10 @@ public class PluginsService extends AbstractComponent {
             logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
             final PluginInfo info;
             try {
-                info = PluginInfo.readFromProperties(plugin);
+                info = PluginInfo.readFromProperties(plugin, enforceVersion);
             } catch (IOException e) {
                 throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+                        + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
             }
             if (bundles.add(new Bundle(info, plugin)) == false) {
                 throw new IllegalStateException("duplicate plugin: " + info);

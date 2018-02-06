@@ -269,7 +269,7 @@ accomplished with the parameter:
 --------------------------------------------
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:1000`**. Bind mounted host directories and files, such as
-`custom_elasticsearch.yml` above, **need to be accessible by this user**. For the https://www.elastic.co/guide/en/elasticsearch/reference/current/important-settings.html#path-settings[data and log dirs],
+`custom_elasticsearch.yml` above, **need to be accessible by this user**. For the <<path-settings, data and log dirs>>,
 such as `/usr/share/elasticsearch/data`, write access is required as well.
 Also see note 1 below.
 

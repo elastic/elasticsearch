@@ -49,10 +49,23 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
-    public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("keystore not found"));
+    public void testMissingPromptCreate() throws Exception {
+        terminal.addTextInput("y");
+        terminal.addSecretInput("bar");
+        execute("foo");
+        assertSecureString("foo", "bar");
+    }
+
+    public void testMissingForceCreate() throws Exception {
+        terminal.addSecretInput("bar");
+        execute("-f", "foo");
+        assertSecureString("foo", "bar");
+    }
+
+    public void testMissingNoCreate() throws Exception {
+        terminal.addTextInput("n"); // explicit no
+        execute("foo");
+        assertNull(KeyStoreWrapper.load(env.configFile()));
     }
 
     public void testOverwritePromptDefault() throws Exception {
@@ -99,32 +112,24 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testPromptForValue() throws Exception {
-        KeyStoreWrapper.create(new char[0]).save(env.configFile());
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
         terminal.addSecretInput("secret value");
         execute("foo");
         assertSecureString("foo", "secret value");
     }
 
     public void testStdinShort() throws Exception {
-        KeyStoreWrapper.create(new char[0]).save(env.configFile());
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
         setInput("secret value 1");
         execute("-x", "foo");
         assertSecureString("foo", "secret value 1");
     }
 
     public void testStdinLong() throws Exception {
-        KeyStoreWrapper.create(new char[0]).save(env.configFile());
+        KeyStoreWrapper.create().save(env.configFile(), new char[0]);
         setInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2");
-    }
-
-    public void testNonAsciiValue() throws Exception {
-        KeyStoreWrapper.create(new char[0]).save(env.configFile());
-        terminal.addSecretInput("non-äsčîï");
-        UserException e = expectThrows(UserException.class, () -> execute("foo"));
-        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertEquals("String value must contain only ASCII", e.getMessage());
     }
 
     public void testMissingSettingName() throws Exception {

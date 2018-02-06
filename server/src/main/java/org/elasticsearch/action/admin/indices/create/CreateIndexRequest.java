@@ -70,8 +70,8 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
-    private static final ParseField SETTINGS = new ParseField("settings");
-    private static final ParseField ALIASES = new ParseField("aliases");
+    public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField ALIASES = new ParseField("aliases");
 
     private String cause = "";
 
@@ -440,7 +440,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return updateAllTypes;
     }
 
-    /** See {@link #updateAllTypes()} */
+    /** See {@link #updateAllTypes()}
+     * @deprecated useless with 6.x indices which may only have one type */
+    @Deprecated
     public CreateIndexRequest updateAllTypes(boolean updateAllTypes) {
         this.updateAllTypes = updateAllTypes;
         return this;

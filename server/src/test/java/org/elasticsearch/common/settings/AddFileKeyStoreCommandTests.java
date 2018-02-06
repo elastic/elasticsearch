@@ -56,13 +56,27 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     private void addFile(KeyStoreWrapper keystore, String setting, Path file) throws Exception {
         keystore.setFile(setting, Files.readAllBytes(file));
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), new char[0]);
     }
 
-    public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertThat(e.getMessage(), containsString("keystore not found"));
+    public void testMissingPromptCreate() throws Exception {
+        Path file1 = createRandomFile();
+        terminal.addTextInput("y");
+        execute("foo", file1.toString());
+        assertSecureFile("foo", file1);
+    }
+
+    public void testMissingForceCreate() throws Exception {
+        Path file1 = createRandomFile();
+        terminal.addSecretInput("bar");
+        execute("-f", "foo", file1.toString());
+        assertSecureFile("foo", file1);
+    }
+
+    public void testMissingNoCreate() throws Exception {
+        terminal.addTextInput("n"); // explicit no
+        execute("foo");
+        assertNull(KeyStoreWrapper.load(env.configFile()));
     }
 
     public void testOverwritePromptDefault() throws Exception {

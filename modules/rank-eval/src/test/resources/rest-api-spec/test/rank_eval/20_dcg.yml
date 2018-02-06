@@ -2,8 +2,8 @@
 "Response format":
 
   - skip:
-      version: " - 6.1.99"
-      reason: the ranking evaluation feature is introduced in 6.2
+      version: " - 6.2.99"
+      reason: changes in response format in 6.3
 
   - do:
       index:

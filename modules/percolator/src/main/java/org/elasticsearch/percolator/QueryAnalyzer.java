@@ -380,7 +380,21 @@ final class QueryAnalyzer {
                                     msm += 1;
                                 }
                             } else {
-                                msm += result.minimumShouldMatch;
+                                // In case that there are duplicate query extractions we need to be careful with incrementing msm,
+                                // because that could lead to valid matches not becoming candidate matches:
+                                // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+                                // doc:   field: val1 val2 val3
+                                // So lets be protective and decrease the msm:
+                                int resultMsm = result.minimumShouldMatch;
+                                for (QueryExtraction queryExtraction : result.extractions) {
+                                    if (extractions.contains(queryExtraction)) {
+                                        // To protect against negative msm:
+                                        // (sub results could consist out of disjunction and conjunction and
+                                        // then we do not know which extraction contributed to msm)
+                                        resultMsm = Math.max(0, resultMsm - 1);
+                                    }
+                                }
+                                msm += resultMsm;
                             }
                             verified &= result.verified;
                             matchAllDocs &= result.matchAllDocs;
@@ -519,10 +533,16 @@ final class QueryAnalyzer {
             if (subResult.matchAllDocs) {
                 numMatchAllClauses++;
             }
+            int resultMsm = subResult.minimumShouldMatch;
+            for (QueryExtraction extraction : subResult.extractions) {
+                if (terms.contains(extraction)) {
+                    resultMsm = Math.max(1, resultMsm - 1);
+                }
+            }
+            msmPerClause[i] = resultMsm;
             terms.addAll(subResult.extractions);
 
             QueryExtraction[] t = subResult.extractions.toArray(new QueryExtraction[1]);
-            msmPerClause[i] = subResult.minimumShouldMatch;
             if (subResult.extractions.size() == 1 && t[0].range != null) {
                 rangeFieldNames[i] = t[0].range.fieldName;
             }

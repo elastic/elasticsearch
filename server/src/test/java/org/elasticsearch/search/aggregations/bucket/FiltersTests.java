@@ -33,10 +33,13 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuilder> {
@@ -154,5 +157,22 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertEquals("my-filter", ((FiltersAggregationBuilder) rewritten).filters().get(0).key());
         assertThat(((FiltersAggregationBuilder) rewritten).filters().get(0).filter(), instanceOf(MatchAllQueryBuilder.class));
         assertTrue(((FiltersAggregationBuilder) rewritten).isKeyed());
+
+        // test sub-agg filter that does rewrite
+        original = new TermsAggregationBuilder("terms", ValueType.BOOLEAN)
+            .subAggregation(
+                new FiltersAggregationBuilder("my-agg", new KeyedFilter("my-filter",  new BoolQueryBuilder()))
+            );
+        rewritten = original.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L));
+        assertNotSame(original, rewritten);
+        assertNotEquals(original, rewritten);
+        assertThat(rewritten, instanceOf(TermsAggregationBuilder.class));
+        assertThat(rewritten.getSubAggregations().size(), equalTo(1));
+        AggregationBuilder subAgg = rewritten.getSubAggregations().get(0);
+        assertThat(subAgg, instanceOf(FiltersAggregationBuilder.class));
+        assertNotSame(original.getSubAggregations().get(0), subAgg);
+        assertEquals("my-agg", subAgg.getName());
+        assertSame(rewritten,
+            rewritten.rewrite(new QueryRewriteContext(xContentRegistry(), null, null, () -> 0L)));
     }
 }

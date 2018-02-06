@@ -1,10 +1,8 @@
 ---
 "Parent/child inner hits":
     - skip:
-        version: "all"
-        reason:  "AwaitsFix'ing, see elasticsearch #27570"
-#        version: "6.0.0 - "
-#        reason:  multiple types are not supported from 6.0 and beyond
+        version: "6.0.0 - "
+        reason:  multiple types are not supported from 6.0 and beyond
 
     - do:
         indices.create:
@@ -40,7 +38,6 @@
     - match: { hits.hits.0._index: "test" }
     - match: { hits.hits.0._type: "type_2" }
     - match: { hits.hits.0._id: "1" }
-    - is_false: hits.hits.0.inner_hits.type_3.hits.hits.0._index
     - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._type: "type_3" }
     - match: { hits.hits.0.inner_hits.type_3.hits.hits.0._id: "1" }
     - is_false: hits.hits.0.inner_hits.type_3.hits.hits.0._nested

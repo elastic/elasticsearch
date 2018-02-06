@@ -26,6 +26,17 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.security.AccessControlContext;
+import java.security.AccessController;
+import java.security.PermissionCollection;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class ScriptDocValuesLongsTests extends ESTestCase {
     public void testLongs() throws IOException {
@@ -36,7 +47,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = randomLong();
             }
         }
-        Longs longs = wrap(values);
+        Longs longs = wrap(values, deprecationMessage -> {fail("unexpected deprecation: " + deprecationMessage);});
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
@@ -66,7 +77,13 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 values[d][i] = dates[d][i].getMillis();
             }
         }
-        Longs longs = wrap(values);
+        Set<String> warnings = new HashSet<>();
+        Longs longs = wrap(values, deprecationMessage -> {
+            warnings.add(deprecationMessage);
+            /* Create a temporary directory to prove we are running with the
+             * server's permissions. */
+            createTempDir();
+        });
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
@@ -82,12 +99,36 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
 
-        assertWarnings(
+        /*
+         * Invoke getDates without any privileges to verify that
+         * it still works without any. In particularly, this
+         * verifies that the callback that we've configured
+         * above works. That callback creates a temporary
+         * directory which is not possible with "noPermissions".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            public Void run() {
+                try {
+                    longs.getDates();
+                } catch (IOException e) {
+                    throw new RuntimeException("unexpected", e);
+                }
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, containsInAnyOrder(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
-                "getDates on numeric fields is deprecated. Use a date field to get dates.");
+                "getDates on numeric fields is deprecated. Use a date field to get dates."));
     }
 
-    private Longs wrap(long[][] values) {
+    private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {
         return new Longs(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
@@ -106,6 +147,6 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }, deprecationCallback);
     }
 }

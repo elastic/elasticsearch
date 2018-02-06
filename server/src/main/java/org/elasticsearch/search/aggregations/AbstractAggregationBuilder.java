@@ -45,6 +45,13 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         super(name);
     }
 
+    protected AbstractAggregationBuilder(AbstractAggregationBuilder<AB> clone,
+                                         AggregatorFactories.Builder factoriesBuilder,
+                                         Map<String, Object> metaData) {
+        super(clone, factoriesBuilder);
+        this.metaData = metaData;
+    }
+
     /**
      * Read from a stream.
      */
@@ -149,9 +156,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         if (factoriesBuilder != null && (factoriesBuilder.count()) > 0) {
             builder.field("aggregations");
             factoriesBuilder.toXContent(builder, params);
-
         }
-
         return builder.endObject();
     }
 

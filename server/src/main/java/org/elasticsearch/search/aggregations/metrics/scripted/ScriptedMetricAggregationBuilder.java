@@ -30,6 +30,8 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,6 +57,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
     public ScriptedMetricAggregationBuilder(String name) {
         super(name);
+    }
+
+    protected ScriptedMetricAggregationBuilder(ScriptedMetricAggregationBuilder clone,
+                                               Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.initScript = clone.initScript;
+        this.mapScript = clone.mapScript;
+        this.combineScript = clone.combineScript;
+        this.reduceScript = clone.reduceScript;
+        this.params = clone.params;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

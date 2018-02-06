@@ -100,8 +100,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -848,6 +850,79 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                     throw new AssertionError("unexpected encoding type [" + encodingType + "]");
             }
         }
+    }
+
+    public void testDuplicatedClauses() throws Exception {
+        addQueryFieldMappings();
+
+        QueryBuilder qb = boolQuery()
+                .must(boolQuery().must(termQuery("field", "value1")).must(termQuery("field", "value2")))
+                .must(boolQuery().must(termQuery("field", "value2")).must(termQuery("field", "value3")));
+        ParsedDocument doc = mapperService.documentMapper("doc").parse(SourceToParse.source("test", "doc", "1",
+                XContentFactory.jsonBuilder().startObject()
+                        .field(fieldName, qb)
+                        .endObject().bytes(),
+                XContentType.JSON));
+
+        List<String> values = Arrays.stream(doc.rootDoc().getFields(fieldType.queryTermsField.name()))
+                .map(f -> f.binaryValue().utf8ToString())
+                .sorted()
+                .collect(Collectors.toList());
+        assertThat(values.size(), equalTo(3));
+        assertThat(values.get(0), equalTo("field\0value1"));
+        assertThat(values.get(1), equalTo("field\0value2"));
+        assertThat(values.get(2), equalTo("field\0value3"));
+        int msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
+        assertThat(msm, equalTo(3));
+
+        qb = boolQuery()
+                .must(boolQuery().must(termQuery("field", "value1")).must(termQuery("field", "value2")))
+                .must(boolQuery().must(termQuery("field", "value2")).must(termQuery("field", "value3")))
+                .must(boolQuery().must(termQuery("field", "value3")).must(termQuery("field", "value4")))
+                .must(boolQuery().should(termQuery("field", "value4")).should(termQuery("field", "value5")));
+        doc = mapperService.documentMapper("doc").parse(SourceToParse.source("test", "doc", "1",
+                XContentFactory.jsonBuilder().startObject()
+                        .field(fieldName, qb)
+                        .endObject().bytes(),
+                XContentType.JSON));
+
+        values = Arrays.stream(doc.rootDoc().getFields(fieldType.queryTermsField.name()))
+                .map(f -> f.binaryValue().utf8ToString())
+                .sorted()
+                .collect(Collectors.toList());
+        assertThat(values.size(), equalTo(5));
+        assertThat(values.get(0), equalTo("field\0value1"));
+        assertThat(values.get(1), equalTo("field\0value2"));
+        assertThat(values.get(2), equalTo("field\0value3"));
+        assertThat(values.get(3), equalTo("field\0value4"));
+        assertThat(values.get(4), equalTo("field\0value5"));
+        msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
+        assertThat(msm, equalTo(4));
+
+        qb = boolQuery()
+                .minimumShouldMatch(3)
+                .should(boolQuery().should(termQuery("field", "value1")).should(termQuery("field", "value2")))
+                .should(boolQuery().should(termQuery("field", "value2")).should(termQuery("field", "value3")))
+                .should(boolQuery().should(termQuery("field", "value3")).should(termQuery("field", "value4")))
+                .should(boolQuery().should(termQuery("field", "value4")).should(termQuery("field", "value5")));
+        doc = mapperService.documentMapper("doc").parse(SourceToParse.source("test", "doc", "1",
+                XContentFactory.jsonBuilder().startObject()
+                        .field(fieldName, qb)
+                        .endObject().bytes(),
+                XContentType.JSON));
+
+        values = Arrays.stream(doc.rootDoc().getFields(fieldType.queryTermsField.name()))
+                .map(f -> f.binaryValue().utf8ToString())
+                .sorted()
+                .collect(Collectors.toList());
+        assertThat(values.size(), equalTo(5));
+        assertThat(values.get(0), equalTo("field\0value1"));
+        assertThat(values.get(1), equalTo("field\0value2"));
+        assertThat(values.get(2), equalTo("field\0value3"));
+        assertThat(values.get(3), equalTo("field\0value4"));
+        assertThat(values.get(4), equalTo("field\0value5"));
+        msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
+        assertThat(msm, equalTo(3));
     }
 
     private static byte[] subByteArray(byte[] source, int offset, int length) {

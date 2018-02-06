@@ -56,7 +56,7 @@ match the query string `"a* b* c*"`.
 [WARNING]
 =======
 Pure wildcards `\*` are rewritten to <<query-dsl-exists-query,`exists`>> queries for efficiency.
-As a consequence, the wildcard `"field:*"` would match documents with an emtpy value
+As a consequence, the wildcard `"field:*"` would match documents with an empty value
  like the following:
 ```
 {

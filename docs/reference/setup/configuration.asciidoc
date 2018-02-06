@@ -83,7 +83,7 @@ network.host: ${ES_NETWORK_HOST}
 === Prompting for settings
 
 NOTE: Prompting for settings is deprecated. Please use <<secure-settings>>
-for sensitive property values. Not all properties can be converted to use
+for sensitive property values. Not all settings can be converted to use
 <<secure-settings>>.
 
 For settings that you do not wish to store in the configuration file, you can

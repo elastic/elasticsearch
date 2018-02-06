@@ -195,8 +195,8 @@ public class InternalSettingsPreparer {
         }
 
         terminal.println(Terminal.Verbosity.SILENT,
-            "Prompting for property values is deprecated in " + Version.CURRENT
-                + ". Some property values can be stored in the keystore. Consult the docs for more information.");
+            "Prompting for property values is deprecated since " + Version.V_6_3_0
+                + ". Some setting values can be stored in the keystore. Consult the docs for more information.");
 
         if (secret) {
             return new String(terminal.readSecret("Enter value for [" + key + "]: "));

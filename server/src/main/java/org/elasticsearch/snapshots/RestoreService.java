@@ -363,7 +363,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     if (currentIndexMetaData.getState() != IndexMetaData.State.CLOSE) {
                         // TODO: Enable restore for open indices
                         throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] because an open index with same name already exists in the cluster. " +
-                            "Either close or delete the existing index in the cluster or restore the index from the snapshot under a different name by providing a replacement name using a rename pattern");
+                            "Either close or delete the existing index or restore the index under a different name by providing a rename pattern and replacement name");
                     }
                     // Index exist - checking if it's partial restore
                     if (partial) {

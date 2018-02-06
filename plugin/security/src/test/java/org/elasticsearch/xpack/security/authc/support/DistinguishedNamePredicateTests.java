@@ -48,6 +48,30 @@ public class DistinguishedNamePredicateTests extends ESTestCase {
         assertPredicate(predicate, null, false);
     }
 
+    public void testParsingMalformedInput() {
+        Predicate<FieldValue> predicate = new UserRoleMapper.DistinguishedNamePredicate(null);
+        assertPredicate(predicate, null, true);
+        assertPredicate(predicate, "", false);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8), false);
+
+        predicate = new UserRoleMapper.DistinguishedNamePredicate("");
+        assertPredicate(predicate, null, false);
+        assertPredicate(predicate, "", true);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(1, 8), false);
+
+        predicate = new UserRoleMapper.DistinguishedNamePredicate("foo=");
+        assertPredicate(predicate, null, false);
+        assertPredicate(predicate, "foo", false);
+        assertPredicate(predicate, "foo=", true);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12), false);
+
+        predicate = new UserRoleMapper.DistinguishedNamePredicate("=bar");
+        assertPredicate(predicate, null, false);
+        assertPredicate(predicate, "bar", false);
+        assertPredicate(predicate, "=bar", true);
+        assertPredicate(predicate, randomAlphaOfLengthBetween(5, 12), false);
+    }
+
     private void assertPredicate(Predicate<FieldValue> predicate, Object value, boolean expected) {
         assertThat("Predicate [" + predicate + "] match [" + value + "]", predicate.test(new FieldValue(value)), equalTo(expected));
     }

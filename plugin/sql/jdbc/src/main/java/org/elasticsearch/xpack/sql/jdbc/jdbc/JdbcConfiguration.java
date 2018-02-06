@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
  /
  / jdbc:es://[host|ip]
  / jdbc:es://[host|ip]:port/(prefix)
- / jdbc:es://[host|ip]:port/(prefix)(?options=value&)
+ / jdbc:es://[host|ip]:port/(prefix)(?options=value&amp;)
  /
  / Additional properties can be specified either through the Properties object or in the URL. In case of duplicates, the URL wins.
  */

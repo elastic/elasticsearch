@@ -1154,6 +1154,11 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public boolean canIgnoreReplicaFailureException(Exception replicaException) {
+            return TransportActions.isShardNotAvailableException(replicaException);
+        }
+
+        @Override
         public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             // This does not need to fail the shard. The idea is that this

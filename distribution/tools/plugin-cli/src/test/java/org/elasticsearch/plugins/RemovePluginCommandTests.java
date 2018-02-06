@@ -148,7 +148,12 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testRemoveOldVersion() throws Exception {
-        createPlugin("fake", VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT));
+        createPlugin(
+                "fake",
+                VersionUtils.randomVersionBetween(
+                        random(),
+                        Version.CURRENT.minimumIndexCompatibilityVersion(),
+                        VersionUtils.getPreviousVersion()));
         removePlugin("fake", home, randomBoolean());
         assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);

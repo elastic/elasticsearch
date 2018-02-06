@@ -49,6 +49,9 @@ _realms_. {security} provides the following built-in realms:
                             With this realm, users are authenticated by usernames
                             and passwords. The users are managed via dedicated
                             tools that are provided by {xpack} on installation.
+
+| `saml`              | | | A realm that uses SAML 2.0 Web SSO. This realm is
+                            designed to be used with {kib}.
 |======
 
 If none of the built-in realms meets your needs, you can also build your own

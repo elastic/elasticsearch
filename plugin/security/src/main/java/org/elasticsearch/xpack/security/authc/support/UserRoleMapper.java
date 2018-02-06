@@ -7,9 +7,13 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.util.LDAPSDKUsageException;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
@@ -78,7 +82,7 @@ public interface UserRoleMapper {
             model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
             model.defineField("groups", groups, groups.stream()
                     .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
-                    .reduce((a, b) -> a.or(b))
+                    .reduce(Predicate::or)
                     .orElse(fieldValue -> false)
             );
             metadata.keySet().forEach(k -> model.defineField("metadata." + k, metadata.get(k)));
@@ -155,6 +159,8 @@ public interface UserRoleMapper {
      *
      */
     class DistinguishedNamePredicate implements Predicate<FieldExpression.FieldValue> {
+        private static final Logger LOGGER = Loggers.getLogger(DistinguishedNamePredicate.class);
+
         private final String string;
         private final DN dn;
 
@@ -164,10 +170,17 @@ public interface UserRoleMapper {
         }
 
         private static DN parseDn(String string) {
-            try {
-                return new DN(string);
-            } catch (LDAPException e) {
+            if (string == null) {
                 return null;
+            } else {
+                try {
+                    return new DN(string);
+                } catch (LDAPException | LDAPSDKUsageException e) {
+                    if (LOGGER.isTraceEnabled()) {
+                        LOGGER.trace(new ParameterizedMessage("failed to parse [{}] as a DN", string), e);
+                    }
+                    return null;
+                }
             }
         }
 
@@ -227,7 +240,7 @@ public interface UserRoleMapper {
                 }
                 return testString.equalsIgnoreCase(dn.toNormalizedString());
             }
-            return false;
+            return string == null && fieldValue.getValue() == null;
         }
     }
 }

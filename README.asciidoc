@@ -51,12 +51,12 @@ When running the build in offline mode (`--offline`), it will not required to ha
 
 Machine Learning requires platform specific binaries, build from https://github.com/elastic/machine-learning-cpp via CI servers.
 
-The native artifacts are stored in S3. To retrieve them infra's team Vault service is utilized, which 
-requires a github token. Please setup a github token as documented: 
+The native artifacts are stored in S3. To retrieve them infra's team Vault service is utilized, which
+requires a github token. Please setup a github token as documented:
 
 https://github.com/elastic/infra/blob/master/docs/vault.md#github-auth
 
-The github token has to be put into ~/.elastic/github.token, while the file rights must be set to 0600. 
+The github token has to be put into ~/.elastic/github.token, while the file rights must be set to 0600.
 
 = Build
 
@@ -97,50 +97,31 @@ gradle clean install
 
 = Building documentation
 
-The source files in this repository can be included in either the X-Pack Reference or the Elasticsearch Reference. 
+The source files in this repository can be included in either the X-Pack
+Reference or the Elasticsearch Reference.
 
-NOTE: In 5.5 and later, the Elasticsearch Reference includes X-Pack-specific content when it is built from this repo.
+NOTE: In 5.4 and later, the Elasticsearch Reference includes X-Pack-specific
+content that is pulled from this repo.
 
-To build the Elasticsearch Reference on your local machine:
-
-* Use the `index.asciidoc` file in the docs/en directory.
-* Specify the location of the `elasticsearch/docs` directory with the `--resource` option when you run `build_docs.pl`.
-
-For example:
-
-[source, txt]
------
-./docs/build_docs.pl --doc elasticsearch-extra/x-pack-elasticsearch/docs/en/index.asciidoc --resource=elasticsearch/docs --chunk 1
------
-
-For information about building the X-Pack Reference, see the README in the x-pack repo.
-
-To build a release notes page for the pull requests in this repository:
-
-* Use the dev-tools/xes-release-notes.pl script to pull PRs from the x-pack-elasticsearch repo.  Alternatively, use the dev-tools/xescpp_release_notes.pl script to pull PRs from both the x-pack-elasticsearch and machine-learning-cpp repos.
-* Specify the version label for which you want the release notes.
-* Redirect the output to a new local file.
-
-NOTE: You must have a personal access token called ~/.github_auth with "repo" scope. Use steps similar to "Vault Secret" to create this file. 
-
-For example:
-[source, txt]
------
-./dev-tools/xes_release_notes.pl v5.5.2 > ~/tmp/5.5.2.asciidoc
------
+To build the Elasticsearch Reference on your local machine, use the `docbldes` 
+or `docbldesx` build commands defined in
+https://github.com/elastic/docs/blob/master/doc_build_aliases.sh
 
 == Adding Images
 
-When you include an image in the documentation, specify the path relative to the location of the asciidoc file. By convention, we put images in an `images` subdirectory.
+When you include an image in the documentation, specify the path relative to the
+location of the asciidoc file. By convention, we put images in an `images`
+subdirectory.
 
 For example to insert `watcher-ui-edit-watch.png` in `watcher/limitations.asciidoc`:
 
-. Add an `images` subdirectory to the watcher directory if it doesn't already exist. 
+. Add an `images` subdirectory to the watcher directory if it doesn't already exist.
 . In `limitations.asciidoc` specify:
 +
 [source, txt]
 -----
  image::images/watcher-ui-edit-watch.png["Editing a watch"]
 -----
- 
-Please note that image names and anchor IDs must be unique within the book, so do not use generic identifiers.
+
+Please note that image names and anchor IDs must be unique within the book, so
+do not use generic identifiers.

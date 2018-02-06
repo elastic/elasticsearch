@@ -131,7 +131,7 @@ SETUP_OK
 
     password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
 
-    run $ESHOME/bin/x-pack/sql-cli --debug true "http://elastic@127.0.0.1:9200" <<SQL
+    run $ESHOME/bin/x-pack/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
 $password
 SELECT * FROM library;
 SQL

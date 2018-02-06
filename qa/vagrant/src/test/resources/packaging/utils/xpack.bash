@@ -31,6 +31,7 @@ verify_xpack_installation() {
         'setup-passwords.bat'
         'sql-cli'
         'sql-cli.bat'
+        "sql-cli-$(cat version).jar" # This jar is executable so we pitch it in bin so folks will find it
         'syskeygen'
         'syskeygen.bat'
         'users'
@@ -45,6 +46,7 @@ verify_xpack_installation() {
 
     local binaryFilesCount=0
     for binaryFile in ${binaryFiles[@]}; do
+        echo "checking for bin file $name/${binaryFile}"
         assert_file "$ESHOME/bin/$name/${binaryFile}" f $user $group 755
         binaryFilesCount=$(( binaryFilesCount + 1 ))
     done

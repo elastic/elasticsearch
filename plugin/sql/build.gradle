@@ -12,9 +12,14 @@ esplugin {
     noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 
+configurations {
+    // Bundles the sql-cli.jar into the distribution
+    bin
+}
+
 archivesBaseName = 'x-pack-sql'
 
-// TODO: enable this once we have tests
+// All integration tests live in qa modules
 integTest.enabled = false
 
 dependencies {
@@ -28,6 +33,20 @@ dependencies {
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+
+    bin(project(path: xpackModule('sql:sql-cli'))) {
+        // sql-cli bundles all of its dependencies into a single executable jar
+        transitive = false
+    }
+}
+
+/* Bundle the sql-cli into the binary files. This is useful
+ * because it is an executable jar that can be moved wherever
+ * it is needed. */
+bundlePlugin {
+    from (configurations.bin) {
+        into 'elasticsearch/bin'
+    }
 }
 
 dependencyLicenses {
@@ -107,7 +126,3 @@ task regen {
         }
     }
 }
-
-//project(xpackModule('core')).bundlePlugin {
-//    from jar
-//}

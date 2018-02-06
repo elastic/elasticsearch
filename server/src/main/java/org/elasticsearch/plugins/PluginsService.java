@@ -317,10 +317,26 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
+    /**
+     * Get the plugin bundles from the specified directory.
+     *
+     * @param pluginsDirectory the directory
+     * @return the set of plugin bundles in the specified directory
+     * @throws IOException if an I/O exception occurs reading the plugin bundles
+     */
     static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return getPluginBundles(pluginsDirectory, true);
     }
 
+    /**
+     * Get the plugin bundles from the specified directory. If {@code enforceVersion} is true, then the version in each plugin descriptor
+     * must match the current version.
+     *
+     * @param pluginsDirectory the directory
+     * @param enforceVersion   whether or not to enforce the version when reading plugin descriptors
+     * @return the set of plugin bundles in the specified directory
+     * @throws IOException if an I/O exception occurs reading the plugin bundles
+     */
     static Set<Bundle> getPluginBundles(final Path pluginsDirectory, final boolean enforceVersion) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
         Set<Bundle> bundles = new LinkedHashSet<>();

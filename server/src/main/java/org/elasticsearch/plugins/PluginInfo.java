@@ -184,6 +184,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
         return readFromProperties(path, true);
     }
 
+    /**
+     * Reads and validates the plugin descriptor file. If {@code enforceVersion} is false then version enforcement for the plugin descriptor
+     * is skipped.
+     *
+     * @param path           the path to the root directory for the plugin
+     * @param enforceVersion whether or not to enforce the version when reading plugin descriptors
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
     static PluginInfo readFromProperties(final Path path, final boolean enforceVersion) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 

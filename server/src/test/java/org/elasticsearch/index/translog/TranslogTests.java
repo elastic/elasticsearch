@@ -75,6 +75,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
@@ -99,9 +100,11 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1107,15 +1110,13 @@ public class TranslogTests extends ESTestCase {
 
             for (int op = 0; op < translogOperations; op++) {
                 if (op <= lastSynced) {
-                    final Translog.Operation read = snapshot.next();
+                    final Translog.Operation read = snapshot.next().operation();
                     assertEquals(Integer.toString(op), read.getSource().source.utf8ToString());
                 } else {
-                    Translog.Operation next = snapshot.next();
-                    assertNull(next);
+                    assertNull(snapshot.next());
                 }
             }
-            Translog.Operation next = snapshot.next();
-            assertNull(next);
+            assertNull(snapshot.next());
         }
         assertEquals(translogOperations + 1, translog.totalOperations());
         assertThat(checkpoint.globalCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
@@ -1140,7 +1141,7 @@ public class TranslogTests extends ESTestCase {
             if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);
             }
-            writer.add(new BytesArray(bytes), seqNo);
+            writer.add(new BytesArray(bytes), seqNo, position -> {});
         }
         writer.sync();
 
@@ -1159,7 +1160,7 @@ public class TranslogTests extends ESTestCase {
 
         out.reset(bytes);
         out.writeInt(2048);
-        writer.add(new BytesArray(bytes), randomNonNegativeLong());
+        writer.add(new BytesArray(bytes), randomNonNegativeLong(), position -> {});
 
         if (reader instanceof TranslogReader) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -1190,7 +1191,7 @@ public class TranslogTests extends ESTestCase {
             for (int i = 0; i < numOps; i++) {
                 out.reset(bytes);
                 out.writeInt(i);
-                writer.add(new BytesArray(bytes), randomNonNegativeLong());
+                writer.add(new BytesArray(bytes), randomNonNegativeLong(), position -> {});
             }
             writer.sync();
             final Checkpoint writerCheckpoint = writer.getCheckpoint();
@@ -2510,9 +2511,9 @@ public class TranslogTests extends ESTestCase {
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
                     try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
                         TranslogSnapshot snapshot = reader.newSnapshot();
-                        Translog.Operation operation;
-                        while ((operation = snapshot.next()) != null) {
-                            generationSeenSeqNos.add(Tuple.tuple(operation.seqNo(), operation.primaryTerm()));
+                        Translog.OperationWithPosition it;
+                        while ((it = snapshot.next()) != null) {
+                            generationSeenSeqNos.add(Tuple.tuple(it.operation().seqNo(), it.operation().primaryTerm()));
                             opCount++;
                         }
                         assertThat(opCount, equalTo(reader.totalOperations()));
@@ -2645,8 +2646,9 @@ public class TranslogTests extends ESTestCase {
     public void testSnapshotDedupOperations() throws Exception {
         final Map<Long, Translog.Operation> latestOperations = new HashMap<>();
         final int generations = between(2, 20);
+        final int operations = 500;
         for (int gen = 0; gen < generations; gen++) {
-            List<Long> batch = LongStream.rangeClosed(0, between(0, 500)).boxed().collect(Collectors.toList());
+            List<Long> batch = LongStream.rangeClosed(0, between(0, operations)).boxed().collect(Collectors.toList());
             Randomness.shuffle(batch);
             for (Long seqNo : batch) {
                 Translog.Index op = new Translog.Index("doc", randomAlphaOfLength(10), seqNo, new byte[]{1});
@@ -2658,6 +2660,92 @@ public class TranslogTests extends ESTestCase {
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, containsOperationsInAnyOrder(latestOperations.values()));
         }
+
+        try (Translog.RandomAccessSnapshot snapshot = translog.getRandomAccessSnapshot(0, operations - 1)) {
+            for (long i = 0; i < operations; i++) {
+                assertThat(snapshot.operation(i), equalTo(latestOperations.get(i)));
+            }
+        }
+    }
+
+    public void testRandomAccessSnapshot() throws ExecutionException, InterruptedException, IOException {
+        long seqNo = 0;
+        final int generations = randomIntBetween(1, 32);
+        final Map<Long, Tuple<Long, Long>> translogIndex = new HashMap<>();
+        for (int i = 0; i < generations; i++) {
+            final int documents = scaledRandomIntBetween(1, 512);
+            for (int j = 0; j < documents; j++) {
+                final Translog.Index index = new Translog.Index("doc", randomAlphaOfLength(16), seqNo, new byte[]{});
+                final Translog.Location location = translog.add(index);
+                translogIndex.put(seqNo, Tuple.tuple(location.generation, location.translogLocation));
+                seqNo++;
+            }
+            if (i < generations - 1) {
+                translog.rollGeneration();
+            }
+        }
+
+        try (Translog.RandomAccessSnapshot snapshot = translog.getRandomAccessSnapshot(0, seqNo - 1)) {
+            for (int i = 0; i < seqNo; i++) {
+                assertNotNull("missing operation [" + i + "] out of [" + (seqNo - 1) + "]", snapshot.operation(i));
+                final Tuple<Long, Long> value = translogIndex.get((long) i);
+                assertThat(translog.getRandomAccessIndexForGeneration(value.v1()).get(i), equalTo(value.v2()));
+                if (value.v1() == generations) {
+                    assertThat(translog.getRandomAccessIndexForCurrentGeneration().get(i), equalTo(value.v2()));
+                }
+            }
+        }
+    }
+
+    public void testRandomAccessSnapshotWithConcurrency() throws BrokenBarrierException, InterruptedException, IOException {
+        final AtomicLong seqNo = new AtomicLong();
+        final ConcurrentHashMap<Long, Long> translogIndex = new ConcurrentHashMap<>();
+
+        final int numberOfThreads = scaledRandomIntBetween(1, 16);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        final List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+                final long currentSeqNo = seqNo.getAndIncrement();
+                final Translog.Index index = new Translog.Index("doc", randomAlphaOfLength(16), currentSeqNo, new byte[] {});
+                try {
+                    final Location location = translog.add(index);
+                    translogIndex.put(currentSeqNo, location.translogLocation);
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        barrier.await();
+
+        barrier.await();
+
+        try (Translog.RandomAccessSnapshot snapshot = translog.getRandomAccessSnapshot(0, seqNo.get() - 1)) {
+            for (long i = 0; i < seqNo.get(); i++) {
+                assertNotNull("missing operation [" + i + "] out of [" + (seqNo.get() - 1) + "]", snapshot.operation(i));
+                assertThat(translog.getRandomAccessIndexForCurrentGeneration().get(i), equalTo(translogIndex.get(i)));
+            }
+        }
+
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

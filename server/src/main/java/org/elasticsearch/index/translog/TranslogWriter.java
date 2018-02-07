@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.translog;
 
+import com.carrotsearch.hppc.LongLongHashMap;
+import com.carrotsearch.hppc.LongLongMap;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
@@ -44,7 +46,9 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
@@ -177,18 +181,16 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * add the given bytes to the translog and return the location they were written at
-     */
-
-    /**
-     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to.
+     * Add the given bytes to the translog with the specified sequence number; returns the location the bytes were written to. The specified
+     * callback is invoked under lock with the position of the added operation.
      *
-     * @param data  the bytes to write
-     * @param seqNo the sequence number associated with the operation
+     * @param data     the bytes to write
+     * @param seqNo    the sequence number associated with the operation
+     * @param consumer a callback with the position of the added operation
      * @return the location the bytes were written to
      * @throws IOException if writing to the translog resulted in an I/O exception
      */
-    public synchronized Translog.Location add(final BytesReference data, final long seqNo) throws IOException {
+    public synchronized Translog.Location add(final BytesReference data, final long seqNo, final LongConsumer consumer) throws IOException {
         ensureOpen();
         final long offset = totalOffset;
         try {
@@ -217,6 +219,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
         assert assertNoSeqNumberConflict(seqNo, data);
 
+        consumer.accept(offset);
         return new Translog.Location(generation, offset, data.length());
     }
 
@@ -310,17 +313,33 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @Override
     public TranslogSnapshot newSnapshot() {
-        // make sure to acquire the sync lock first, to prevent dead locks with threads calling
-        // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
+        return snapshot(super::newSnapshot);
+    }
+
+    @Override
+    public RandomAccessTranslogSnapshot newRandomAccessSnapshot(final LongLongMap index) {
+        // we have to make a copy, otherwise this map could be concurrently modified while we are reading from it
+        return snapshot(() -> super.newRandomAccessSnapshot(new LongLongHashMap(index)));
+    }
+
+    private <T> T snapshot(final Supplier<T> supplier) {
+        /*
+         * We have to acquire the sync lock first to prevent deadlocks with threads calling syncUpTo where the syncLock is acquired first
+         * followed by acquiring the monitor on this.
+         */
         synchronized (syncLock) {
             synchronized (this) {
                 ensureOpen();
                 try {
                     sync();
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                 }
-                return super.newSnapshot();
+                /*
+                 * This must run under lock; see newRandomAccessSnapshot where we make a copy of the translog index and this must be done
+                 * when we are certain that there are no additional modifications being made to the map as it is not thread-safe.
+                 */
+                return supplier.get();
             }
         }
     }

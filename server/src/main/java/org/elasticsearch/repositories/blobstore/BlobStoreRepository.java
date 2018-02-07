@@ -68,6 +68,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -605,7 +606,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
                 } catch (NotXContentException e) {
                     logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
@@ -617,7 +619,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(INCOMPATIBLE_SNAPSHOTS_BLOB)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes(), XContentType.JSON)) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                     repositoryData = repositoryData.incompatibleSnapshotsFromXContent(parser);
                 }
             } catch (NoSuchFileException e) {

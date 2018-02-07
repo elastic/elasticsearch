@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -192,6 +193,10 @@ public class InternalSettingsPreparer {
                 + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE)
                 + "]. prompting for property values is only supported when running elasticsearch in the foreground");
         }
+
+        terminal.println(Terminal.Verbosity.SILENT,
+            "Prompting for property values is deprecated since " + Version.V_6_3_0
+                + ". Some setting values can be stored in the keystore. Consult the docs for more information.");
 
         if (secret) {
             return new String(terminal.readSecret("Enter value for [" + key + "]: "));

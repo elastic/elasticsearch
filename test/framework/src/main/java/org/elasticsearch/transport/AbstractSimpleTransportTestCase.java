@@ -2454,7 +2454,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(2, stats.getTxCount());
             TransportException exception = receivedException.get();
             assertNotNull(exception);
-            BytesStreamOutput streamOutput = new ReleasableBytesStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             assertEquals(failedMessage, 49 + streamOutput.bytes().length(), stats.getRxSize().getBytes());

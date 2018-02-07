@@ -260,6 +260,8 @@ class BuildPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     static void configureConfigurations(Project project) {
+        // TODO: this should really be in upstream gradle, no reason provided deps for compile shouldn't be used by tests
+        project.configurations.testCompileOnly.extendsFrom(project.configurations.compileOnly)
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return

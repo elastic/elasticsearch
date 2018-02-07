@@ -1285,13 +1285,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The translog is kept but its operations won't be replayed.
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
-        if (Assertions.ENABLED) {
-            // This assertion is only guaranteed if all nodes are on 6.2+.
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
-                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-                assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
-            }
-        }
         innerOpenEngineAndTranslog();
         getEngine().skipTranslogRecovery();
     }

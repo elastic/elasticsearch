@@ -57,20 +57,6 @@ case $key in
             "-Dtests.badapples=true"
         )
         ;;
-    smokeTestSql)  # TODO remove this once we are ready to merge sql down
-        GRADLE_CLI_ARGS=(
-            "--info"
-            "-pplugin/sql"
-            "check"
-            ":x-pack-elasticsearch:plugin:precommit"
-            ":x-pack-elasticsearch:qa:sql:check"
-            ":x-pack-elasticsearch:qa:sql:multinode:check"
-            ":x-pack-elasticsearch:qa:sql:no-security:check"
-            ":x-pack-elasticsearch:qa:sql:security:check"
-            ":x-pack-elasticsearch:qa:sql:security:no-ssl:check"
-            ":x-pack-elasticsearch:qa:sql:security:ssl:check"
-        )
-        ;;
     releaseTest)
         GRADLE_CLI_ARGS=(
             "--info"
@@ -138,10 +124,6 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
       BRANCH="${BRANCH:-master}"
       echo " -> using CI branch $BRANCH from elastic repo"
     }
-
-    # pick_clone_target NOCOMMIT just use master for testing our feature branch. Do not merge this.....
-    GH_USER="elastic"
-    BRANCH="master"
 
     DEPTH=1
     if [ -n "$BUILD_METADATA" ]; then

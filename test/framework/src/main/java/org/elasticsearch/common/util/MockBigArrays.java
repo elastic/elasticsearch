@@ -40,6 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.junit.Assert.assertTrue;
+
 public class MockBigArrays extends BigArrays {
 
     /**
@@ -56,8 +59,9 @@ public class MockBigArrays extends BigArrays {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
-            boolean success = ESTestCase.awaitBusy(() -> Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()));
-            if (!success) {
+            try {
+                assertBusy(() -> assertTrue(Sets.haveEmptyIntersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet())));
+            } catch (AssertionError ex) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
                 if (!masterCopy.isEmpty()) {

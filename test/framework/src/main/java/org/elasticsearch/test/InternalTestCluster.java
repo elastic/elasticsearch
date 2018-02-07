@@ -132,7 +132,6 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -1068,22 +1067,21 @@ public final class InternalTestCluster extends TestCluster {
         logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
         try {
-            if (awaitBusy(() -> {
+            assertBusy(() -> {
                 DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
                 if (discoveryNodes.getSize() != expectedNodes.size()) {
-                    return false;
+                    fail();
                 }
                 for (DiscoveryNode expectedNode : expectedNodes) {
                     if (discoveryNodes.nodeExists(expectedNode) == false) {
-                        return false;
+                        fail();
                     }
                 }
-                return true;
-            }, 30, TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
-                    client.admin().cluster().prepareState().get().getState().nodes());
-            }
-        } catch (InterruptedException e) {
+            }, 30, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
+                client.admin().cluster().prepareState().get().getState().nodes());
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }

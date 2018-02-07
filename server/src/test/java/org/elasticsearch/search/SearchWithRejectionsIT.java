@@ -41,7 +41,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 .build();
     }
 
-    public void testOpenContextsAfterRejections() throws InterruptedException {
+    public void testOpenContextsAfterRejections() throws Exception {
         createIndex("test");
         ensureGreen("test");
         final int docs = scaledRandomIntBetween(20, 50);
@@ -68,7 +68,8 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             } catch (Exception t) {
             }
         }
-        awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts(),
+            equalTo(0L)), 1, TimeUnit.SECONDS);
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
     }

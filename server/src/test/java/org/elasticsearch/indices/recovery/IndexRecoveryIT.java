@@ -696,9 +696,10 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
-                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false);
-                    } catch (InterruptedException e) {
+                        assertBusy(() -> assertThat(client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty(),
+                            equalTo(false)));
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                     super.sendRequest(connection, requestId, action, request, options);

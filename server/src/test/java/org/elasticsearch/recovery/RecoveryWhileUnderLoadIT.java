@@ -308,19 +308,18 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             //if there was an error we try to wait and see if at some point it'll get fixed
             logger.info("--> trying to wait");
-            assertTrue(awaitBusy(() -> {
-                                boolean errorOccurred = false;
-                                for (int i = 0; i < iterations; i++) {
-                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                                    if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
-                                        errorOccurred = true;
-                                    }
-                                }
-                                return !errorOccurred;
-                            },
-                            5,
-                            TimeUnit.MINUTES
-                    )
+            assertBusy(() -> {
+                    boolean errorOccurred = false;
+                    for (int i = 0; i < iterations; i++) {
+                        SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
+                        if (searchResponse.getHits().getTotalHits() != numberOfDocs) {
+                            errorOccurred = true;
+                        }
+                    }
+                    assertFalse(errorOccurred);
+                },
+                5,
+                TimeUnit.MINUTES
             );
             assertEquals(numberOfDocs, ids.size());
         }

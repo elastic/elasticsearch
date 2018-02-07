@@ -51,6 +51,8 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -59,8 +61,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -309,10 +309,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 AtomicInteger phase = new AtomicInteger();
                 while (true) {
                     // wait for something to happen
-                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                                    testTask.getOperation() != null ||
-                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            30, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                    try {
+                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
+                                testTask.getOperation() != null ||
+                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
+                                30, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                    } catch (Exception e) {
+                        task.markAsFailed(e);
+                        return;
+                    }
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }

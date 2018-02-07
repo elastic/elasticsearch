@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -213,25 +214,26 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
     }
 
     private static void assertShardStatesMatch(final IndexShardStateChangeListener stateChangeListener, final int numShards, final IndexShardState... shardStates)
-            throws InterruptedException {
-
-        BooleanSupplier waitPredicate = () -> {
+            throws Exception {
+        CheckedRunnable<Exception> waitPredicate = () -> {
             if (stateChangeListener.shardStates.size() != numShards) {
-                return false;
+                fail();
             }
             for (List<IndexShardState> indexShardStates : stateChangeListener.shardStates.values()) {
                 if (indexShardStates == null || indexShardStates.size() != shardStates.length) {
-                    return false;
+                    fail();
                 }
                 for (int i = 0; i < shardStates.length; i++) {
                     if (indexShardStates.get(i) != shardStates[i]) {
-                        return false;
+                        fail();
                     }
                 }
             }
-            return true;
         };
-        if (!awaitBusy(waitPredicate, 1, TimeUnit.MINUTES)) {
+
+        try {
+            assertBusy(waitPredicate, 1, TimeUnit.MINUTES);
+        } catch (AssertionError ae) {
             fail("failed to observe expect shard states\n" +
                     "expected: [" + numShards + "] shards with states: " + Strings.arrayToCommaDelimitedString(shardStates) + "\n" +
                     "observed:\n" + stateChangeListener);

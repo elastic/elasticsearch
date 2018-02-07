@@ -125,9 +125,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
 
         internalCluster().stopCurrentMasterNode();
-        awaitBusy(() -> {
+        assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            return clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            assertTrue(clusterState.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
@@ -292,26 +292,24 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         ensureClusterSizeConsistency();
     }
 
-    private void assertNoMasterBlockOnAllNodes() throws InterruptedException {
+    private void assertNoMasterBlockOnAllNodes() throws Exception {
         Predicate<Client> hasNoMasterBlock = client -> {
             ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
         };
-        assertTrue(awaitBusy(
-                        () -> {
-                            boolean success = true;
-                            for (Client client : internalCluster().getClients()) {
-                                boolean clientHasNoMasterBlock = hasNoMasterBlock.test(client);
-                                if (logger.isDebugEnabled()) {
-                                    logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, clientHasNoMasterBlock);
-                                }
-                                success &= clientHasNoMasterBlock;
-                            }
-                            return success;
-                        },
-                        20,
-                        TimeUnit.SECONDS
-                )
+        assertBusy(() -> {
+                boolean success = true;
+                for (Client client : internalCluster().getClients()) {
+                    boolean clientHasNoMasterBlock = hasNoMasterBlock.test(client);
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, clientHasNoMasterBlock);
+                    }
+                    success &= clientHasNoMasterBlock;
+                }
+                assertTrue(success);
+            },
+            20,
+            TimeUnit.SECONDS
         );
     }
 

@@ -480,13 +480,19 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         return paths[0];
     }
 
-    private boolean waitForShardDeletion(final String server, final Index index, final int shard) throws InterruptedException {
-        awaitBusy(() -> !Files.exists(shardDirectory(server, index, shard)));
+    private boolean waitForShardDeletion(final String server, final Index index, final int shard) throws Exception {
+        try {
+            assertBusy(() -> assertFalse(Files.exists(shardDirectory(server, index, shard))));
+        } catch (AssertionError ignore) {
+        }
         return Files.exists(shardDirectory(server, index, shard));
     }
 
-    private boolean waitForIndexDeletion(final String server, final Index index) throws InterruptedException {
-        awaitBusy(() -> !Files.exists(indexDirectory(server, index)));
+    private boolean waitForIndexDeletion(final String server, final Index index) throws Exception {
+        try {
+            assertBusy(() -> assertFalse(Files.exists(indexDirectory(server, index))));
+        } catch (AssertionError ignore) {
+        }
         return Files.exists(indexDirectory(server, index));
     }
 }

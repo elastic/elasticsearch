@@ -61,7 +61,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
@@ -83,6 +82,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -183,7 +183,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -202,6 +201,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1029,7 +1029,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         throws InterruptedException {
         final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
-        BooleanSupplier testDocs = () -> {
+        CheckedRunnable<Exception> testDocs = () -> {
             if (indexer != null) {
                 lastKnownCount.set(indexer.totalIndexedDocs());
             }
@@ -1043,21 +1043,28 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     lastKnownCount.set(count);
                 } catch (Exception e) { // count now acts like search and barfs if all shards failed...
                     logger.debug("failed to executed count", e);
-                    return false;
+                    fail(e.getMessage());
                 }
                 logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
             } else {
                 logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
             }
-            return lastKnownCount.get() >= numDocs;
+            assertThat(lastKnownCount.get(), greaterThanOrEqualTo(numDocs));
         };
 
-        while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount.get()) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
+        while (true) {
+            try {
+                assertBusy(testDocs, maxWaitTime, maxWaitTimeUnit);
+                break;
+            } catch (AssertionError ae) {
+                if (lastStartCount == lastKnownCount.get()) {
+                    // we didn't make any progress
+                    fail("failed to reach " + numDocs + "docs");
+                }
+                lastStartCount = lastKnownCount.get();
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
             }
-            lastStartCount = lastKnownCount.get();
         }
         return lastKnownCount.get();
     }

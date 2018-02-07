@@ -16,15 +16,12 @@ during these periods. For more information, see
 //Repo: x-pack-elasticsearch
 //Pull: 2930, 3258, 3267, 3320, 3365, 3401, 3485, 3388, 3473, 3521, 3714, 3513, 464
 //514, 519, 3690
-////
+
 Security::
-* Merge saml (6x)
+* {security} now supports user authentication using SAML Single Sign on. For
+more information, see {xpack-ref}/saml-realm.html[SAML Authentication].
 //Repo: x-pack-elasticsearch
 //Pull: 3648, 3646
-* Add the ability to refresh tokens obtained via the API
-//Repo: x-pack-elasticsearch
-//Pull: 3468
-////
 
 [[xes-enhancement-6.2.0]]
 [float]
@@ -74,30 +71,31 @@ Monitoring::
 * [Logstash] Index Management should use auto_expand_replicas
 //Repo: x-pack-elasticsearch
 //Pull: 3373
-
+////
 Security::
-* Backport Filter mappings fields when field level security is configured
+* Added the ability to refresh tokens that were created by the token API. The
+API provides information about a refresh token, which you can use within 24
+hours of its creation to extend the life of a token. For more information, see
+<<security-api-tokens>>.
 //Repo: x-pack-elasticsearch
-//Pull: 3242
-* Augment audit authz event with role names data
+//Pull: 3468
+* Added principal and role information to `access_granted`, `access_denied`,
+`run_as_granted`, and `run_as_denied` audit events. For more information about
+these events, see {xpack-ref}/auditing.html[Auditing Security Events].
 //Repo: x-pack-elasticsearch
 //Pull: 3100
-* Audit Event ignore policy
+* Added audit event ignore policies, which are a way to tune the verbosity of an
+audit trail. These policies define rules for ignoring audit events that match
+specific attribute values. For more information, see
+{xpack-ref}/auditing.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
 //Repo: x-pack-elasticsearch
 //Pull: 3005
-* [Security] Make generated passwords safe to be used in shell scripts
-//Repo: x-pack-elasticsearch
-//Pull: 3253
-* IndexLifecycleManager checks for index existense and up to date mappings
-//Repo: x-pack-elasticsearch
-//Pull: 3515
-* Remove production from the message about license installation without TLS
-//Repo: x-pack-elasticsearch
-//Pull: 3666
-* Add API for SSL certificate information
+* Added a certificates API, which enables you to retrieve information about the
+X.509 certificates that are used to encrypt communications in your {es} cluster.
+For more information, see <<security-api-ssl>>.
 //Repo: x-pack-elasticsearch
 //Pull: 3088
-
+////
 Watcher::
 * Watcher: Set index and type dynamically in index action
 //Repo: x-pack-elasticsearch
@@ -155,30 +153,24 @@ Monitoring::
 * [Monitoring] Add additional metric fields to Beats template
 //Repo: x-pack-elasticsearch
 //Pull: 3337
+////
 
 Security::
-* Use SPI to glean reserved roles
+* Updated the `setup-passwords` command to generate passwords with characters
+`A-Z`, `a-z`, and `0-9`, so that they are safe to use in shell scripts. For more
+information about this command, see <<setup-passwords>>.
 //Repo: x-pack-elasticsearch
-//Pull: 3012
-* Check for existing x-pack directory on users commands
+//Pull: 3253
+* Improved the error messages that occur if the `x-pack` directory is missing
+when you run <<users-command,`users` commands>>.
 //Repo: x-pack-elasticsearch
 //Pull: 3271
-* Split transport implementations into client/server
-//Repo: x-pack-elasticsearch
-//Pull: 3635
-* Elevate privileges fetching metadata for SAML
-//Repo: x-pack-elasticsearch
-//Pull: 3671
-* [SAML] Find all tokens for a realm, not just the first 10
-//Repo: x-pack-elasticsearch
-//Pull: 3689
-* [SAML] add security permission to get the classloader
-//Repo: x-pack-elasticsearch
-//Pull: 3720
-* Predictable ordering of security realms
+* Fixed the ordering of realms in a realm chain, which determines the order in
+which the realms are consulted. For more information, see
+{xpack-ref}/how-authc-works.html[How Authentication Works].
 //Repo: x-pack-elasticsearch
 //Pull: 3533
-
+////
 Watcher::
 * Watcher: Add transform input for chained input
 //Repo: x-pack-elasticsearch

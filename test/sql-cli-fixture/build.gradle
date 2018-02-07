@@ -1,0 +1,14 @@
+apply plugin: 'elasticsearch.build'
+
+forbiddenApisMain {
+  // does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+thirdPartyAudit.enabled = false
+licenseHeaders.enabled = false
+test.enabled = false
+jarHell.enabled = false
+// Not published so no need to assemble
+tasks.remove(assemble)
+build.dependsOn.remove('assemble')

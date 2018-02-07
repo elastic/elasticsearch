@@ -14,6 +14,9 @@ include::release-notes/xpack-breaking.asciidoc[]
 include::{es-repo-dir}/index-shared3.asciidoc[]
 
 :edit_url!:
+include::sql/index.asciidoc[]
+
+:edit_url!:
 include::monitoring/index.asciidoc[]
 
 :edit_url!:

@@ -16,7 +16,7 @@ es_meta_plugin {
   name = 'x-pack'
   description = 'Elasticsearch Expanded Pack Plugin'
   plugins = ['core', 'deprecation', 'graph', 'logstash',
-             'ml', 'monitoring', 'security', 'upgrade', 'watcher']
+             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql']
 }
 
 dependencies {
@@ -27,6 +27,7 @@ dependencies {
 configurations {
   testArtifacts.extendsFrom testRuntime
 }
+
 task testJar(type: Jar) {
   appendix 'test'
   from sourceSets.test.output
@@ -150,5 +151,6 @@ run {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.watcher.enabled', 'true'
+  setting 'xpack.sql.enabled', 'true'
   keystoreSetting 'bootstrap.password', 'password'
 }

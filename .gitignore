@@ -49,3 +49,6 @@ github.token
 ## ignore attachment files
 .local-*
 */.local-*
+
+## ignore antlr temporary files used by vscode-antlr4
+.antlr

@@ -1,0 +1,130 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.test.RunTask
+
+description = 'Integration tests for SQL'
+apply plugin: 'elasticsearch.build'
+archivesBaseName = 'qa-sql'
+
+dependencies {
+  compile "org.elasticsearch.test:framework:${version}"
+
+// TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
+  compile(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
+  compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
+  runtime "com.h2database:h2:1.4.194"
+  // used for running debug tests
+  runtime 'org.antlr:antlr4-runtime:4.5.3'
+
+  /* There are *no* CLI testing dependencies because we
+   * communicate with a fixture to fork a new CLI process
+   * when we need it. */
+}
+
+/* disable unit tests because these are all integration tests used
+ * other qa projects. */
+test.enabled = false
+
+dependencyLicenses.enabled = false
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+forbiddenApisMain {
+  signaturesURLs = [PrecommitTasks.getResource('/forbidden/es-all-signatures.txt'),
+                    PrecommitTasks.getResource('/forbidden/es-test-signatures.txt')]
+}
+
+thirdPartyAudit.excludes = [
+      // H2 dependencies that we don't actually use....
+      'javax.servlet.ServletConfig',
+      'javax.servlet.ServletContext',
+      'javax.servlet.ServletContextEvent',
+      'javax.servlet.ServletContextListener',
+      'javax.servlet.ServletOutputStream',
+      'javax.servlet.http.HttpServlet',
+      'javax.servlet.http.HttpServletRequest',
+      'javax.servlet.http.HttpServletResponse',
+      'org.apache.lucene.document.Field$Index',
+      'org.apache.lucene.queryParser.QueryParser',
+      'org.osgi.framework.BundleActivator',
+      'org.osgi.framework.BundleContext',
+      'org.osgi.service.jdbc.DataSourceFactory',
+      'org.slf4j.Logger',
+      'org.slf4j.LoggerFactory',
+    ]
+
+subprojects {
+  apply plugin: 'elasticsearch.standalone-rest-test'
+  configurations {
+    cliFixture
+    cliJar
+  }
+  dependencies {
+    /* Since we're a standalone rest test we actually get transitive
+     * dependencies but we don't really want them because they cause
+     * all kinds of trouble with the jar hell checks. So we suppress
+     * them explicitly for non-es projects. */
+    testCompile(project(':x-pack-elasticsearch:qa:sql')) {
+      transitive = false
+    }
+    testCompile "org.elasticsearch.test:framework:${version}"
+
+    // JDBC testing dependencies
+    testRuntime(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
+    // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
+    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
+      transitive = false
+    }
+    testRuntime("com.h2database:h2:1.4.194") {
+      transitive = false
+    }
+    testRuntime("org.antlr:antlr4-runtime:4.5.3") {
+      transitive = false
+    }
+
+    cliFixture project(':x-pack-elasticsearch:test:sql-cli-fixture')
+    cliJar(project(':x-pack-elasticsearch:plugin:sql:sql-cli')) {
+      // We only need the jar file because it bundles all of its dependencies
+      transitive = false
+    }
+  }
+
+  if (project.name != 'security') {
+    // The security project just configures its subprojects
+    apply plugin: 'elasticsearch.rest-test'
+
+    task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+      Project cli = project(':x-pack-elasticsearch:plugin:sql:sql-cli')
+      dependsOn project.configurations.cliFixture
+      dependsOn project.configurations.cliJar
+      executable = new File(project.runtimeJavaHome, 'bin/java')
+      env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
+      args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
+          baseDir, "${ -> project.configurations.cliJar.singleFile}"
+    }
+
+    integTestCluster {
+      distribution = 'zip'
+      plugin project(':x-pack-elasticsearch:plugin').path
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'script.max_compilations_rate', '1000/1m'
+      dependsOn cliFixture
+    }
+
+    integTestRunner {
+      systemProperty 'tests.cli.fixture', "${ -> cliFixture.addressAndPort }"
+      finalizedBy cliFixture.stopTask
+    }
+
+    task runqa(type: RunTask) {
+      distribution = 'zip'
+      plugin project(':x-pack-elasticsearch:plugin').path
+      setting 'xpack.monitoring.enabled', 'false'
+      setting 'xpack.ml.enabled', 'false'
+      setting 'xpack.watcher.enabled', 'false'
+      setting 'script.max_compilations_rate', '1000/1m'
+      dependsOn cliFixture
+    }
+    runqa.finalizedBy cliFixture.stopTask
+  }
+}

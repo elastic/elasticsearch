@@ -1,27 +1,128 @@
-apply plugin: 'elasticsearch.build'
+evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-sql'
+    description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+    classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+    hasNativeController false
+    requiresKeystore true
+    extendedPlugins = ['x-pack-core']
+    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
+    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
+}
+
+configurations {
+    // Bundles the sql-cli.jar into the distribution
+    bin
+}
 
 archivesBaseName = 'x-pack-sql'
 
-// TODO: enable this once we have tests
-test.enabled=false
-licenseHeaders.enabled = false
-
-dependencyLicenses {
-    mapping from: /server.*/, to: 'elasticsearch'
-    mapping from: /aggs-matrix-stats.*/, to: 'elasticsearch' //pulled in by sql:server
-    ignoreSha 'x-pack-core'
-}
+// All integration tests live in qa modules
+integTest.enabled = false
 
 dependencies {
     provided "org.elasticsearch:elasticsearch:${version}"
-
+    compile project(xpackModule('sql:sql-proto'))
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    compile 'org.antlr:antlr4-runtime:4.5.3'
+    testCompile "org.elasticsearch.test:framework:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile project(path: ':modules:reindex', configuration: 'runtime')
+    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 
-    // sql's server components and its transitive dependencies
-    // TODO: what to do about this dependency, is it still needed?
-    // compile project(':x-pack-elasticsearch:sql:server')
+    bin(project(path: xpackModule('sql:sql-cli'))) {
+        // sql-cli bundles all of its dependencies into a single executable jar
+        transitive = false
+    }
 }
 
-//project(xpackModule('core')).bundlePlugin {
-//    from jar
-//}
+/* Bundle the sql-cli into the binary files. This is useful
+ * because it is an executable jar that can be moved wherever
+ * it is needed. */
+bundlePlugin {
+    from (configurations.bin) {
+        into 'elasticsearch/bin'
+    }
+}
+
+dependencyLicenses {
+    mapping from: /server.*/, to: 'elasticsearch'
+    mapping from: /sql-proto.*/, to: 'elasticsearch'
+    mapping from: /x-pack-core.*/, to: 'elasticsearch'
+
+    ignoreSha 'x-pack-core'
+    ignoreSha 'sql-proto'
+}
+
+/**********************************************
+ *          SQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+    regenerate
+}
+
+dependencies {
+    regenerate 'org.antlr:antlr4:4.5.3'
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
+
+task cleanGenerated(type: Delete) {
+    delete fileTree(grammarPath) {
+        include '*.tokens'
+    }
+    delete fileTree(outputPath) {
+        include 'SqlBase*.java'
+    }
+}
+
+task regenParser(type: JavaExec) {
+    dependsOn cleanGenerated
+    main = 'org.antlr.v4.Tool'
+    classpath = configurations.regenerate
+    systemProperty 'file.encoding', 'UTF-8'
+    systemProperty 'user.language', 'en'
+    systemProperty 'user.country', 'US'
+    systemProperty 'user.variant', ''
+    args '-Werror',
+         '-package', 'org.elasticsearch.xpack.sql.parser',
+         '-listener',
+         '-visitor',
+         '-o', outputPath,
+         "${file(grammarPath)}/SqlBase.g4"
+}
+
+task regen {
+    dependsOn regenParser
+    doLast {
+        // moves token files to grammar directory for use with IDE's
+        ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
+        ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
+        // make the generated classes package private
+        ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
+                          replace: '\\1',
+                          encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // nuke timestamps/filenames in generated files
+        ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                          replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                          encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // remove tabs in antlr generated files
+        ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+            fileset(dir: outputPath, includes: 'SqlBase*.java')
+        }
+        // fix line endings
+        ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+            patternset(includes: 'SqlBase*.java')
+        }
+    }
+}

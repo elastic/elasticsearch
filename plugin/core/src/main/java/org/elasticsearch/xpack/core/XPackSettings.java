@@ -79,6 +79,9 @@ public class XPackSettings {
         }
     }, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling sql. Defaults to true. */
+    public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
@@ -141,6 +144,7 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         return Collections.unmodifiableList(settings);
     }

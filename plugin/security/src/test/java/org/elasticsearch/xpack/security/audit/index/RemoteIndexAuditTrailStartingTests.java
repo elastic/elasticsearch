@@ -146,6 +146,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
     }
 
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
+        logger.info("Test configuration: ssl=[{}] localAudit=[{}][{}]", sslEnabled, localAudit, outputs);
         // we ensure that all instances present are started otherwise we will have issues
         // and race with the shutdown logic
         for (InternalTestCluster cluster : Arrays.asList(remoteCluster, internalCluster())) {

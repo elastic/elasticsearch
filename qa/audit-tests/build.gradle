@@ -19,6 +19,7 @@ integTestCluster {
   distribution 'zip'
   plugin xpackProject('plugin').path
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.security.audit.outputs', 'index'
   setting 'logger.level', 'DEBUG'

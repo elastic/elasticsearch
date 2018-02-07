@@ -303,7 +303,7 @@ class VersionCollection {
      */
     private Version removeAndReaddAsSnapshot(Version version) {
         versionSet.remove(version)
-        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, true)
+        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, buildSnapshot)
         safeAddToSet(snapshotVersion)
         return snapshotVersion
     }

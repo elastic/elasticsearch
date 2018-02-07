@@ -32,10 +32,9 @@ import java.util.regex.Matcher
 subprojects {
 
   Version bwcVersion = bwcVersions.getCorrelatedNameToSnapshot(project.name)
-
   if (bwcVersion == null) {
-    throw new GradleException("Could not find a valid snapshot for ${project.name}. Please make sure that the project being" +
-        " invoked makes sense against the ${bwcVersions.currentVersion} version")
+    // this project wont do anything
+    return
   }
 
   String bwcBranch

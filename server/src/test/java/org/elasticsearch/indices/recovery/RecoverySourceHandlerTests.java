@@ -88,6 +88,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -400,7 +401,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
         final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();

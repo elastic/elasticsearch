@@ -202,7 +202,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String, Object)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -317,7 +317,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            acquirePrimaryShardReference(request.shardId(), targetAllocationID, primaryTerm, this);
+            acquirePrimaryShardReference(request.shardId(), targetAllocationID, primaryTerm, this, request);
         }
 
         @Override
@@ -638,7 +638,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, this, executor);
+            replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, this, executor, request);
         }
 
         /**
@@ -950,7 +950,7 @@ public abstract class TransportReplicationAction<
      * and replication of the operation to all replica shards is completed / failed (see {@link ReplicationOperation}).
      */
     private void acquirePrimaryShardReference(ShardId shardId, String allocationId, long primaryTerm,
-                                              ActionListener<PrimaryShardReference> onReferenceAcquired) {
+                                              ActionListener<PrimaryShardReference> onReferenceAcquired, Object debugInfo) {
         IndexShard indexShard = getIndexShard(shardId);
         // we may end up here if the cluster state used to route the primary is so stale that the underlying
         // index shard was replaced with a replica. For example - in a two node cluster, if the primary fails
@@ -981,7 +981,7 @@ public abstract class TransportReplicationAction<
             }
         };
 
-        indexShard.acquirePrimaryOperationPermit(onAcquired, executor);
+        indexShard.acquirePrimaryOperationPermit(onAcquired, executor, debugInfo);
     }
 
     class ShardReference implements Releasable {

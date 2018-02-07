@@ -27,7 +27,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -38,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
 
@@ -115,7 +113,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        shard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.INDEX);
+        shard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.INDEX, "");
         try (Releasable operationLock = fut.get()) {
             SyncedFlushUtil.LatchedListener<ShardsSyncedFlushResult> listener = new SyncedFlushUtil.LatchedListener<>();
             flushService.attemptSyncedFlush(shardId, listener);

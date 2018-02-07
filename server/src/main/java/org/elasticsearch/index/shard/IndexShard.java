@@ -2192,12 +2192,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
+     *
+     * @param debugInfo            extra information that will be used for debugging if assertions are enabled
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
         verifyPrimary();
 
-        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
+        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
     private final Object primaryTermMutex = new Object();
@@ -2213,9 +2215,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo            extra information that will be used for debugging if assertions are enabled
      */
     public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
-                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
+                                              final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
         final boolean globalCheckpointUpdated;
@@ -2301,11 +2305,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 },
                 executorOnDelay,
-                true);
+                true, debugInfo);
     }
 
     public int getActiveOperationsCount() {
         return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    public List<RuntimeException> getActiveOperations() {
+        return indexShardOperationPermits.getActiveOperations();
     }
 
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {

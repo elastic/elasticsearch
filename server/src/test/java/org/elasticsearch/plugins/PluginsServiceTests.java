@@ -285,7 +285,8 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("foo"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
@@ -296,13 +297,17 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Arrays.asList("bar", "other"), false, false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Arrays.asList("bar", "other"), false, false);
         bundles.add(new PluginsService.Bundle(info, pluginDir));
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("baz"), false, false);
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("baz"), false, false);
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.singletonList("foo"), false, false);
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("foo"), false, false);
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         bundles.add(new PluginsService.Bundle(info4, pluginDir));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
@@ -311,7 +316,8 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
         assertThat(sortedBundles, Matchers.contains(bundle));
@@ -320,13 +326,16 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -335,7 +344,8 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("dne"), false, false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dne"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             PluginsService.sortBundles(Collections.singleton(bundle))
@@ -346,16 +356,20 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0",Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
+        PluginInfo info2 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("common"), false, false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", "MyPlugin", Collections.singletonList("common"), false, false);
+        PluginInfo info3 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("common"), false, false);
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
-        PluginInfo info4 = new PluginInfo("common", "desc", "1.0", "MyPlugin", Collections.singletonList("grandparent"), false, false);
+        PluginInfo info4 = new PluginInfo("common", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("grandparent"), false, false);
         PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
         bundles.add(bundle4);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -365,10 +379,12 @@ public class PluginsServiceTests extends ESTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginInfo info2 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -426,7 +442,8 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(dupJar);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
@@ -444,7 +461,8 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dupJar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
@@ -460,7 +478,8 @@ public class PluginsServiceTests extends ESTestCase {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.emptyList(), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, new HashMap<>()));
@@ -478,7 +497,8 @@ public class PluginsServiceTests extends ESTestCase {
         makeJar(depJar, DummyClass1.class);
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep", Collections.singleton(depJar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Collections.singletonList("dep"), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Collections.singletonList("dep"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
@@ -500,7 +520,8 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             PluginsService.checkBundleJarHell(bundle, transitiveDeps));
@@ -522,7 +543,8 @@ public class PluginsServiceTests extends ESTestCase {
         Map<String, Set<URL>> transitiveDeps = new HashMap<>();
         transitiveDeps.put("dep1", Collections.singleton(dep1Jar.toUri().toURL()));
         transitiveDeps.put("dep2", Collections.singleton(dep2Jar.toUri().toURL()));
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
+        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8",
+            "MyPlugin", Arrays.asList("dep1", "dep2"), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         PluginsService.checkBundleJarHell(bundle, transitiveDeps);
         Set<URL> deps = transitiveDeps.get("myplugin");

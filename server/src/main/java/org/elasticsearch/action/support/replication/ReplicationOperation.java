@@ -178,25 +178,19 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "[{}] failure while performing [{}] on replica {}, request [{}]",
-                        shard.shardId(),
-                        opType,
-                        shard,
-                        replicaRequest),
-                    replicaException);
-                if (TransportActions.isShardNotAvailableException(replicaException)) {
-                    decPendingAndFinishIfNeeded();
-                } else {
+                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] failure while performing [{}] on replica {}, request [{}]",
+                    shard.shardId(), opType, shard, replicaRequest), replicaException);
+                // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.
+                if (TransportActions.isShardNotAvailableException(replicaException) == false) {
                     RestStatus restStatus = ExceptionsHelper.status(replicaException);
                     shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
-                    String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    replicasProxy.failShardIfNeeded(shard, message,
-                            replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                            ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
                 }
+                String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
+                replicasProxy.failShardIfNeeded(shard, message,
+                    replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
+                    ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
             }
         });
     }

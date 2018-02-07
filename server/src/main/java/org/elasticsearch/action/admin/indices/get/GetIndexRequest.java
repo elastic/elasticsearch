@@ -34,9 +34,9 @@ import java.util.List;
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public enum Feature {
-        ALIASES((byte) 0, "_aliases", "_alias"),
-        MAPPINGS((byte) 1, "_mappings", "_mapping"),
-        SETTINGS((byte) 2, "_settings");
+        ALIASES((byte) 0),
+        MAPPINGS((byte) 1),
+        SETTINGS((byte) 2);
 
         private static final Feature[] FEATURES = new Feature[Feature.values().length];
 
@@ -47,36 +47,14 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             }
         }
 
-        private final List<String> validNames;
-        private final String preferredName;
         private final byte id;
 
-        Feature(byte id, String... validNames) {
-            assert validNames != null && validNames.length > 0;
+        Feature(byte id) {
             this.id = id;
-            this.validNames = Arrays.asList(validNames);
-            this.preferredName = validNames[0];
         }
 
         public byte id() {
             return id;
-        }
-
-        public String preferredName() {
-            return preferredName;
-        }
-
-        public boolean validName(String name) {
-            return this.validNames.contains(name);
-        }
-
-        public static Feature fromName(String name) {
-            for (Feature feature : Feature.values()) {
-                if (feature.validName(name)) {
-                    return feature;
-                }
-            }
-            throw new IllegalArgumentException("No endpoint or operation is available at [" + name + "]");
         }
 
         public static Feature fromId(byte id) {
@@ -84,14 +62,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
                 throw new IllegalArgumentException("No mapping for id [" + id + "]");
             }
             return FEATURES[id];
-        }
-
-        public static Feature[] convertToFeatures(String... featureNames) {
-            Feature[] features = new Feature[featureNames.length];
-            for (int i = 0; i < featureNames.length; i++) {
-                features[i] = Feature.fromName(featureNames[i]);
-            }
-            return features;
         }
     }
 

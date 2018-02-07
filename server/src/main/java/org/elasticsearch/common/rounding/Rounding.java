@@ -21,7 +21,7 @@ package org.elasticsearch.common.rounding;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * A strategy for rounding long values.
  */
-public abstract class Rounding implements Streamable {
+public abstract class Rounding implements Writeable {
 
     public abstract byte id();
 
@@ -107,19 +107,23 @@ public abstract class Rounding implements Streamable {
 
         static final byte ID = 1;
 
-        private DateTimeUnit unit;
-        private DateTimeField field;
-        private DateTimeZone timeZone;
-        private boolean unitRoundsToMidnight;
-
-        TimeUnitRounding() { // for serialization
-        }
+        private final DateTimeUnit unit;
+        private final DateTimeField field;
+        private final DateTimeZone timeZone;
+        private final boolean unitRoundsToMidnight;
 
         TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
             this.field = unit.field(timeZone);
             unitRoundsToMidnight = this.field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
             this.timeZone = timeZone;
+        }
+
+        TimeUnitRounding(StreamInput in) throws IOException {
+            unit = DateTimeUnit.resolve(in.readByte());
+            timeZone = DateTimeZone.forID(in.readString());
+            field = unit.field(timeZone);
+            unitRoundsToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
         }
 
         @Override
@@ -238,14 +242,6 @@ public abstract class Rounding implements Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            unit = DateTimeUnit.resolve(in.readByte());
-            timeZone = DateTimeZone.forID(in.readString());
-            field = unit.field(timeZone);
-            unitRoundsToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
             out.writeString(timeZone.getID());
@@ -278,17 +274,19 @@ public abstract class Rounding implements Streamable {
 
         static final byte ID = 2;
 
-        private long interval;
-        private DateTimeZone timeZone;
-
-        TimeIntervalRounding() { // for serialization
-        }
+        private final long interval;
+        private final DateTimeZone timeZone;
 
         TimeIntervalRounding(long interval, DateTimeZone timeZone) {
             if (interval < 1)
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
+        }
+
+        TimeIntervalRounding(StreamInput in) throws IOException {
+            interval = in.readVLong();
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
@@ -375,12 +373,6 @@ public abstract class Rounding implements Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            interval = in.readVLong();
-            timeZone = DateTimeZone.forID(in.readString());
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
@@ -415,11 +407,10 @@ public abstract class Rounding implements Streamable {
             Rounding rounding = null;
             byte id = in.readByte();
             switch (id) {
-                case TimeUnitRounding.ID: rounding = new TimeUnitRounding(); break;
-                case TimeIntervalRounding.ID: rounding = new TimeIntervalRounding(); break;
+                case TimeUnitRounding.ID: rounding = new TimeUnitRounding(in); break;
+                case TimeIntervalRounding.ID: rounding = new TimeIntervalRounding(in); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
-            rounding.readFrom(in);
             return rounding;
         }
 

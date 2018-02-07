@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -59,7 +60,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -393,10 +393,8 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         // try to open the index
         final ElasticsearchException e =
-                expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
+                expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(e, hasToString(containsString("Failed to verify index " + metaData.getIndex())));
-        assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
     }
 

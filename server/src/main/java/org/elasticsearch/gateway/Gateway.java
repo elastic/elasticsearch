@@ -124,7 +124,7 @@ public class Gateway extends AbstractComponent {
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {
                             // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                            indicesService.verifyIndexMetadata(electedIndexMetaData, electedIndexMetaData);
+                            indicesService.verifyIndexMetadata(electedIndexMetaData, electedIndexMetaData, "metadata verification");
                         }
                     } catch (Exception e) {
                         final Index electedIndex = electedIndexMetaData.getIndex();

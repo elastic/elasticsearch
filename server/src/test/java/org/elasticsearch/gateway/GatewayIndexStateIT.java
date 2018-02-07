@@ -42,8 +42,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -55,8 +55,8 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -374,12 +374,15 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         });
     }
 
+
     /**
-     * This test really tests worst case scenario where we have a broken setting or any setting that prevents an index from being
-     * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
-     * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
+     * This test tests that we don't open indices with unknown index settings.
+     *  - when a node starts an IndexService for the index with unknown settings will not be created.
+     *      Then index will be closed with the unknown settings archived.
+     *  -  an index with archived settings can not be opened with index open API.
+     *  - to open this index, archived settings must be removed via the wildcard archived.*
      */
-    public void testRecoverBrokenIndexMetadata() throws Exception {
+    public void testDoNotOpenIndexWithUnknownOrAchivedSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
@@ -400,10 +403,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
-                 // this is invalid but should be archived
-                .put("index.similarity.BM25.type", "classic")
-                 // this one is not validated ahead of time and breaks allocation
-                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.unknown.setting", "true")
             ).build();
             IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
@@ -412,14 +412,22 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         // this is crucial otherwise the state call below might not contain the index yet
         ensureGreen(metaData.getIndex().getName());
         state = client().admin().cluster().prepareState().get().getState();
+        // assert that the index can't be opened
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
-        assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
-        // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
-        assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
-        assertNotNull(ex.getCause());
-        assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "Unknown filter type [icu_collation] for [myCollator]");
+        // assert that the unrecognized setting got archived
+        assertEquals("true", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.unknown.setting"));
+
+        // try to open it with the archived setting - fail again with IndexOpenException
+        ElasticsearchException ex = expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
+        assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
+        assertThat(ex.getMessage(), containsString("unknown setting [archived.index.unknown.setting]"));
+
+        // delete archived settings and try to open index again - this time successful
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("archived.*")).get();
+        client().admin().indices().prepareOpen("test").get();
+        state = client().admin().cluster().prepareState().get().getState();
+        assertNull(state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.unknown.setting"));
+        assertEquals(IndexMetaData.State.OPEN, state.getMetaData().index(metaData.getIndex()).getState());
     }
 
     /**
@@ -472,11 +480,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
 
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
-        assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
-        assertNotNull(ex.getCause());
-        assertEquals(MapperParsingException.class, ex.getCause().getClass());
-        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
+        ElasticsearchException ex = expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
+        assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
+        assertThat(ex.getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

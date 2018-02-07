@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
@@ -193,9 +193,9 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     // We need to check that this index can be upgraded to the current version
                     indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData, minIndexCompatibilityVersion);
                     try {
-                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData);
+                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData, "metadata verification");
                     } catch (Exception e) {
-                        throw new ElasticsearchException("Failed to verify index " + indexMetaData.getIndex(), e);
+                        throw new IndexOpenException(indexMetaData.getIndex(), "Failed to open index! Failed to verify index " + indexMetaData.getIndex() + e.getMessage());
                     }
 
                     mdBuilder.put(indexMetaData, true);

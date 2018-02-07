@@ -681,7 +681,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         script = Script.parse(parser);
                                     } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName,
-                                        parser.getDeprecationHandler())) {
+                                            parser.getDeprecationHandler())) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),

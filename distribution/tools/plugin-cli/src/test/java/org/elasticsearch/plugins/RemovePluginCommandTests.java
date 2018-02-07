@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.BufferedReader;
@@ -41,6 +42,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -78,19 +80,27 @@ public class RemovePluginCommandTests extends ESTestCase {
         env = TestEnvironment.newEnvironment(settings);
     }
 
-    void createPlugin(String name) throws Exception {
+    void createPlugin(String name) throws IOException {
         createPlugin(env.pluginsFile(), name);
     }
 
-    void createPlugin(Path path, String name) throws Exception {
+    void createPlugin(String name, Version version) throws IOException {
+        createPlugin(env.pluginsFile(), name, version);
+    }
+
+    void createPlugin(Path path, String name) throws IOException {
+        createPlugin(path, name, Version.CURRENT);
+    }
+
+    void createPlugin(Path path, String name, Version version) throws IOException {
         PluginTestUtil.writePluginProperties(
-            path.resolve(name),
-            "description", "dummy",
-            "name", name,
-            "version", "1.0",
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "java.version", System.getProperty("java.specification.version"),
-            "classname", "SomeClass");
+                path.resolve(name),
+                "description", "dummy",
+                "name", name,
+                "version", "1.0",
+                "elasticsearch.version", version.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "SomeClass");
     }
 
     void createMetaPlugin(String name, String... plugins) throws Exception {
@@ -134,6 +144,18 @@ public class RemovePluginCommandTests extends ESTestCase {
         removePlugin("fake", home, randomBoolean());
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
+        assertRemoveCleaned(env);
+    }
+
+    public void testRemoveOldVersion() throws Exception {
+        createPlugin(
+                "fake",
+                VersionUtils.randomVersionBetween(
+                        random(),
+                        Version.CURRENT.minimumIndexCompatibilityVersion(),
+                        VersionUtils.getPreviousVersion()));
+        removePlugin("fake", home, randomBoolean());
+        assertThat(Files.exists(env.pluginsFile().resolve("fake")), equalTo(false));
         assertRemoveCleaned(env);
     }
 

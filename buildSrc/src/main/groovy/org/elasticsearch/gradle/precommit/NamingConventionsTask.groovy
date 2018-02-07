@@ -74,10 +74,10 @@ public class NamingConventionsTask extends LoggedExec {
                     "org.elasticsearch.gradle:build-tools:${VersionProperties.elasticsearch}")
             buildToolsDep.transitive = false // We don't need gradle in the classpath. It conflicts.
         }
-        FileCollection extraClasspath = project.configurations.namingConventions
-        dependsOn(extraClasspath)
-
-        FileCollection classpath = project.sourceSets.test.runtimeClasspath
+        FileCollection classpath = project.files(project.configurations.namingConventions,
+                                                 project.sourceSets.test.compileClasspath,
+                                                 project.sourceSets.test.output)
+        dependsOn(classpath)
         inputs.files(classpath)
         description = "Tests that test classes aren't misnamed or misplaced"
         executable = new File(project.runtimeJavaHome, 'bin/java')
@@ -95,7 +95,7 @@ public class NamingConventionsTask extends LoggedExec {
         project.afterEvaluate {
             doFirst {
                 args('-Djna.nosys=true')
-                args('-cp', (classpath + extraClasspath).asPath, 'org.elasticsearch.test.NamingConventionsCheck')
+                args('-cp', classpath.asPath, 'org.elasticsearch.test.NamingConventionsCheck')
                 args('--test-class', testClass)
                 if (skipIntegTestInDisguise) {
                     args('--skip-integ-tests-in-disguise')

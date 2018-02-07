@@ -26,12 +26,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -41,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -186,17 +183,13 @@ public class ReplicationOperation<
                         shard,
                         replicaRequest),
                     replicaException);
-                if (TransportActions.isShardNotAvailableException(replicaException)) {
-                    decPendingAndFinishIfNeeded();
-                } else {
-                    RestStatus restStatus = ExceptionsHelper.status(replicaException);
-                    shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
-                        shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
-                    String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    replicasProxy.failShardIfNeeded(shard, message,
-                            replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                            ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
-                }
+                RestStatus restStatus = ExceptionsHelper.status(replicaException);
+                shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
+                    shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
+                String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
+                replicasProxy.failShardIfNeeded(shard, message,
+                    replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
+                    ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
             }
         });
     }

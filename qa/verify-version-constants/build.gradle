@@ -36,6 +36,11 @@ for (Version version : indexCompatVersions) {
     // we do not have infrastructure for starting pre-5.0.0 nodes so we skip them
     if (version.before("5.0.0")) continue
 
+    // the BWC version under test will fail to start in this situation so we skip creating the test task
+    if (project.cgroupsV2Enabled && version.isVersionBrokenIfCgroupsV2Enabled()) {
+        continue
+    }      
+
     String baseName = "v${version}"
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
         mustRunAfter(precommit)

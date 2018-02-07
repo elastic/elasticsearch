@@ -1,0 +1,206 @@
+[role="xpack"]
+[[xes-6.2.0]]
+== {es} {xpack} 6.2.0 Release Notes
+++++
+<titleabbrev>6.2.0 Release Notes</titleabbrev>
+++++
+
+[[xes-feature-6.2.0]]
+[float]
+=== New features
+
+Machine Learning::
+* Added the ability to identify scheduled events and prevent anomaly detection
+during these periods. For more information, see
+{xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].
+//Repo: x-pack-elasticsearch
+//Pull: 2930, 3258, 3267, 3320, 3365, 3401, 3485, 3388, 3473, 3521, 3714, 3513, 464
+//514, 519, 3690
+////
+Security::
+* Merge saml (6x)
+//Repo: x-pack-elasticsearch
+//Pull: 3648, 3646
+* Add the ability to refresh tokens obtained via the API
+//Repo: x-pack-elasticsearch
+//Pull: 3468
+////
+
+[[xes-enhancement-6.2.0]]
+[float]
+=== Enhancements
+
+Machine Learning::
+* Increased tokenization flexibility for categorization. Now all {es} analyzer
+functionality is available, which opens up the possibility of sensibly
+categorizing non-English log messages. For more information, see {xpack-ref}/ml-configuring-categories.html#ml-configuring-analyzer[Customizing the Categorization Analyzer].
+//Repo: x-pack-elasticsearch
+//Pull: 3372
+* Improved the sensitivity of the analysis to high variance data with lots of
+values near zero.
+//Repo: machine-learning-cpp
+//Pull: 456
+* Improved the decay rate of the model memory by using a weighted moving average.
+//Repo: machine-learning-cpp
+//Pull: 440
+* Machine learning indices created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, {ml} indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
+//Repo: x-pack-elasticsearch
+//Pull: 3375
+* Changed the credentials that are used by {dfeeds}. When {security} is enabled,
+a {dfeed} stores the roles of the user who created or updated the {dfeed}
+**at that time**. This means that if those roles are updated, the {dfeed}
+subsequently runs with the new permissions that are associated with the roles.
+However, if the user's roles are adjusted after creating or updating the {dfeed}
+then the {dfeed} continues to run with the permissions that are associated with
+the original roles. For more information, see
+{xpack-ref}/ml-dfeeds.html[Datafeeds].
+//Repo: x-pack-elasticsearch
+//Pull: 3254
+* Added a new `scheduled` forecast status, which indicates that the forecast
+has not started yet.
+//Repo: machine-learning-cpp
+//Pull: 506
+////
+Monitoring::
+* [Monitoring] Use index.auto_expand_replicas: 0-1
+//Repo: x-pack-elasticsearch
+//Pull: 3282
+* [Monitoring] Add Cluster Alert for Nodes Changed
+//Repo: x-pack-elasticsearch
+//Pull: 3504
+* [Logstash] Index Management should use auto_expand_replicas
+//Repo: x-pack-elasticsearch
+//Pull: 3373
+
+Security::
+* Backport Filter mappings fields when field level security is configured
+//Repo: x-pack-elasticsearch
+//Pull: 3242
+* Augment audit authz event with role names data
+//Repo: x-pack-elasticsearch
+//Pull: 3100
+* Audit Event ignore policy
+//Repo: x-pack-elasticsearch
+//Pull: 3005
+* [Security] Make generated passwords safe to be used in shell scripts
+//Repo: x-pack-elasticsearch
+//Pull: 3253
+* IndexLifecycleManager checks for index existense and up to date mappings
+//Repo: x-pack-elasticsearch
+//Pull: 3515
+* Remove production from the message about license installation without TLS
+//Repo: x-pack-elasticsearch
+//Pull: 3666
+* Add API for SSL certificate information
+//Repo: x-pack-elasticsearch
+//Pull: 3088
+
+Watcher::
+* Watcher: Set index and type dynamically in index action
+//Repo: x-pack-elasticsearch
+//Pull: 3264
+* Watcher: Add refresh parameter to index action
+//Repo: x-pack-elasticsearch
+//Pull: 3350
+* Watcher: Add support for actions in slack attachments
+//Repo: x-pack-elasticsearch
+//Pull: 3355
+* [Watcher] Use index.auto_expand_replicas: 0-1
+//Repo: x-pack-elasticsearch
+//Pull: 3284
+* [Watcher] Use auto_expand_replicas on triggered_watches index too
+//Repo: x-pack-elasticsearch
+//Pull: 3371
+////
+
+[[xes-bug-6.2.0]]
+[float]
+=== Bug fixes
+////
+License::
+* Fix license messaging for Logstash functionality
+//Repo: x-pack-elasticsearch
+//Pull: 3268
+////
+
+Machine Learning::
+* Improved error reporting for crashes and resource problems on Linux.
+//Repo: machine-learning-cpp
+//Pull: 510
+* Improved the detection of seasonal trends in bucket spans longer than 1 hour.
+//Repo: machine-learning-cpp
+//Pull: 525
+* Updated the forecast API to wait for validation and return an error if the
+validation fails.
+//Repo: x-pack-elasticsearch
+//Pull: 3399
+* Set the actual bucket value to 0 in model plots for empty buckets for count
+and sum functions. The count and sum functions treat empty buckets as 0 rather
+than unknown for anomaly detection, so it was inconsistent not to do the same
+for model plots. This inconsistency resulted in problems plotting these buckets
+in {kib}.
+//Repo: machine-learning-cpp
+//Pull: 518
+////
+Monitoring::
+* [Monitoring] Add additional metric fields to Beats template (Backport #3337 for 6.x/6.2.0)
+//Repo: x-pack-elasticsearch
+//Pull: 3560
+* fix timeout usage in _bulk to `timeout` from `master_timeout`
+//Repo: x-pack-elasticsearch
+//Pull: 3796
+* [Monitoring] Add additional metric fields to Beats template
+//Repo: x-pack-elasticsearch
+//Pull: 3337
+
+Security::
+* Use SPI to glean reserved roles
+//Repo: x-pack-elasticsearch
+//Pull: 3012
+* Check for existing x-pack directory on users commands
+//Repo: x-pack-elasticsearch
+//Pull: 3271
+* Split transport implementations into client/server
+//Repo: x-pack-elasticsearch
+//Pull: 3635
+* Elevate privileges fetching metadata for SAML
+//Repo: x-pack-elasticsearch
+//Pull: 3671
+* [SAML] Find all tokens for a realm, not just the first 10
+//Repo: x-pack-elasticsearch
+//Pull: 3689
+* [SAML] add security permission to get the classloader
+//Repo: x-pack-elasticsearch
+//Pull: 3720
+* Predictable ordering of security realms
+//Repo: x-pack-elasticsearch
+//Pull: 3533
+
+Watcher::
+* Watcher: Add transform input for chained input
+//Repo: x-pack-elasticsearch
+//Pull: 2861
+* Watcher: Improve cluster state listener behaviour
+//Repo: x-pack-elasticsearch
+//Pull: 3538
+* Settings: Cut over to affix settings where filters are needed
+//Repo: x-pack-elasticsearch
+//Pull: 3685
+* Watcher: Ensure state is cleaned properly in watcher life cycle service
+//Repo: x-pack-elasticsearch
+//Pull: 3770
+
+X-Pack::
+* Introduce plugin-specific env scripts
+//Repo: x-pack-elasticsearch
+//Pull: 3649
+* Drop native controller from descriptors (except ML)
+//Repo: x-pack-elasticsearch
+//Pull: 3650
+* Simplify security manager permissions
+// //Repo: x-pack-elasticsearch
+//Pull: 3651
+////

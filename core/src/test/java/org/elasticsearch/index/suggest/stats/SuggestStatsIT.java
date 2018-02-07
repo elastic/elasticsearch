@@ -112,7 +112,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
         logger.info("iter {}, iter1 {}, iter2 {}, {}", suggestAllIdx, suggestIdx1, suggestIdx2, endTime - startTime);
         // check suggest time
-        assertThat(suggest.getSuggestTimeInMillis(), greaterThan(0L));
+        assertThat(suggest.getSuggestTimeInMillis(), greaterThanOrEqualTo(0L));
         // the upperbound is num shards * total time since we do searches in parallel
         assertThat(suggest.getSuggestTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
@@ -124,7 +124,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
             logger.info("evaluating {}", stat.getNode());
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
                 assertThat(suggestStats.getSuggestCount(), greaterThan(0L));
-                assertThat(suggestStats.getSuggestTimeInMillis(), greaterThan(0L));
+                assertThat(suggestStats.getSuggestTimeInMillis(), greaterThanOrEqualTo(0L));
                 num++;
             } else {
                 assertThat(suggestStats.getSuggestCount(), equalTo(0L));

@@ -9,6 +9,8 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
+
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -100,7 +102,8 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
                         }
                     }
                 } catch (LDAPException e) {
-                    fail("Connection is not valid. It will not work on follow referral flow.");
+                    fail("Connection is not valid. It will not work on follow referral flow." +
+                            System.lineSeparator() + ExceptionsHelper.stackTrace(e));
                 }
                 return null;
             }

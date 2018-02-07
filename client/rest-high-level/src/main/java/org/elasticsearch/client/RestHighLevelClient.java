@@ -51,6 +51,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -637,7 +638,8 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry,
+            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

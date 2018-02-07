@@ -52,6 +52,9 @@ public interface CompositeAggregation extends MultiBucketsAggregation {
     }
 
     static XContentBuilder toXContentFragment(CompositeAggregation aggregation, XContentBuilder builder, Params params) throws IOException {
+        if (aggregation.afterKey() != null) {
+            buildCompositeMap("after_key", aggregation.afterKey(), builder);
+        }
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (CompositeAggregation.Bucket bucket : aggregation.getBuckets()) {
             bucketToXContent(bucket, builder, params);

@@ -54,8 +54,8 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.DATA_ERROR, "Passphrases are not equal, exiting.");
         }*/
 
-        KeyStoreWrapper keystore = KeyStoreWrapper.create(password);
-        keystore.save(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(env.configFile(), password);
         terminal.println("Created elasticsearch keystore in " + env.configFile());
     }
 }

@@ -609,13 +609,11 @@ public final class IngestDocument {
             return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
-            value instanceof Double || value instanceof Boolean) {
+            value instanceof Double || value instanceof Boolean ||
+            value instanceof ZonedDateTime) {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();
-        } else if (value instanceof ZonedDateTime) {
-            ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }

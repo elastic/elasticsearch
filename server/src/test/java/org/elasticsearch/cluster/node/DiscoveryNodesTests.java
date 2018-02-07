@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -113,7 +114,9 @@ public class DiscoveryNodesTests extends ESTestCase {
                 // change an attribute
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
-                node = new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), attrs, node.getRoles(), node.getVersion());
+                final TransportAddress nodeAddress = node.getAddress();
+                node = new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), nodeAddress.address().getHostString(),
+                    nodeAddress.getAddress(), nodeAddress, attrs, node.getRoles(), node.getVersion());
             }
             nodesB.add(node);
         }
@@ -140,14 +143,21 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
-        if (Objects.equals(masterAId, masterBId)) {
-            assertFalse(delta.masterNodeChanged());
+        if (masterA == null) {
             assertThat(delta.previousMasterNode(), nullValue());
+        } else {
+            assertThat(delta.previousMasterNode().getId(), equalTo(masterAId));
+        }
+        if (masterB == null) {
             assertThat(delta.newMasterNode(), nullValue());
         } else {
+            assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
+        }
+
+        if (Objects.equals(masterAId, masterBId)) {
+            assertFalse(delta.masterNodeChanged());
+        } else {
             assertTrue(delta.masterNodeChanged());
-            assertThat(delta.newMasterNode() != null ? delta.newMasterNode().getId() : null, equalTo(masterBId));
-            assertThat(delta.previousMasterNode() != null ? delta.previousMasterNode().getId() : null, equalTo(masterAId));
         }
 
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);

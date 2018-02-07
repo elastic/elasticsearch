@@ -181,7 +181,7 @@ public class InternalEngine extends Engine {
                 final IndexCommit startingCommit = getStartingCommitPoint();
                 assert startingCommit != null : "Starting commit should be non-null";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(translogDeletionPolicy,
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
@@ -1381,6 +1381,24 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldPeriodicallyFlush() {
+        ensureOpen();
+        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
+        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+            return false;
+        }
+        /*
+         * We should only flush ony if the shouldFlush condition can become false after flushing.
+         * This condition will change if the `uncommittedSize` of the new commit is smaller than
+         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
+         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
+         */
+        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
+        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
+    }
+
+    @Override
     public CommitId flush() throws EngineException {
         return flush(false, false);
     }
@@ -1410,7 +1428,9 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (indexWriter.hasUncommittedChanges() || force) {
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+                // newly created commit points to a different translog generation (can free translog)
+                if (indexWriter.hasUncommittedChanges() || force || shouldPeriodicallyFlush()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();

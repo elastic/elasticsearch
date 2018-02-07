@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -76,7 +77,22 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 String result = EntityUtils.toString(response.getEntity());
                 assertThat(result, containsString("\"_id\" : \"testdoc1\""));
             } finally {
-                oldEs.performRequest("DELETE", "/test");
+                try {
+                    oldEs.performRequest("DELETE", "/test");
+                } catch (ResponseException e) {
+                    /* Try not to throw ResponseException for as it'll eat the
+                     * real exception. This is because the rest client throws
+                     * exceptions in a "funny" way that isn't compatible with
+                     * `suppressed`. In the case of 404s we'll just log something
+                     * and move on because that just means that a previous
+                     * failure caused the index not to be created. */
+                    if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                        logger.warn("old index not deleted because it doesn't exist");
+                    } else {
+                        logger.error("failed to remove old index", e);
+                        fail("failed to remove old index, see log");
+                    }
+                }
             }
         }
     }

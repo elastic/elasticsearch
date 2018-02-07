@@ -30,6 +30,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -46,8 +48,8 @@ import java.util.Objects;
 import static org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder.DATE_FIELD_UNITS;
 
 /**
- * A {@link CompositeValuesSourceBuilder} that that builds a {@link RoundingValuesSource} from a {@link Script} or
- * a field name.
+ * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
+ * a field name using the provided interval.
  */
 public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> {
     static final String TYPE = "date_histogram";
@@ -55,6 +57,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     private static final ObjectParser<DateHistogramValuesSourceBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateHistogramValuesSourceBuilder.TYPE);
+        PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         PARSER.declareField((histogram, interval) -> {
             if (interval instanceof Long) {
                 histogram.interval((long) interval);
@@ -235,7 +238,11 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
                 canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
                     fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
             }
-            return new CompositeValuesSourceConfig(name, vs, order(), canEarlyTerminate);
+            // dates are returned as timestamp in milliseconds-since-the-epoch unless a specific date format
+            // is specified in the builder.
+            final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
+            return new CompositeValuesSourceConfig(name, vs, docValueFormat,
+                order(), canEarlyTerminate);
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

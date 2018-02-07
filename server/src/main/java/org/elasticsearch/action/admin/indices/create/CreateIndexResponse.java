@@ -46,10 +46,14 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
 
     static {
-        declareAcknowledgedField(PARSER);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
+        declareFields(PARSER);
+    }
+
+    protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
+        declareAcknowledgedField(objectParser);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
+                ObjectParser.ValueType.BOOLEAN);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
     }
 
     private boolean shardsAcknowledged;
@@ -89,18 +93,6 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
      * Returns true if the requisite number of shards were started before
      * returning from the index creation operation. If {@link #isAcknowledged()}
      * is false, then this also returns false.
-     * 
-     * @deprecated use {@link #isShardsAcknowledged()}
-     */
-    @Deprecated
-    public boolean isShardsAcked() {
-        return shardsAcknowledged;
-    }
-
-    /**
-     * Returns true if the requisite number of shards were started before
-     * returning from the index creation operation. If {@link #isAcknowledged()}
-     * is false, then this also returns false.
      */
     public boolean isShardsAcknowledged() {
         return shardsAcknowledged;
@@ -124,7 +116,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         return builder;
     }
 
-    public static CreateIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static CreateIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

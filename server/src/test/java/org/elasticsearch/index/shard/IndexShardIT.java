@@ -330,27 +330,27 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
-        assertFalse(shard.shouldFlush());
+        assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                 new ByteSizeValue(160 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
-        assertFalse(shard.shouldFlush());
+        assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
-        assertTrue(shard.shouldFlush());
+        assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = shard.getEngine().getTranslog();
         assertEquals(2, translog.uncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
-            assertFalse(shard.shouldFlush());
+            assertFalse(shard.shouldPeriodicallyFlush());
         });
         assertEquals(0, translog.uncommittedOperations());
         translog.sync();
-        long size = translog.uncommittedSizeInBytes();
+        long size = Math.max(translog.uncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
             translog.uncommittedOperations(), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
@@ -362,7 +362,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertBusy(() -> { // this is async
             logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
                 translog.uncommittedOperations(), translog.getGeneration());
-            assertFalse(shard.shouldFlush());
+            assertFalse(shard.shouldPeriodicallyFlush());
         });
         assertEquals(0, translog.uncommittedOperations());
     }
@@ -406,7 +406,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
-        assertFalse(shard.shouldFlush());
+        assertFalse(shard.shouldPeriodicallyFlush());
         final boolean flush = randomBoolean();
         final Settings settings;
         if (flush) {
@@ -421,7 +421,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 .setSource("{}", XContentType.JSON)
                 .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                 .get();
-        assertFalse(shard.shouldFlush());
+        assertFalse(shard.shouldPeriodicallyFlush());
         final AtomicBoolean running = new AtomicBoolean(true);
         final int numThreads = randomIntBetween(2, 4);
         final Thread[] threads = new Thread[numThreads];

@@ -23,7 +23,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -100,7 +100,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void handoffPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         transportService.submitRequest(
                 targetNode,
                 PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,

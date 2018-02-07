@@ -132,15 +132,15 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (TYPE_FIELD.match(currentFieldName)) {
+                if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
-                } else if (ID_FIELD.match(currentFieldName)) {
+                } else if (ID_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     id = parser.text();
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[parent_id] query does not support [" + currentFieldName + "]");

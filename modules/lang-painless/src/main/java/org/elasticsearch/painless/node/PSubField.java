@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -52,10 +52,10 @@ final class PSubField extends AStoreable {
     void analyze(Locals locals) {
          if (write && Modifier.isFinal(field.modifiers)) {
              throw createError(new IllegalArgumentException(
-                 "Cannot write to read-only field [" + field.name + "] for type [" + field.type.name + "]."));
+                 "Cannot write to read-only field [" + field.name + "] for type [" + Definition.ClassToName(field.clazz) + "]."));
          }
 
-        actual = field.type;
+        actual = field.clazz;
     }
 
     @Override
@@ -63,9 +63,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, field.type.type);
+            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.getField(field.owner.type, field.javaName, field.type.type);
+            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 
@@ -80,7 +80,7 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -94,9 +94,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.getStatic(field.owner.type, field.javaName, field.type.type);
+            writer.getStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.getField(field.owner.type, field.javaName, field.type.type);
+            writer.getField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 
@@ -105,9 +105,9 @@ final class PSubField extends AStoreable {
         writer.writeDebugInfo(location);
 
         if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
-            writer.putStatic(field.owner.type, field.javaName, field.type.type);
+            writer.putStatic(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         } else {
-            writer.putField(field.owner.type, field.javaName, field.type.type);
+            writer.putField(field.owner.type, field.javaName, MethodWriter.getType(field.clazz));
         }
     }
 

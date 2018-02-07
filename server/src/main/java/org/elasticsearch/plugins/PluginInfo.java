@@ -181,6 +181,19 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
     public static PluginInfo readFromProperties(final Path path) throws IOException {
+        return readFromProperties(path, true);
+    }
+
+    /**
+     * Reads and validates the plugin descriptor file. If {@code enforceVersion} is false then version enforcement for the plugin descriptor
+     * is skipped.
+     *
+     * @param path           the path to the root directory for the plugin
+     * @param enforceVersion whether or not to enforce the version when reading plugin descriptors
+     * @return the plugin info
+     * @throws IOException if an I/O exception occurred reading the plugin descriptor
+     */
+    static PluginInfo readFromProperties(final Path path, final boolean enforceVersion) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
@@ -214,7 +227,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
         final Version esVersion = Version.fromString(esVersionString);
-        if (esVersion.equals(Version.CURRENT) == false) {
+        if (enforceVersion && esVersion.equals(Version.CURRENT) == false) {
             final String message = String.format(
                     Locale.ROOT,
                     "plugin [%s] is incompatible with version [%s]; was designed for version [%s]",
@@ -258,12 +271,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     break;
                 default:
                     final String message = String.format(
-                        Locale.ROOT,
-                        "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                        "has_native_controller",
-                        "true",
-                        "false",
-                        hasNativeControllerValue);
+                            Locale.ROOT,
+                            "property [%s] must be [%s], [%s], or unspecified but was [%s]",
+                            "has_native_controller",
+                            "true",
+                            "false",
+                            hasNativeControllerValue);
                     throw new IllegalArgumentException(message);
             }
         }
@@ -277,7 +290,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             requiresKeystore = Booleans.parseBoolean(requiresKeystoreValue);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("property [requires.keystore] must be [true] or [false]," +
-                                               " but was [" + requiresKeystoreValue + "]", e);
+                    " but was [" + requiresKeystoreValue + "]", e);
         }
 
         if (propsMap.isEmpty() == false) {

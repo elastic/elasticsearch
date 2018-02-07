@@ -204,10 +204,10 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             switch (token) {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
-                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false &&
-                        TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false &&
-                        ID.match(currentFieldName, parser.getDeprecationHandler()) == false &&
-                        ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                         getResult = GetResult.fromXContentEmbedded(parser, index, type, id);
                     }
                     break;

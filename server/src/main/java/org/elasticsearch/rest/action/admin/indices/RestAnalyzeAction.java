@@ -99,8 +99,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         texts.add(parser.text());
                     }
                     analyzeRequest.text(texts.toArray(new String[texts.size()]));
-                } else if (Fields.ANALYZER.match(currentFieldName, parser.getDeprecationHandler()) &&
-                    token == XContentParser.Token.VALUE_STRING) {
+                } else if (Fields.ANALYZER.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.VALUE_STRING) {
                     analyzeRequest.analyzer(parser.text());
                 } else if (Fields.FIELD.match(currentFieldName, parser.getDeprecationHandler()) &&
                     token == XContentParser.Token.VALUE_STRING) {

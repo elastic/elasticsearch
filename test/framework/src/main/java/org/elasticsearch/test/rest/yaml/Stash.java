@@ -46,8 +46,6 @@ public class Stash implements ToXContentFragment {
 
     private static final Logger logger = Loggers.getLogger(Stash.class);
 
-    public static final Stash EMPTY = new Stash();
-
     private final Map<String, Object> stash = new HashMap<>();
     private final ObjectPath stashObjectPath = new ObjectPath(stash);
 

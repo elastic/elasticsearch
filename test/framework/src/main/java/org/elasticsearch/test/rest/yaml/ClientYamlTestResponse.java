@@ -134,7 +134,7 @@ public class ClientYamlTestResponse {
      * Parses the response body and extracts a specific value from it (identified by the provided path)
      */
     public Object evaluate(String path) throws IOException {
-        return evaluate(path, Stash.EMPTY);
+        return evaluate(path, new Stash());
     }
 
     /**

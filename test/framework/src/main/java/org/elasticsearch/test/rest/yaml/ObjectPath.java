@@ -66,7 +66,7 @@ public class ObjectPath {
      * the result of calling {@link #evaluate(String)} on it.
      */
     public static <T> T evaluate(Object object, String path) throws IOException {
-        return new ObjectPath(object).evaluate(path, Stash.EMPTY);
+        return new ObjectPath(object).evaluate(path, new Stash());
     }
 
 
@@ -74,7 +74,7 @@ public class ObjectPath {
      * Returns the object corresponding to the provided path if present, null otherwise
      */
     public <T> T evaluate(String path) throws IOException {
-        return evaluate(path, Stash.EMPTY);
+        return evaluate(path, new Stash());
     }
 
     /**

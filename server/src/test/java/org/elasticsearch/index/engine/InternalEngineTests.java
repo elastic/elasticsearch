@@ -150,6 +150,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
@@ -3372,15 +3373,16 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogDir = createTempDir();
         final long timestamp2 = randomNonNegativeLong();
         final long maxTimestamp12 = Math.max(timestamp1, timestamp2);
-        final EngineConfig config = config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
-        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = createEngine(config)) {
+        final Function<Store, EngineConfig> configSupplier =
+            store -> config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = createEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(),
                 new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
             engine.index(appendOnlyPrimary(doc, true, timestamp1));
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
         }
-        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = new InternalEngine(config)) {
+        try (Store store = createStore(newFSDirectory(storeDir)); Engine engine = new InternalEngine(configSupplier.apply(store))) {
             assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             engine.recoverFromTranslog();
             assertEquals(timestamp1, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
@@ -3395,7 +3397,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (randomBoolean() || true) {
                 EngineDiskUtils.createNewTranslog(store.directory(), translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
             }
-            try (Engine engine = new InternalEngine(config(defaultSettings, store, translogDir, NoMergePolicy.INSTANCE, null))) {
+            try (Engine engine = new InternalEngine(configSupplier.apply(store))) {
                 assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
             }
         }
@@ -4337,7 +4339,7 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final EngineConfig config = copy(engine.config(), globalCheckpoint::get);
         final IndexCommit safeCommit;
-        try (InternalEngine engine = new InternalEngine(config)) {
+        try (InternalEngine engine = createEngine(config)) {
             final int numDocs = between(5, 50);
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);

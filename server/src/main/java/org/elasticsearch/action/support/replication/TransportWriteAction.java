@@ -395,10 +395,5 @@ public abstract class TransportWriteAction<
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
                 createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
-
-        @Override
-        public boolean canIgnoreReplicaFailureException(Exception replicaException) {
-            return false;
-        }
     }
 }

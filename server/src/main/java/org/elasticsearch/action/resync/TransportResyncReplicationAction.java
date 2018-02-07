@@ -203,10 +203,5 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception,
                 createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
-
-        @Override
-        public boolean canIgnoreReplicaFailureException(Exception replicaException) {
-            return false;
-        }
     }
 }

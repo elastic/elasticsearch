@@ -51,25 +51,20 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +91,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     }
 
     @Override
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
+                                                                       ThreadPool threadPool, Client client) {
         return Collections.singletonList(new TestPersistentTasksExecutor(Settings.EMPTY, clusterService));
     }
 

@@ -406,12 +406,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
-                // we want to refresh *before* we move to internal STARTED state
-                try {
-                    getEngine().refresh("cluster_state_started");
-                } catch (Exception e) {
-                    logger.debug("failed to refresh due to move to cluster wide started", e);
-                }
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
                     replicationTracker.activatePrimaryMode(getEngine().getLocalCheckpointTracker().getCheckpoint());

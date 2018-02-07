@@ -35,7 +35,7 @@ public class TranslogDeletionPolicy {
     private final Map<Object, RuntimeException> openTranslogRef;
 
     public void assertNoOpenTranslogRefs() {
-        if (openTranslogRef.isEmpty() == false) {
+        if (openTranslogRef != null && openTranslogRef.isEmpty() == false) {
             AssertionError e = new AssertionError("not all translog generations have been released");
             openTranslogRef.values().forEach(e::addSuppressed);
             throw e;

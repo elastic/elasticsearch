@@ -231,13 +231,15 @@ public abstract class AbstractObjectParser<Value, Context>
 
     private static <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
         List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-            parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken().isValue()
+                || parser.currentToken() == XContentParser.Token.VALUE_NULL
+                || parser.currentToken() == XContentParser.Token.START_OBJECT) {
             list.add(supplier.get()); // single value
         } else {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.VALUE_NULL ||
-                    parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                if (parser.currentToken().isValue()
+                        || parser.currentToken() == XContentParser.Token.VALUE_NULL
+                        || parser.currentToken() == XContentParser.Token.START_OBJECT) {
                     list.add(supplier.get());
                 } else {
                     throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");

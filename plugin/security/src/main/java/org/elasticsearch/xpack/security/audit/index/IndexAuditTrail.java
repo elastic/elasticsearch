@@ -45,19 +45,17 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -275,6 +273,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                 client.admin().cluster().prepareState().execute(new ActionListener<ClusterStateResponse>() {
                     @Override
                     public void onResponse(ClusterStateResponse clusterStateResponse) {
+                        logger.trace("remote cluster state is [{}] [{}]",
+                                clusterStateResponse.getClusterName(), clusterStateResponse.getState());
                         if (canStart(clusterStateResponse.getState())) {
                             innerStart();
                         } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
@@ -291,12 +291,17 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                             // state recovery etc.
                             String indexName = getIndexName();
                             // if this index doesn't exists the call will fail with a not_found exception...
-                            client.admin().cluster().prepareHealth().setIndices().setWaitForYellowStatus().execute(ActionListener.wrap(
-                                    (x) -> start(),
-                                    (e) -> {
-                                        logger.error("failed to get wait for yellow status on index [" + indexName + "]", e);
-                                        transitionStartingToInitialized();
-                                    }));
+                            client.admin().cluster().prepareHealth().setIndices(indexName).setWaitForYellowStatus().execute(
+                                    ActionListener.wrap(
+                                            (x) -> {
+                                                logger.debug("have yellow status on remote index [{}] ", indexName);
+                                                transitionStartingToInitialized();
+                                                start();
+                                            },
+                                            (e) -> {
+                                                logger.error("failed to get wait for yellow status on remote index [" + indexName + "]", e);
+                                                transitionStartingToInitialized();
+                                            }));
                         }
                     }
 
@@ -327,6 +332,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             final String message = "state transition from starting to start ed failed, current value: " + state.get();
             assert false : message;
             logger.error(message);
+        } else {
+            logger.trace("successful state transition from starting to started, current value: [{}]", state.get());
         }
     }
 

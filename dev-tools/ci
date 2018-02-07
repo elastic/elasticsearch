@@ -125,6 +125,8 @@ if [ -z ${USE_EXISTING_ES:+x} ]; then
       echo " -> using CI branch $BRANCH from elastic repo"
     }
 
+    pick_clone_target
+
     DEPTH=1
     if [ -n "$BUILD_METADATA" ]; then
       IFS=';' read -ra metadata <<< "$BUILD_METADATA"

@@ -15,8 +15,6 @@ dependencies {
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-
-    compile "org.elasticsearch.plugin:x-pack-security:${version}"
 }
 
 dependencyLicenses.enabled = false

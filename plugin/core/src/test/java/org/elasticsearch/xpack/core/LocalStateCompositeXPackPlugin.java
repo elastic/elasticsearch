@@ -383,9 +383,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
+                                                                       ThreadPool threadPool, Client client) {
         return filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
                 .flatMap(List::stream)
                 .collect(toList());
     }

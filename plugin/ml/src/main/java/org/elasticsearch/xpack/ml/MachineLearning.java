@@ -102,14 +102,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.persistent.CompletionPersistentTaskAction;
-import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.persistent.RemovePersistentTaskAction;
-import org.elasticsearch.persistent.StartPersistentTaskAction;
-import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -417,7 +410,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         );
     }
 
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
+                                                                       ThreadPool threadPool, Client client) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }

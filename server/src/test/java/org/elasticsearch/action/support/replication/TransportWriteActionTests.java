@@ -315,7 +315,7 @@ public class TransportWriteActionTests extends ESTestCase {
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.ShardEntry shardEntry = (ShardStateAction.ShardEntry) shardFailedRequest.request;
+        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) shardFailedRequest.request;
         // the shard the request was sent to and the shard to be failed should be the same
         assertEquals(shardEntry.getShardId(), replica.shardId());
         assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());

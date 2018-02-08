@@ -205,7 +205,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel) throws Exception {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,

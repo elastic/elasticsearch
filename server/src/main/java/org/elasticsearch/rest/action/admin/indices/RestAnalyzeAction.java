@@ -86,9 +86,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Fields.TEXT.match(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                } else if (Fields.TEXT.match(currentFieldName, parser.getDeprecationHandler()) &&
+                    token == XContentParser.Token.VALUE_STRING) {
                     analyzeRequest.text(parser.text());
-                } else if (Fields.TEXT.match(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                } else if (Fields.TEXT.match(currentFieldName, parser.getDeprecationHandler()) &&
+                    token == XContentParser.Token.START_ARRAY) {
                     List<String> texts = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token.isValue() == false) {
@@ -97,11 +99,13 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         texts.add(parser.text());
                     }
                     analyzeRequest.text(texts.toArray(new String[texts.size()]));
-                } else if (Fields.ANALYZER.match(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                } else if (Fields.ANALYZER.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.VALUE_STRING) {
                     analyzeRequest.analyzer(parser.text());
-                } else if (Fields.FIELD.match(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                } else if (Fields.FIELD.match(currentFieldName, parser.getDeprecationHandler()) &&
+                    token == XContentParser.Token.VALUE_STRING) {
                     analyzeRequest.field(parser.text());
-                } else if (Fields.TOKENIZER.match(currentFieldName)) {
+                } else if (Fields.TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.tokenizer(parser.text());
                     } else if (token == XContentParser.Token.START_OBJECT) {
@@ -109,7 +113,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     } else {
                         throw new IllegalArgumentException(currentFieldName + " should be tokenizer's name or setting");
                     }
-                } else if (Fields.TOKEN_FILTERS.match(currentFieldName)
+                } else if (Fields.TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
                         && token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -121,7 +125,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                                     + " array element should contain filter's name or setting");
                         }
                     }
-                } else if (Fields.CHAR_FILTERS.match(currentFieldName)
+                } else if (Fields.CHAR_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
                         && token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -133,13 +137,14 @@ public class RestAnalyzeAction extends BaseRestHandler {
                                     + " array element should contain char filter's name or setting");
                         }
                     }
-                } else if (Fields.EXPLAIN.match(currentFieldName)) {
+                } else if (Fields.EXPLAIN.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parser.isBooleanValue()) {
                         analyzeRequest.explain(parser.booleanValue());
                     } else {
                         throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
                     }
-                } else if (Fields.ATTRIBUTES.match(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                } else if (Fields.ATTRIBUTES.match(currentFieldName, parser.getDeprecationHandler()) &&
+                    token == XContentParser.Token.START_ARRAY) {
                     List<String> attributes = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token.isValue() == false) {
@@ -148,7 +153,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         attributes.add(parser.text());
                     }
                     analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
-                } else if (Fields.NORMALIZER.match(currentFieldName)) {
+                } else if (Fields.NORMALIZER.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.normalizer(parser.text());
                     } else {

@@ -95,6 +95,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -683,9 +684,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.getPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
+        IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
+        Set<String> inSyncIds = randomBoolean() ? Collections.singleton(routingEntry.allocationId().getId()) :
+            clusterService.state().metaData().index(index).inSyncAllocationIds(0);
         when(shard.getReplicationGroup()).thenReturn(
-            new ReplicationGroup(clusterService.state().routingTable().shardRoutingTable(shardId),
-                clusterService.state().metaData().index(index).inSyncAllocationIds(0)));
+            new ReplicationGroup(shardRoutingTable,
+                inSyncIds,
+                shardRoutingTable.getAllAllocationIds()));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
             return null;

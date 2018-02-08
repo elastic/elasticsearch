@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.upgrade.post;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +44,8 @@ public class UpgradeResponse extends BroadcastResponse {
 
     }
 
-    UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    UpgradeResponse(Map<String, Tuple<Version, String>> versions, int totalShards, int successfulShards, int failedShards,
+                    List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.versions = versions;
     }

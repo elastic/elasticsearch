@@ -157,7 +157,7 @@ public abstract class MappedFieldType extends FieldType {
      * If strict is true, all properties must be equal.
      * Otherwise, only properties which must never change in an index are checked.
      */
-    public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+    public void checkCompatibility(MappedFieldType other, List<String> conflicts) {
         checkTypeName(other);
 
         boolean indexed =  indexOptions() != IndexOptions.NONE;
@@ -201,27 +201,6 @@ public abstract class MappedFieldType extends FieldType {
 
         if (Objects.equals(similarity(), other.similarity()) == false) {
             conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
-
-        if (strict) {
-            if (omitNorms() != other.omitNorms()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [omit_norms] across all types.");
-            }
-            if (boost() != other.boost()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [boost] across all types.");
-            }
-            if (Objects.equals(searchAnalyzer(), other.searchAnalyzer()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_analyzer] across all types.");
-            }
-            if (Objects.equals(searchQuoteAnalyzer(), other.searchQuoteAnalyzer()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [search_quote_analyzer] across all types.");
-            }
-            if (Objects.equals(nullValue(), other.nullValue()) == false) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [null_value] across all types.");
-            }
-            if (eagerGlobalOrdinals() != other.eagerGlobalOrdinals()) {
-                conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [eager_global_ordinals] across all types.");
-            }
         }
     }
 

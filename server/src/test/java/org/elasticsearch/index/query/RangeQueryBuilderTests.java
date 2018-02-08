@@ -65,13 +65,13 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         switch (randomIntBetween(0, 2)) {
             case 0:
                 // use mapped integer field for numeric range queries
-                query = new RangeQueryBuilder(INT_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? INT_FIELD_NAME : INT_RANGE_FIELD_NAME);
                 query.from(randomIntBetween(1, 100));
                 query.to(randomIntBetween(101, 200));
                 break;
             case 1:
                 // use mapped date field, using date string representation
-                query = new RangeQueryBuilder(DATE_FIELD_NAME);
+                query = new RangeQueryBuilder(randomBoolean() ? DATE_FIELD_NAME : DATE_RANGE_FIELD_NAME);
                 query.from(new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
@@ -98,6 +98,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
         if (randomBoolean()) {
             query.to(null);
+        }
+        if (query.fieldName().equals(INT_RANGE_FIELD_NAME) || query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
+            query.relation(
+                    randomFrom(ShapeRelation.CONTAINS.toString(), ShapeRelation.INTERSECTS.toString(), ShapeRelation.WITHIN.toString()));
         }
         return query;
     }
@@ -143,7 +147,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         } else if (getCurrentTypes().length == 0 ||
             (queryBuilder.fieldName().equals(DATE_FIELD_NAME) == false
-                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false)) {
+                && queryBuilder.fieldName().equals(INT_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) == false
+                && queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME) == false)) {
             assertThat(query, instanceOf(TermRangeQuery.class));
             TermRangeQuery termRangeQuery = (TermRangeQuery) query;
             assertThat(termRangeQuery.getField(), equalTo(queryBuilder.fieldName()));
@@ -219,6 +225,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                     maxInt--;
                 }
             }
+        } else if (queryBuilder.fieldName().equals(DATE_RANGE_FIELD_NAME) || queryBuilder.fieldName().equals(INT_RANGE_FIELD_NAME)) {
+            // todo can't check RangeFieldQuery because its currently package private (this will change)
         } else {
             throw new UnsupportedOperationException();
         }

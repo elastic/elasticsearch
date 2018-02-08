@@ -14,3 +14,7 @@ The `index_options` field for numeric  fields has been deprecated in 6 and has n
 To safeguard against out of memory errors, the number of nested json objects within a single
 document across all fields has been limited to 10000. This default limit can be changed with
 the index setting `index.mapping.nested_objects.limit`.
+
+==== The `update_all_types` option has been removed
+
+This option is useless now that all indices have at most one type.

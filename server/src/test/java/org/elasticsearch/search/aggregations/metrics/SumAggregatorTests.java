@@ -34,6 +34,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -107,7 +108,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     public void testStringField() throws IOException {
-        IllegalStateException e = expectThrows(IllegalStateException.class , () -> {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             testCase(new MatchAllDocsQuery(), iw -> {
                 iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             }, count -> assertEquals(0L, count.getValue(), 0d));
@@ -116,10 +117,59 @@ public class SumAggregatorTests extends AggregatorTestCase {
             "Re-index with correct docvalues type.", e.getMessage());
     }
 
+    public void testSummationAccuracy() throws IOException {
+        // Summing up a normal array and expect an accurate value
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifySummationOfDoubles(values, 15.3, 0d);
+
+        // Summing up an array which contains NaN and infinities and expect a result same as naive summation
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifySummationOfDoubles(values, sum, 1e-10);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifySummationOfDoubles(largeValues, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifySummationOfDoubles(largeValues, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
+        testCase(new MatchAllDocsQuery(),
+            iw -> {
+                for (double value : values) {
+                    iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))));
+                }
+            },
+            result -> assertEquals(expected, result.getValue(), delta),
+            NumberFieldMapper.NumberType.DOUBLE
+        );
+    }
+
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<Sum> verify) throws IOException {
+        testCase(query, indexer, verify, NumberFieldMapper.NumberType.LONG);
+    }
 
+    private void testCase(Query query,
+                          CheckedConsumer<RandomIndexWriter, IOException> indexer,
+                          Consumer<Sum> verify,
+                          NumberFieldMapper.NumberType fieldNumberType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 indexer.accept(indexWriter);
@@ -128,7 +178,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(fieldNumberType);
                 fieldType.setName(FIELD_NAME);
                 fieldType.setHasDocValues(true);
 

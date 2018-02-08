@@ -45,71 +45,58 @@ public class WriteOperationTests extends ESTestCase {
 
     }
 
-    public void testFlush() throws IOException {
+    public void testFullyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
-
-        when(channel.write(any(ByteBuffer[].class))).thenReturn(10);
-
-        writeOp.flush();
+        writeOp.incrementIndex(10);
 
         assertTrue(writeOp.isFullyFlushed());
     }
 
-    public void testPartialFlush() throws IOException {
+    public void testPartiallyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
-        when(channel.write(any(ByteBuffer[].class))).thenReturn(5);
-
-        writeOp.flush();
+        writeOp.incrementIndex(5);
 
         assertFalse(writeOp.isFullyFlushed());
     }
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
-        WriteOperation writeOp = new WriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
 
         ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 
-        when(channel.write(buffersCaptor.capture())).thenReturn(5)
-            .thenReturn(5)
-            .thenReturn(2)
-            .thenReturn(15)
-            .thenReturn(1);
-
-        writeOp.flush();
+        writeOp.incrementIndex(5);
         assertFalse(writeOp.isFullyFlushed());
-        writeOp.flush();
-        assertFalse(writeOp.isFullyFlushed());
-        writeOp.flush();
-        assertFalse(writeOp.isFullyFlushed());
-        writeOp.flush();
-        assertFalse(writeOp.isFullyFlushed());
-        writeOp.flush();
-        assertTrue(writeOp.isFullyFlushed());
-
-        List<ByteBuffer[]> values = buffersCaptor.getAllValues();
-        ByteBuffer[] byteBuffers = values.get(0);
-        assertEquals(3, byteBuffers.length);
-        assertEquals(10, byteBuffers[0].remaining());
-
-        byteBuffers = values.get(1);
+        ByteBuffer[] byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(3, byteBuffers.length);
         assertEquals(5, byteBuffers[0].remaining());
 
-        byteBuffers = values.get(2);
+        writeOp.incrementIndex(5);
+        assertFalse(writeOp.isFullyFlushed());
+        byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(2, byteBuffers.length);
         assertEquals(15, byteBuffers[0].remaining());
 
-        byteBuffers = values.get(3);
+        writeOp.incrementIndex(2);
+        assertFalse(writeOp.isFullyFlushed());
+        byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(2, byteBuffers.length);
         assertEquals(13, byteBuffers[0].remaining());
 
-        byteBuffers = values.get(4);
+        writeOp.incrementIndex(15);
+        assertFalse(writeOp.isFullyFlushed());
+        byteBuffers = writeOp.getBuffersToWrite();
         assertEquals(1, byteBuffers.length);
         assertEquals(1, byteBuffers[0].remaining());
+
+        writeOp.incrementIndex(1);
+        assertTrue(writeOp.isFullyFlushed());
+        byteBuffers = writeOp.getBuffersToWrite();
+        assertEquals(1, byteBuffers.length);
+        assertEquals(0, byteBuffers[0].remaining());
     }
 }

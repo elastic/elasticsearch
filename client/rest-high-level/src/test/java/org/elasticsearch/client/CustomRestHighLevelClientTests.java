@@ -79,7 +79,6 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     private CustomRestClient restHighLevelClient;
 
     @Before
-    @SuppressWarnings("unchecked")
     public void initClients() throws IOException {
         if (restHighLevelClient == null) {
             final RestClient restClient = mock(RestClient.class);

@@ -43,7 +43,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String cause;
     private final String index;
     private final String providedName;
-    private final boolean updateAllTypes;
     private Index recoverFrom;
     private ResizeType resizeType;
 
@@ -61,12 +60,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    public CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, String providedName,
-                                                boolean updateAllTypes) {
+    public CreateIndexClusterStateUpdateRequest(TransportMessage originalMessage, String cause, String index, String providedName) {
         this.originalMessage = originalMessage;
         this.cause = cause;
         this.index = index;
-        this.updateAllTypes = updateAllTypes;
         this.providedName = providedName;
     }
 
@@ -153,11 +150,6 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Index recoverFrom() {
         return recoverFrom;
-    }
-
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public boolean updateAllTypes() {
-        return updateAllTypes;
     }
 
     /**

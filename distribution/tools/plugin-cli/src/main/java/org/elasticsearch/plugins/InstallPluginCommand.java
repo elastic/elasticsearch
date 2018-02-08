@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -566,7 +567,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
+    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
 
         // checking for existing version of the plugin
@@ -585,13 +586,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
-
-        // read optional security policy (extra permissions)
-        // if it exists, confirm or warn the user
-        Path policy = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        if (Files.exists(policy)) {
-            PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
-        }
 
         return info;
     }
@@ -646,9 +640,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                                    Environment env, List<Path> deleteOnFailure) throws Exception {
         final MetaPluginInfo metaInfo = MetaPluginInfo.readFromProperties(tmpRoot);
         verifyPluginName(env.pluginsFile(), metaInfo.getName(), tmpRoot);
+
         final Path destination = env.pluginsFile().resolve(metaInfo.getName());
         deleteOnFailure.add(destination);
         terminal.println(VERBOSE, metaInfo.toString());
+
         final List<Path> pluginPaths = new ArrayList<>();
         try (DirectoryStream<Path> paths = Files.newDirectoryStream(tmpRoot)) {
             // Extract bundled plugins path and validate plugin names
@@ -661,23 +657,34 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 pluginPaths.add(plugin);
             }
         }
-        final List<PluginInfo> pluginInfos = new ArrayList<>();
-        for (Path plugin : pluginPaths) {
-            final PluginInfo info = verify(terminal, plugin, isBatch, env);
-            pluginInfos.add(info);
-            Path tmpBinDir = plugin.resolve("bin");
-            if (Files.exists(tmpBinDir)) {
-                Path destBinDir = env.binFile().resolve(metaInfo.getName());
-                deleteOnFailure.add(destBinDir);
-                installBin(info, tmpBinDir, destBinDir);
-            }
 
-            Path tmpConfigDir = plugin.resolve("config");
-            if (Files.exists(tmpConfigDir)) {
-                // some files may already exist, and we don't remove plugin config files on plugin removal,
-                // so any installed config files are left on failure too
-                Path destConfigDir = env.configFile().resolve(metaInfo.getName());
-                installConfig(info, tmpConfigDir, destConfigDir);
+        // read optional security policy from each bundled plugin, and confirm all exceptions one time with user
+
+        Set<String> permissions = new HashSet<>();
+        final List<PluginInfo> pluginInfos = new ArrayList<>();
+        boolean hasNativeController = false;
+        for (Path plugin : pluginPaths) {
+            final PluginInfo info = loadPluginInfo(terminal, plugin, isBatch, env);
+            pluginInfos.add(info);
+
+            hasNativeController |= info.hasNativeController();
+
+            Path policy = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            if (Files.exists(policy)) {
+                permissions.addAll(PluginSecurity.parsePermissions(policy, env.tmpFile()));
+            }
+        }
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, hasNativeController, isBatch);
+
+        // move support files and rename as needed to prepare the exploded plugin for its final location
+        for (int i = 0; i < pluginPaths.size(); ++i) {
+            Path pluginPath = pluginPaths.get(i);
+            PluginInfo info = pluginInfos.get(i);
+            installPluginSupportFiles(info, pluginPath, env.binFile().resolve(metaInfo.getName()),
+                                      env.configFile().resolve(metaInfo.getName()), deleteOnFailure);
+            // ensure the plugin dir within the tmpRoot has the correct name
+            if (pluginPath.getFileName().toString().equals(info.getName()) == false) {
+                Files.move(pluginPath, pluginPath.getParent().resolve(info.getName()), StandardCopyOption.ATOMIC_MOVE);
             }
         }
         movePlugin(tmpRoot, destination);
@@ -693,17 +700,35 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     /**
      * Installs the plugin from {@code tmpRoot} into the plugins dir.
-     * If the plugin has a bin dir and/or a config dir, those are copied.
+     * If the plugin has a bin dir and/or a config dir, those are moved.
      */
     private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
-        final PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
+        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, isBatch, env);
+        // read optional security policy (extra permissions), if it exists, confirm or warn the user
+        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        if (Files.exists(policy)) {
+            Set<String> permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+            PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
+        }
+
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
 
+        installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
+                                  env.configFile().resolve(info.getName()), deleteOnFailure);
+        movePlugin(tmpRoot, destination);
+        if (info.requiresKeystore()) {
+            createKeystoreIfNeeded(terminal, env, info);
+        }
+        terminal.println("-> Installed " + info.getName());
+    }
+
+    /** Moves bin and config directories from the plugin if they exist */
+    private void installPluginSupportFiles(PluginInfo info, Path tmpRoot,
+                                           Path destBinDir, Path destConfigDir, List<Path> deleteOnFailure) throws Exception {
         Path tmpBinDir = tmpRoot.resolve("bin");
         if (Files.exists(tmpBinDir)) {
-            Path destBinDir = env.binFile().resolve(info.getName());
             deleteOnFailure.add(destBinDir);
             installBin(info, tmpBinDir, destBinDir);
         }
@@ -712,14 +737,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (Files.exists(tmpConfigDir)) {
             // some files may already exist, and we don't remove plugin config files on plugin removal,
             // so any installed config files are left on failure too
-            Path destConfigDir = env.configFile().resolve(info.getName());
             installConfig(info, tmpConfigDir, destConfigDir);
         }
-        movePlugin(tmpRoot, destination);
-        if (info.requiresKeystore()) {
-            createKeystoreIfNeeded(terminal, env, info);
-        }
-        terminal.println("-> Installed " + info.getName());
     }
 
     /** Moves the plugin directory into its final destination. **/
@@ -811,8 +830,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
             terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-            keystore = KeyStoreWrapper.create(new char[0]);
-            keystore.save(env.configFile());
+            keystore = KeyStoreWrapper.create();
+            keystore.save(env.configFile(), new char[0]);
         }
     }
 

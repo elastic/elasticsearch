@@ -46,15 +46,18 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -604,6 +607,21 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .fuzzyTranspositions(false)
             .toQuery(createShardContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
+    }
+
+    public void testLenientToPrefixQuery() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        Query query = new SimpleQueryStringBuilder("t*")
+            .field(DATE_FIELD_NAME)
+            .field(STRING_FIELD_NAME)
+            .lenient(true)
+            .toQuery(createShardContext());
+        List<Query> expectedQueries = new ArrayList<>();
+        expectedQueries.add(new MatchNoDocsQuery(""));
+        expectedQueries.add(new PrefixQuery(new Term(STRING_FIELD_NAME, "t")));
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(expectedQueries, 1.0f);
         assertEquals(expected, query);
     }
 

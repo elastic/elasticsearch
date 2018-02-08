@@ -43,6 +43,7 @@ import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
@@ -158,8 +159,10 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
+
         project.targetCompatibility = minimumRuntimeVersion
         project.sourceCompatibility = minimumRuntimeVersion
+
         // set java home for each project, so they dont have to find it in the root project
         project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
@@ -421,12 +424,12 @@ class BuildPlugin implements Plugin<Project> {
         }
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
-                File gradleJavaHome = Jvm.current().javaHome
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.forkOptions.memoryMaximumSize = "1g"
-                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
                     if (project.compactProfile != 'full') {
@@ -449,8 +452,16 @@ class BuildPlugin implements Plugin<Project> {
 
                 options.encoding = 'UTF-8'
                 options.incremental = true
+
                 // TODO: use native Gradle support for --release when available (cf. https://github.com/gradle/gradle/issues/2510)
-                options.compilerArgs << '--release' << project.targetCompatibility.majorVersion
+                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+            }
+            // also apply release flag to groovy, which is used in build-tools
+            project.tasks.withType(GroovyCompile) {
+                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
+                options.fork = true
+                options.forkOptions.javaHome = new File(project.compilerJavaHome)
+                options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
             }
         }
     }
@@ -556,6 +567,9 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                jvmArg '--illegal-access=warn'
+            }
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
@@ -648,7 +662,10 @@ class BuildPlugin implements Plugin<Project> {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
         project.test.mustRunAfter(precommit)
-        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
+        // only require dependency licenses for non-elasticsearch deps
+        project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
+            it.group.startsWith('org.elasticsearch') == false
+        } - project.configurations.provided
     }
 
     private static configureDependenciesInfo(Project project) {

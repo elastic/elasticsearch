@@ -195,6 +195,16 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
+     * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
+     * settings are specified in the argument are returned.
+     *
+     * Also automatically adds empty consumers for all settings in order to activate logging
+     */
+    public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
+        addSettingsUpdater(Setting.groupedSettingsUpdater(consumer, logger, settings));
+    }
+
+    /**
      * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
      * consumer in order to be processed correctly.
      */

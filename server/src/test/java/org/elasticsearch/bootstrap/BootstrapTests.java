@@ -53,11 +53,11 @@ public class BootstrapTests extends ESTestCase {
     public void testLoadSecureSettings() throws Exception {
         final Path configPath = env.configFile();
         final SecureString seed;
-        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create(new char[0])) {
+        try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             seed = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(keyStoreWrapper).build());
             assertNotNull(seed);
             assertTrue(seed.length() > 0);
-            keyStoreWrapper.save(configPath);
+            keyStoreWrapper.save(configPath, new char[0]);
         }
         assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
         try (SecureSettings secureSettings = Bootstrap.loadSecureSettings(env)) {

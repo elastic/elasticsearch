@@ -165,7 +165,7 @@ public class ClientYamlTestClient {
         Header[] requestHeaders = new Header[headers.size()];
         int index = 0;
         for (Map.Entry<String, String> header : headers.entrySet()) {
-            logger.info("Adding header {} with value {}", header.getKey(), header.getValue());
+            logger.debug("Adding header {} with value {}", header.getKey(), header.getValue());
             requestHeaders[index++] = new BasicHeader(header.getKey(), header.getValue());
         }
 

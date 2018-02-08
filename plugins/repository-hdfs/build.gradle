@@ -353,7 +353,6 @@ thirdPartyAudit.excludes = [
   'io.netty.handler.stream.ChunkedWriteHandler',
   'io.netty.util.concurrent.GlobalEventExecutor',
   'io.netty.util.ReferenceCountUtil',
-  'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
   'javax.ws.rs.core.Context',
   'javax.ws.rs.core.MediaType', 
   'javax.ws.rs.core.MultivaluedMap', 
@@ -568,3 +567,7 @@ thirdPartyAudit.excludes = [
   'com.squareup.okhttp.Response',
   'com.squareup.okhttp.ResponseBody'
 ]
+
+if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+  thirdPartyAudit.excludes += ['javax.xml.bind.annotation.adapters.HexBinaryAdapter']
+}

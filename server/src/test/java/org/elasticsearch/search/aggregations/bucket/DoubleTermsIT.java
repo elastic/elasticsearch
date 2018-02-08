@@ -70,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -313,6 +314,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
             assertThat(terms.getName(), equalTo("terms"));
             for (Bucket bucket : terms.getBuckets()) {
                 assertTrue(foundTerms.add(bucket.getKeyAsNumber()));
+                assertThat(bucket.getKeyAsNumber(), instanceOf(Double.class));
             }
         }
         assertEquals(expectedCardinality, foundTerms.size());

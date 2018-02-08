@@ -56,7 +56,7 @@ final class CompositeValuesComparator {
                 if (vs.isFloatingPoint()) {
                     arrays[i] = CompositeValuesSource.wrapDouble(vs, size, reverseMul);
                 } else {
-                    arrays[i] = CompositeValuesSource.wrapLong(vs, size, reverseMul);
+                    arrays[i] = CompositeValuesSource.wrapLong(vs, sources[i].format(), size, reverseMul);
                 }
             }
         }

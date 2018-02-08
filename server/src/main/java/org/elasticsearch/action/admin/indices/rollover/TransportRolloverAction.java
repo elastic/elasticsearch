@@ -232,7 +232,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         createIndexRequest.cause("rollover_index");
         createIndexRequest.index(targetIndexName);
         return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
-            "rollover_index", targetIndexName, providedIndexName, true)
+            "rollover_index", targetIndexName, providedIndexName)
             .ackTimeout(createIndexRequest.timeout())
             .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
             .settings(createIndexRequest.settings())

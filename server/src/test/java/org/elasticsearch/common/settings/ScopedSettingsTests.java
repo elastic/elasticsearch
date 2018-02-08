@@ -261,6 +261,21 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
 
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putList("foo.test_list.list", "16", "17")
+            .putList("foo.test_list_1.list", "18", "19", "20")
+            .build());
+
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+
         listResults.clear();
         intResults.clear();
 
@@ -284,6 +299,35 @@ public class ScopedSettingsTests extends ESTestCase {
             assertEquals(1, intResults.size());
         }
 
+    }
+
+    public void testAffixMapConsumerNotCalledWithNull() {
+        Setting.AffixSetting<Integer> prefixSetting = Setting.prefixKeySetting("eggplant.",
+                (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<Integer> otherSetting = Setting.prefixKeySetting("other.",
+                (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(prefixSetting, otherSetting)));
+        Map<String, Integer> affixResults = new HashMap<>();
+
+        Consumer<Map<String,Integer>> consumer = (map) -> {
+            logger.info("--> consuming settings {}", map);
+            affixResults.clear();
+            affixResults.putAll(map);
+        };
+        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {}, randomBoolean());
+        assertEquals(0, affixResults.size());
+        service.applySettings(Settings.builder()
+                .put("eggplant._name", 2)
+                .build());
+        assertThat(affixResults.size(), equalTo(1));
+        assertThat(affixResults.get("_name"), equalTo(2));
+
+        service.applySettings(Settings.builder()
+                .put("eggplant._name", 2)
+                .put("other.thing", 3)
+                .build());
+
+        assertThat(affixResults.get("_name"), equalTo(2));
     }
 
     public void testApply() {

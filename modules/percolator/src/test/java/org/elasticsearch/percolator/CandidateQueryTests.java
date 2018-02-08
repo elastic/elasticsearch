@@ -41,11 +41,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.CoveringQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -69,9 +70,11 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -86,11 +89,16 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.network.InetAddresses.forString;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,13 +144,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject().string();
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
         String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();
-        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
 
@@ -157,6 +165,87 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testDuel() throws Exception {
+        int numFields = randomIntBetween(1, 3);
+        Map<String, List<String>> content = new HashMap<>();
+        for (int i = 0; i < numFields; i++) {
+            int numTokens = randomIntBetween(1, 64);
+            List<String> values = new ArrayList<>();
+            for (int j = 0; j < numTokens; j++) {
+                values.add(randomAlphaOfLength(8));
+            }
+            content.put("field" + i, values);
+        }
+        List<String> fields = new ArrayList<>(content.keySet());
+
+        List<Supplier<Query>> queryFunctions = new ArrayList<>();
+        queryFunctions.add(MatchNoDocsQuery::new);
+        queryFunctions.add(MatchAllDocsQuery::new);
+        queryFunctions.add(() -> new TermQuery(new Term("unknown_field", "value")));
+        String field1 = randomFrom(fields);
+        queryFunctions.add(() -> new TermQuery(new Term(field1, randomFrom(content.get(field1)))));
+        String field2 = randomFrom(fields);
+        queryFunctions.add(() -> new TermQuery(new Term(field2, randomFrom(content.get(field2)))));
+        queryFunctions.add(() -> new TermInSetQuery(field1, new BytesRef(randomFrom(content.get(field1))),
+                new BytesRef(randomFrom(content.get(field1)))));
+        queryFunctions.add(() -> new TermInSetQuery(field2, new BytesRef(randomFrom(content.get(field1))),
+                new BytesRef(randomFrom(content.get(field1)))));
+        queryFunctions.add(() -> {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            int numClauses = randomIntBetween(1, 16);
+            for (int i = 0; i < numClauses; i++) {
+                if (rarely()) {
+                    if (randomBoolean()) {
+                        Occur occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
+                        builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), occur);
+                    } else {
+                        String field = randomFrom(fields);
+                        builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), Occur.MUST_NOT);
+                    }
+                } else {
+                    if (randomBoolean()) {
+                        Occur occur = randomFrom(Arrays.asList(Occur.FILTER, Occur.MUST, Occur.SHOULD));
+                        String field = randomFrom(fields);
+                        builder.add(new TermQuery(new Term(field, randomFrom(content.get(field)))), occur);
+                    } else {
+                        builder.add(new TermQuery(new Term("unknown_field", randomAlphaOfLength(8))), Occur.MUST_NOT);
+                    }
+                }
+            }
+            return builder.build();
+        });
+        queryFunctions.add(() -> {
+            int numClauses = randomIntBetween(1, 16);
+            List<Query> clauses = new ArrayList<>();
+            for (int i = 0; i < numClauses; i++) {
+                String field = randomFrom(fields);
+                clauses.add(new TermQuery(new Term(field, randomFrom(content.get(field)))));
+            }
+            return new DisjunctionMaxQuery(clauses, 0.01f);
+        });
+
+        List<ParseContext.Document> documents = new ArrayList<>();
+        for (Supplier<Query> queryFunction : queryFunctions) {
+            Query query = queryFunction.get();
+            addQuery(query, documents);
+        }
+
+        indexWriter.addDocuments(documents);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        // Disable query cache, because ControlQuery cannot be cached...
+        shardSearcher.setQueryCache(null);
+
+        Document document = new Document();
+        for (Map.Entry<String, List<String>> entry : content.entrySet()) {
+            String value = entry.getValue().stream().collect(Collectors.joining(" "));
+            document.add(new TextField(entry.getKey(), value, Field.Store.NO));
+        }
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+    }
+
+    public void testDuelIdBased() throws Exception {
         List<Function<String, Query>> queryFunctions = new ArrayList<>();
         queryFunctions.add((id) -> new PrefixQuery(new Term("field", id)));
         queryFunctions.add((id) -> new WildcardQuery(new Term("field", id + "*")));
@@ -169,54 +258,54 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         });
         queryFunctions.add((id) -> {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(new TermQuery(new Term("field", id)), BooleanClause.Occur.MUST);
+            builder.add(new TermQuery(new Term("field", id)), Occur.MUST);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
+                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
             }
             if (randomBoolean()) {
-                builder.add(new CustomQuery(new Term("field", id)), BooleanClause.Occur.MUST);
-            }
-            return builder.build();
-        });
-        queryFunctions.add((id) -> {
-            BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(new TermQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
-            if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
-            }
-            if (randomBoolean()) {
-                builder.add(new CustomQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
+                builder.add(new CustomQuery(new Term("field", id)), Occur.MUST);
             }
             return builder.build();
         });
         queryFunctions.add((id) -> {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+            builder.add(new TermQuery(new Term("field", id)), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
+                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
+            }
+            if (randomBoolean()) {
+                builder.add(new CustomQuery(new Term("field", id)), Occur.SHOULD);
+            }
+            return builder.build();
+        });
+        queryFunctions.add((id) -> {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(new MatchAllDocsQuery(), Occur.MUST);
+            builder.add(new MatchAllDocsQuery(), Occur.MUST);
+            if (randomBoolean()) {
+                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
             } else if (randomBoolean()) {
-                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+                builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
             return builder.build();
         });
         queryFunctions.add((id) -> {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+            builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
+            builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchNoDocsQuery("no reason"), BooleanClause.Occur.MUST_NOT);
+                builder.add(new MatchNoDocsQuery("no reason"), Occur.MUST_NOT);
             } else if (randomBoolean()) {
-                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+                builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
             }
             return builder.build();
         });
         queryFunctions.add((id) -> {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
-            builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
-            builder.add(new TermQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
+            builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
+            builder.add(new TermQuery(new Term("field", id)), Occur.SHOULD);
             if (randomBoolean()) {
-                builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+                builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
             }
             if (randomBoolean()) {
                 builder.setMinimumNumberShouldMatch(2);
@@ -226,8 +315,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queryFunctions.add((id) -> {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             builder.setMinimumNumberShouldMatch(randomIntBetween(0, 4));
-            builder.add(new TermQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
-            builder.add(new CustomQuery(new Term("field", id)), BooleanClause.Occur.SHOULD);
+            builder.add(new TermQuery(new Term("field", id)), Occur.SHOULD);
+            builder.add(new CustomQuery(new Term("field", id)), Occur.SHOULD);
             return builder.build();
         });
         queryFunctions.add((id) -> new MatchAllDocsQuery());
@@ -266,7 +355,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     public void testDuelSpecificQueries() throws Exception {
         List<ParseContext.Document> documents = new ArrayList<>();
 
-        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 128);
+        CommonTermsQuery commonTermsQuery = new CommonTermsQuery(Occur.SHOULD, Occur.SHOULD, 128);
         commonTermsQuery.add(new Term("field", "quick"));
         commonTermsQuery.add(new Term("field", "brown"));
         commonTermsQuery.add(new Term("field", "fox"));
@@ -489,21 +578,21 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         List<ParseContext.Document> docs = new ArrayList<>();
         addQuery(new MatchAllDocsQuery(), docs);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), Occur.MUST);
         addQuery(builder.build(), docs);
         builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), Occur.MUST);
         addQuery(builder.build(), docs);
         builder = new BooleanQuery.Builder();
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST_NOT);
+        builder.add(new MatchAllDocsQuery(), Occur.MUST);
+        builder.add(new MatchAllDocsQuery(), Occur.MUST_NOT);
         addQuery(builder.build(), docs);
         builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.SHOULD);
-        builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.SHOULD);
+        builder.add(new TermQuery(new Term("field", "value2")), Occur.SHOULD);
+        builder.add(new MatchAllDocsQuery(), Occur.SHOULD);
         addQuery(builder.build(), docs);
         indexWriter.addDocuments(docs);
         indexWriter.close();
@@ -534,16 +623,16 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     public void testPercolateSmallAndLargeDocument() throws Exception {
         List<ParseContext.Document> docs = new ArrayList<>();
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST);
-        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
         addQuery(builder.build(), docs);
         builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST);
-        builder.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value3")), Occur.MUST);
         addQuery(builder.build(), docs);
         builder = new BooleanQuery.Builder();
-        builder.add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST);
-        builder.add(new TermQuery(new Term("field", "value4")), BooleanClause.Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value3")), Occur.MUST);
+        builder.add(new TermQuery(new Term("field", "value4")), Occur.MUST);
         addQuery(builder.build(), docs);
         indexWriter.addDocuments(docs);
         indexWriter.close();
@@ -622,6 +711,55 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testDuplicatedClauses() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        BooleanQuery.Builder builder1 = new BooleanQuery.Builder();
+        builder1.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
+        builder1.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder.add(builder1.build(), Occur.MUST);
+        BooleanQuery.Builder builder2 = new BooleanQuery.Builder();
+        builder2.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder2.add(new TermQuery(new Term("field", "value3")), Occur.MUST);
+        builder.add(builder2.build(), Occur.MUST);
+        addQuery(builder.build(), docs);
+
+        builder = new BooleanQuery.Builder()
+                .setMinimumNumberShouldMatch(2);
+        builder1 = new BooleanQuery.Builder();
+        builder1.add(new TermQuery(new Term("field", "value1")), Occur.MUST);
+        builder1.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder.add(builder1.build(), Occur.SHOULD);
+        builder2 = new BooleanQuery.Builder();
+        builder2.add(new TermQuery(new Term("field", "value2")), Occur.MUST);
+        builder2.add(new TermQuery(new Term("field", "value3")), Occur.MUST);
+        builder.add(builder2.build(), Occur.SHOULD);
+        BooleanQuery.Builder builder3 = new BooleanQuery.Builder();
+        builder3.add(new TermQuery(new Term("field", "value3")), Occur.MUST);
+        builder3.add(new TermQuery(new Term("field", "value4")), Occur.MUST);
+        builder.add(builder3.build(), Occur.SHOULD);
+        addQuery(builder.build(), docs);
+
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        Version v = Version.CURRENT;
+        List<BytesReference> sources = Collections.singletonList(new BytesArray("{}"));
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "value1 value2 value3", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore, sources, percolateSearcher, v);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        assertEquals(2L, topDocs.totalHits);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(1, topDocs.scoreDocs[1].doc);
+    }
+
     private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
@@ -633,17 +771,36 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         Query controlQuery = new ControlQuery(memoryIndex, queryStore);
         controlQuery = requireScore ? controlQuery : new ConstantScoreQuery(controlQuery);
         TopDocs controlTopDocs = shardSearcher.search(controlQuery, 10);
-        assertThat(topDocs.totalHits, equalTo(controlTopDocs.totalHits));
-        assertThat(topDocs.scoreDocs.length, equalTo(controlTopDocs.scoreDocs.length));
-        for (int j = 0; j < topDocs.scoreDocs.length; j++) {
-            assertThat(topDocs.scoreDocs[j].doc, equalTo(controlTopDocs.scoreDocs[j].doc));
-            assertThat(topDocs.scoreDocs[j].score, equalTo(controlTopDocs.scoreDocs[j].score));
-            if (requireScore) {
-                Explanation explain1 = shardSearcher.explain(query, topDocs.scoreDocs[j].doc);
-                Explanation explain2 = shardSearcher.explain(controlQuery, controlTopDocs.scoreDocs[j].doc);
-                assertThat(explain1.isMatch(), equalTo(explain2.isMatch()));
-                assertThat(explain1.getValue(), equalTo(explain2.getValue()));
+
+        try {
+            assertThat(topDocs.totalHits, equalTo(controlTopDocs.totalHits));
+            assertThat(topDocs.scoreDocs.length, equalTo(controlTopDocs.scoreDocs.length));
+            for (int j = 0; j < topDocs.scoreDocs.length; j++) {
+                assertThat(topDocs.scoreDocs[j].doc, equalTo(controlTopDocs.scoreDocs[j].doc));
+                assertThat(topDocs.scoreDocs[j].score, equalTo(controlTopDocs.scoreDocs[j].score));
+                if (requireScore) {
+                    Explanation explain1 = shardSearcher.explain(query, topDocs.scoreDocs[j].doc);
+                    Explanation explain2 = shardSearcher.explain(controlQuery, controlTopDocs.scoreDocs[j].doc);
+                    assertThat(explain1.isMatch(), equalTo(explain2.isMatch()));
+                    assertThat(explain1.getValue(), equalTo(explain2.getValue()));
+                }
             }
+        } catch (AssertionError ae) {
+            logger.error("topDocs.totalHits={}", topDocs.totalHits);
+            logger.error("controlTopDocs.totalHits={}", controlTopDocs.totalHits);
+
+            logger.error("topDocs.scoreDocs.length={}", topDocs.scoreDocs.length);
+            logger.error("controlTopDocs.scoreDocs.length={}", controlTopDocs.scoreDocs.length);
+
+            for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                logger.error("topDocs.scoreDocs[j].doc={}", topDocs.scoreDocs[i].doc);
+                logger.error("topDocs.scoreDocs[j].score={}", topDocs.scoreDocs[i].score);
+            }
+            for (int i = 0; i < controlTopDocs.scoreDocs.length; i++) {
+                logger.error("controlTopDocs.scoreDocs[j].doc={}", controlTopDocs.scoreDocs[i].doc);
+                logger.error("controlTopDocs.scoreDocs[j].score={}", controlTopDocs.scoreDocs[i].score);
+            }
+            throw ae;
         }
     }
 
@@ -705,6 +862,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
         @Override
         public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) {
+            final IndexSearcher percolatorIndexSearcher = memoryIndex.createSearcher();
             return new Weight(this) {
 
                 float _score;
@@ -739,10 +897,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                         protected boolean match(int doc) {
                             try {
                                 Query query = leaf.apply(doc);
-                                float score = memoryIndex.search(query);
-                                if (score != 0f) {
+                                TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
+                                if (topDocs.totalHits > 0) {
                                     if (needsScores) {
-                                        _score = score;
+                                        _score = topDocs.scoreDocs[0].score;
                                     }
                                     return true;
                                 } else {

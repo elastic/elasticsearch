@@ -163,6 +163,11 @@ public abstract class ESSelector implements Closeable {
         return Thread.currentThread() == thread;
     }
 
+    public void assertOnSelectorThread() {
+        assert isOnCurrentThread() : "Must be on selector thread to perform this operation. Currently on thread ["
+            + Thread.currentThread().getName() + "].";
+    }
+
     void wakeup() {
         // TODO: Do we need the wakeup optimizations that some other libraries use?
         selector.wakeup();

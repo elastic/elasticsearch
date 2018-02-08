@@ -108,6 +108,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
 
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
+    public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogWriter.getHeaderLength(UUIDs.randomBase64UUID());
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
@@ -436,7 +437,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the size in bytes of the translog files with ops above the given seqNo
      */
-    private long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
+    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
@@ -451,7 +452,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if creating the translog failed
      */
     TranslogWriter createWriter(long fileGeneration) throws IOException {
-        return createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong());
+        final TranslogWriter writer = createWriter(fileGeneration, getMinFileGeneration(), globalCheckpointSupplier.getAsLong());
+        assert writer.sizeInBytes() == DEFAULT_HEADER_SIZE_IN_BYTES : "Mismatch translog header size; " +
+            "empty translog size [" + writer.sizeInBytes() + ", header size [" + DEFAULT_HEADER_SIZE_IN_BYTES + "]";
+        return writer;
     }
 
     /**
@@ -521,17 +525,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } finally {
             Releasables.close(out);
         }
-    }
-
-    /**
-     * Tests whether or not the translog should be flushed. This test is based on the current size
-     * of the translog comparted to the configured flush threshold size.
-     *
-     * @return {@code true} if the translog should be flushed
-     */
-    public boolean shouldFlush() {
-        final long size = this.uncommittedSizeInBytes();
-        return size > this.indexSettings.getFlushThresholdSize().getBytes();
     }
 
     /**

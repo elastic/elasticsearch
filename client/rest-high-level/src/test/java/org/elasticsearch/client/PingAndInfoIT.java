@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.main.MainResponse;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
     public void testInfo() throws IOException {
         MainResponse info = highLevelClient().info();
         // compare with what the low level client outputs
-        Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest("GET", "/"));
+        Map<String, Object> infoAsMap = entityAsMap(adminClient().performRequest(HttpGet.METHOD_NAME, "/"));
         assertEquals(infoAsMap.get("cluster_name"), info.getClusterName().value());
         assertEquals(infoAsMap.get("cluster_uuid"), info.getClusterUuid());
 

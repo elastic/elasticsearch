@@ -73,7 +73,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
 
         AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, clientSettings, repositorySettings);
-        ClientConfiguration configuration = buildConfiguration(clientSettings, repositorySettings);
+        ClientConfiguration configuration = buildConfiguration(clientSettings);
 
         client = new AmazonS3Client(credentials, configuration);
 
@@ -86,7 +86,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, Settings repositorySettings) {
+    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.

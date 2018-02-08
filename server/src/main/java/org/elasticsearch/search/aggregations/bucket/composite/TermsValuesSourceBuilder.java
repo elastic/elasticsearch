@@ -95,6 +95,6 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
                 fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
         }
-        return new CompositeValuesSourceConfig(name, vs, order(), canEarlyTerminate);
+        return new CompositeValuesSourceConfig(name, vs, config.format(), order(), canEarlyTerminate);
     }
 }

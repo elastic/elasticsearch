@@ -309,8 +309,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {
@@ -333,15 +333,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             if (precisionInMeters() != other.precisionInMeters()) {
                 conflicts.add("mapper [" + name() + "] has different [precision]");
-            }
-
-            if (strict) {
-                if (orientation() != other.orientation()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [orientation] across all types.");
-                }
-                if (distanceErrorPct() != other.distanceErrorPct()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [distance_error_pct] across all types.");
-                }
             }
         }
 
@@ -511,8 +502,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
 
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {

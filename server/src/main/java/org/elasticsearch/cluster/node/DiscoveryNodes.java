@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -205,12 +206,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Get the master node
-     *
-     * @return master node
+     * Returns the master node, or {@code null} if there is no master node
      */
+    @Nullable
     public DiscoveryNode getMasterNode() {
-        return nodes.get(masterNodeId);
+        if (masterNodeId != null) {
+            return nodes.get(masterNodeId);
+        }
+        return null;
     }
 
     /**
@@ -385,27 +388,20 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
-        List<DiscoveryNode> removed = new ArrayList<>();
-        List<DiscoveryNode> added = new ArrayList<>();
+        final List<DiscoveryNode> removed = new ArrayList<>();
+        final List<DiscoveryNode> added = new ArrayList<>();
         for (DiscoveryNode node : other) {
-            if (!this.nodeExists(node)) {
+            if (this.nodeExists(node) == false) {
                 removed.add(node);
             }
         }
         for (DiscoveryNode node : this) {
-            if (!other.nodeExists(node)) {
+            if (other.nodeExists(node) == false) {
                 added.add(node);
             }
         }
-        DiscoveryNode previousMasterNode = null;
-        DiscoveryNode newMasterNode = null;
-        if (masterNodeId != null) {
-            if (other.masterNodeId == null || !other.masterNodeId.equals(masterNodeId)) {
-                previousMasterNode = other.getMasterNode();
-                newMasterNode = getMasterNode();
-            }
-        }
-        return new Delta(previousMasterNode, newMasterNode, localNodeId, Collections.unmodifiableList(removed),
+
+        return new Delta(other.getMasterNode(), getMasterNode(), localNodeId, Collections.unmodifiableList(removed),
             Collections.unmodifiableList(added));
     }
 
@@ -429,8 +425,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public static class Delta {
 
         private final String localNodeId;
-        private final DiscoveryNode previousMasterNode;
-        private final DiscoveryNode newMasterNode;
+        @Nullable private final DiscoveryNode previousMasterNode;
+        @Nullable private final DiscoveryNode newMasterNode;
         private final List<DiscoveryNode> removed;
         private final List<DiscoveryNode> added;
 
@@ -448,13 +444,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public boolean masterNodeChanged() {
-            return newMasterNode != null;
+            return Objects.equals(newMasterNode, previousMasterNode) == false;
         }
 
+        @Nullable
         public DiscoveryNode previousMasterNode() {
             return previousMasterNode;
         }
 
+        @Nullable
         public DiscoveryNode newMasterNode() {
             return newMasterNode;
         }
@@ -476,51 +474,45 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
 
         public String shortSummary() {
-            StringBuilder sb = new StringBuilder();
-            if (!removed() && masterNodeChanged()) {
-                if (newMasterNode.getId().equals(localNodeId)) {
-                    // we are the master, no nodes we removed, we are actually the first master
-                    sb.append("new_master ").append(newMasterNode());
-                } else {
-                    // we are not the master, so we just got this event. No nodes were removed, so its not a *new* master
-                    sb.append("detected_master ").append(newMasterNode());
+            final StringBuilder summary = new StringBuilder();
+            if (masterNodeChanged()) {
+                summary.append("master node changed {previous [");
+                if (previousMasterNode() != null) {
+                    summary.append(previousMasterNode());
                 }
-            } else {
-                if (masterNodeChanged()) {
-                    sb.append("master {new ").append(newMasterNode());
-                    if (previousMasterNode() != null) {
-                        sb.append(", previous ").append(previousMasterNode());
-                    }
-                    sb.append("}");
+                summary.append("], current [");
+                if (newMasterNode() != null) {
+                    summary.append(newMasterNode());
                 }
-                if (removed()) {
-                    if (masterNodeChanged()) {
-                        sb.append(", ");
-                    }
-                    sb.append("removed {");
-                    for (DiscoveryNode node : removedNodes()) {
-                        sb.append(node).append(',');
-                    }
-                    sb.append("}");
+                summary.append("]}");
+            }
+            if (removed()) {
+                if (summary.length() > 0) {
+                    summary.append(", ");
                 }
+                summary.append("removed {");
+                for (DiscoveryNode node : removedNodes()) {
+                    summary.append(node).append(',');
+                }
+                summary.append("}");
             }
             if (added()) {
                 // don't print if there is one added, and it is us
                 if (!(addedNodes().size() == 1 && addedNodes().get(0).getId().equals(localNodeId))) {
-                    if (removed() || masterNodeChanged()) {
-                        sb.append(", ");
+                    if (summary.length() > 0) {
+                        summary.append(", ");
                     }
-                    sb.append("added {");
+                    summary.append("added {");
                     for (DiscoveryNode node : addedNodes()) {
                         if (!node.getId().equals(localNodeId)) {
                             // don't print ourself
-                            sb.append(node).append(',');
+                            summary.append(node).append(',');
                         }
                     }
-                    sb.append("}");
+                    summary.append("}");
                 }
             }
-            return sb.toString();
+            return summary.toString();
         }
     }
 

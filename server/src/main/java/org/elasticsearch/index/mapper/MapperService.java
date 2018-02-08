@@ -215,7 +215,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, DocumentMapper> updatedEntries;
         try {
             // only update entries if needed
-            updatedEntries = internalMerge(indexMetaData, MergeReason.MAPPING_RECOVERY, true, true);
+            updatedEntries = internalMerge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
         } catch (Exception e) {
             logger.warn((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
@@ -250,7 +250,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return requireRefresh;
     }
 
-    public void merge(Map<String, Map<String, Object>> mappings, MergeReason reason, boolean updateAllTypes) {
+    public void merge(Map<String, Map<String, Object>> mappings, MergeReason reason) {
         Map<String, CompressedXContent> mappingSourcesCompressed = new LinkedHashMap<>(mappings.size());
         for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
             try {
@@ -260,19 +260,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
-        internalMerge(mappingSourcesCompressed, reason, updateAllTypes);
+        internalMerge(mappingSourcesCompressed, reason);
     }
 
-    public void merge(IndexMetaData indexMetaData, MergeReason reason, boolean updateAllTypes) {
-        internalMerge(indexMetaData, reason, updateAllTypes, false);
+    public void merge(IndexMetaData indexMetaData, MergeReason reason) {
+        internalMerge(indexMetaData, reason, false);
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason, boolean updateAllTypes) {
-        return internalMerge(Collections.singletonMap(type, mappingSource), reason, updateAllTypes).get(type);
+    public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
+        return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData, MergeReason reason, boolean updateAllTypes,
-                                                                   boolean onlyUpdateIfNeeded) {
+    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData, MergeReason reason, boolean onlyUpdateIfNeeded) {
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
             MappingMetaData mappingMetaData = cursor.value;
@@ -285,10 +284,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 map.put(mappingMetaData.type(), mappingMetaData.source());
             }
         }
-        return internalMerge(map, reason, updateAllTypes);
+        return internalMerge(map, reason);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason, boolean updateAllTypes) {
+    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason) {
         DocumentMapper defaultMapper = null;
         String defaultMappingSource = null;
 
@@ -336,7 +335,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
-        return internalMerge(defaultMapper, defaultMappingSource, documentMappers, reason, updateAllTypes);
+        return internalMerge(defaultMapper, defaultMappingSource, documentMappers, reason);
     }
 
     static void validateTypeName(String type) {
@@ -361,7 +360,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
-                                                                   List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
+                                                                   List<DocumentMapper> documentMappers, MergeReason reason) {
         boolean hasNested = this.hasNested;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
         FieldTypeLookup fieldTypes = this.fieldTypes;
@@ -392,7 +391,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper oldMapper = mappers.get(mapper.type());
             DocumentMapper newMapper;
             if (oldMapper != null) {
-                newMapper = oldMapper.merge(mapper.mapping(), updateAllTypes);
+                newMapper = oldMapper.merge(mapper.mapping());
             } else {
                 newMapper = mapper;
             }
@@ -403,12 +402,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
             checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
-            checkObjectsCompatibility(objectMappers, updateAllTypes, fullPathObjectMappers);
+            checkObjectsCompatibility(objectMappers, fullPathObjectMappers);
             checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types
-            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers, updateAllTypes);
+            fieldTypes = fieldTypes.copyAndAddAll(newMapper.type(), fieldMappers);
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
@@ -575,14 +574,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers, boolean updateAllTypes,
+    private static void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers,
                                                   Map<String, ObjectMapper> fullPathObjectMappers) {
         for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
                 // simulate a merge and ignore the result, we are just interested
                 // in exceptions here
-                existingObjectMapper.merge(newObjectMapper, updateAllTypes);
+                existingObjectMapper.merge(newObjectMapper);
             }
         }
     }

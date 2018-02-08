@@ -74,7 +74,7 @@ public class ReleasableLock implements Releasable {
         return true;
     }
 
-    public Boolean isHeldByCurrentThread() {
+    public boolean isHeldByCurrentThread() {
         if (holdingThreads == null) {
             throw new UnsupportedOperationException("asserts must be enabled");
         }

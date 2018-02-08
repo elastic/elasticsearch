@@ -147,6 +147,11 @@
           "type" : "boolean",
           "description": "Indicate if the number of documents that match the query should be tracked"
         },
+        "allow_partial_search_results": {
+          "type" : "boolean",
+          "default" : true,
+          "description": "Indicate if an error should be returned if there is a partial search failure or timeout"
+        },
         "typed_keys": {
           "type" : "boolean",
           "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"

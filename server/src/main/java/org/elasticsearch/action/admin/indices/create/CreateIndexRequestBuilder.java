@@ -26,6 +26,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -219,7 +220,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(Map<String, ?> source) {
-        request.source(source);
+        request.source(source, LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 
@@ -236,12 +237,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      */
     public CreateIndexRequestBuilder setSource(XContentBuilder source) {
         request.source(source);
-        return this;
-    }
-
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public CreateIndexRequestBuilder setUpdateAllTypes(boolean updateAllTypes) {
-        request.updateAllTypes(updateAllTypes);
         return this;
     }
 

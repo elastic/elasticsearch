@@ -409,6 +409,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                                     parser.nextToken();
                                     if (++currentPathSlot == pathElements.length) {
                                         listener.onResponse(ShapeParser.parse(parser));
+                                        return;
                                     }
                                 } else {
                                     parser.nextToken();

@@ -21,12 +21,12 @@ package org.elasticsearch.action.support.replication;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -221,7 +221,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         @Override
         protected BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
-                                                List<ShardOperationFailedException> shardFailures) {
+                                                List<DefaultShardOperationFailedException> shardFailures) {
             return new BroadcastResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
         }
 

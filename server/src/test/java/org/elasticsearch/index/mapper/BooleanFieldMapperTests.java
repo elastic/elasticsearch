@@ -211,7 +211,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                 .endObject().endObject().string();
         DocumentMapper mapper = indexService.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
         BytesReference source = XContentFactory.jsonBuilder()
                 .startObject()

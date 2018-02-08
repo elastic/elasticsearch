@@ -91,6 +91,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.stream.Stream;
 
 public abstract class Engine implements Closeable {
 
@@ -549,6 +550,13 @@ public abstract class Engine implements Closeable {
     /** returns the translog for this engine */
     public abstract Translog getTranslog();
 
+    /**
+     * Ensures that all locations in the given stream have been written to the underlying storage.
+     */
+    public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
+
+    public abstract void syncTranslog() throws IOException;
+
     protected void ensureOpen() {
         if (isClosed.get()) {
             throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
@@ -808,6 +816,12 @@ public abstract class Engine implements Closeable {
      */
     // NOTE: do NOT rename this to something containing flush or refresh!
     public abstract void writeIndexingBuffer() throws EngineException;
+
+    /**
+     * Checks if this engine should be flushed periodically.
+     * This check is mainly based on the uncommitted translog size and the translog flush threshold setting.
+     */
+    public abstract boolean shouldPeriodicallyFlush();
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory.

@@ -167,7 +167,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
             // Calculate the new desired queue size
             try {
-                final double lambda = calculateLambda(tasksPerFrame, totalNanos);
+                final double lambda = calculateLambda(tasksPerFrame, Math.max(totalNanos, 1L));
                 final int desiredQueueSize = calculateL(lambda, targetedResponseTimeNanos);
                 final int oldCapacity = workQueue.capacity();
 

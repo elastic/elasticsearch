@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -76,7 +75,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         List<ShardId> shards = shards(request, clusterState);
-        final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList();
+        final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList<>();
         if (shards.size() == 0) {
             finishAndNotifyListener(listener, shardsResponses);
         }
@@ -148,7 +147,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         int successfulShards = 0;
         int failedShards = 0;
         int totalNumCopies = 0;
-        List<ShardOperationFailedException> shardFailures = null;
+        List<DefaultShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.size(); i++) {
             ReplicationResponse shardResponse = shardsResponses.get(i);
             if (shardResponse == null) {
@@ -168,5 +167,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         listener.onResponse(newResponse(successfulShards, failedShards, totalNumCopies, shardFailures));
     }
 
-    protected abstract BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies, List<ShardOperationFailedException> shardFailures);
+    protected abstract BroadcastResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
+                                                     List<DefaultShardOperationFailedException> shardFailures);
 }

@@ -333,7 +333,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     if (persistedShardRouting.initializing() && randomBoolean()) {
                         startedShards.add(persistedShardRouting);
                     } else if (rarely()) {
-                        failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception()));
+                        failedShards.add(new FailedShard(persistedShardRouting, "fake shard failure", new Exception(), randomBoolean()));
                     }
                 }
             }

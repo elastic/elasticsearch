@@ -84,9 +84,9 @@ public final class Mapping implements ToXContentFragment {
         return (T) metadataMappersMap.get(clazz);
     }
 
-    /** @see DocumentMapper#merge(Mapping, boolean) */
-    public Mapping merge(Mapping mergeWith, boolean updateAllTypes) {
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, updateAllTypes);
+    /** @see DocumentMapper#merge(Mapping) */
+    public Mapping merge(Mapping mergeWith) {
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root);
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> mergedMetaDataMappers = new HashMap<>(metadataMappersMap);
         for (MetadataFieldMapper metaMergeWith : mergeWith.metadataMappers) {
             MetadataFieldMapper mergeInto = mergedMetaDataMappers.get(metaMergeWith.getClass());
@@ -94,7 +94,7 @@ public final class Mapping implements ToXContentFragment {
             if (mergeInto == null) {
                 merged = metaMergeWith;
             } else {
-                merged = mergeInto.merge(metaMergeWith, updateAllTypes);
+                merged = mergeInto.merge(metaMergeWith);
             }
             mergedMetaDataMappers.put(merged.getClass(), merged);
         }

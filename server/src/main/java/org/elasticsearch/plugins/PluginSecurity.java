@@ -20,8 +20,10 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.cli.UserException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,67 +35,42 @@ import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
 import java.security.UnresolvedPermission;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 class PluginSecurity {
 
     /**
-     * Reads plugin policy, prints/confirms exceptions
+     * prints/confirms policy exceptions with the user
      */
-    static void readPolicy(PluginInfo info, Path file, Terminal terminal, Supplier<Path> tmpFile, boolean batch) throws IOException {
-        PermissionCollection permissions = parsePermissions(terminal, file, tmpFile.get());
-        List<Permission> requested = Collections.list(permissions.elements());
+    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions,
+                                        boolean needsNativeController, boolean batch) throws UserException {
+        List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
         } else {
 
             // sort permissions in a reasonable order
-            Collections.sort(requested, new Comparator<Permission>() {
-                @Override
-                public int compare(Permission o1, Permission o2) {
-                    int cmp = o1.getClass().getName().compareTo(o2.getClass().getName());
-                    if (cmp == 0) {
-                        String name1 = o1.getName();
-                        String name2 = o2.getName();
-                        if (name1 == null) {
-                            name1 = "";
-                        }
-                        if (name2 == null) {
-                            name2 = "";
-                        }
-                        cmp = name1.compareTo(name2);
-                        if (cmp == 0) {
-                            String actions1 = o1.getActions();
-                            String actions2 = o2.getActions();
-                            if (actions1 == null) {
-                                actions1 = "";
-                            }
-                            if (actions2 == null) {
-                                actions2 = "";
-                            }
-                            cmp = actions1.compareTo(actions2);
-                        }
-                    }
-                    return cmp;
-                }
-            });
+            Collections.sort(requested);
 
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             terminal.println(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             // print all permissions:
-            for (Permission permission : requested) {
-                terminal.println(Verbosity.NORMAL, "* " + formatPermission(permission));
+            for (String permission : requested) {
+                terminal.println(Verbosity.NORMAL, "* " + permission);
             }
             terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
             terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
             prompt(terminal, batch);
         }
 
-        if (info.hasNativeController()) {
+        if (needsNativeController) {
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
             terminal.println(Verbosity.NORMAL, "@        WARNING: plugin forks a native controller        @");
             terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
@@ -103,12 +80,12 @@ class PluginSecurity {
         }
     }
 
-    private static void prompt(final Terminal terminal, final boolean batch) {
+    private static void prompt(final Terminal terminal, final boolean batch) throws UserException {
         if (!batch) {
             terminal.println(Verbosity.NORMAL, "");
             String text = terminal.readText("Continue with installation? [y/N]");
             if (!text.equalsIgnoreCase("y")) {
-                throw new RuntimeException("installation aborted by user");
+                throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
             }
         }
     }
@@ -150,9 +127,9 @@ class PluginSecurity {
     }
 
     /**
-     * Parses plugin policy into a set of permissions
+     * Parses plugin policy into a set of permissions. Each permission is formatted for output to users.
      */
-    static PermissionCollection parsePermissions(Terminal terminal, Path file, Path tmpDir) throws IOException {
+    public static Set<String> parsePermissions(Path file, Path tmpDir) throws IOException {
         // create a zero byte file for "comparison"
         // this is necessary because the default policy impl automatically grants two permissions:
         // 1. permission to exitVM (which we ignore)
@@ -185,7 +162,6 @@ class PluginSecurity {
                 actualPermissions.add(permission);
             }
         }
-        actualPermissions.setReadOnly();
-        return actualPermissions;
+        return Collections.list(actualPermissions.elements()).stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
     }
 }

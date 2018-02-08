@@ -150,6 +150,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
     public static final int DEFAULT_MAX_BUCKETS = 100000;
+    protected static final double TOLERANCE = 1e-10;
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
             new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());

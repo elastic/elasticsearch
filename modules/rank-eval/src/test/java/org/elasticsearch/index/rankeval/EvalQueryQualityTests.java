@@ -19,19 +19,37 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class EvalQueryQualityTests extends ESTestCase {
 
     private static NamedWriteableRegistry namedWritableRegistry = new NamedWriteableRegistry(new RankEvalPlugin().getNamedWriteables());
+
+    @SuppressWarnings("resource")
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+    }
 
     public static EvalQueryQuality randomEvalQueryQuality() {
         List<DocumentKey> unknownDocs = new ArrayList<>();
@@ -42,7 +60,10 @@ public class EvalQueryQualityTests extends ESTestCase {
         int numberOfSearchHits = randomInt(5);
         List<RatedSearchHit> ratedHits = new ArrayList<>();
         for (int i = 0; i < numberOfSearchHits; i++) {
-            ratedHits.add(RatedSearchHitTests.randomRatedSearchHit());
+            RatedSearchHit ratedSearchHit = RatedSearchHitTests.randomRatedSearchHit();
+            // we need to associate each hit with an index name otherwise rendering will not work
+            ratedSearchHit.getSearchHit().shard(new SearchShardTarget("_na_", new Index("index", "_na_"), 0, null));
+            ratedHits.add(ratedSearchHit);
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(randomAlphaOfLength(10),
                 randomDoubleBetween(0.0, 1.0, true));
@@ -65,6 +86,35 @@ public class EvalQueryQualityTests extends ESTestCase {
         assertNotSame(deserialized, original);
     }
 
+    public void testXContentParsing() throws IOException {
+        EvalQueryQuality testItem = randomEvalQueryQuality();
+        boolean humanReadable = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        // skip inserting random fields for:
+        // - the root object, since we expect a particular queryId there in this test
+        // - the `metric_details` section, which can potentially contain different namedXContent names
+        // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
+        Predicate<String> pathsToExclude = path -> path.isEmpty() || path.endsWith("metric_details") || path.contains("hits");
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
+        EvalQueryQuality parsedItem;
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            String queryId = parser.currentName();
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            parsedItem = EvalQueryQuality.fromXContent(parser, queryId);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            assertNull(parser.nextToken());
+        }
+        assertNotSame(testItem, parsedItem);
+        // we cannot check equality of object here because some information (e.g. SearchHit#shard) cannot fully be
+        // parsed back after going through the rest layer. That's why we only check that the original and the parsed item
+        // have the same xContent representation
+        assertToXContentEquivalent(originalBytes, toXContent(parsedItem, xContentType, humanReadable), xContentType);
+    }
+
     private static EvalQueryQuality copy(EvalQueryQuality original) throws IOException {
         return ESTestCase.copyWriteable(original, namedWritableRegistry, EvalQueryQuality::new);
     }
@@ -77,7 +127,7 @@ public class EvalQueryQualityTests extends ESTestCase {
         String id = original.getId();
         double qualityLevel = original.getQualityLevel();
         List<RatedSearchHit> ratedHits = new ArrayList<>(original.getHitsAndRatings());
-        MetricDetails metricDetails = original.getMetricDetails();
+        MetricDetail metricDetails = original.getMetricDetails();
         switch (randomIntBetween(0, 3)) {
         case 0:
             id = id + "_";

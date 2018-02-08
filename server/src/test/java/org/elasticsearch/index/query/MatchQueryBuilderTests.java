@@ -355,7 +355,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "string_boost", "type=text,boost=4", "string_no_pos",
                 "type=text,index_options=docs").string()
             ),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {

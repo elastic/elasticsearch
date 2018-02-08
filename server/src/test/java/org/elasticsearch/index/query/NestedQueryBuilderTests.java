@@ -67,7 +67,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 OBJECT_FIELD_NAME, "type=object",
                 GEO_POINT_FIELD_NAME, "type=geo_point",
                 "nested1", "type=nested"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

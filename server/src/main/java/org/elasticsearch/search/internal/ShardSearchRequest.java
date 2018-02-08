@@ -68,6 +68,8 @@ public interface ShardSearchRequest {
     long nowInMillis();
 
     Boolean requestCache();
+    
+    Boolean allowPartialSearchResults();
 
     Scroll scroll();
 

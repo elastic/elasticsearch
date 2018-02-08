@@ -165,17 +165,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
-            if (strict) {
-                FieldNamesFieldType other = (FieldNamesFieldType)fieldType;
-                if (isEnabled() != other.isEnabled()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
-                }
-            }
-        }
-
         public void setEnabled(boolean enabled) {
             checkIfFrozen();
             this.enabled = enabled;

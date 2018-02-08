@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -44,26 +44,21 @@ public interface ZenPing extends Releasable {
 
     void ping(Consumer<PingCollection> resultsConsumer, TimeValue timeout);
 
-    class PingResponse implements Streamable {
-
-        public static final PingResponse[] EMPTY = new PingResponse[0];
+    class PingResponse implements Writeable {
 
         private static final AtomicLong idGenerator = new AtomicLong();
 
         // an always increasing unique identifier for this ping response.
         // lower values means older pings.
-        private long id;
+        private final long id;
 
-        private ClusterName clusterName;
+        private final ClusterName clusterName;
 
-        private DiscoveryNode node;
+        private final DiscoveryNode node;
 
-        private DiscoveryNode master;
+        private final DiscoveryNode master;
 
-        private long clusterStateVersion;
-
-        private PingResponse() {
-        }
+        private final long clusterStateVersion;
 
         /**
          * @param node                the node which this ping describes
@@ -86,14 +81,34 @@ public interface ZenPing extends Releasable {
                     ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION : state.version());
         }
 
-            /**
-             * an always increasing unique identifier for this ping response.
-             * lower values means older pings.
-             */
+        PingResponse(StreamInput in) throws IOException {
+            this.clusterName = new ClusterName(in);
+            this.node = new DiscoveryNode(in);
+            this.master = in.readOptionalWriteable(DiscoveryNode::new);
+            this.clusterStateVersion = in.readLong();
+            this.id = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            clusterName.writeTo(out);
+            node.writeTo(out);
+            out.writeOptionalWriteable(master);
+            out.writeLong(clusterStateVersion);
+            out.writeLong(id);
+        }
+
+        /**
+         * an always increasing unique identifier for this ping response.
+         * lower values means older pings.
+         */
         public long id() {
             return this.id;
         }
 
+        /**
+         * the name of the cluster this node belongs to
+         */
         public ClusterName clusterName() {
             return this.clusterName;
         }
@@ -113,37 +128,6 @@ public interface ZenPing extends Releasable {
          * for not recovered) */
         public long getClusterStateVersion() {
             return clusterStateVersion;
-        }
-
-        public static PingResponse readPingResponse(StreamInput in) throws IOException {
-            PingResponse response = new PingResponse();
-            response.readFrom(in);
-            return response;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            clusterName = new ClusterName(in);
-            node = new DiscoveryNode(in);
-            if (in.readBoolean()) {
-                master = new DiscoveryNode(in);
-            }
-            this.clusterStateVersion = in.readLong();
-            this.id = in.readLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            clusterName.writeTo(out);
-            node.writeTo(out);
-            if (master == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                master.writeTo(out);
-            }
-            out.writeLong(clusterStateVersion);
-            out.writeLong(id);
         }
 
         @Override

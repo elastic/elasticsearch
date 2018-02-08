@@ -28,5 +28,5 @@ to compute with a search query in <<java-rest-high-document-search-request-build
 The <<java-rest-high-aggregation-builders, Building Aggregations>> page gives a list of all available
 aggregations with their corresponding `AggregationBuilder` objects and `AggregationBuilders` helper methods.
 
-include::builders/queries.asciidoc[]
-include::builders/aggs.asciidoc[]
+include::query-builders.asciidoc[]
+include::aggs-builders.asciidoc[]

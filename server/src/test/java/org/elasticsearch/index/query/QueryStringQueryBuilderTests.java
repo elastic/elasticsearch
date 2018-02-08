@@ -835,7 +835,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
-            MapperService.MergeReason.MAPPING_UPDATE, true);
+            MapperService.MergeReason.MAPPING_UPDATE);
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
             Query query = queryBuilder.toQuery(context);
@@ -848,7 +848,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
                         "_field_names", "enabled=true").string()),
-                MapperService.MergeReason.MAPPING_UPDATE, true);
+                MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 

@@ -22,8 +22,8 @@ package org.elasticsearch.action.support.broadcast.node;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -109,7 +109,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         public Response() {
         }
 
-        public Response(int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+        public Response(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
             super(totalShards, successfulShards, failedShards, shardFailures);
         }
     }
@@ -127,7 +127,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
 
         @Override
-        protected Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> emptyResults, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
+        protected Response newResponse(Request request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> emptyResults, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
             return new Response(totalShards, successfulShards, failedShards, shardFailures);
         }
 

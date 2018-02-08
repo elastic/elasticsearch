@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.plugin
 
+import nebula.plugin.info.scm.ScmInfoPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
@@ -220,7 +221,8 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds a task to generate a pom file for the zip distribution. */
-    protected void addZipPomGeneration(Project project) {
+    public static void addZipPomGeneration(Project project) {
+        project.plugins.apply(ScmInfoPlugin.class)
         project.plugins.apply(MavenPublishPlugin.class)
 
         project.publishing {

@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 
 import java.io.IOException;
@@ -34,22 +38,32 @@ import java.util.Objects;;
 /**
  * Result of the evaluation metric calculation on one particular query alone.
  */
-public class EvalQueryQuality implements ToXContent, Writeable {
+public class EvalQueryQuality implements ToXContentFragment, Writeable {
 
     private final String queryId;
     private final double evaluationResult;
-    private MetricDetails optionalMetricDetails;
-    private final List<RatedSearchHit> ratedHits = new ArrayList<>();
+    private MetricDetail optionalMetricDetails;
+    private final List<RatedSearchHit> ratedHits;
 
     public EvalQueryQuality(String id, double evaluationResult) {
         this.queryId = id;
         this.evaluationResult = evaluationResult;
+        this.ratedHits = new ArrayList<>();
     }
 
     public EvalQueryQuality(StreamInput in) throws IOException {
-        this(in.readString(), in.readDouble());
-        this.ratedHits.addAll(in.readList(RatedSearchHit::new));
-        this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetails.class);
+        this.queryId = in.readString();
+        this.evaluationResult = in.readDouble();
+        this.ratedHits = in.readList(RatedSearchHit::new);
+        this.optionalMetricDetails = in.readOptionalNamedWriteable(MetricDetail.class);
+    }
+
+    // only used for parsing internally
+    private EvalQueryQuality(String queryId, ParsedEvalQueryQuality builder) {
+        this.queryId = queryId;
+        this.evaluationResult = builder.evaluationResult;
+        this.optionalMetricDetails = builder.optionalMetricDetails;
+        this.ratedHits = builder.ratedHits;
     }
 
     @Override
@@ -68,11 +82,11 @@ public class EvalQueryQuality implements ToXContent, Writeable {
         return evaluationResult;
     }
 
-    public void setMetricDetails(MetricDetails breakdown) {
+    public void setMetricDetails(MetricDetail breakdown) {
         this.optionalMetricDetails = breakdown;
     }
 
-    public MetricDetails getMetricDetails() {
+    public MetricDetail getMetricDetails() {
         return this.optionalMetricDetails;
     }
 
@@ -87,8 +101,8 @@ public class EvalQueryQuality implements ToXContent, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(queryId);
-        builder.field("quality_level", this.evaluationResult);
-        builder.startArray("unknown_docs");
+        builder.field(QUALITY_LEVEL_FIELD.getPreferredName(), this.evaluationResult);
+        builder.startArray(UNKNOWN_DOCS_FIELD.getPreferredName());
         for (DocumentKey key : EvaluationMetric.filterUnknownDocuments(ratedHits)) {
             builder.startObject();
             builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.getIndex());
@@ -96,18 +110,48 @@ public class EvalQueryQuality implements ToXContent, Writeable {
             builder.endObject();
         }
         builder.endArray();
-        builder.startArray("hits");
+        builder.startArray(HITS_FIELD.getPreferredName());
         for (RatedSearchHit hit : ratedHits) {
             hit.toXContent(builder, params);
         }
         builder.endArray();
         if (optionalMetricDetails != null) {
-            builder.startObject("metric_details");
-            optionalMetricDetails.toXContent(builder, params);
-            builder.endObject();
+            builder.field(METRIC_DETAILS_FIELD.getPreferredName(), optionalMetricDetails);
         }
         builder.endObject();
         return builder;
+    }
+
+    private static final ParseField QUALITY_LEVEL_FIELD = new ParseField("quality_level");
+    private static final ParseField UNKNOWN_DOCS_FIELD = new ParseField("unknown_docs");
+    private static final ParseField HITS_FIELD = new ParseField("hits");
+    private static final ParseField METRIC_DETAILS_FIELD = new ParseField("metric_details");
+    private static final ObjectParser<ParsedEvalQueryQuality, Void> PARSER = new ObjectParser<>("eval_query_quality",
+            true, ParsedEvalQueryQuality::new);
+
+    private static class ParsedEvalQueryQuality {
+        double evaluationResult;
+        MetricDetail optionalMetricDetails;
+        List<RatedSearchHit> ratedHits = new ArrayList<>();
+    }
+
+    static {
+        PARSER.declareDouble((obj, value) -> obj.evaluationResult = value, QUALITY_LEVEL_FIELD);
+        PARSER.declareObject((obj, value) -> obj.optionalMetricDetails = value, (p, c) -> parseMetricDetail(p),
+                METRIC_DETAILS_FIELD);
+        PARSER.declareObjectArray((obj, list) -> obj.ratedHits = list, (p, c) -> RatedSearchHit.parse(p), HITS_FIELD);
+    }
+
+    private static MetricDetail parseMetricDetail(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        MetricDetail metricDetail = parser.namedObject(MetricDetail.class, parser.currentName(), null);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return metricDetail;
+    }
+
+    public static EvalQueryQuality fromXContent(XContentParser parser, String queryId) throws IOException {
+        return new EvalQueryQuality(queryId, PARSER.apply(parser, null));
     }
 
     @Override

@@ -280,7 +280,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                     .field("type", "text")
                 .endObject().endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
+        assertThat(e.getMessage(), containsString("Mapper for [text] conflicts with existing mapping:"));
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

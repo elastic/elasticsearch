@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -67,9 +68,23 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         this(name, null);
     }
 
+
     public CompositeAggregationBuilder(String name, List<CompositeValuesSourceBuilder<?>> sources) {
         super(name);
         this.sources = sources;
+    }
+
+    protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.sources = new ArrayList<>(clone.sources);
+        this.after = clone.after;
+        this.size = clone.size;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new CompositeAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
@@ -147,17 +162,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             Sort sort = indexSortConfig.buildIndexSort(shardContext::fieldMapper, shardContext::getForField);
             System.arraycopy(sort.getSort(), 0, sortFields, 0, sortFields.length);
         }
-        List<String> sourceNames = new ArrayList<>();
         for (int i = 0; i < configs.length; i++) {
             configs[i] = sources.get(i).build(context, i, configs.length, sortFields[i]);
-            sourceNames.add(sources.get(i).name());
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }
         }
         final CompositeKey afterKey;
         if (after != null) {
-            if (after.size() != sources.size()) {
+            if (after.size() != configs.length) {
                 throw new IllegalArgumentException("[after] has " + after.size() +
                     " value(s) but [sources] has " + sources.size());
             }
@@ -179,7 +192,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metaData, size, configs, sourceNames, afterKey);
+        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metaData, size, configs, afterKey);
     }
 
 

@@ -275,12 +275,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             if (!filteredValues.isEmpty()) {
                 // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, new Comparator<AliasMetaData>() {
-                    @Override
-                    public int compare(AliasMetaData o1, AliasMetaData o2) {
-                        return o1.alias().compareTo(o2.alias());
-                    }
-                });
+                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
             }
             mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }

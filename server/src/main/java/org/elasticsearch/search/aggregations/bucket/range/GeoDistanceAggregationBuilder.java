@@ -32,8 +32,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -44,6 +46,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range.FROM_FIELD;
@@ -178,26 +181,27 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (FROM_FIELD.match(currentFieldName)) {
+                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     from = parser.doubleValue();
-                } else if (TO_FIELD.match(currentFieldName)) {
+                } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     to = parser.doubleValue();
                 } else {
                     XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (KEY_FIELD.match(currentFieldName)) {
+                if (KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     key = parser.text();
-                } else if (FROM_FIELD.match(currentFieldName)) {
+                } else if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fromAsStr = parser.text();
-                } else if (TO_FIELD.match(currentFieldName)) {
+                } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     toAsStr = parser.text();
                 } else {
                     XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {
-                if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
-                        || KEY_FIELD.match(currentFieldName)) {
+                if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())
+                    || TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())
+                    || KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore null value
                 } else {
                     XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
@@ -251,6 +255,20 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     // for parsing
     GeoDistanceAggregationBuilder(String name) {
         this(name, null, InternalGeoDistance.FACTORY);
+    }
+
+    protected GeoDistanceAggregationBuilder(GeoDistanceAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.origin = clone.origin;
+        this.distanceType = clone.distanceType;
+        this.unit = clone.unit;
+        this.keyed = clone.keyed;
+        this.ranges = new ArrayList<>(clone.ranges);
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new GeoDistanceAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     GeoDistanceAggregationBuilder origin(GeoPoint origin) {

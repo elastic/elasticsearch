@@ -82,6 +82,7 @@ public class RandomSearchRequestGenerator {
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
+        searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));
         }

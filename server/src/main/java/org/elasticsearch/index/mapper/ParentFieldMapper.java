@@ -34,6 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -116,7 +117,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (FIELDDATA.match(fieldName)) {
+                } else if (FIELDDATA.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     // for bw compat only
                     Map<String, Object> fieldDataSettings = nodeMapValue(fieldNode, "fielddata");
                     if (fieldDataSettings.containsKey("loading")) {

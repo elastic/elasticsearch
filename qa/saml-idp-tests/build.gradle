@@ -30,7 +30,7 @@ if (project.rootProject.vagrantSupported) {
 }
 
 integTestCluster {
-  plugin ':x-pack-elasticsearch:plugin'
+  plugin xpackProject('plugin').path
 
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'

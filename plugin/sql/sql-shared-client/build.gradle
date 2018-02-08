@@ -10,7 +10,7 @@ apply plugin: 'elasticsearch.build'
 description = 'Code shared between jdbc and cli'
 
 dependencies {
-    compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
+    compile xpackProject('plugin:sql:sql-proto')
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     testCompile "org.elasticsearch.test:framework:${version}"
 }

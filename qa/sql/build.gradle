@@ -9,7 +9,8 @@ dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
 // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
-  compile(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
+    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  compile xpackProject('plugin:sql:jdbc')
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
   runtime "com.h2database:h2:1.4.194"
   // used for running debug tests
@@ -62,13 +63,13 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    testCompile(project(':x-pack-elasticsearch:qa:sql')) {
+    testCompile(xpackProject('qa:sql')) {
       transitive = false
     }
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime(project(':x-pack-elasticsearch:plugin:sql:jdbc'))
+    testRuntime(xpackProject('plugin:sql:jdbc'))
     // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
     testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false
@@ -80,8 +81,8 @@ subprojects {
       transitive = false
     }
 
-    cliFixture project(':x-pack-elasticsearch:test:sql-cli-fixture')
-    cliJar(project(':x-pack-elasticsearch:plugin:sql:sql-cli')) {
+    cliFixture xpackProject('test:sql-cli-fixture')
+    cliJar(xpackProject('plugin:sql:sql-cli')) {
       // We only need the jar file because it bundles all of its dependencies
       transitive = false
     }
@@ -92,7 +93,7 @@ subprojects {
     apply plugin: 'elasticsearch.rest-test'
 
     task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-      Project cli = project(':x-pack-elasticsearch:plugin:sql:sql-cli')
+      Project cli = xpackProject('plugin:sql:sql-cli')
       dependsOn project.configurations.cliFixture
       dependsOn project.configurations.cliJar
       executable = new File(project.runtimeJavaHome, 'bin/java')
@@ -103,7 +104,7 @@ subprojects {
 
     integTestCluster {
       distribution = 'zip'
-      plugin project(':x-pack-elasticsearch:plugin').path
+      plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
@@ -118,7 +119,7 @@ subprojects {
 
     task runqa(type: RunTask) {
       distribution = 'zip'
-      plugin project(':x-pack-elasticsearch:plugin').path
+      plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'

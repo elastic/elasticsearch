@@ -33,6 +33,13 @@
         "pipeline":{
           "type":"text"
         },
+        "pipeline_settings": {
+          "dynamic": false,
+          "type": "object"
+        },
+        "pipeline_node_groups": {
+          "type": "text"
+        },
         "username":{
           "type":"keyword"
         },

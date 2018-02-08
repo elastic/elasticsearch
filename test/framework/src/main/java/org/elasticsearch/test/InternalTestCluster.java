@@ -1138,7 +1138,7 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        List<RuntimeException> operations = indexShard.getActiveOperations();
+                        List<Throwable> operations = indexShard.getActiveOperations();
                         if (operations.size() > 0) {
                             throw new AssertionError(
                                 "shard " + indexShard.shardId() + " on node [" + nodeAndClient.name + "] has pending operations:\n" +

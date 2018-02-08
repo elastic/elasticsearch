@@ -2317,10 +2317,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return a list of containing an exceptions for each operation permit that wasn't released yet. The stack traces of the exceptions
-     *         was captured when the operation acquired the permit and their message contain the debug information supplied at the time.
+     * @return a list of containing an exception for each operation permit that wasn't released yet. The stack traces of the exceptions
+     *         was captured when the operation acquired the permit and their message contains the debug information supplied at the time.
      */
-    public List<RuntimeException> getActiveOperations() {
+    public List<Throwable> getActiveOperations() {
         return indexShardOperationPermits.getActiveOperations();
     }
 

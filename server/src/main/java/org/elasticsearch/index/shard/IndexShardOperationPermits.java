@@ -60,7 +60,7 @@ final class IndexShardOperationPermits implements Closeable {
 
     // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics. Value is an
     // exception with some extra info in the message + a stack trace of the acquirer
-    private final Map<AtomicBoolean, RuntimeException> issuedPermits;
+    private final Map<AtomicBoolean, Throwable> issuedPermits;
 
     /**
      * Construct operation permits for the specified shards.
@@ -221,9 +221,9 @@ final class IndexShardOperationPermits implements Closeable {
      */
     public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
                         final Object debugInfo) {
-        final RuntimeException debugInfoWithStackTrace;
+        final Throwable debugInfoWithStackTrace;
         if (Assertions.ENABLED) {
-            debugInfoWithStackTrace = new RuntimeException(debugInfo.toString());
+            debugInfoWithStackTrace = new Throwable(debugInfo.toString());
         } else {
             debugInfoWithStackTrace = null;
         }
@@ -231,7 +231,7 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     private void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
-                        final RuntimeException debugInfo) {
+                        final Throwable debugInfo) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
@@ -263,14 +263,14 @@ final class IndexShardOperationPermits implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    private Releasable acquire(RuntimeException debugInfo) throws InterruptedException {
+    private Releasable acquire(Throwable debugInfo) throws InterruptedException {
         assert Thread.holdsLock(this);
         if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the un-timed tryAcquire methods do not honor the fairness setting
             final AtomicBoolean closed = new AtomicBoolean();
             final Releasable releasable = () -> {
                 if (closed.compareAndSet(false, true)) {
                     if (Assertions.ENABLED) {
-                        RuntimeException e = issuedPermits.remove(closed);
+                        Throwable e = issuedPermits.remove(closed);
                         assert e != null;
                     }
                     semaphore.release(1);
@@ -306,21 +306,21 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * @return a list of containing an exceptions for each permit that wasn't released yet. The stack traces of the exceptions
-     *         was captured when the operation acquired the permit and their message contain the debug information supplied at the time.
+     * @return a list of containing an exception for each permit that wasn't released yet. The stack traces of the exceptions
+     *         was captured when the operation acquired the permit and their message contains the debug information supplied at the time.
      */
-    List<RuntimeException> getActiveOperations() {
+    List<Throwable> getActiveOperations() {
         return new ArrayList<>(issuedPermits.values());
     }
 
     private static class DelayedOperation {
        private final ActionListener<Releasable> listener;
-       private final RuntimeException debugInfo;
+       private final Throwable debugInfo;
 
-        private DelayedOperation(ActionListener<Releasable> listener, RuntimeException debugInfo) {
+        private DelayedOperation(ActionListener<Releasable> listener, Throwable debugInfo) {
             this.listener = listener;
             if (Assertions.ENABLED) {
-                this.debugInfo = new RuntimeException("delayed", debugInfo);
+                this.debugInfo = new Throwable("delayed", debugInfo);
             } else {
                 this.debugInfo = null;
             }

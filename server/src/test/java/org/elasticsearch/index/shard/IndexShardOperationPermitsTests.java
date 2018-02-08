@@ -35,6 +35,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -48,10 +49,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -649,4 +655,33 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         };
     }
 
+    public void testPermitTraceCapturing() throws ExecutionException, InterruptedException {
+        final PlainActionFuture<Releasable> listener1 = new PlainActionFuture<>();
+        permits.acquire(listener1, null, false, "listener1");
+        final PlainActionFuture<Releasable> listener2 = new PlainActionFuture<>();
+        permits.acquire(listener2, null, false, "listener2");
+
+        assertThat(permits.getActiveOperationsCount(), equalTo(2));
+        List<String> messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+        assertThat(messages, hasSize(2));
+        assertThat(messages, containsInAnyOrder(Arrays.asList(containsString("listener1"), containsString("listener2"))));
+
+        if (randomBoolean()) {
+            listener1.get().close();
+            assertThat(permits.getActiveOperationsCount(), equalTo(1));
+            messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+            assertThat(messages, hasSize(1));
+            assertThat(messages, contains(containsString("listener2")));
+            listener2.get().close();
+        } else {
+            listener2.get().close();
+            assertThat(permits.getActiveOperationsCount(), equalTo(1));
+            messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+            assertThat(messages, hasSize(1));
+            assertThat(messages, contains(containsString("listener1")));
+            listener1.get().close();
+        }
+        assertThat(permits.getActiveOperationsCount(), equalTo(0));
+        assertThat(permits.getActiveOperations(), emptyIterable());
+    }
 }

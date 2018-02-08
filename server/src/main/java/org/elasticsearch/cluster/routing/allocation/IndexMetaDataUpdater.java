@@ -239,11 +239,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                     }
                     indexMetaDataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);
                 }
-                // Only log the stale shards which have been actually removed.
-                if (oldInSyncAllocations.size() != remainingInSyncAllocations.size()) {
-                    logger.warn("{} remove stale shards [{}] without routing", shardEntry.getKey(),
-                        Sets.difference(oldInSyncAllocations, remainingInSyncAllocations));
-                }
+                logger.warn("{} marking unavailable shards as stale: {}", shardEntry.getKey(), idsToRemove);
             }
 
             if (indexMetaDataBuilder != null) {

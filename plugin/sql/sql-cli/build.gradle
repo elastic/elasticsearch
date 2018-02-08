@@ -14,8 +14,8 @@ description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
     compile "org.jline:jline:3.3.1"
-    compile project(':x-pack-elasticsearch:plugin:sql:sql-shared-client')
-    compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
+    compile xpackProject('plugin:sql:sql-shared-client')
+    compile xpackProject('plugin:sql:sql-proto')
     compile "org.elasticsearch:elasticsearch-cli:${version}"
 
     runtime "org.fusesource.jansi:jansi:1.16"

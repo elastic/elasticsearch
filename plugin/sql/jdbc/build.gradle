@@ -14,8 +14,8 @@ dependencies {
      * don't shadow properly.
      *
      * Note: we've temporarily disabled shading. */
-    compile project(':x-pack-elasticsearch:plugin:sql:sql-shared-client')
-    compile project(':x-pack-elasticsearch:plugin:sql:sql-proto')
+    compile xpackProject('plugin:sql:sql-shared-client')
+    compile xpackProject('plugin:sql:sql-proto')
     runtime "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     testCompile "org.elasticsearch.test:framework:${version}"
 }

@@ -108,7 +108,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             // the plugin must have the version of whichever node we are talking to, since this is enforced on startup
             elasticsearchVersion = in.getVersion();
             // this might not be true, but it is not important, we just need something here for bwc that is a valid java version string
-            javaVersion = System.getProperty("java.version");
+            javaVersion = "1.8";
         }
         this.classname = in.readString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {

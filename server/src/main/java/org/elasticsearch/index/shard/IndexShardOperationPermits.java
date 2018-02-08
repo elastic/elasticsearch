@@ -58,7 +58,7 @@ final class IndexShardOperationPermits implements Closeable {
     private volatile boolean closed;
     private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this
 
-    // only valid when assertions are enabled. Key is the close once atomic boolean of each permit. value is an
+    // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics. Value is an
     // exception with some extra info in the message + a stack trace of the acquirer
     private final Map<AtomicBoolean, RuntimeException> issuedPermits;
 
@@ -214,7 +214,10 @@ final class IndexShardOperationPermits implements Closeable {
      * @param onAcquired      {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param executorOnDelay executor to use for the possibly delayed {@link ActionListener#onResponse(Object)} call
      * @param forceExecution  whether the runnable should force its execution in case it gets rejected
-     * @param debugInfo       an extra information that can be useful when tracing an unreleased permit.
+     * @param debugInfo       an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                        the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                        isn't used
+     *
      */
     public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
                         final Object debugInfo) {
@@ -303,10 +306,11 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * @return a list of stacktraces that acquired an operation that wasn't released yet
+     * @return a list of containing an exceptions for each permit that wasn't released yet. The stack traces of the exceptions
+     *         was captured when the operation acquired the permit and their message contain the debug information supplied at the time.
      */
     List<RuntimeException> getActiveOperations() {
-        return new ArrayList<RuntimeException>(issuedPermits.values());
+        return new ArrayList<>(issuedPermits.values());
     }
 
     private static class DelayedOperation {

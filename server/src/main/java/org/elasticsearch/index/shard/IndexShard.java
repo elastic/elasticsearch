@@ -2193,7 +2193,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
      *
-     * @param debugInfo            extra information that will be used for debugging if assertions are enabled
+     * @param debugInfo an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                  the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                  isn't used
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
@@ -2206,7 +2208,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -2215,7 +2217,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
-     * @param debugInfo            extra information that will be used for debugging if assertions are enabled
+     * @param debugInfo            an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                             isn't used
      */
     public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
@@ -2312,6 +2316,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
     }
 
+    /**
+     * @return a list of containing an exceptions for each operation permit that wasn't released yet. The stack traces of the exceptions
+     *         was captured when the operation acquired the permit and their message contain the debug information supplied at the time.
+     */
     public List<RuntimeException> getActiveOperations() {
         return indexShardOperationPermits.getActiveOperations();
     }

@@ -5,7 +5,6 @@ esplugin {
     name 'x-pack-sql'
     description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
     classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
     licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
@@ -47,15 +46,6 @@ bundlePlugin {
     from (configurations.bin) {
         into 'elasticsearch/bin'
     }
-}
-
-dependencyLicenses {
-    mapping from: /server.*/, to: 'elasticsearch'
-    mapping from: /sql-proto.*/, to: 'elasticsearch'
-    mapping from: /x-pack-core.*/, to: 'elasticsearch'
-
-    ignoreSha 'x-pack-core'
-    ignoreSha 'sql-proto'
 }
 
 /**********************************************

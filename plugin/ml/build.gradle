@@ -9,7 +9,6 @@ esplugin {
     description 'Elasticsearch Expanded Pack Plugin - Machine Learning'
     classname 'org.elasticsearch.xpack.ml.MachineLearning'
     hasNativeController true
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-ml'
@@ -41,8 +40,6 @@ compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
     // This should not be here
@@ -65,10 +62,6 @@ artifacts {
     // normal es plugins do not publish the jar but we need to since users need it for Transport Clients and extensions
     archives jar
     testArtifacts testJar
-}
-
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
 }
 
 run {

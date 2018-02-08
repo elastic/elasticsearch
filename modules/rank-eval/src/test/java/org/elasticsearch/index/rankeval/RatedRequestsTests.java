@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -48,6 +50,8 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RatedRequestsTests extends ESTestCase {
 
@@ -120,6 +124,22 @@ public class RatedRequestsTests extends ESTestCase {
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
+    }
+
+    public void testXContentParsingIsNotLenient() throws IOException {
+        RatedRequest testItem = createTestItem(randomBoolean());
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+            Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
+            if (exception instanceof IllegalArgumentException) {
+                assertThat(exception.getMessage(), startsWith("[request] unknown field"));
+            }
+            if (exception instanceof ParsingException) {
+                assertThat(exception.getMessage(), startsWith("[request] failed to parse field"));
+            }
         }
     }
 

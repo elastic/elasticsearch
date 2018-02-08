@@ -514,6 +514,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "{"
                           + "\"name\":\"_plugin\","
                           + "\"version\":\"_plugin_version\","
+                          + "\"elasticsearch_version\":\"" + Version.CURRENT + "\","
+                          + "\"java_version\":\"1.8\","
                           + "\"description\":\"_plugin_desc\","
                           + "\"classname\":\"_plugin_class\","
                           + "\"extended_plugins\":[],"

@@ -24,9 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -48,38 +46,12 @@ public class SizeBlockingQueueTests extends ESTestCase {
             sizeBlockingQueue.offer(i);
         }
 
-        final CountDownLatch latch = new CountDownLatch(1);
-        final CyclicBarrier barrier = new CyclicBarrier(2);
 
-        final AtomicInteger maxSize = new AtomicInteger();
-
-        // this thread will repeatedly poll the size of the queue keeping track of the maximum size that it sees
         final int iterations = 1 << 16;
-        final Thread queueSizeThread = new Thread(() -> {
-            try {
-                latch.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            for (int i = 0; i < iterations; i++) {
-                try {
-                    // synchronize each iteration of checking the size with each iteration of offering, each iteration is a race
-                    barrier.await();
-                } catch (final BrokenBarrierException | InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                maxSize.set(Math.max(maxSize.get(), sizeBlockingQueue.size()));
-            }
-        });
-        queueSizeThread.start();
+        final CyclicBarrier barrier = new CyclicBarrier(2);
 
         // this thread will try to offer items to the queue while the queue size thread is polling the size
         final Thread queueOfferThread = new Thread(() -> {
-            try {
-                latch.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
             for (int i = 0; i < iterations; i++) {
                 try {
                     // synchronize each iteration of checking the size with each iteration of offering, each iteration is a race
@@ -92,8 +64,20 @@ public class SizeBlockingQueueTests extends ESTestCase {
         });
         queueOfferThread.start();
 
-        // synchronize the start of the two threads
-        latch.countDown();
+        // this thread will repeatedly poll the size of the queue keeping track of the maximum size that it sees
+        final AtomicInteger maxSize = new AtomicInteger();
+        final Thread queueSizeThread = new Thread(() -> {
+            for (int i = 0; i < iterations; i++) {
+                try {
+                    // synchronize each iteration of checking the size with each iteration of offering, each iteration is a race
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                maxSize.set(Math.max(maxSize.get(), sizeBlockingQueue.size()));
+            }
+        });
+        queueSizeThread.start();
 
         // wait for the threads to finish
         queueOfferThread.join();

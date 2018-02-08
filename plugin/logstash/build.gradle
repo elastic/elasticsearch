@@ -5,22 +5,14 @@ esplugin {
     name 'x-pack-logstash'
     description 'Elasticsearch Expanded Pack Plugin - Logstash'
     classname 'org.elasticsearch.xpack.logstash.Logstash'
-    hasNativeController false
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-logstash'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-}
-
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
 }
 
 run {

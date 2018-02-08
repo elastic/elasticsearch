@@ -5,7 +5,6 @@ esplugin {
     name 'x-pack-security'
     description 'Elasticsearch Expanded Pack Plugin - Security'
     classname 'org.elasticsearch.xpack.security.Security'
-    hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
 }
@@ -13,8 +12,6 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     provided project(path: ':plugins:transport-nio', configuration: 'runtime')
@@ -24,7 +21,6 @@ dependencies {
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    //compile project(path: ':modules:transport-netty4')
     compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
     compile 'org.bouncycastle:bcprov-jdk15on:1.58'
     compile 'org.bouncycastle:bcpkix-jdk15on:1.58'
@@ -83,13 +79,9 @@ sourceSets.test.resources {
     srcDir '../core/src/test/resources'
 }
 dependencyLicenses {
-    mapping from: /netty-.*/, to: 'netty'
     mapping from: /bc.*/, to: 'bouncycastle'
-    mapping from: /transport-netty.*/, to: 'elasticsearch'
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
-    mapping from: /http.*/, to: 'httpclient' 
-    ignoreSha 'x-pack-core'
-    ignoreSha 'transport-netty4'
+    mapping from: /http.*/, to: 'httpclient'
 }
 
 forbiddenPatterns {

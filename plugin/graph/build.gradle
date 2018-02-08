@@ -5,21 +5,13 @@ esplugin {
     name 'x-pack-graph'
     description 'Elasticsearch Expanded Pack Plugin - Graph'
     classname 'org.elasticsearch.xpack.graph.Graph'
-    hasNativeController false
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-graph'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
-
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
 }
 
 run {

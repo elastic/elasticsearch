@@ -8,25 +8,18 @@ esplugin {
     name 'x-pack-upgrade'
     description 'Elasticsearch Expanded Pack Plugin - Upgrade'
     classname 'org.elasticsearch.xpack.upgrade.Upgrade'
-    hasNativeController false
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 
 archivesBaseName = 'x-pack-upgrade'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
-}
 
 run {
     plugin xpackModule('core')

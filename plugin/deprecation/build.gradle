@@ -5,20 +5,12 @@ esplugin {
     name 'x-pack-deprecation'
     description 'Elasticsearch Expanded Pack Plugin - Deprecation'
     classname 'org.elasticsearch.xpack.deprecation.Deprecation'
-    hasNativeController false
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-deprecation'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
-}
-
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
 }
 
 run {

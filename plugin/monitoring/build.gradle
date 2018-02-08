@@ -8,15 +8,11 @@ esplugin {
     name 'x-pack-monitoring'
     description 'Elasticsearch Expanded Pack Plugin - Monitoring'
     classname 'org.elasticsearch.xpack.monitoring.Monitoring'
-    hasNativeController false
-    requiresKeystore false
     extendedPlugins = ['x-pack-core']
 }
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
     provided "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
@@ -45,13 +41,8 @@ artifacts {
 }
 
 dependencyLicenses {
-    mapping from: /elasticsearch-rest-client.*/, to: 'elasticsearch'
     mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
     mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
-    ignoreSha 'x-pack-core'
-    ignoreSha 'elasticsearch-rest-client'
-    ignoreSha 'transport-netty4'
-    ignoreSha 'elasticsearch-rest-client-sniffer'
 }
 
 run {

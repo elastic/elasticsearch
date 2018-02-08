@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -117,6 +118,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testWordDocument() throws Exception {
+        assumeFalse("parsing doesn't work with Java 10, see https://github.com/elastic/elasticsearch/issues/28568",
+                Constants.JAVA_VERSION.startsWith("10-"));
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type",
@@ -131,6 +134,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testWordDocumentWithVisioSchema() throws Exception {
+        assumeFalse("parsing doesn't work with Java 10, see https://github.com/elastic/elasticsearch/issues/28568",
+                Constants.JAVA_VERSION.startsWith("10-"));
         Map<String, Object> attachmentData = parseDocument("issue-22077.docx", processor);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type",
@@ -167,6 +172,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testVisioIsExcluded() throws Exception {
+        assumeFalse("parsing doesn't work with Java 10, see https://github.com/elastic/elasticsearch/issues/28568",
+                Constants.JAVA_VERSION.startsWith("10-"));
         Map<String, Object> attachmentData = parseDocument("issue-22077.vsdx", processor);
         assertThat(attachmentData.get("content"), nullValue());
         assertThat(attachmentData.get("content_type"), is("application/vnd.ms-visio.drawing"));

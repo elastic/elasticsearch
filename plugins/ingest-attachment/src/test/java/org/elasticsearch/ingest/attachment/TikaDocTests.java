@@ -1,5 +1,7 @@
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.lucene.util.Constants;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -41,6 +43,8 @@ public class TikaDocTests extends ESTestCase {
     static final String TIKA_FILES = "/org/elasticsearch/ingest/attachment/test/tika-files/";
 
     public void testFiles() throws Exception {
+        assumeFalse("parsing doesn't work with Java 10, see https://github.com/elastic/elasticsearch/issues/28568",
+                Constants.JAVA_VERSION.startsWith("10-"));
         Path tmp = createTempDir();
         logger.debug("unzipping all tika sample files");
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(PathUtils.get(getClass().getResource(TIKA_FILES).toURI()))) {

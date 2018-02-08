@@ -53,7 +53,7 @@ public class RatedDocumentTests extends ESTestCase {
         }
     }
 
-    public void testXContentParsingNotLenient() throws IOException {
+    public void testXContentParsingIsNotLenient() throws IOException {
         RatedDocument testItem = createRatedDocument();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());

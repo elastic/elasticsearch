@@ -172,7 +172,7 @@ public class MeanReciprocalRankTests extends ESTestCase {
         }
     }
 
-    public void testXContentParsingNotLenient() throws IOException {
+    public void testXContentParsingIsNotLenient() throws IOException {
         MeanReciprocalRank testItem = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());

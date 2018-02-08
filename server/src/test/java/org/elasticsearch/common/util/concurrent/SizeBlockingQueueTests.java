@@ -51,7 +51,6 @@ public class SizeBlockingQueueTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final CyclicBarrier barrier = new CyclicBarrier(2);
 
-        final AtomicBoolean spin = new AtomicBoolean(true);
         final AtomicInteger maxSize = new AtomicInteger();
 
         // this thread will repeatedly poll the size of the queue keeping track of the maximum size that it sees
@@ -96,11 +95,8 @@ public class SizeBlockingQueueTests extends ESTestCase {
         // synchronize the start of the two threads
         latch.countDown();
 
-        // wait for the offering thread to finish
+        // wait for the threads to finish
         queueOfferThread.join();
-
-        // stop the queue size thread
-        spin.set(false);
         queueSizeThread.join();
 
         // the maximum size of the queue should be equal to the capacity

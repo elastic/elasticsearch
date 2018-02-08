@@ -33,7 +33,7 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRespo
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -77,7 +77,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class ScriptService extends AbstractComponent implements Closeable, ClusterStateListener {
+public class ScriptService extends AbstractComponent implements Closeable, ClusterStateApplier {
 
     static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
 
@@ -522,7 +522,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         clusterState = event.state();
     }
 

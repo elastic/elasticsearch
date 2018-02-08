@@ -38,6 +38,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +78,10 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     }
 
     void innerUpdatePipelines(ClusterState previousState, ClusterState state) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         IngestMetadata ingestMetadata = state.getMetaData().custom(IngestMetadata.TYPE);
         IngestMetadata previousIngestMetadata = previousState.getMetaData().custom(IngestMetadata.TYPE);
         if (Objects.equals(ingestMetadata, previousIngestMetadata)) {

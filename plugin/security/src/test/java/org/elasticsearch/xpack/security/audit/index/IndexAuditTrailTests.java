@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
+import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -809,7 +810,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertThat(sourceMap.get("@timestamp"), notNullValue());
         DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
-        assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
+        final DateTime now = DateTime.now(DateTimeZone.UTC);
+        assertThat(dateTime + " should be on/before " + now, dateTime.isAfter(now), equalTo(false));
 
         assertThat(remoteAddress.getAddress(), equalTo(sourceMap.get("node_host_name")));
         assertThat(remoteAddress.getAddress(), equalTo(sourceMap.get("node_host_address")));

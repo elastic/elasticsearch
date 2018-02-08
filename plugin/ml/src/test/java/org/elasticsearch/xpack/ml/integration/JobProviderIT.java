@@ -10,9 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
@@ -67,7 +64,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -129,7 +125,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         assertThat(queryResult, hasSize(3));
         Long matchedCount = queryResult.stream().filter(
                 c -> c.getId().equals("foo calendar") || c.getId().equals("foo bar calendar") || c.getId().equals("cat foo calendar"))
-                .collect(Collectors.counting());
+                .count();
         assertEquals(new Long(3), matchedCount);
 
         queryResult = getCalendars("bar");
@@ -142,10 +138,6 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         mlBuilder.putJob(createJob("foo").build(), false);
         mlBuilder.putJob(createJob("bar").build(), false);
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(new MetaData.Builder().putCustom(MLMetadataField.TYPE, mlBuilder.build()))
-                .build();
-
         String calendarId = "empty calendar";
         Calendar emptyCal = new Calendar(calendarId, Collections.emptyList(), null);
         indexCalendars(Collections.singletonList(emptyCal));
@@ -153,15 +145,13 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         Set<String> addedIds = new HashSet<>();
         addedIds.add("foo");
         addedIds.add("bar");
-        updateCalendar(calendarId, addedIds, Collections.emptySet(), clusterState);
+        updateCalendar(calendarId, addedIds, Collections.emptySet(), mlBuilder.build());
 
         Calendar updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
         assertEquals(addedIds, new HashSet<>(updated.getJobIds()));
 
-        Set<String> removedIds = new HashSet<>();
-        removedIds.add("foo");
-        updateCalendar(calendarId, Collections.emptySet(), removedIds, clusterState);
+        updateCalendar(calendarId, Collections.emptySet(), Collections.singleton("foo"), mlBuilder.build());
 
         updated = getCalendar(calendarId);
         assertEquals(calendarId, updated.getId());
@@ -250,11 +240,11 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         return result.get().results();
     }
 
-    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, ClusterState clusterState)
+    private void updateCalendar(String calendarId, Set<String> idsToAdd, Set<String> idsToRemove, MlMetadata mlMetadata)
             throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, clusterState,
+        jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, mlMetadata,
                 r -> latch.countDown(),
                 e -> {
                     exceptionHolder.set(e);
@@ -357,7 +347,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         events.add(buildScheduledEvent("downtime_A", now.plusDays(1), now.plusDays(2), calendarAId));
 
         String calendarBId = "calendar_b";
-        calendars.add(new Calendar(calendarBId, Arrays.asList(groupB), null));
+        calendars.add(new Calendar(calendarBId, Collections.singletonList(groupB), null));
         events.add(buildScheduledEvent("downtime_B", now.plusDays(12), now.plusDays(13), calendarBId));
 
         indexCalendars(calendars);

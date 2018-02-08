@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -42,17 +46,16 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
 
     @Override
     protected void doExecute(UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
-
-        Set<String> jobIdsToAdd = new HashSet<>();
-        if (request.getJobIdToAdd() != null && request.getJobIdToAdd().isEmpty() == false) {
-            jobIdsToAdd.add(request.getJobIdToAdd());
-        }
-        Set<String> jobIdsToRemove = new HashSet<>();
-        if (request.getJobIdToRemove() != null && request.getJobIdToRemove().isEmpty() == false) {
-            jobIdsToRemove.add(request.getJobIdToRemove());
+        ClusterState clusterState = clusterService.state();
+        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
         }
 
-        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, clusterService.state(),
+        Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
+        Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
+
+        jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, mlMetadata,
                 c -> {
                     jobManager.updateProcessOnCalendarChanged(c.getJobIds());
                     listener.onResponse(new PutCalendarAction.Response(c));

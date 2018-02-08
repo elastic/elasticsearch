@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -272,23 +273,23 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token.isValue()) {
-                        if (TERM_FIELD.match(currentFieldName)) {
+                        if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = parser.objectBytes();
-                        } else if (VALUE_FIELD.match(currentFieldName)) {
+                        } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = parser.objectBytes();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (Fuzziness.FIELD.match(currentFieldName)) {
+                        } else if (Fuzziness.FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             fuzziness = Fuzziness.parse(parser);
-                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                        } else if (PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             prefixLength = parser.intValue();
-                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                        } else if (MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             maxExpansions = parser.intValue();
-                        } else if (TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                        } else if (TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             transpositions = parser.booleanValue();
-                        } else if (REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite = parser.textOrNull();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -336,7 +337,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             query = new FuzzyQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), maxEdits, prefixLength, maxExpansions, transpositions);
         }
         if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null);
+            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null,
+                LoggingDeprecationHandler.INSTANCE);
             QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
         }
         return query;

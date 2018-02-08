@@ -85,38 +85,6 @@ sourceSets.test.java {
     srcDir '../../license-tools/src/main/java'
 }
 
-// TODO: remove this jar once xpack extensions have been removed
-// assemble the API JAR for the transport-client and extension authors; this JAR is the core JAR by another name
-project.afterEvaluate {
-    task apiJar {
-        dependsOn('generatePomFileForApijarPublication', project.jar)
-        doFirst {
-            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-            String apiFileName = jarFile.fileName.toString().replace("core-${project.version}", "api-${project.version}")
-            Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
-
-            String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
-            String apiPomFileName = apiFileName.replace('.jar', '.pom')
-            Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-        }
-    }
-    assemble.dependsOn(apiJar)
-    project.publishing {
-        publications {
-            apijar(MavenPublication) {
-                from project.components.java
-                artifactId = 'x-pack-api'
-                pom.withXml { XmlProvider xml ->
-                    Node root = xml.asNode()
-                    root.appendNode('name', project.pluginProperties.extension.name)
-                    root.appendNode('description', project.pluginProperties.extension.description)
-                }
-            }
-        }
-    }
-}
-
 test {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each

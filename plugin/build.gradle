@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.test.RunTask;
 
 apply plugin: 'elasticsearch.es-meta-plugin'
 
-archivesBaseName = 'x-pack' // for api jar
+archivesBaseName = 'x-pack'
 
 es_meta_plugin {
   name = 'x-pack'

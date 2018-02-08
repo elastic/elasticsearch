@@ -65,7 +65,6 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential', 'Generated']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]

@@ -19,18 +19,11 @@
 
 package org.elasticsearch.common.settings;
 
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
+import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
@@ -315,25 +308,21 @@ public class KeyStoreWrapper implements SecureSettings {
              DataInputStream input = new DataInputStream(bytesStream)) {
             int saltLen = input.readInt();
             salt = new byte[saltLen];
-            if (input.read(salt) != saltLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(salt);
             int ivLen = input.readInt();
             iv = new byte[ivLen];
-            if (input.read(iv) != ivLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(iv);
             int encryptedLen = input.readInt();
             encryptedBytes = new byte[encryptedLen];
-            if (input.read(encryptedBytes) != encryptedLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(encryptedBytes);
+        } catch (EOFException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with");
         }
 
         Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv);
-        byte decryptedBytes[] = cipher.doFinal(encryptedBytes);
-        try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(decryptedBytes);
-             DataInputStream input = new DataInputStream(bytesStream)) {
+        try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
+             CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
+             DataInputStream input = new DataInputStream(cipherStream)) {
             entries.set(new HashMap<>());
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
@@ -341,13 +330,11 @@ public class KeyStoreWrapper implements SecureSettings {
                 EntryType entryType = EntryType.valueOf(input.readUTF());
                 int entrySize = input.readInt();
                 byte[] entryBytes = new byte[entrySize];
-                if (input.read(entryBytes) != entrySize) {
-                    throw new SecurityException("Keystore has been corrupted or tampered with");
-                }
+                input.readFully(entryBytes);
                 entries.get().put(setting, new Entry(entryType, entryBytes));
             }
-        } finally {
-            Arrays.fill(decryptedBytes, (byte) 0);
+        } catch (EOFException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with");
         }
     }
 
@@ -355,9 +342,10 @@ public class KeyStoreWrapper implements SecureSettings {
     private byte[] encrypt(char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException, IOException {
         assert isLoaded();
 
-        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (DataOutputStream output = new DataOutputStream(bytes)) {
+        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
+        try (CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
+             DataOutputStream output = new DataOutputStream(cipherStream)) {
             output.writeInt(entries.get().size());
             for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
                 output.writeUTF(mapEntry.getKey());
@@ -366,12 +354,8 @@ public class KeyStoreWrapper implements SecureSettings {
                 output.writeInt(entry.bytes.length);
                 output.write(entry.bytes);
             }
-            return cipher.doFinal(bytes.toByteArray());
-        } finally {
-            final int bufferSize = bytes.size();
-            bytes.reset();
-            bytes.write(new byte[bufferSize]);
         }
+        return bytes.toByteArray();
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {

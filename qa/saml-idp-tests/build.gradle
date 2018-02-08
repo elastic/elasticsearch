@@ -18,8 +18,7 @@ task idpFixture {
 
 String outputDir = "generated-resources/${project.name}"
 task copyIdpCertificate(type: Copy) {
-    dependsOn idpFixture
-    from idpFixtureProject.file('src/main/resources/provision/generated/ca_server.pem');
+    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
     into outputDir
 }
 if (project.rootProject.vagrantSupported) {

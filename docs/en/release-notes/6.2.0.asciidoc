@@ -23,6 +23,12 @@ more information, see {xpack-ref}/saml-realm.html[SAML Authentication].
 //Repo: x-pack-elasticsearch
 //Pull: 3648, 3646
 
+Watcher::
+* Added a transform input for chained input. For more information, see
+{xpack-ref}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+//Repo: x-pack-elasticsearch
+//Pull: 2861
+
 [[xes-enhancement-6.2.0]]
 [float]
 === Enhancements
@@ -95,24 +101,29 @@ X.509 certificates that are used to encrypt communications in your {es} cluster.
 For more information, see <<security-api-ssl>>.
 //Repo: x-pack-elasticsearch
 //Pull: 3088
-////
+
 Watcher::
-* Watcher: Set index and type dynamically in index action
+* Added the ability to set the `index` and `doc_type` dynamically in an index
+action. For more information, see {xpack-ref}/actions-index.html[Index Action].
 //Repo: x-pack-elasticsearch
 //Pull: 3264
-* Watcher: Add refresh parameter to index action
+* Added a `refresh` index action attribute, which enables you to set the
+refresh policy of the write request. For more information, see
+{xpack-ref}/actions-index.html[Index Action].
 //Repo: x-pack-elasticsearch
 //Pull: 3350
-* Watcher: Add support for actions in slack attachments
+* Added support for actions in slack attachments, which enables you to add
+buttons that can be clicked in slack messages. For more information, see
+{xpack-ref}/actions-slack.html[Slack Action].
 //Repo: x-pack-elasticsearch
 //Pull: 3355
-* [Watcher] Use index.auto_expand_replicas: 0-1
+* {watcher} indices (`.watch*` and `triggered_watches`) created after upgrading
+to 6.2 have the `auto_expand_replicas: 0-1` setting rather than a fixed setting
+of 1 replica. As a result, {watcher} indices created after upgrading to 6.2 can
+have a green status on single node clusters. There is no impact in multi-node
+clusters.
 //Repo: x-pack-elasticsearch
-//Pull: 3284
-* [Watcher] Use auto_expand_replicas on triggered_watches index too
-//Repo: x-pack-elasticsearch
-//Pull: 3371
-////
+//Pull: 3284, 3371
 
 [[xes-bug-6.2.0]]
 [float]
@@ -170,21 +181,13 @@ which the realms are consulted. For more information, see
 {xpack-ref}/how-authc-works.html[How Authentication Works].
 //Repo: x-pack-elasticsearch
 //Pull: 3533
-////
+
 Watcher::
-* Watcher: Add transform input for chained input
-//Repo: x-pack-elasticsearch
-//Pull: 2861
-* Watcher: Improve cluster state listener behaviour
-//Repo: x-pack-elasticsearch
-//Pull: 3538
-* Settings: Cut over to affix settings where filters are needed
+* Replaced group settings with affix key settings where filters are needed.
+For more information, see https://github.com/elastic/elasticsearch/pull/28338.
 //Repo: x-pack-elasticsearch
 //Pull: 3685
-* Watcher: Ensure state is cleaned properly in watcher life cycle service
-//Repo: x-pack-elasticsearch
-//Pull: 3770
-
+////
 X-Pack::
 * Introduce plugin-specific env scripts
 //Repo: x-pack-elasticsearch

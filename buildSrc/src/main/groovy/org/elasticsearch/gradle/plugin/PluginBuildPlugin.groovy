@@ -140,9 +140,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include 'config/**'
                 include 'bin/**'
             }
-            if (project.path.startsWith(':modules:') == false) {
-                into('elasticsearch')
-            }
         }
         project.assemble.dependsOn(bundle)
 

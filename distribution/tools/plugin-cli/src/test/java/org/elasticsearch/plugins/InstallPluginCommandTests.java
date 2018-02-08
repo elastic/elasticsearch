@@ -199,14 +199,13 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
-    static Path writeZip(Path structure, String prefix) throws IOException {
+    static Path writeZip(Path structure) throws IOException {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file).toString();
-                    stream.putNextEntry(new ZipEntry(target));
+                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }
@@ -259,12 +258,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure);
     }
 
     static Path createMetaPlugin(String name, Path structure) throws IOException {
         writeMetaPlugin(name, structure);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure);
     }
 
     void installPlugin(String pluginUrl, Path home) throws Exception {
@@ -811,7 +810,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = metaDir.resolve("fake");
         Files.createDirectory(pluginDir);
         Files.createFile(pluginDir.resolve("fake.yml"));
-        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
@@ -819,26 +818,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         String metaZip = createMetaPluginUrl("my_plugins", metaDir);
         e = expectThrows(NoSuchFileException.class, () -> installPlugin(metaZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
-        assertInstallCleaned(env.v2());
-    }
-
-    public void testMissingDirectory() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
-        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
-        assertInstallCleaned(env.v2());
-    }
-
-    public void testMissingDirectoryMeta() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        Files.createFile(pluginDir.resolve(MetaPluginInfo.ES_META_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
-        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
         assertInstallCleaned(env.v2());
     }
 

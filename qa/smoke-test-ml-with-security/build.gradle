@@ -32,6 +32,7 @@ integTestRunner {
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
     'ml/datafeeds_crud/Test put datafeed with invalid query',
+    'ml/datafeeds_crud/Test put datafeed with security headers in the body',
     'ml/datafeeds_crud/Test update datafeed with missing id',
     'ml/delete_job_force/Test cannot force delete a non-existent job',
     'ml/delete_model_snapshot/Test delete snapshot missing snapshotId',

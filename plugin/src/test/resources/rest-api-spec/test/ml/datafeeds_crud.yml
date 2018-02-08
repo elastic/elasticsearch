@@ -82,6 +82,19 @@ setup:
           }
 
 ---
+"Test put datafeed with security headers in the body":
+  - do:
+      catch: /unknown field \[headers\], parser not found/
+      xpack.ml.put_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
+            "job_id":"datafeeds-crud-1",
+            "indices":["index-foo"],
+            "headers":{ "a_security_header" : "secret" }
+          }
+
+---
 "Test put datafeed referring to existing job_id":
   - do:
       xpack.ml.put_datafeed:

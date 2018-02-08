@@ -58,9 +58,9 @@ public class SizeBlockingQueueTests extends ESTestCase {
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            while (spin.get()) {
+            do {
                 maxSize.set(Math.max(maxSize.get(), sizeBlockingQueue.size()));
-            }
+            } while (spin.get());
         });
         queueSizeThread.start();
 

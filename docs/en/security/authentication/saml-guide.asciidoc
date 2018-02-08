@@ -168,7 +168,7 @@ sp.acs::
     or the IdP.
     The correct value may vary depending on how you have installed {kib} and
     whether there are any proxies involved, but it will typically be
-    `${kibana-url}/api/security/v1/saml` where _${kibana-url}_ is the base URL for
+    +$\{kibana-url}/api/security/v1/saml+ where _$\{kibana-url}_ is the base URL for
     your {kib} instance.
 
 sp.logout::
@@ -176,8 +176,8 @@ sp.logout::
     Like the `sp.acs` URL, it must be accessible from the web browser, but does
     not need to be directly accessible by {es} or the IdP. The correct value may
     vary depending on how you have installed {kib} and whether there are any
-    proxies involved, but it will typically be `${kibana-url}/logout` where
-    _${kibana-url}_ is the base URL for your {kib} instance.
+    proxies involved, but it will typically be +$\{kibana-url}/logout+ where
+    _$\{kibana-url}_ is the base URL for your {kib} instance.
 
 attribute.principal:: See <<saml-attribute-mapping>>.
 attribute.groups:: See <<saml-attribute-mapping>>.

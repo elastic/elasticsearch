@@ -122,6 +122,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -179,9 +181,8 @@ public class WatchTests extends ESTestCase {
     }
 
     public void testParserSelfGenerated() throws Exception {
-        DateTime now = new DateTime(UTC);
-        ClockMock clock = ClockMock.frozen();
-        clock.setTime(now);
+        Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+        DateTime now = new DateTime(clock.millis(), UTC);
         TransformRegistry transformRegistry = transformRegistry();
         boolean includeStatus = randomBoolean();
         Schedule schedule = randomSchedule();
@@ -207,7 +208,7 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
+        WatchStatus watchStatus = new WatchStatus(now, unmodifiableMap(actionsStatuses));
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 

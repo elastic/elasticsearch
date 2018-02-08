@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentPars
 import org.joda.time.DateTime;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -273,7 +272,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         return builder.endObject();
     }
 
-    public static WatchStatus parse(String watchId, XContentParser parser, Clock clock) throws IOException {
+    public static WatchStatus parse(String watchId, WatcherXContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
         DateTime lastChecked = null;
@@ -289,7 +288,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
                 currentFieldName = parser.currentName();
             } else if (Field.STATE.match(currentFieldName)) {
                 try {
-                    state = State.parse(parser, clock);
+                    state = State.parse(parser);
                 } catch (ElasticsearchParseException e) {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]",
                             e, watchId, currentFieldName);
@@ -348,7 +347,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         // this is to support old watches that weren't upgraded yet to
         // contain the state
         if (state == null) {
-            state = new State(true, new DateTime(WatcherXContentParser.clock(parser).millis(), UTC));
+            state = new State(true, parser.getParseDateTime());
         }
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
 
@@ -381,12 +380,12 @@ public class WatchStatus implements ToXContentObject, Streamable {
             return builder.endObject();
         }
 
-        public static State parse(XContentParser parser, Clock clock) throws IOException {
+        public static State parse(XContentParser parser) throws IOException {
             if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = new DateTime(clock.millis(), UTC);
+            DateTime timestamp = DateTime.now(UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

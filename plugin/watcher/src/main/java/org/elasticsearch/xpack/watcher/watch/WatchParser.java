@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
-import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -53,23 +52,22 @@ public class WatchParser extends AbstractComponent {
     private final ActionRegistry actionRegistry;
     private final InputRegistry inputRegistry;
     private final CryptoService cryptoService;
+    private final Clock clock;
     private final ExecutableInput defaultInput;
     private final ExecutableCondition defaultCondition;
     private final List<ActionWrapper> defaultActions;
-    private final Clock clock;
 
     public WatchParser(Settings settings, TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
                        @Nullable CryptoService cryptoService, Clock clock) {
-
         super(settings);
         this.triggerService = triggerService;
         this.actionRegistry = actionRegistry;
         this.inputRegistry = inputRegistry;
         this.cryptoService = cryptoService;
+        this.clock = clock;
         this.defaultInput = new ExecutableNoneInput(logger);
         this.defaultCondition = InternalAlwaysCondition.INSTANCE;
         this.defaultActions = Collections.emptyList();
-        this.clock = clock;
     }
 
     public Watch parse(String name, boolean includeStatus, BytesReference source, XContentType xContentType) throws IOException {
@@ -102,23 +100,17 @@ public class WatchParser extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }
-        XContentParser parser = null;
-        try {
-            // EMPTY is safe here because we never use namedObject
-            parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source),
-                    new HaltedClock(now), withSecrets ? cryptoService : null);
+        // EMPTY is safe here because we never use namedObject
+        try (WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                    source), now, withSecrets ? cryptoService : null)) {
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {
             throw ioException("could not parse watch [{}]", ioe, id);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 
-    public Watch parse(String id, boolean includeStatus, XContentParser parser) throws IOException {
+    public Watch parse(String id, boolean includeStatus, WatcherXContentParser parser) throws IOException {
         Trigger trigger = null;
         ExecutableInput input = defaultInput;
         ExecutableCondition condition = defaultCondition;
@@ -161,7 +153,7 @@ public class WatchParser extends AbstractComponent {
                 metatdata = parser.map();
             } else if (WatchField.STATUS.match(currentFieldName)) {
                 if (includeStatus) {
-                    status = WatchStatus.parse(id, parser, clock);
+                    status = WatchStatus.parse(id, parser);
                 } else {
                     parser.skipChildren();
                 }
@@ -185,11 +177,10 @@ public class WatchParser extends AbstractComponent {
         } else {
             // we need to create the initial statuses for the actions
             Map<String, ActionStatus> actionsStatuses = new HashMap<>();
-            DateTime now = new DateTime(WatcherXContentParser.clock(parser).millis(), UTC);
             for (ActionWrapper action : actions) {
-                actionsStatuses.put(action.id(), new ActionStatus(now));
+                actionsStatuses.put(action.id(), new ActionStatus(parser.getParseDateTime()));
             }
-            status = new WatchStatus(now, unmodifiableMap(actionsStatuses));
+            status = new WatchStatus(parser.getParseDateTime(), unmodifiableMap(actionsStatuses));
         }
 
         return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);

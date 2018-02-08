@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -59,24 +60,17 @@ public class WatcherXContentParser implements XContentParser {
         return new Secret(chars);
     }
 
-    public static Clock clock(XContentParser parser) {
-        if (parser instanceof WatcherXContentParser) {
-            return ((WatcherXContentParser) parser).getClock();
-        }
-        return Clock.systemUTC();
-    }
-
-    private final Clock clock;
+    private final DateTime parseTime;
     private final XContentParser parser;
     @Nullable private final CryptoService cryptoService;
 
-    public WatcherXContentParser(XContentParser parser, Clock clock, @Nullable CryptoService cryptoService) {
-        this.clock = clock;
+    public WatcherXContentParser(XContentParser parser, DateTime parseTime, @Nullable CryptoService cryptoService) {
+        this.parseTime = parseTime;
         this.parser = parser;
         this.cryptoService = cryptoService;
     }
 
-    public Clock getClock() { return clock; }
+    public DateTime getParseDateTime() { return parseTime; }
 
     @Override
     public XContentType contentType() {

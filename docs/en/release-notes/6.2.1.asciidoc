@@ -6,3 +6,23 @@
 ++++
 
 To be determined...
+
+////
+[[xes-bug-6.2.1]]
+[float]
+=== Bug fixes
+
+Security::
+* Remove transport client dependency on security
+//Repo: x-pack-elasticsearch
+//Pull: 3860
+* [Security] Fix saml-metadata env files
+//Repo: x-pack-elasticsearch
+//Pull: 3848
+* [Security] Clear Realm Caches on role mapping health change
+//Repo: x-pack-elasticsearch
+//Pull: 3782
+* [Security] Reset IndexAuditTrail to INITIALISED before start
+//Repo: x-pack-elasticsearch
+//Pull: 3807
+////

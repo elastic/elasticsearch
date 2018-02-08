@@ -161,7 +161,7 @@ public class AllocationService extends AbstractComponent {
         if (staleShards.isEmpty() && failedShards.isEmpty()) {
             return clusterState;
         }
-        ClusterState tmpState = IndexMetaDataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards);
+        ClusterState tmpState = IndexMetaDataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards, logger);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(tmpState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -210,7 +211,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      * Removes allocation ids from the in-sync set for shard copies for which there is no routing entries in the routing table.
      * This method is called in AllocationService before any changes to the routing table are made.
      */
-    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards) {
+    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards, Logger logger) {
         MetaData oldMetaData = clusterState.metaData();
         RoutingTable oldRoutingTable = clusterState.routingTable();
         MetaData.Builder metaDataBuilder = null;
@@ -237,6 +238,11 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                         indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
                     }
                     indexMetaDataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);
+                }
+                // Only log the stale shards which have been actually removed.
+                if (oldInSyncAllocations.size() != remainingInSyncAllocations.size()) {
+                    logger.warn("{} remove stale shards [{}] without routing", shardEntry.getKey(),
+                        Sets.difference(oldInSyncAllocations, remainingInSyncAllocations));
                 }
             }
 

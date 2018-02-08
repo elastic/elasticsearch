@@ -23,7 +23,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,18 +49,26 @@ public class SizeBlockingQueueTests extends ESTestCase {
         }
 
         final CountDownLatch latch = new CountDownLatch(1);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
 
         final AtomicBoolean spin = new AtomicBoolean(true);
         final AtomicInteger maxSize = new AtomicInteger();
 
         // this thread will repeatedly poll the size of the queue keeping track of the maximum size that it sees
+        final int iterations = 1 << 16;
         final Thread queueSizeThread = new Thread(() -> {
             try {
                 latch.await();
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            while (spin.get()) {
+            for (int i = 0; i < iterations; i++) {
+                try {
+                    // synchronize each iteration of checking the size with each iteration of offering, each iteration is a race
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 maxSize.set(Math.max(maxSize.get(), sizeBlockingQueue.size()));
             }
         });
@@ -71,7 +81,13 @@ public class SizeBlockingQueueTests extends ESTestCase {
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            for (int i = 0; i < 4096; i++) {
+            for (int i = 0; i < iterations; i++) {
+                try {
+                    // synchronize each iteration of checking the size with each iteration of offering, each iteration is a race
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 sizeBlockingQueue.offer(capacity + i);
             }
         });

@@ -76,12 +76,19 @@ fi
 
 if [ -z "$ES_TMPDIR" ]; then
   set +e
-  mktemp --version 2>&1 | grep coreutils > /dev/null
-  mktemp_coreutils=$?
+  mktemp_vendor=$(mktemp --version 2>&1)
+  grep -q coreutils <<< $mktemp_vendor && mktemp_vendor="coreutils"
+  grep -q BusyBox <<< $mktemp_vendor && mktemp_vendor="busybox"
   set -e
-  if [ $mktemp_coreutils -eq 0 ]; then
+  case "$mktemp_vendor" in
+  coreutils) 
     ES_TMPDIR=`mktemp -d --tmpdir "elasticsearch.XXXXXXXX"`
-  else
+    ;;
+  busybox)
+    ES_TMPDIR=`mktemp -d -t elasticsearch.XXXXXX`
+    ;;
+  *) # darwin
     ES_TMPDIR=`mktemp -d -t elasticsearch`
-  fi
+    ;;
+  esac
 fi

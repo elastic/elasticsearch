@@ -142,7 +142,7 @@ public class RecoverySourceHandler {
                 throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
             }
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
-        }, shardId + " validating recovery target registered");
+        }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ");
 
         try (Closeable ignored = shard.acquireTranslogRetentionLock()) {
 

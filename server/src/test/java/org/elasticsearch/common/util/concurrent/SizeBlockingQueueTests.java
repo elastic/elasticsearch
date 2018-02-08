@@ -40,6 +40,8 @@ public class SizeBlockingQueueTests extends ESTestCase {
         final int capacity = randomIntBetween(1, 32);
         final BlockingQueue<Integer> blockingQueue = new ArrayBlockingQueue<>(capacity);
         final SizeBlockingQueue<Integer> sizeBlockingQueue = new SizeBlockingQueue<>(blockingQueue, capacity);
+
+        // fill the queue to capacity
         for (int i = 0; i < capacity; i++) {
             sizeBlockingQueue.offer(i);
         }
@@ -48,6 +50,8 @@ public class SizeBlockingQueueTests extends ESTestCase {
 
         final AtomicBoolean spin = new AtomicBoolean(true);
         final AtomicInteger maxSize = new AtomicInteger();
+
+        // this thread will repeatedly poll the size of the queue keeping track of the maximum size that it sees
         final Thread queueSizeThread = new Thread(() -> {
             try {
                 latch.await();
@@ -60,6 +64,7 @@ public class SizeBlockingQueueTests extends ESTestCase {
         });
         queueSizeThread.start();
 
+        // this thread will try to offer items to the queue while the queue size thread is polling the size
         final Thread queueOfferThread = new Thread(() -> {
             try {
                 latch.await();
@@ -72,12 +77,17 @@ public class SizeBlockingQueueTests extends ESTestCase {
         });
         queueOfferThread.start();
 
+        // synchronize the start of the two threads
         latch.countDown();
 
+        // wait for the offering thread to finish
         queueOfferThread.join();
+
+        // stop the queue size thread
         spin.set(false);
         queueSizeThread.join();
 
+        // the maximum size of the queue should be equal to the capacity
         assertThat(maxSize.get(), equalTo(capacity));
     }
 

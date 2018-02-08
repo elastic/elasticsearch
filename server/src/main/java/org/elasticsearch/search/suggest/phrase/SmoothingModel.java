@@ -72,11 +72,11 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (LinearInterpolation.PARSE_FIELD.match(fieldName)) {
+                if (LinearInterpolation.PARSE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     model = LinearInterpolation.fromXContent(parser);
-                } else if (Laplace.PARSE_FIELD.match(fieldName)) {
+                } else if (Laplace.PARSE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     model = Laplace.fromXContent(parser);
-                } else if (StupidBackoff.PARSE_FIELD.match(fieldName)) {
+                } else if (StupidBackoff.PARSE_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                     model = StupidBackoff.fromXContent(parser);
                 } else {
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");

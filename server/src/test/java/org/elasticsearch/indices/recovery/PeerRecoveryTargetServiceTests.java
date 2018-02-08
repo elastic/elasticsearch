@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
-        IndexShard replica = newShard(false);
+        final IndexShard replica = newShard(false);
         try {
             // Empty store
             {

@@ -119,8 +119,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             // TODO this is to read former _source field. Remove in v7.0.0
             parser.declareBoolean((builder, value) -> {}, SOURCE);
             parser.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSERS.get(parserType), CHUNKING_CONFIG);
-            parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
+        // Headers are only parsed by the metadata parser, so headers supplied in the _body_ of a REST request will be rejected.
+        // (For config headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
+        METADATA_PARSER.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
     }
 
     private final String id;
@@ -328,8 +330,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
-        if (headers != null && headers.isEmpty() == false
-                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         return builder;
@@ -477,7 +478,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public void setHeaders(Map<String, String> headers) {
-            this.headers = headers;
+            this.headers = ExceptionsHelper.requireNonNull(headers, HEADERS.getPreferredName());
         }
 
         public void setIndices(List<String> indices) {

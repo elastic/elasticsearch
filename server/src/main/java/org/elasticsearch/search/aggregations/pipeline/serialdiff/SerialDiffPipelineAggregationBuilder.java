@@ -160,18 +160,18 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName)) {
+                if (FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                     format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName)) {
+                } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (GAP_POLICY.match(currentFieldName)) {
+                } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
                     gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (LAG.match(currentFieldName)) {
+                if (LAG.match(currentFieldName, parser.getDeprecationHandler())) {
                     lag = parser.intValue(true);
                     if (lag <= 0) {
                         throw new ParsingException(parser.getTokenLocation(),
@@ -184,7 +184,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName)) {
+                if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();

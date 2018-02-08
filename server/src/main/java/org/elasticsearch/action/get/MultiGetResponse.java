@@ -204,22 +204,24 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             switch (token) {
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
-                    if (INDEX.match(currentFieldName) == false && TYPE.match(currentFieldName) == false &&
-                            ID.match(currentFieldName) == false && ERROR.match(currentFieldName) == false) {
+                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
+                            && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                         getResult = GetResult.fromXContentEmbedded(parser, index, type, id);
                     }
                     break;
                 case VALUE_STRING:
-                    if (INDEX.match(currentFieldName)) {
+                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         index = parser.text();
-                    } else if (TYPE.match(currentFieldName)) {
+                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         type = parser.text();
-                    } else if (ID.match(currentFieldName)) {
+                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         id = parser.text();
                     }
                     break;
                 case START_OBJECT:
-                    if (ERROR.match(currentFieldName)) {
+                    if (ERROR.match(currentFieldName, parser.getDeprecationHandler())) {
                         exception = ElasticsearchException.fromXContent(parser);
                     }
                     break;

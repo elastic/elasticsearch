@@ -2251,7 +2251,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     getLocalCheckpoint(),
                                     localCheckpoint);
                             getEngine().getLocalCheckpointTracker().resetCheckpoint(localCheckpoint);
-                            getEngine().getTranslog().rollGeneration();
+                            getEngine().rollTranslogGeneration();
                         });
                         globalCheckpointUpdated = true;
                     } catch (final Exception e) {

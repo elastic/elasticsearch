@@ -10,25 +10,17 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-processTestResources {
-    if (project.rootProject.vagrantSupported) {
-        dependsOn "openLdapFixture"
-    }
-}
-
-sourceSets {
-    test {
-        resources {
-            srcDirs += idpFixtureProject.file("src/main/resources/provision/generated")
-        }
-    }
-}
-
 task openLdapFixture {
     dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
 }
 
+String outputDir = "generated-resources/${project.name}"
+task copyIdpTrust(type: Copy) {
+    from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
+    into outputDir
+}
 if (project.rootProject.vagrantSupported) {
+  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)
   test.dependsOn openLdapFixture
   test.finalizedBy idpFixtureProject.halt
 } else {
@@ -39,3 +31,4 @@ namingConventions {
     // integ tests use Tests instead of IT
     skipIntegTestInDisguise = true
 }
+

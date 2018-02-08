@@ -16,12 +16,6 @@
     group: ssl-cert
     mode: 0777
 
-- name: Copy CA cert template
-  copy:
-    src: ca_server.conf
-    dest: "{{ ssl_dir_templates }}/ca_server.conf"
-    mode: 0666
-
 - name: Copy server cert template
   template:
     src: cert_server.conf.j2
@@ -34,32 +28,18 @@
     dest: "{{ ssl_dir_templates }}/keystore_server.conf"
     mode: 0666
 
-- name: Create CA Key
-  command: "certtool -p --outfile {{ ssl_dir_private }}/ca_server.key"
-  args:
-    creates: "{{ ssl_dir_private }}/ca_server.key"
+- name: Copy CA Cert
+  copy:
+    src: "../certs/ca.crt"
+    dest: "{{ ssl_dir_certs }}/ca_server.pem"
+    mode: 0666
+  register: copy_ca
 
-- name: Create CA Cert
-  command: "certtool -s --load-privkey {{ ssl_dir_private }}/ca_server.key --template {{ ssl_dir_templates }}/ca_server.conf --outfile {{ ssl_dir_certs }}/ca_server.pem"
-  args:
-    creates: "{{ ssl_dir_certs }}/ca_server.pem"
-
-- name: Fetch CA Cert
-  fetch:
-    src: "{{ ssl_dir_certs }}/ca_server.pem"
-    dest: "generated/"
-    flat: yes
-
-- name: Create CA JKS trust
-  command: "keytool -importcert -file {{ ssl_dir_certs }}/ca_server.pem -alias generated_ca_cert -keystore {{ ssl_dir_certs }}/idptrust.jks -noprompt -storepass changeit"
-  args:
-    creates: "{{ ssl_dir_certs }}/idptrust.jks"
-
-- name: Fetch CA JKS trust
-  fetch:
-    src: "{{ ssl_dir_certs }}/idptrust.jks"
-    dest: "generated/org/elasticsearch/xpack/security/authc/ldap/support/"
-    flat: yes
+- name: Copy CA Key
+  copy:
+    src: "../certs/ca.key"
+    dest: "{{ ssl_dir_private }}/ca_server.key"
+    mode: 0600
 
 - name: Create Key for LDAP Service
   command: "certtool -p --sec-param high --outfile {{ ssl_dir_private }}/{{ openldap_key_name }}"
@@ -71,6 +51,12 @@
     path: "{{ ssl_dir_private }}/{{ openldap_key_name }}"
     group: ssl-cert
     mode: 0640
+
+- name: Delete old LDAP cert
+  file:
+    path: "{{ ssl_dir_certs }}/{{ openldap_cert_name}}"
+    state: absent
+  when: copy_ca.changed
 
 - name: Create Cert for LDAP
   command: "certtool -c --load-privkey {{ ssl_dir_private }}/{{ openldap_key_name }} --load-ca-certificate {{ ssl_dir_certs }}/ca_server.pem --load-ca-privkey {{ ssl_dir_private }}/ca_server.key --template {{ ssl_dir_templates }}/cert_server.conf --outfile {{ ssl_dir_certs }}/{{ openldap_cert_name}}"
@@ -88,15 +74,29 @@
     group: ssl-cert
     mode: 0640
 
+- name: Delete old Tomcat cert
+  file:
+    path: "{{ ssl_dir_certs }}/{{ tomcat_cert_name }}"
+    state: absent
+  when: copy_ca.changed
+
 - name: Create Cert for Tomcat
   command: "certtool -c --load-privkey {{ ssl_dir_private }}/{{ tomcat_key_name }} --load-ca-certificate {{ ssl_dir_certs }}/ca_server.pem --load-ca-privkey {{ ssl_dir_private }}/ca_server.key --template {{ ssl_dir_templates }}/cert_server.conf --outfile {{ ssl_dir_certs }}/{{ tomcat_cert_name}}"
   args:
     creates: "{{ ssl_dir_certs }}/{{ tomcat_cert_name}}"
+  register: tomcat_cert
+
+- name: Delete old Tomcat Keystore
+  file:
+    path: "{{ ssl_dir_private }}/{{ tomcat_keystore_name }}"
+    state: absent
+  when: tomcat_cert.changed
 
 - name: Create Keystore for Tomcat
   command: "certtool --load-ca-certificate {{ ssl_dir_certs }}/ca_server.pem --load-privkey {{ ssl_dir_private }}/{{ tomcat_key_name }} --load-certificate {{ ssl_dir_certs }}/{{ tomcat_cert_name }} --template {{ ssl_dir_templates }}/keystore_server.conf --outder --to-p12 --outfile {{ ssl_dir_private }}/{{ tomcat_keystore_name }}"
   args:
     creates: "{{ ssl_dir_private }}/{{ tomcat_keystore_name }}"
+  notify: Restart Tomcat Service
 
 - name: Set group for Tomcat Keystore
   file:

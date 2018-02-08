@@ -175,6 +175,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
     @Override
     protected String trustPath() {
-        return "/org/elasticsearch/xpack/security/authc/ldap/support/idptrust.jks";
+        return "/idptrust.jks";
     }
 }

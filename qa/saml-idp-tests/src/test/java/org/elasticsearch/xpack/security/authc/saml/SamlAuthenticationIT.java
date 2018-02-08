@@ -551,7 +551,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/ca_server.pem");
+        final Path pem = getDataPath("/ca.crt");
         final Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(pem));
         final X509ExtendedTrustManager trustManager = CertUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");

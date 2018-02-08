@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -39,6 +40,8 @@ import java.util.List;
 
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DiscountedCumulativeGainTests extends ESTestCase {
 
@@ -240,6 +243,20 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
+    }
+
+    public void testXContentParsingIsNotLenient() throws IOException {
+        DiscountedCumulativeGain testItem = createTestItem();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+            parser.nextToken();
+            parser.nextToken();
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                    () -> DiscountedCumulativeGain.fromXContent(parser));
+            assertThat(exception.getMessage(), startsWith("[dcg_at] unknown field"));
         }
     }
 

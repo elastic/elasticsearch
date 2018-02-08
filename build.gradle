@@ -128,7 +128,7 @@ task verifyVersions {
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(bwcVersions.versionsIndexCompatibleWithCurrent.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -210,7 +210,7 @@ subprojects {
   ]
 
   bwcVersions.snapshotProjectNames.each { snapshotName ->
-    Version snapshot = bwcVersions.getCorrelatedNameToSnapshot(snapshotName)
+    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
     if (snapshot != null ) {
       String snapshotProject = ":distribution:bwc:${snapshotName}"
       project(snapshotProject).ext.bwcVersion = snapshot

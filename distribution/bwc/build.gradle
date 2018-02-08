@@ -31,7 +31,7 @@ import java.util.regex.Matcher
  */
 subprojects {
 
-  Version bwcVersion = bwcVersions.getCorrelatedNameToSnapshot(project.name)
+  Version bwcVersion = bwcVersions.getSnapshotForProject(project.name)
   if (bwcVersion == null) {
     // this project wont do anything
     return

@@ -116,7 +116,7 @@ class VersionCollection {
                 // caveat 0 - if the minor has been released then it only has a maintenance version
                 // go back 1 version to get the last supported snapshot version of the line, which is a maint bugfix
                 Version highestMinor = getHighestPreviousMinor(currentVersion.major)
-                maintenanceBugfixSnapshot = removeAndReaddAsSnapshot(highestMinor)
+                maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
             } else {
                 // caveat 3 - if our currentVersion is a X.0.0, we need to check X-1 minors to see if they are released
                 if (currentVersion.minor == 0) {
@@ -127,22 +127,22 @@ class VersionCollection {
                             // it will bail. The order is that the minor snapshot is fufilled first, and then the staged minor snapshot
                             if (nextMinorSnapshot == null) {
                                 // it has not been set yet
-                                nextMinorSnapshot = removeAndReaddAsSnapshot(version)
+                                nextMinorSnapshot = replaceAsSnapshot(version)
                             } else if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = removeAndReaddAsSnapshot(version)
+                                stagedMinorSnapshot = replaceAsSnapshot(version)
                             } else {
                                 throw new GradleException("More than 2 snapshot version existed for the next minor and staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = removeAndReaddAsSnapshot(version)
+                            nextBugfixSnapshot = replaceAsSnapshot(version)
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
                             break
                         }
                     }
                     // caveat 0 - now dip back 2 versions to get the last supported snapshot version of the line
                     Version highestMinor = getHighestPreviousMinor(currentVersion.major - 1)
-                    maintenanceBugfixSnapshot = removeAndReaddAsSnapshot(highestMinor)
+                    maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
                 } else {
                     // caveat 3 did not apply. version is not a X.0.0, so we are somewhere on a X.Y line
                     // only check till minor == 0 of the major
@@ -151,20 +151,20 @@ class VersionCollection {
                             // caveat 1 - This should only ever contain 0 or 1 branch in flight. An example is 6.x is frozen, and 6.2 is cut
                             // but not yet released there is some simple logic to make sure that in the case of more than 1, it will bail
                             if (stagedMinorSnapshot == null) {
-                                stagedMinorSnapshot = removeAndReaddAsSnapshot(version)
+                                stagedMinorSnapshot = replaceAsSnapshot(version)
                             } else {
                                 throw new GradleException("More than 1 snapshot version existed for the staged (frozen) minors.")
                             }
                         } else {
                             // caveat 2 - this is the last minor snap for this major, so replace the highest (last) one of these and break
-                            nextBugfixSnapshot = removeAndReaddAsSnapshot(version)
+                            nextBugfixSnapshot = replaceAsSnapshot(version)
                             // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
                             break
                         }
                     }
                     // caveat 0 - now dip back 1 version to get the last supported snapshot version of the line
                     Version highestMinor = getHighestPreviousMinor(currentVersion.major)
-                    maintenanceBugfixSnapshot = removeAndReaddAsSnapshot(highestMinor)
+                    maintenanceBugfixSnapshot = replaceAsSnapshot(highestMinor)
                 }
             }
         }
@@ -184,7 +184,7 @@ class VersionCollection {
      *
      * @return All earlier versions that should be tested for index BWC with the current version.
      */
-    List<Version> getVersionsIndexCompatibleWithCurrent() {
+    List<Version> getIndexCompatible() {
         int actualMajor = (currentVersion.major == 5 ? 2 : currentVersion.major - 1)
         return versionSet
             .tailSet(Version.fromString("${actualMajor}.0.0"))
@@ -195,9 +195,9 @@ class VersionCollection {
     /**
      * Ensures the types of snapshot are not null and are also in the index compat list
      */
-    List<Version> getSnapshotVersionsIndexCompatibleWithCurrent() {
+    List<Version> getSnapshotsIndexCompatible() {
         List<Version> compatSnapshots = []
-        List<Version> allCompatVersions = getVersionsIndexCompatibleWithCurrent()
+        List<Version> allCompatVersions = getIndexCompatible()
         if (allCompatVersions.contains(nextMinorSnapshot)) {
             compatSnapshots.add(nextMinorSnapshot)
         }
@@ -219,7 +219,7 @@ class VersionCollection {
      *
      * @return All earlier versions that should be tested for wire BWC with the current version.
      */
-    List<Version> getVersionsWireCompatibleWithCurrent() {
+    List<Version> getWireCompatible() {
         // Get the last minor of the previous major
         Version lowerBound = getHighestPreviousMinor(currentVersion.major)
         return versionSet
@@ -231,9 +231,9 @@ class VersionCollection {
     /**
      * Ensures the types of snapshot are not null and are also in the wire compat list
      */
-    List<Version> getSnapshotVersionsWireCompatibleWithCurrent() {
+    List<Version> getSnapshotsWireCompatible() {
         List<Version> compatSnapshots = []
-        List<Version> allCompatVersions = getVersionsWireCompatibleWithCurrent()
+        List<Version> allCompatVersions = getWireCompatible()
         if (allCompatVersions.contains(nextMinorSnapshot)) {
             compatSnapshots.add(nextMinorSnapshot)
         }
@@ -257,7 +257,7 @@ class VersionCollection {
      * are editing this if/else it is only because you added another project under :distribution:bwc. Do not modify this method or its
      * reasoning for throwing the exception unless you are sure that it will not harm :distribution:bwc.
      */
-    Version getCorrelatedNameToSnapshot(String snapshotProjectName) {
+    Version getSnapshotForProject(String snapshotProjectName) {
         if (snapshotProjectName == 'next-minor-snapshot') {
             return nextMinorSnapshot
         } else if (snapshotProjectName == 'staged-minor-snapshot') {
@@ -275,7 +275,7 @@ class VersionCollection {
      * Uses basic logic about our releases to determine if this version has been previously released
      */
     private boolean isReleased(Version version) {
-        return version.revision > 0 || (version.revision > 1 && currentVersion.equals(Version.fromString("5.1.2")))
+        return version.revision > 0
     }
 
     /**
@@ -301,7 +301,7 @@ class VersionCollection {
     /**
      * Helper function for turning a version into a snapshot version, removing and readding it to the tree
      */
-    private Version removeAndReaddAsSnapshot(Version version) {
+    private Version replaceAsSnapshot(Version version) {
         versionSet.remove(version)
         Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, buildSnapshot)
         safeAddToSet(snapshotVersion)

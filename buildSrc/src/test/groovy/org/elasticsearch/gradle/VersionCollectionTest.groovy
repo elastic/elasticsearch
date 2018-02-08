@@ -24,26 +24,26 @@ class VersionCollectionTest extends GroovyTestCase {
     assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.1.1-SNAPSHOT"))
     assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
 
-    vc.versionsIndexCompatibleWithCurrent.containsAll(vc.versions)
+    vc.indexCompatible.containsAll(vc.versions)
 
     // This should contain the same list sans the current version
     List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
                              Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
                              Version.fromString("6.2.0-SNAPSHOT"), Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 3)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.1.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 3)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 1)
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    assertEquals(vc.snapshotsWireCompatible.size(), 1)
+    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
   }
 
   /**
@@ -62,26 +62,26 @@ class VersionCollectionTest extends GroovyTestCase {
     assertEquals(vc.nextBugfixSnapshot, Version.fromString("6.2.1-SNAPSHOT"))
     assertEquals(vc.maintenanceBugfixSnapshot, Version.fromString("5.2.1-SNAPSHOT"))
 
-    vc.versionsIndexCompatibleWithCurrent.containsAll(vc.versions)
+    vc.indexCompatible.containsAll(vc.versions)
 
     // This should contain the same list sans the current version
     List indexCompatList =  [Version.fromString("6.0.0"), Version.fromString("6.0.1"),
                              Version.fromString("6.1.0"), Version.fromString("6.1.1"),
                              Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT"),
                              Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("6.3.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 2)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.3.0-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 2)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.3.0-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 1)
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.first(), Version.fromString("6.3.0-SNAPSHOT"))
+    assertEquals(vc.snapshotsWireCompatible.size(), 1)
+    assertEquals(vc.snapshotsWireCompatible.first(), Version.fromString("6.3.0-SNAPSHOT"))
   }
 
   /**
@@ -101,24 +101,24 @@ class VersionCollectionTest extends GroovyTestCase {
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
                            Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1-SNAPSHOT"),
                            Version.fromString("6.2.0-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 3)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 3)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 3)
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("6.2.0-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("6.1.1-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsWireCompatible.size(), 3)
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.0-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.1.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
   }
 
   /**
@@ -140,22 +140,22 @@ class VersionCollectionTest extends GroovyTestCase {
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
                            Version.fromString("6.0.1"), Version.fromString("6.1.0"), Version.fromString("6.1.1"),
                            Version.fromString("6.2.0"), Version.fromString("6.2.1-SNAPSHOT")]
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 2)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 2)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 2)
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("6.2.1-SNAPSHOT")))
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsWireCompatible.size(), 2)
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("6.2.1-SNAPSHOT")))
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
   }
 
   /**
@@ -176,19 +176,19 @@ class VersionCollectionTest extends GroovyTestCase {
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("5.2.0"), Version.fromString("5.2.1-SNAPSHOT"), Version.fromString("6.0.0"),
                            Version.fromString("6.0.1"), Version.fromString("6.1.0")]
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 1)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 1)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
 
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 1)
-    assertTrue(vc.snapshotVersionsWireCompatibleWithCurrent.contains(Version.fromString("5.2.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsWireCompatible.size(), 1)
+    assertTrue(vc.snapshotsWireCompatible.contains(Version.fromString("5.2.1-SNAPSHOT")))
   }
 
   /**
@@ -206,21 +206,21 @@ class VersionCollectionTest extends GroovyTestCase {
 
     // This should contain the same list sans the current version
     List indexCompatList = vc.versions.subList(0, vc.versions.size() - 1)
-    assertTrue(indexCompatList.containsAll(vc.versionsIndexCompatibleWithCurrent))
-    assertTrue(vc.versionsIndexCompatibleWithCurrent.containsAll(indexCompatList))
+    assertTrue(indexCompatList.containsAll(vc.indexCompatible))
+    assertTrue(vc.indexCompatible.containsAll(indexCompatList))
 
     List wireCompatList = [Version.fromString("2.1.0"), Version.fromString("2.1.1-SNAPSHOT"), Version.fromString("5.0.0"),
                            Version.fromString("5.0.1"), Version.fromString("5.1.0"),
                            Version.fromString("5.1.1"), Version.fromString("5.2.0"), Version.fromString("5.2.1"),
                            Version.fromString("5.3.0"), Version.fromString("5.3.1")]
 
-    assertTrue(wireCompatList.containsAll(vc.versionsWireCompatibleWithCurrent))
-    assertTrue(vc.versionsWireCompatibleWithCurrent.containsAll(wireCompatList))
+    assertTrue(wireCompatList.containsAll(vc.wireCompatible))
+    assertTrue(vc.wireCompatible.containsAll(wireCompatList))
 
-    assertEquals(vc.snapshotVersionsIndexCompatibleWithCurrent.size(), 1)
-    assertTrue(vc.snapshotVersionsIndexCompatibleWithCurrent.contains(Version.fromString("2.1.1-SNAPSHOT")))
+    assertEquals(vc.snapshotsIndexCompatible.size(), 1)
+    assertTrue(vc.snapshotsIndexCompatible.contains(Version.fromString("2.1.1-SNAPSHOT")))
 
     // ensure none of the 2.x snapshots appear here, as this is the floor of bwc for wire compat
-    assertEquals(vc.snapshotVersionsWireCompatibleWithCurrent.size(), 0)
+    assertEquals(vc.snapshotsWireCompatible.size(), 0)
   }
 }

@@ -45,4 +45,16 @@ public class MlClassicTokenizerTests extends ESTestCase {
             tokenizer.end();
         }
     }
+
+    public void testTokenize_emptyString() throws IOException {
+        String testData = "";
+        try (Tokenizer tokenizer = new MlClassicTokenizer()) {
+            tokenizer.setReader(new StringReader(testData));
+            tokenizer.reset();
+            CharTermAttribute term = tokenizer.addAttribute(CharTermAttribute.class);
+            assertFalse(tokenizer.incrementToken());
+            assertEquals("", term.toString());
+            tokenizer.end();
+        }
+    }
 }

@@ -172,6 +172,13 @@ public class CategorizationAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testEmptyString() throws IOException {
+        CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
+        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, defaultConfig)) {
+            assertEquals(Collections.emptyList(), categorizationAnalyzer.tokenizeField("foo", ""));
+        }
+    }
+
     public void testThaiAnalyzer() throws IOException {
         CategorizationAnalyzerConfig config = new CategorizationAnalyzerConfig.Builder().setAnalyzer("thai").build();
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, config)) {

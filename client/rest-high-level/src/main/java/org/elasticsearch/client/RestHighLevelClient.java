@@ -222,7 +222,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
-    public RestClient getLowLevelClient() {
+    public final RestClient getLowLevelClient() {
         return client;
     }
 
@@ -306,7 +306,7 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
      */
-    public void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
+    public final void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, listener,
                 singleton(404), headers);
     }

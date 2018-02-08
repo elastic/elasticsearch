@@ -67,7 +67,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -1082,7 +1081,7 @@ public class JobProvider {
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
-    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, ClusterState clusterState,
+    public void updateCalendar(String calendarId, Set<String> jobIdsToAdd, Set<String> jobIdsToRemove, MlMetadata mlMetadata,
                                Consumer<Calendar> handler, Consumer<Exception> errorHandler) {
 
         ActionListener<Calendar> getCalendarListener = ActionListener.wrap(
@@ -1090,7 +1089,6 @@ public class JobProvider {
                     Set<String> currentJobs = new HashSet<>(calendar.getJobIds());
 
                     for (String jobToAdd : jobIdsToAdd) {
-                        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
                         if (mlMetadata.isGroupOrJob(jobToAdd) == false) {
                             errorHandler.accept(ExceptionsHelper.missingJobException(jobToAdd));
                             return;

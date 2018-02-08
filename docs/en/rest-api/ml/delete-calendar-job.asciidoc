@@ -19,7 +19,8 @@ This API enables you to delete jobs from a calendar.
   (string) Identifier for the calendar.
 
 `job_id` (required)::
-  (string) Identifier for the job.
+  (string) An identifier for the job. It can be a job identifier, a group name, or a
+           comma-separated list of jobs or groups.
 
 
 ==== Authorization

@@ -219,6 +219,19 @@
   - match: { job_id: "tiger" }
 
   - do:
+      xpack.ml.put_job:
+        job_id: otter
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "otter" }
+
+  - do:
       xpack.ml.put_calendar_job:
         calendar_id: "wildlife"
         job_id: "tiger"
@@ -241,6 +254,12 @@
   - length: { job_ids: 0 }
 
   - do:
+      catch: /Cannot remove \[otter\] as it is not present in calendar \[wildlife\]/
+      xpack.ml.delete_calendar_job:
+        calendar_id: "wildlife"
+        job_id: "otter"
+
+  - do:
       xpack.ml.get_calendars:
         calendar_id: "wildlife"
   - match: { count: 1 }
@@ -251,14 +270,13 @@
       catch: missing
       xpack.ml.put_calendar_job:
         calendar_id: "wildlife"
-        job_id: "missing job"
+        job_id: "missing_job"
 
   - do:
       catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/
       xpack.ml.delete_calendar_job:
         calendar_id: "wildlife"
         job_id: "missing_job"
-
 ---
 "Test calendar get events":
 
@@ -632,4 +650,65 @@
       catch: /No calendar with id \[unknown\]/
       xpack.ml.delete_calendar_job:
         calendar_id: "unknown"
-        job_id: "missing_job"
+        job_id: "missing_calendar"
+
+---
+"Test list of job Ids":
+  - do:
+      xpack.ml.put_job:
+        job_id: foo-a
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: foo-b
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      xpack.ml.put_job:
+        job_id: bar-a
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+  - do:
+      xpack.ml.put_calendar:
+        calendar_id: "expression"
+        body: >
+          {
+            "job_ids": ["bar-a"]
+          }
+
+  - do:
+      xpack.ml.put_calendar_job:
+        calendar_id: "expression"
+        job_id: "foo-a,foo-b"
+  - match: { calendar_id: "expression" }
+  - length: { job_ids: 3 }
+
+  - do:
+      xpack.ml.delete_calendar_job:
+        calendar_id: "expression"
+        job_id: "foo-a,foo-b"
+  - match: { calendar_id: "expression" }
+  - length: { job_ids: 1 }
+  - match: { job_ids.0: "bar-a" }

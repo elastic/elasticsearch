@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Objects;
 
 public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Request, PutCalendarAction.Response,
@@ -41,28 +40,32 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
     public static class Request extends ActionRequest {
 
         private String calendarId;
-        private String jobIdToAdd;
-        private String jobIdToRemove;
+        private String jobIdsToAddExpression;
+        private String jobIdsToRemoveExpression;
 
         public Request() {
         }
 
-        public Request(String calendarId, String jobIdToAdd, String jobIdToRemove) {
+        /**
+         * Job id expressions may be a single job, job group or comma separated
+         * list of job Ids or groups
+         */
+        public Request(String calendarId, String jobIdsToAddExpression, String jobIdsToRemoveExpression) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
-            this.jobIdToAdd = jobIdToAdd;
-            this.jobIdToRemove = jobIdToRemove;
+            this.jobIdsToAddExpression = jobIdsToAddExpression;
+            this.jobIdsToRemoveExpression = jobIdsToRemoveExpression;
         }
 
         public String getCalendarId() {
             return calendarId;
         }
 
-        public String getJobIdToAdd() {
-            return jobIdToAdd;
+        public String getJobIdsToAddExpression() {
+            return jobIdsToAddExpression;
         }
 
-        public String getJobIdToRemove() {
-            return jobIdToRemove;
+        public String getJobIdsToRemoveExpression() {
+            return jobIdsToRemoveExpression;
         }
 
         @Override
@@ -74,21 +77,21 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             calendarId = in.readString();
-            jobIdToAdd = in.readOptionalString();
-            jobIdToRemove = in.readOptionalString();
+            jobIdsToAddExpression = in.readOptionalString();
+            jobIdsToRemoveExpression = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeOptionalString(jobIdToAdd);
-            out.writeOptionalString(jobIdToRemove);
+            out.writeOptionalString(jobIdsToAddExpression);
+            out.writeOptionalString(jobIdsToRemoveExpression);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(calendarId, jobIdToAdd, jobIdToRemove);
+            return Objects.hash(calendarId, jobIdsToAddExpression, jobIdsToRemoveExpression);
         }
 
         @Override
@@ -100,8 +103,8 @@ public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Requ
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdToAdd, other.jobIdToAdd)
-                    && Objects.equals(jobIdToRemove, other.jobIdToRemove);
+            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
+                    && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
         }
     }
 

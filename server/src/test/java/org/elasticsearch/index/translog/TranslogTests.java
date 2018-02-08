@@ -36,6 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -2625,6 +2626,21 @@ public class TranslogTests extends ESTestCase {
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, containsOperationsInAnyOrder(latestOperations.values()));
         }
+    }
+
+    public void testValidateTranslog() throws Exception {
+        final String translogUUID = translog.getTranslogUUID();
+        final int operations = randomIntBetween(1, 100);
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(randomNonNegativeLong(), 0, "test'"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        rollAndCommit(translog);
+        translog.close();
+        Translog.validateOwnership(translogDir, translogUUID); // No issue
+        expectThrows(TranslogCorruptedException.class, () -> Translog.validateOwnership(translogDir, UUIDs.randomBase64UUID()));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

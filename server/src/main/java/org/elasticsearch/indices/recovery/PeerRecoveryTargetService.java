@@ -53,6 +53,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -362,6 +363,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
             final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
+            // We need to make sure that the existing translog and the safe commit are matched before execute sequenced-based recovery.
+            // If a file-based recovery occurred but crashed before completed then the next recovery will mistakenly executes
+            // sequenced-based recovery even though translog does not belong to the index commit (copied from the primary).
+            Translog.validateOwnership(recoveryTarget.translogLocation(), safeCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY));
             if (logger.isTraceEnabled()) {
                 final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
                 for (IndexCommit commit : existingCommits) {
@@ -381,6 +386,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             } else {
                 return SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
+        } catch (final TranslogCorruptedException e) {
+            logger.info("Translog and Lucene commit are not matched; switch to file-based recovery", e);
+            return SequenceNumbers.UNASSIGNED_SEQ_NO;
         } catch (final IOException e) {
             /*
              * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the

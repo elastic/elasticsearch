@@ -90,7 +90,7 @@ public class ScriptConditionTests extends ESTestCase {
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
         clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
         ClusterState cs = clusterState.build();
-        scriptService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
+        scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }
 
     public void testExecute() throws Exception {

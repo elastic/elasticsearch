@@ -170,25 +170,25 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (TERMS_FIELD.match(currentFieldName)) {
+                if (TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     values = TermsQueryBuilder.parseValues(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
                             + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (MINIMUM_SHOULD_MATCH_SCRIPT.match(currentFieldName)) {
+                if (MINIMUM_SHOULD_MATCH_SCRIPT.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatchScript = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
                             + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatchField = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["

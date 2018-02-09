@@ -10,7 +10,7 @@ esplugin {
 archivesBaseName = 'x-pack-logstash'
 
 dependencies {
-    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
 }

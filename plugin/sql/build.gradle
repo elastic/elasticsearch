@@ -20,9 +20,8 @@ archivesBaseName = 'x-pack-sql'
 integTest.enabled = false
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-    compile project(xpackModule('sql:sql-proto'))
-    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    compile project('sql-proto')
     compile 'org.antlr:antlr4-runtime:4.5.3'
     testCompile "org.elasticsearch.test:framework:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')

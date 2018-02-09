@@ -82,11 +82,6 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     @Override
     public String name() {
-        return toString();
-    }
-
-    @Override
-    public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("(");
         sb.append(left());
@@ -103,9 +98,13 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
             sb.insert(pos, "(");
             sb.append(")");
         }
-        sb.append(")#");
-        sb.append(functionId());
+        sb.append(")");
         return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return name() + "#" + functionId();
     }
 
     protected boolean useParanthesis() {

@@ -357,19 +357,6 @@
             via a logical condition but this is not possible (see also https://issues.apache.org/jira/browse/MNG-4565).
         -->
         <profile>
-            <id>fedora25</id>
-            <activation>
-                <property>
-                    <name>env.OSDISTRO</name>
-                        <value>Fedora 25</value>
-                </property>
-            </activation>
-            <properties>
-                <gpg.key></gpg.key>
-                <deb.sign>false</deb.sign>
-            </properties>
-        </profile>
-        <profile>
             <id>debian9</id>
             <activation>
                 <property>

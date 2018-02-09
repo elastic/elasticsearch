@@ -28,13 +28,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
@@ -59,8 +60,10 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
-        this.index = e.getIndex() == null ? null : e.getIndex().getName();
-        this.shardId = e.getShardId().id();
+        Index index = e.getIndex();
+        this.index = index == null ? null : index.getName();
+        ShardId shardId = e.getShardId();
+        this.shardId = shardId == null ? -1 : shardId.id();
         this.reason = e;
         this.status = e.status();
     }

@@ -103,7 +103,7 @@ allprojects {
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
-    versionCollection = versions
+    bwcVersions = versions
 
     buildMetadata = buildMetadataMap
   }
@@ -122,13 +122,13 @@ task verifyVersions {
     Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= versions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
+    knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(versions.versionsIndexCompatibleWithCurrent.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -219,13 +219,14 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
-  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
-    if (version.branch != null) {
-      final String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
+  bwcVersions.snapshotProjectNames.each { snapshotName ->
+    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
+    if (snapshot != null ) {
+      String snapshotProject = ":distribution:bwc:${snapshotName}"
+      project(snapshotProject).ext.bwcVersion = snapshot
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
     }
   }
 

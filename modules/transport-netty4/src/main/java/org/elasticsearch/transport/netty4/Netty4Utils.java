@@ -30,13 +30,13 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -45,7 +45,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 public class Netty4Utils {
 
@@ -182,8 +181,7 @@ public class Netty4Utils {
              */
             try {
                 // try to log the current stack trace
-                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
                 logger.error("fatal error on the network layer\n{}", formatted);
             } finally {

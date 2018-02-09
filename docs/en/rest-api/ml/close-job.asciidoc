@@ -73,14 +73,14 @@ For more information, see {xpack-ref}/security-privileges.html[Security Privileg
 
 ==== Examples
 
-The following example closes the `event_rate` job:
+The following example closes the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/event_rate/_close
+POST _xpack/ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_openjob]
 
 When the job is closed, you receive the following results:
 [source,js]
@@ -89,3 +89,4 @@ When the job is closed, you receive the following results:
   "closed": true
 }
 ----
+// TESTRESPONSE

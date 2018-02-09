@@ -80,28 +80,27 @@ For more information, see
 
 ==== Examples
 
-The following example creates the `it-ops-kpi` job:
+The following example creates the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/ml/anomaly_detectors/it-ops-kpi
+PUT _xpack/ml/anomaly_detectors/total-requests
 {
-    "description":"First simple job",
-    "analysis_config":{
-      "bucket_span": "5m",
-      "latency": "0ms",
-      "detectors":[
-        {
-          "detector_description": "low_sum(events_per_min)",
-          "function":"low_sum",
-          "field_name": "events_per_min"
-        }
-      ]
-    },
-    "data_description": {
-    "time_field":"@timestamp",
-    "time_format":"epoch_ms"
-    }
+  "description" : "Total sum of requests",
+  "analysis_config" : {
+    "bucket_span":"10m",
+    "detectors": [
+      {
+        "detector_description": "Sum of total",
+        "function": "sum",
+        "field_name": "total"
+      }
+    ]
+  },
+  "data_description" : {
+    "time_field":"timestamp",
+    "time_format": "epoch_ms"
+  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -110,19 +109,18 @@ When the job is created, you receive the following results:
 [source,js]
 ----
 {
-  "job_id": "it-ops-kpi",
+  "job_id": "total-requests",
   "job_type": "anomaly_detector",
   "job_version": "7.0.0-alpha1",
-  "description": "First simple job",
-  "create_time": 1502832478794,
+  "description": "Total sum of requests",
+  "create_time": 1517011406091,
   "analysis_config": {
-    "bucket_span": "5m",
-    "latency": "0ms",
+    "bucket_span": "10m",
     "detectors": [
       {
-        "detector_description": "low_sum(events_per_min)",
-        "function": "low_sum",
-        "field_name": "events_per_min",
+        "detector_description": "Sum of total",
+        "function": "sum",
+        "field_name": "total",
         "rules": [],
         "detector_index": 0
       }
@@ -133,13 +131,12 @@ When the job is created, you receive the following results:
     "model_memory_limit": "1024mb"
   },
   "data_description": {
-    "time_field": "@timestamp",
+    "time_field": "timestamp",
     "time_format": "epoch_ms"
   },
   "model_snapshot_retention_days": 1,
   "results_index_name": "shared"
 }
 ----
-//CONSOLE
-//TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
-//TESTRESPONSE[s/"create_time": 1502832478794/"create_time": $body.create_time/]
+// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
+// TESTRESPONSE[s/"create_time": 1517011406091/"create_time": $body.create_time/]

@@ -9,7 +9,6 @@ apply plugin: 'elasticsearch.docs-test'
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
 buildRestTests.expectedUnconvertedCandidates = [
-        'en/ml/getting-started-data.asciidoc',
         'en/ml/functions/count.asciidoc',
         'en/ml/functions/geo.asciidoc',
         'en/ml/functions/info.asciidoc',
@@ -65,8 +64,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
         'en/ml/api-quickref.asciidoc',
-        'en/rest-api/ml/close-job.asciidoc',
-        'en/rest-api/ml/delete-datafeed.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/flush-job.asciidoc',
         'en/rest-api/ml/forecast.asciidoc',
@@ -81,10 +78,8 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/update-job.asciidoc',
         'en/rest-api/ml/update-snapshot.asciidoc',
         'en/rest-api/ml/validate-detector.asciidoc',
-        'en/rest-api/ml/delete-job.asciidoc',
         'en/rest-api/ml/get-datafeed.asciidoc',
         'en/rest-api/ml/get-influencer.asciidoc',
-        'en/rest-api/ml/get-job.asciidoc',
         'en/rest-api/ml/get-snapshot.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
         'en/rest-api/ml/validate-job.asciidoc',
@@ -301,21 +296,7 @@ setups['server_metrics_index'] = '''
                   total:
                     type: long
 '''
-setups['server_metrics_job'] = '''
-  - do:
-      indices.create:
-        index: server-metrics
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
-          mappings:
-            metric:
-              properties:
-                timestamp:
-                  type: date
-                total:
-                  type: long
+setups['server_metrics_job'] = setups['server_metrics_index'] + '''
   - do:
       xpack.ml.put_job:
         job_id: "total-requests"
@@ -337,7 +318,7 @@ setups['server_metrics_job'] = '''
             }
           }
 '''
-setups['server_metrics_openjob'] = setups['server_metrics_job'] + '''
+setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
   - do:
       xpack.ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
@@ -347,6 +328,8 @@ setups['server_metrics_openjob'] = setups['server_metrics_job'] + '''
           "indexes":"server-metrics",
           "types":"metric"
           }
+'''
+setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
   - do:
       xpack.ml.open_job:
         job_id: "total-requests"

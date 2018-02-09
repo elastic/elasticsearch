@@ -248,9 +248,9 @@ public class HipChatMessage implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.FROM.match(currentFieldName)) {
+                } else if (Field.FROM.match(currentFieldName, parser.getDeprecationHandler())) {
                     from = parser.text();
-                } else if (Field.ROOM.match(currentFieldName)) {
+                } else if (Field.ROOM.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -270,7 +270,7 @@ public class HipChatMessage implements ToXContentObject {
                         }
                     }
                     rooms = templates.toArray(new TextTemplate[templates.size()]);
-                } else if (Field.USER.match(currentFieldName)) {
+                } else if (Field.USER.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -290,28 +290,28 @@ public class HipChatMessage implements ToXContentObject {
                         }
                     }
                     users = templates.toArray(new TextTemplate[templates.size()]);
-                } else if (Field.COLOR.match(currentFieldName)) {
+                } else if (Field.COLOR.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException | IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", e,
                                 Field.COLOR.getPreferredName());
                     }
-                } else if (Field.NOTIFY.match(currentFieldName)) {
+                } else if (Field.NOTIFY.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         notify = parser.booleanValue();
                     } else {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field, expected a " +
                                 "boolean value but found [{}]", Field.NOTIFY.getPreferredName(), token);
                     }
-                } else if (Field.BODY.match(currentFieldName)) {
+                } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         body = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", pe,
                                 Field.BODY.getPreferredName());
                     }
-                } else if (Field.FORMAT.match(currentFieldName)) {
+                } else if (Field.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         messageFormat = HipChatMessage.Format.parse(parser);
                     } catch (IllegalArgumentException ilae) {

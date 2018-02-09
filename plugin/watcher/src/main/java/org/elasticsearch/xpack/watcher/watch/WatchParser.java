@@ -129,17 +129,17 @@ public class WatchParser extends AbstractComponent {
                 currentFieldName = parser.currentName();
             } else if (token == null || currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
-            } else if (WatchField.TRIGGER.match(currentFieldName)) {
+            } else if (WatchField.TRIGGER.match(currentFieldName, parser.getDeprecationHandler())) {
                 trigger = triggerService.parseTrigger(id, parser);
-            } else if (WatchField.INPUT.match(currentFieldName)) {
+            } else if (WatchField.INPUT.match(currentFieldName, parser.getDeprecationHandler())) {
                 input = inputRegistry.parse(id, parser);
-            } else if (WatchField.CONDITION.match(currentFieldName)) {
+            } else if (WatchField.CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                 condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser);
-            } else if (WatchField.TRANSFORM.match(currentFieldName)) {
+            } else if (WatchField.TRANSFORM.match(currentFieldName, parser.getDeprecationHandler())) {
                 transform = actionRegistry.getTransformRegistry().parse(id, parser);
-            } else if (WatchField.THROTTLE_PERIOD.match(currentFieldName)) {
+            } else if (WatchField.THROTTLE_PERIOD.match(currentFieldName, parser.getDeprecationHandler())) {
                 throttlePeriod = timeValueMillis(parser.longValue());
-            } else if (WatchField.THROTTLE_PERIOD_HUMAN.match(currentFieldName)) {
+            } else if (WatchField.THROTTLE_PERIOD_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                 // Parser for human specified and 2.x backwards compatible throttle period
                 try {
                     throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, WatchField.THROTTLE_PERIOD_HUMAN.toString());
@@ -147,11 +147,11 @@ public class WatchParser extends AbstractComponent {
                     throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
                             pe, id, currentFieldName);
                 }
-            } else if (WatchField.ACTIONS.match(currentFieldName)) {
+            } else if (WatchField.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                 actions = actionRegistry.parseActions(id, parser);
-            } else if (WatchField.METADATA.match(currentFieldName)) {
+            } else if (WatchField.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 metatdata = parser.map();
-            } else if (WatchField.STATUS.match(currentFieldName)) {
+            } else if (WatchField.STATUS.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (includeStatus) {
                     status = WatchStatus.parse(id, parser);
                 } else {

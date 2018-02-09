@@ -136,24 +136,24 @@ public class EmailAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.ATTACH_DATA.match(currentFieldName)) {
+            } else if (Field.ATTACH_DATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (IOException ioe) {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field " +
                             "[{}]", ioe, TYPE, watchId, actionId, currentFieldName);
                 }
-            } else if (Field.ATTACHMENTS.match(currentFieldName)) {
+            } else if (Field.ATTACHMENTS.match(currentFieldName, parser.getDeprecationHandler())) {
                 attachments = emailAttachmentsParser.parse(parser);
             } else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    if (Field.ACCOUNT.match(currentFieldName)) {
+                    if (Field.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                         account = parser.text();
-                    } else if (Field.USER.match(currentFieldName)) {
+                    } else if (Field.USER.match(currentFieldName, parser.getDeprecationHandler())) {
                         user = parser.text();
-                    } else if (Field.PASSWORD.match(currentFieldName)) {
+                    } else if (Field.PASSWORD.match(currentFieldName, parser.getDeprecationHandler())) {
                         password = WatcherXContentParser.secretOrNull(parser);
-                    } else if (Field.PROFILE.match(currentFieldName)) {
+                    } else if (Field.PROFILE.match(currentFieldName, parser.getDeprecationHandler())) {
                         try {
                             profile = Profile.resolve(parser.text());
                         } catch (IllegalArgumentException iae) {

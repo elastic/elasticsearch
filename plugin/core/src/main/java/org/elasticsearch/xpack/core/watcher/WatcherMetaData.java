@@ -85,7 +85,7 @@ public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> impl
                     currentFieldName = parser.currentName();
                     break;
                 case VALUE_BOOLEAN:
-                    if (Field.MANUALLY_STOPPED.match(currentFieldName)) {
+                    if (Field.MANUALLY_STOPPED.match(currentFieldName, parser.getDeprecationHandler())) {
                         manuallyStopped = parser.booleanValue();
                     }
                     break;

@@ -196,7 +196,7 @@ public class DayTimes implements Times {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (HOUR_FIELD.match(currentFieldName)) {
+            } else if (HOUR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     hours.add(parseHourValue(parser, token));
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -207,7 +207,7 @@ public class DayTimes implements Times {
                     throw new ElasticsearchParseException("invalid time hour value. expected string/number value or an array of " +
                             "string/number values, but found [{}]", token);
                 }
-            } else if (MINUTE_FIELD.match(currentFieldName)) {
+            } else if (MINUTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
                     minutes.add(parseMinuteValue(parser, token));
                 } else if (token == XContentParser.Token.START_ARRAY) {

@@ -95,11 +95,11 @@ public class HttpProxy implements ToXContentFragment {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (HOST.match(currentFieldName)) {
+            } else if (HOST.match(currentFieldName, parser.getDeprecationHandler())) {
                 host = parser.text();
-            } else if (SCHEME.match(currentFieldName)) {
+            } else if (SCHEME.match(currentFieldName, parser.getDeprecationHandler())) {
                 scheme = Scheme.parse(parser.text());
-            } else if (PORT.match(currentFieldName)) {
+            } else if (PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                 port = parser.intValue();
                 if (port <= 0 || port >= 65535) {
                     throw new ElasticsearchParseException("Proxy port must be between 1 and 65534, but was " + port);

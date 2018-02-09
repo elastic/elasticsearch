@@ -62,14 +62,14 @@ public class DynamicAttachments implements MessageElement {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (XField.LIST_PATH.match(currentFieldName)) {
+            } else if (XField.LIST_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     listPath = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse dynamic attachments. expected a string value for [{}] field, " +
                             "but found [{}]", XField.LIST_PATH.getPreferredName(), token);
                 }
-            } else if (XField.TEMPLATE.match(currentFieldName)) {
+            } else if (XField.TEMPLATE.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     template = Attachment.Template.parse(parser);
                 } catch (ElasticsearchParseException pe) {

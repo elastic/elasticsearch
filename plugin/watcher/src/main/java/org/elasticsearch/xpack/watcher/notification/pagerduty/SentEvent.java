@@ -114,11 +114,11 @@ public class SentEvent implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (XField.MESSAGE.match(currentFieldName)) {
+                } else if (XField.MESSAGE.match(currentFieldName, parser.getDeprecationHandler())) {
                     message = parser.text();
-                } else if (XField.CODE.match(currentFieldName)) {
+                } else if (XField.CODE.match(currentFieldName, parser.getDeprecationHandler())) {
                     // we don't use this code.. so just consume the token
-                } else if (XField.ERRORS.match(currentFieldName)) {
+                } else if (XField.ERRORS.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         errors.add(parser.text());
                     }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -52,7 +53,7 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("time_zone", (qb, s) -> qb.timeZone(s));
         appliers.put("split_on_whitespace", (qb, s) -> qb.splitOnWhitespace(Booleans.parseBoolean(s)));
         appliers.put("all_fields", (qb, s) -> qb.useAllFields(Booleans.parseBoolean(s)));
-        appliers.put("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s)));
+        appliers.put("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)));
         appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
         appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
         BUILDER_APPLIERS = Collections.unmodifiableMap(appliers);

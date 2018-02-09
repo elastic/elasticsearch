@@ -100,7 +100,7 @@ public class HourlySchedule extends CronnableSchedule {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName == null) {
                     throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
-                } else if (MINUTE_FIELD.match(currentFieldName)) {
+                } else if (MINUTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token.isValue()) {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));

@@ -92,13 +92,13 @@ public final class ExpressionParser {
     private RoleMapperExpression parseExpression(XContentParser parser, String field, boolean allowExcept, String objectName)
             throws IOException {
 
-        if (Fields.ANY.match(field)) {
+        if (Fields.ANY.match(field, parser.getDeprecationHandler())) {
             return new AnyExpression(parseExpressionArray(Fields.ANY, parser, false));
-        } else if (Fields.ALL.match(field)) {
+        } else if (Fields.ALL.match(field, parser.getDeprecationHandler())) {
             return new AllExpression(parseExpressionArray(Fields.ALL, parser, true));
-        } else if (Fields.FIELD.match(field)) {
+        } else if (Fields.FIELD.match(field, parser.getDeprecationHandler())) {
             return parseFieldExpression(parser);
-        } else if (Fields.EXCEPT.match(field)) {
+        } else if (Fields.EXCEPT.match(field, parser.getDeprecationHandler())) {
             if (allowExcept) {
                 return parseExceptExpression(parser);
             } else {

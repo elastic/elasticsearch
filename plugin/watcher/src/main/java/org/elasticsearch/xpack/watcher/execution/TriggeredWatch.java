@@ -78,7 +78,7 @@ public class TriggeredWatch implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Field.TRIGGER_EVENT.match(currentFieldName)) {
+                    if (Field.TRIGGER_EVENT.match(currentFieldName, parser.getDeprecationHandler())) {
                         triggerEvent = triggerService.parseTriggerEvent(wid.watchId(), id, parser);
                     } else {
                         parser.skipChildren();

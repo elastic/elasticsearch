@@ -89,24 +89,24 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                    if (IGNORE_CONDITION.match(currentFieldName)) {
+                    if (IGNORE_CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setIgnoreCondition(parser.booleanValue());
-                    } else if (RECORD_EXECUTION.match(currentFieldName)) {
+                    } else if (RECORD_EXECUTION.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setRecordExecution(parser.booleanValue());
                     } else {
                         throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]",
                                 currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Field.ALTERNATIVE_INPUT.match(currentFieldName)) {
+                    if (Field.ALTERNATIVE_INPUT.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setAlternativeInput(parser.map());
-                    } else if (Field.TRIGGER_DATA.match(currentFieldName)) {
+                    } else if (Field.TRIGGER_DATA.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setTriggerData(parser.map());
-                    } else if (Field.WATCH.match(currentFieldName)) {
+                    } else if (Field.WATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                         XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
                         XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
                         builder.setWatchSource(watcherSource.bytes(), parser.contentType());
-                    } else if (Field.ACTION_MODES.match(currentFieldName)) {
+                    } else if (Field.ACTION_MODES.match(currentFieldName, parser.getDeprecationHandler())) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();

@@ -130,7 +130,7 @@ subprojects {
     into outputDir
   }
 
-  for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+  for (Version version : bwcVersions.indexCompatible) {
     // the BWC version under test will fail to start in this situation so we skip creating the test task
     if (project.cgroupsV2Enabled && version.isVersionBrokenIfCgroupsV2Enabled()) {
       continue
@@ -244,7 +244,7 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : versionCollection.basicIntegrationTestVersions) {
+      for (final def version : bwcVersions.snapshotsIndexCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }

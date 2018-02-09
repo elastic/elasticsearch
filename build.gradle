@@ -75,11 +75,12 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
 
-  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
-    if (version.branch != null) {
-      final String snapshotProject = ":x-pack-elasticsearch:plugin:bwc-snapshot-dummy-projects:bwc-snapshot-${version.branch}"
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${version}"] = snapshotProject
+  bwcVersions.snapshotProjectNames.each { snapshotName ->
+    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
+    if (snapshot != null ) {
+      String snapshotProject = ":x-pack-elasticsearch:plugin:bwc:${snapshotName}"
+      project(snapshotProject).ext.bwcVersion = snapshot
+        ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${snapshot}"] = snapshotProject
     }
   }
 }

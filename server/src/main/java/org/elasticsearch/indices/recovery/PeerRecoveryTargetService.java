@@ -363,10 +363,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(recoveryTarget.store().directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
             final SequenceNumbers.CommitInfo seqNoStats = recoveryTarget.store().loadSeqNoInfo(safeCommit);
-            // We need to make sure that the existing translog and the safe commit are matched before execute sequenced-based recovery.
+            // We need to make sure that the existing translog belong to the safe before execute sequenced-based recovery.
             // If a file-based recovery occurred but crashed before completed then the next recovery will mistakenly executes
             // sequenced-based recovery even though translog does not belong to the index commit (copied from the primary).
-            Translog.validateOwnership(recoveryTarget.translogLocation(), safeCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY));
+            Translog.ensureOwnership(recoveryTarget.translogLocation(), safeCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY));
             if (logger.isTraceEnabled()) {
                 final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
                 for (IndexCommit commit : existingCommits) {

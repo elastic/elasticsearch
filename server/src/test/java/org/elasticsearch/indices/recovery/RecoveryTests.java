@@ -352,9 +352,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final Path translogLocation = replica.getTranslog().location();
             replica.close("test", false);
             // Write a new translogUUID to the safe commit - this forces the file-based recovery occurred
-            final List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
-            final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(
-                commits, Translog.readGlobalCheckpoint(translogLocation));
+            List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
+            IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, Translog.readGlobalCheckpoint(translogLocation));
             assertThat(safeCommit, notNullValue());
             IndexWriterConfig iwc = new IndexWriterConfig(null)
                 .setCommitOnClose(false)
@@ -362,7 +361,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 .setIndexCommit(safeCommit)
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
             try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
-                final HashMap<String, String> userData = new HashMap<>(safeCommit.getUserData());
+                final Map<String, String> userData = new HashMap<>(safeCommit.getUserData());
                 userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
                 writer.setLiveCommitData(userData.entrySet());
                 writer.commit();

@@ -1702,10 +1702,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Checks whether the translog at the given location matches with the provided translogUUID. This method does not
-     * return value but throws {@link TranslogCorruptedException} or {@link IOException} if the translog is corrupted.
+     * Ensures that the translog at the given location matches with the provided translogUUID. This method does not return value but
+     * throws {@link TranslogCorruptedException} or {@link IOException} if the translog is corrupted or mismatched with the given uuid.
      */
-    public static void validateOwnership(Path translogLocation, String translogUUID) throws IOException {
+    public static void ensureOwnership(Path translogLocation, String expectedTranslogUUID) throws IOException {
         // We open files in reverse order in order to validate translog uuid before we start traversing the translog based on
         // the generation id we found in the lucene commit. This gives for better error messages if the wrong translog was found.
         final Checkpoint checkpoint = readCheckpoint(translogLocation);
@@ -1715,8 +1715,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
             }
             // Open a reader to validate its header.
-            try (TranslogReader reader =
-                     openReader(translogFile, Checkpoint.read(translogLocation.resolve(getCommitCheckpointFileName(i))), translogUUID)) {
+            try (TranslogReader reader = openReader(
+                translogFile, Checkpoint.read(translogLocation.resolve(getCommitCheckpointFileName(i))), expectedTranslogUUID)) {
             }
         }
     }

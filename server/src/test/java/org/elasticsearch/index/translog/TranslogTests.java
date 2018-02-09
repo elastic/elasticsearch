@@ -2628,7 +2628,7 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
-    public void testValidateTranslog() throws Exception {
+    public void testEnsureOwnership() throws Exception {
         final String translogUUID = translog.getTranslogUUID();
         final int operations = randomIntBetween(1, 100);
         for (int i = 0; i < operations; i++) {
@@ -2639,8 +2639,8 @@ public class TranslogTests extends ESTestCase {
         }
         rollAndCommit(translog);
         translog.close();
-        Translog.validateOwnership(translogDir, translogUUID); // No issue
-        expectThrows(TranslogCorruptedException.class, () -> Translog.validateOwnership(translogDir, UUIDs.randomBase64UUID()));
+        Translog.ensureOwnership(translogDir, translogUUID); // Should match - no issue
+        expectThrows(TranslogCorruptedException.class, () -> Translog.ensureOwnership(translogDir, UUIDs.randomBase64UUID()));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

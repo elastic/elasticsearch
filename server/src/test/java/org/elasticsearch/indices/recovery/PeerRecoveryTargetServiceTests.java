@@ -32,6 +32,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -94,7 +95,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     .setMergePolicy(NoMergePolicy.INSTANCE)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
                 try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
-                    final HashMap<String, String> userData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
+                    final Map<String, String> userData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
                     userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
                     writer.setLiveCommitData(userData.entrySet());
                     writer.commit();

@@ -57,6 +57,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -399,6 +400,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
+     * Returns the age of the oldest entry in the translog files in seconds
+     */
+    public long earliestGenerationLastModifiedAge() { return earliestGenerationLastModifiedAge(-1); }
+
+    /**
      * Returns the number of operations in the transaction files that aren't committed to lucene..
      */
     private int totalOperations(long minGeneration) {
@@ -441,6 +447,20 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
+        }
+    }
+
+    private long earliestGenerationLastModifiedAge(long minGeneration) {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            Optional<? extends BaseTranslogReader> earliestGeneration = Stream.concat(readers.stream(), Stream.of(current))
+                .filter(r -> r.getGeneration() >= minGeneration)
+                .min(Comparator.comparingLong(BaseTranslogReader::getGeneration));
+            try {
+                return earliestGeneration.isPresent() ? earliestGeneration.get().getLastModifiedTime() : 0L;
+            } catch (IOException e) {
+                throw new TranslogException(shardId, "unable to get last modified time of generation: " + earliestGeneration.get().getGeneration());
+            }
         }
     }
 
@@ -751,7 +771,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes());
+            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes(), earliestGenerationLastModifiedAge());
         }
     }
 

@@ -34,11 +34,13 @@ public class TranslogStats implements Streamable, ToXContentFragment {
     private int numberOfOperations;
     private long uncommittedSizeInBytes;
     private int  uncommittedOperations;
+    private long earliestGenerationLastModifiedAge;
 
     public TranslogStats() {
     }
 
-    public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes) {
+    public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes,
+                         long earliestGenerationLastModifiedAge) {
         if (numberOfOperations < 0) {
             throw new IllegalArgumentException("numberOfOperations must be >= 0");
         }
@@ -51,10 +53,14 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         if (uncommittedSizeInBytes < 0) {
             throw new IllegalArgumentException("uncommittedSizeInBytes must be >= 0");
         }
+        if (earliestGenerationLastModifiedAge < 0) {
+            throw new IllegalArgumentException("earliestGenerationLastModifiedAge must be >= 0");
+        }
         this.numberOfOperations = numberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
         this.uncommittedSizeInBytes = uncommittedSizeInBytes;
         this.uncommittedOperations = uncommittedOperations;
+        this.earliestGenerationLastModifiedAge = earliestGenerationLastModifiedAge;
     }
 
     public void add(TranslogStats translogStats) {
@@ -66,6 +72,9 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         this.translogSizeInBytes += translogStats.translogSizeInBytes;
         this.uncommittedOperations += translogStats.uncommittedOperations;
         this.uncommittedSizeInBytes += translogStats.uncommittedSizeInBytes;
+        this.earliestGenerationLastModifiedAge =
+            this.earliestGenerationLastModifiedAge < translogStats.earliestGenerationLastModifiedAge ?
+                this.earliestGenerationLastModifiedAge : translogStats.earliestGenerationLastModifiedAge;
     }
 
     public long getTranslogSizeInBytes() {
@@ -86,6 +95,8 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         return uncommittedOperations;
     }
 
+    public long getEarliestGenerationLastModifiedAge() { return earliestGenerationLastModifiedAge; }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("translog");
@@ -93,6 +104,7 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         builder.byteSizeField("size_in_bytes", "size", translogSizeInBytes);
         builder.field("uncommitted_operations", uncommittedOperations);
         builder.byteSizeField("uncommitted_size_in_bytes", "uncommitted_size", uncommittedSizeInBytes);
+        builder.field("earliest_generation_last_modified_age", earliestGenerationLastModifiedAge);
         builder.endObject();
         return builder;
     }
@@ -113,6 +125,9 @@ public class TranslogStats implements Streamable, ToXContentFragment {
             uncommittedOperations = numberOfOperations;
             uncommittedSizeInBytes = translogSizeInBytes;
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            earliestGenerationLastModifiedAge = in.readVLong();
+        }
     }
 
     @Override
@@ -122,6 +137,9 @@ public class TranslogStats implements Streamable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeVInt(uncommittedOperations);
             out.writeVLong(uncommittedSizeInBytes);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVLong(earliestGenerationLastModifiedAge);
         }
     }
 }

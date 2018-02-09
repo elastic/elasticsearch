@@ -17,9 +17,3 @@ Security::
 environment file.
 //Repo: x-pack-elasticsearch
 //Pull: 3848
-* If the realm uses native role mappings and the security index health changes,
-the realm caches are cleared. For example, they are cleared when the index
-recovers from a red state, when the index is deleted, when the index becomes
-outdated, or when the index becomes up-to-date.
-//Repo: x-pack-elasticsearch
-//Pull: 3782

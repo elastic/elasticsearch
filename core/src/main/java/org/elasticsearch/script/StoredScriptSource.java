@@ -138,8 +138,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
             if (code == null) {
                 throw new IllegalArgumentException("must specify code for stored script");
-            } else if (code.isEmpty()) {
-                throw new IllegalArgumentException("code cannot be empty");
             }
 
             if (options.size() > 1 || options.size() == 1 && options.get(Script.CONTENT_TYPE_OPTION) == null) {

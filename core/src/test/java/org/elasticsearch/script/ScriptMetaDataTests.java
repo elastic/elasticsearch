@@ -20,9 +20,12 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -58,6 +61,32 @@ public class ScriptMetaDataTests extends ESTestCase {
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getCode());
         assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getCode());
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getCode());
+    }
+
+    public void testEmptyScript() throws Exception {
+        ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
+
+        XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().field("template", "").endObject();
+        builder.storeScript("template_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().startObject("script").field("code", "").endObject().endObject();
+        builder.storeScript("script", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        sourceBuilder = XContentFactory.jsonBuilder();
+        sourceBuilder.startObject().field("script", "").endObject();
+        builder.storeScript("script_field", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
+
+        ScriptMetaData scriptMetaData = builder.build();
+
+        XContentBuilder metaDataBuilder = XContentFactory.jsonBuilder();
+        metaDataBuilder.startObject();
+        scriptMetaData.toXContent(metaDataBuilder, null);
+        metaDataBuilder.endObject();
+
+        XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, metaDataBuilder.bytes());
+        ScriptMetaData.fromXContent(parser);
     }
 
     public void testDiff() throws Exception {

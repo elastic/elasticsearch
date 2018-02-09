@@ -324,4 +324,25 @@ public class StoredScriptTests extends ESTestCase {
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
     }
+
+    public void testEmptyScript() throws Exception {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "").
+                startObject("options").endObject().endObject().endObject().string();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("lang", "", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+        }
+
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("template", "").endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("lang", "", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+        }
+    }
 }

@@ -12,9 +12,9 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    provided "org.elasticsearch.plugin:x-pack-core:${version}"
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
-    provided project(path: ':plugins:transport-nio', configuration: 'runtime')
+    compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('monitoring'))
     testCompile project(path: xpackModule('sql:sql-proto'))

@@ -52,8 +52,8 @@ import java.security.SecurityPermission;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.PropertyPermission;
+import java.util.Set;
 
 /**
  * Runs tika with limited parsers and limited permissions.
@@ -161,6 +161,8 @@ final class TikaImpl {
         perms.add(new ReflectPermission("suppressAccessChecks"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
+        // ZipFile needs accessDeclaredMembers on Java 10
+        perms.add(new RuntimePermission("accessDeclaredMembers"));
         perms.setReadOnly();
         return perms;
     }

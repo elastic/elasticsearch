@@ -218,7 +218,7 @@ Management Console. It should look similar to this.
   "Statement": [
     {
       "Action": [
-        "ec2:DescribeInstances"
+        "ec2:Describe*"
       ],
       "Effect": "Allow",
       "Resource": [

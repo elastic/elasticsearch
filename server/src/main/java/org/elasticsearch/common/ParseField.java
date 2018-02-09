@@ -99,23 +99,6 @@ public class ParseField {
     }
 
     /**
-     * Does {@code fieldName} match this field? Uses {@link LoggingDeprecationHandler}
-     * to prevent us from having to touch every call to {@code match} in the change
-     * that introduced {@linkplain LoggingDeprecationHandler}. In a followup this will
-     * be removed.
-     * @param fieldName
-     *            the field name to match against this {@link ParseField}
-     * @return true if <code>fieldName</code> matches any of the acceptable
-     *         names for this {@link ParseField}.
-     * @deprecated Use {@link #match(String, DeprecationHandler)} with
-     *      {@link XContentParser#getDeprecationHandler()} instead.
-     */
-    @Deprecated
-    public boolean match(String fieldName) {
-        return match(fieldName, LoggingDeprecationHandler.INSTANCE);
-    }
-
-    /**
      * Does {@code fieldName} match this field?
      * @param fieldName
      *            the field name to match against this {@link ParseField}

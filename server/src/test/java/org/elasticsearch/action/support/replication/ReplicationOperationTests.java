@@ -29,12 +29,15 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.shard.IndexShardNotStartedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
@@ -92,11 +96,21 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
         final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
+        final Set<ShardRouting> expectedFailedShards = new HashSet<>();
         for (ShardRouting replica : expectedReplicas) {
             if (randomBoolean()) {
-                final Exception ex = new CorruptIndexException("simulated", (String) null);
-                logger.debug("--> simulating failure on {} with [{}]", replica, ex.getClass().getSimpleName());
-                expectedFailures.put(replica, ex);
+                Exception t;
+                boolean criticalFailure = randomBoolean();
+                if (criticalFailure) {
+                    t = new CorruptIndexException("simulated", (String) null);
+                } else {
+                    t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
+                }
+                logger.debug("--> simulating failure on {} with [{}]", replica, t.getClass().getSimpleName());
+                expectedFailures.put(replica, t);
+                if (criticalFailure) {
+                    expectedFailedShards.add(replica);
+                }
             }
         }
 
@@ -111,12 +125,12 @@ public class ReplicationOperationTests extends ESTestCase {
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
-        assertThat(replicasProxy.failedReplicas, equalTo(expectedFailures.keySet()));
+        assertThat(replicasProxy.failedReplicas, equalTo(expectedFailedShards));
         assertThat(replicasProxy.markedAsStaleCopies, equalTo(staleAllocationIds));
         assertTrue("listener is not marked as done", listener.isDone());
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
-        assertThat(shardInfo.getFailed(), equalTo(expectedFailures.size()));
-        assertThat(shardInfo.getFailures(), arrayWithSize(expectedFailures.size()));
+        assertThat(shardInfo.getFailed(), equalTo(expectedFailedShards.size()));
+        assertThat(shardInfo.getFailures(), arrayWithSize(expectedFailedShards.size()));
         assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - expectedFailures.size()));
         final List<ShardRouting> unassignedShards =
             indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);

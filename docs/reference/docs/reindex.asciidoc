@@ -664,10 +664,11 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/nodeId:taskId
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
+// TEST[s/:taskId/1/]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
 to transparently return the status of completed tasks. If the task is completed
@@ -685,9 +686,10 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/node_id:task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/:taskId/1/]
 
 The `task_id` can be found using the tasks API above.
 
@@ -704,9 +706,10 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
+POST _reindex/node_id:task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
+// TEST[s/:taskId/1/]
 
 The `task_id` can be found using the tasks API above.
 

@@ -46,7 +46,7 @@ public abstract class SamlTestCase extends ESTestCase {
         Logger logger = Loggers.getLogger(SamlTestCase.class);
         if (isTurkishLocale()) {
             // See: https://github.com/elastic/x-pack-elasticsearch/issues/2815
-            logger.warn("Attempting to run SAML test on turkish locale, but that breaks OpenSAML. Switching to English.");
+            logger.warn("Attempting to run SAML test on turkish-like locale, but that breaks OpenSAML. Switching to English.");
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -54,7 +54,8 @@ public abstract class SamlTestCase extends ESTestCase {
     }
 
     private static boolean isTurkishLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage());
+        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
+                || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
     @AfterClass

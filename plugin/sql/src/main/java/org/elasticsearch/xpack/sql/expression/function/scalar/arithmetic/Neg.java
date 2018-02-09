@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
@@ -47,6 +48,11 @@ public class Neg extends UnaryScalarFunction {
     @Override
     public DataType dataType() {
         return field().dataType();
+    }
+
+    @Override
+    public String name() {
+        return "-" + (field() instanceof NamedExpression && field().resolved() ? Expressions.name(field()) : field().toString());
     }
 
     @Override

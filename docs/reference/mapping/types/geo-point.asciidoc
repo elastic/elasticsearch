@@ -6,7 +6,7 @@ Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 * to find geo-points within a <<query-dsl-geo-bounding-box-query,bounding box>>,
   within a certain <<query-dsl-geo-distance-query,distance>> of a central point,
   or within a <<query-dsl-geo-polygon-query,polygon>>.
-* to aggregate documents by <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
+* to aggregate documents <<search-aggregations-bucket-geohashgrid-aggregation,geographically>>
   or by <<search-aggregations-bucket-geodistance-aggregation,distance>> from a central point.
 * to integrate distance into a document's <<query-dsl-function-score-query,relevance score>>.
 * to <<geo-sorting,sort>> documents by distance.

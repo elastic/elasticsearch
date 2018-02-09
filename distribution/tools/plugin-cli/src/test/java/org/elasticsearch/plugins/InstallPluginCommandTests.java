@@ -199,13 +199,14 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
     }
 
-    static Path writeZip(Path structure) throws IOException {
+    static Path writeZip(Path structure, String prefix) throws IOException {
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    stream.putNextEntry(new ZipEntry(structure.relativize(file).toString()));
+                    String target = (prefix == null ? "" : prefix + "/") + structure.relativize(file).toString();
+                    stream.putNextEntry(new ZipEntry(target));
                     Files.copy(file, stream);
                     return FileVisitResult.CONTINUE;
                 }
@@ -258,12 +259,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
-        return writeZip(structure);
+        return writeZip(structure, null);
     }
 
     static Path createMetaPlugin(String name, Path structure) throws IOException {
         writeMetaPlugin(name, structure);
-        return writeZip(structure);
+        return writeZip(structure, null);
     }
 
     void installPlugin(String pluginUrl, Path home) throws Exception {
@@ -810,7 +811,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = metaDir.resolve("fake");
         Files.createDirectory(pluginDir);
         Files.createFile(pluginDir.resolve("fake.yml"));
-        String pluginZip = writeZip(pluginDir).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
@@ -821,15 +822,36 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
+    public void testContainsIntermediateDirectory() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
+        assertInstallCleaned(env.v2());
+    }
+
+    public void testContainsIntermediateDirectoryMeta() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Files.createFile(pluginDir.resolve(MetaPluginInfo.ES_META_PLUGIN_PROPERTIES));
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
+        assertInstallCleaned(env.v2());
+    }
+
     public void testZipRelativeOutsideEntryName() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path zip = createTempDir().resolve("broken.zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+            stream.putNextEntry(new ZipEntry("../blah"));
         }
         String pluginZip = zip.toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+        assertInstallCleaned(env.v2());
     }
 
     public void testOfficialPluginsHelpSorted() throws Exception {

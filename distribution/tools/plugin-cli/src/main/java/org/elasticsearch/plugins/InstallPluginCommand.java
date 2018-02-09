@@ -466,6 +466,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
+                if (entry.getName().startsWith("elasticsearch/")) {
+                    throw new UserException(PLUGIN_MALFORMED, "This plugin was built with an older plugin structure." +
+                        " Contact the plugin author to remove the intermediate \"elasticsearch\" directory within the plugin zip.");
+                }
                 Path targetFile = target.resolve(entry.getName());
 
                 // Using the entry name as a path can result in an entry outside of the plugin dir,
@@ -493,6 +497,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 }
                 zipInput.closeEntry();
             }
+        } catch (UserException e) {
+            IOUtils.rm(target);
+            throw e;
         }
         Files.delete(zip);
         return target;

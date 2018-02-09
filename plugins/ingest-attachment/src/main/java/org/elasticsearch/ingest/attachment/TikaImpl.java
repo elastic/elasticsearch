@@ -29,6 +29,7 @@ import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
@@ -161,8 +162,15 @@ final class TikaImpl {
         perms.add(new ReflectPermission("suppressAccessChecks"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
-        // ZipFile needs accessDeclaredMembers on Java 10
-        perms.add(new RuntimePermission("accessDeclaredMembers"));
+        // ZipFile needs accessDeclaredMembers on JDK 10; cf. https://bugs.openjdk.java.net/browse/JDK-8187485
+        if (JavaVersion.current().compareTo(JavaVersion.parse("10")) >= 0) {
+            /*
+             * See if this permission can be removed in JDK 11, bump the version here to 12 if not. If this permission can be removed, also
+             * remove the grant in the plugin-security.policy.
+             */
+            assert JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0;
+            perms.add(new RuntimePermission("accessDeclaredMembers"));
+        }
         perms.setReadOnly();
         return perms;
     }

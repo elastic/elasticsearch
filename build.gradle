@@ -256,7 +256,7 @@ subprojects {
         }
       }
       project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }

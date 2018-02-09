@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -54,7 +53,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
@@ -95,28 +93,26 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
-        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
-        final Set<ShardRouting> expectedFailedShards = new HashSet<>();
+        final Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> reportedFailures = new HashMap<>();
         for (ShardRouting replica : expectedReplicas) {
             if (randomBoolean()) {
                 Exception t;
                 boolean criticalFailure = randomBoolean();
                 if (criticalFailure) {
                     t = new CorruptIndexException("simulated", (String) null);
+                    reportedFailures.put(replica, t);
                 } else {
                     t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
                 }
                 logger.debug("--> simulating failure on {} with [{}]", replica, t.getClass().getSimpleName());
-                expectedFailures.put(replica, t);
-                if (criticalFailure) {
-                    expectedFailedShards.add(replica);
-                }
+                simulatedFailures.put(replica, t);
             }
         }
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
-        final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, expectedFailures);
+        final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, simulatedFailures);
 
         final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup);
         final TestReplicationOperation op = new TestReplicationOperation(request,
@@ -125,13 +121,13 @@ public class ReplicationOperationTests extends ESTestCase {
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
-        assertThat(replicasProxy.failedReplicas, equalTo(expectedFailedShards));
+        assertThat(replicasProxy.failedReplicas, equalTo(simulatedFailures.keySet()));
         assertThat(replicasProxy.markedAsStaleCopies, equalTo(staleAllocationIds));
         assertTrue("listener is not marked as done", listener.isDone());
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
-        assertThat(shardInfo.getFailed(), equalTo(expectedFailedShards.size()));
-        assertThat(shardInfo.getFailures(), arrayWithSize(expectedFailedShards.size()));
-        assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - expectedFailures.size()));
+        assertThat(shardInfo.getFailed(), equalTo(reportedFailures.size()));
+        assertThat(shardInfo.getFailures(), arrayWithSize(reportedFailures.size()));
+        assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - simulatedFailures.size()));
         final List<ShardRouting> unassignedShards =
             indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
         final int totalShards = 1 + expectedReplicas.size() + unassignedShards.size() + untrackedShards.size();

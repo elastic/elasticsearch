@@ -136,14 +136,14 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERIES_FIELD.match(currentFieldName)) {
+                if (QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queriesFound = true;
                     queries.add(parseInnerQueryBuilder(parser));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (QUERIES_FIELD.match(currentFieldName)) {
+                if (QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queriesFound = true;
                     while (token != XContentParser.Token.END_ARRAY) {
                         queries.add(parseInnerQueryBuilder(parser));
@@ -153,11 +153,11 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (TIE_BREAKER_FIELD.match(currentFieldName)) {
+                } else if (TIE_BREAKER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tieBreaker = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[dis_max] query does not support [" + currentFieldName + "]");

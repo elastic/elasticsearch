@@ -98,19 +98,19 @@ public class SearchTransform implements Transform {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.REQUEST.match(currentFieldName)) {
+            } else if (Field.REQUEST.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
                             TYPE, watchId, currentFieldName);
                 }
-            } else if (Field.TIMEOUT.match(currentFieldName)) {
+            } else if (Field.TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                 timeout = timeValueMillis(parser.longValue());
-            } else if (Field.TIMEOUT_HUMAN.match(currentFieldName)) {
+            } else if (Field.TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                 // Parser for human specified timeouts and 2.x compatibility
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
-            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {

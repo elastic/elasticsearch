@@ -135,7 +135,7 @@ public class IndexAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.INDEX.match(currentFieldName)) {
+            } else if (Field.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     index = parser.text();
                 } catch (ElasticsearchParseException pe) {
@@ -143,30 +143,30 @@ public class IndexAction implements Action {
                             "field [{}]", pe, TYPE, watchId, actionId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (Field.TIMEOUT.match(currentFieldName)) {
+                if (Field.TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     timeout = timeValueMillis(parser.longValue());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected number field [{}]", TYPE,
                             watchId, actionId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.DOC_TYPE.match(currentFieldName)) {
+                if (Field.DOC_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     docType = parser.text();
-                } else if (Field.DOC_ID.match(currentFieldName)) {
+                } else if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();
-                } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName)) {
+                } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     executionTimeField = parser.text();
-                } else if (Field.TIMEOUT_HUMAN.match(currentFieldName)) {
+                } else if (Field.TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                     // Parser for human specified timeouts and 2.x compatibility
                     timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
-                } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
+                } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse [{}] action for watch [{}]. failed to parse [{}]. must be " +
                                                               "a string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
                     }
-                } else if (Field.REFRESH.match(currentFieldName)) {
+                } else if (Field.REFRESH.match(currentFieldName, parser.getDeprecationHandler())) {
                     refreshPolicy = RefreshPolicy.parse(parser.text());
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,

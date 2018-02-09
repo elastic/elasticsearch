@@ -194,7 +194,7 @@ public class IncidentEventContext implements ToXContentObject {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Strings.hasLength(currentFieldName)) {
-                    if (XField.TYPE.match(currentFieldName)) {
+                    if (XField.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         try {
                             type = Type.valueOf(parser.text().toUpperCase(Locale.ROOT));
                         } catch (IllegalArgumentException e) {
@@ -210,13 +210,13 @@ public class IncidentEventContext implements ToXContentObject {
                             throw new ElasticsearchParseException(msg, e, currentFieldName);
                         }
 
-                        if (XField.HREF.match(currentFieldName)) {
+                        if (XField.HREF.match(currentFieldName, parser.getDeprecationHandler())) {
                             href = parsedTemplate;
-                        } else if (XField.TEXT.match(currentFieldName)) {
+                        } else if (XField.TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                             text = parsedTemplate;
-                        } else if (XField.SRC.match(currentFieldName)) {
+                        } else if (XField.SRC.match(currentFieldName, parser.getDeprecationHandler())) {
                             src = parsedTemplate;
-                        } else if (XField.ALT.match(currentFieldName)) {
+                        } else if (XField.ALT.match(currentFieldName, parser.getDeprecationHandler())) {
                             alt = parsedTemplate;
                         } else {
                             String msg = "could not parse trigger incident event context. unknown field [{}]";

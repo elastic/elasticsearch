@@ -115,21 +115,21 @@ class Field implements MessageElement {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (XField.TITLE.match(currentFieldName)) {
+                } else if (XField.TITLE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
                                 XField.TITLE);
                     }
-                } else if (XField.VALUE.match(currentFieldName)) {
+                } else if (XField.VALUE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         value = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
                                 XField.VALUE);
                     }
-                } else if (XField.SHORT.match(currentFieldName)) {
+                } else if (XField.SHORT.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         isShort = parser.booleanValue();
                     } else {

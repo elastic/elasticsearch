@@ -92,7 +92,7 @@ public enum DataAttachment implements ToXContentObject {
             } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead",
                         Field.FORMAT.getPreferredName(), token);
-            } else if (Field.FORMAT.match(currentFieldName)) {
+            } else if (Field.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {

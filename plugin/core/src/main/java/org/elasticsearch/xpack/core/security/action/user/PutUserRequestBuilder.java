@@ -105,7 +105,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (User.Fields.PASSWORD.match(currentFieldName)) {
+                } else if (User.Fields.PASSWORD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();
@@ -115,7 +115,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.PASSWORD_HASH.match(currentFieldName)) {
+                } else if (User.Fields.PASSWORD_HASH.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         char[] passwordChars = parser.text().toCharArray();
                         passwordHash(passwordChars);
@@ -123,41 +123,41 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.ROLES.match(currentFieldName)) {
+                } else if (User.Fields.ROLES.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         roles(Strings.commaDelimitedListToStringArray(parser.text()));
                     } else {
                         roles(XContentUtils.readStringArray(parser, false));
                     }
-                } else if (User.Fields.FULL_NAME.match(currentFieldName)) {
+                } else if (User.Fields.FULL_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         fullName(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.EMAIL.match(currentFieldName)) {
+                } else if (User.Fields.EMAIL.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         email(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.METADATA.match(currentFieldName)) {
+                } else if (User.Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.START_OBJECT) {
                         metadata(parser.map());
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.ENABLED.match(currentFieldName)) {
+                } else if (User.Fields.ENABLED.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         enabled(parser.booleanValue());
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type boolean, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (User.Fields.USERNAME.match(currentFieldName)) {
+                } else if (User.Fields.USERNAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == Token.VALUE_STRING) {
                         if (username.equals(parser.text()) == false) {
                             throw new IllegalArgumentException("[username] in source does not match the username provided [" +

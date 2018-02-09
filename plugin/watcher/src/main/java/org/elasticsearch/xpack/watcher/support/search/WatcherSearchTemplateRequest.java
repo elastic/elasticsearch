@@ -171,7 +171,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (INDICES_FIELD.match(currentFieldName)) {
+                if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
@@ -180,7 +180,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                                     currentFieldName + "] field, but instead found [" + token + "]");
                         }
                     }
-                } else if (TYPES_FIELD.match(currentFieldName)) {
+                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             types.add(parser.textOrNull());
@@ -194,12 +194,12 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                             currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BODY_FIELD.match(currentFieldName)) {
+                if (BODY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
                         searchSource = builder.bytes();
                     }
-                } else if (INDICES_OPTIONS_FIELD.match(currentFieldName)) {
+                } else if (INDICES_OPTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
                     boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
                     boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();
@@ -208,7 +208,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (EXPAND_WILDCARDS_FIELD.match(currentFieldName)) {
+                            if (EXPAND_WILDCARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 switch (parser.text()) {
                                     case "all":
                                         expandOpen = true;
@@ -230,9 +230,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                                         throw new ElasticsearchParseException("could not read search request. unknown value [" +
                                                 parser.text() + "] for [" + currentFieldName + "] field ");
                                 }
-                            } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName)) {
+                            } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 ignoreUnavailable = parser.booleanValue();
-                            } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName)) {
+                            } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 allowNoIndices = parser.booleanValue();
                             } else {
                                 throw new ElasticsearchParseException("could not read search request. unexpected index option [" +
@@ -245,20 +245,20 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     }
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
-                } else if (TEMPLATE_FIELD.match(currentFieldName)) {
+                } else if (TEMPLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (INDICES_FIELD.match(currentFieldName)) {
+                if (INDICES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     String indicesStr = parser.text();
                     indices.addAll(Arrays.asList(Strings.delimitedListToStringArray(indicesStr, ",", " \t")));
-                } else if (TYPES_FIELD.match(currentFieldName)) {
+                } else if (TYPES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     String typesStr = parser.text();
                     types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
-                } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
+                } else if (SEARCH_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected string field [" +

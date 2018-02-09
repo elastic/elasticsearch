@@ -290,58 +290,59 @@ public class IncidentEvent implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Fields.INCIDENT_KEY.match(currentFieldName)) {
+                } else if (Fields.INCIDENT_KEY.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         incidentKey = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.INCIDENT_KEY.getPreferredName());
                     }
-                } else if (Fields.DESCRIPTION.match(currentFieldName)) {
+                } else if (Fields.DESCRIPTION.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         description = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.DESCRIPTION.getPreferredName());
                     }
-                } else if (Fields.CLIENT.match(currentFieldName)) {
+                } else if (Fields.CLIENT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         client = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.CLIENT.getPreferredName());
                     }
-                } else if (Fields.CLIENT_URL.match(currentFieldName)) {
+                } else if (Fields.CLIENT_URL.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         clientUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.CLIENT_URL.getPreferredName());
                     }
-                } else if (Fields.ACCOUNT.match(currentFieldName)) {
+                } else if (Fields.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         account = parser.text();
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.CLIENT_URL.getPreferredName());
                     }
-                } else if (Fields.PROXY.match(currentFieldName)) {
+                } else if (Fields.PROXY.match(currentFieldName, parser.getDeprecationHandler())) {
                     proxy = HttpProxy.parse(parser);
-                } else if (Fields.EVENT_TYPE.match(currentFieldName)) {
+                } else if (Fields.EVENT_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         eventType = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException e) {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}]",
                                 Fields.EVENT_TYPE.getPreferredName());
                     }
-                } else if (Fields.ATTACH_PAYLOAD.match(currentFieldName)) {
+                } else if (Fields.ATTACH_PAYLOAD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         attachPayload = parser.booleanValue();
                     } else {
                         throw new ElasticsearchParseException("could not parse pager duty event template. failed to parse field [{}], " +
                                 "expected a boolean value but found [{}] instead", Fields.ATTACH_PAYLOAD.getPreferredName(), token);
                     }
-                } else if (Fields.CONTEXTS.match(currentFieldName) || Fields.CONTEXT_DEPRECATED.match(currentFieldName)) {
+                } else if (Fields.CONTEXTS.match(currentFieldName, parser.getDeprecationHandler())
+                        || Fields.CONTEXT_DEPRECATED.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         List<IncidentEventContext.Template> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

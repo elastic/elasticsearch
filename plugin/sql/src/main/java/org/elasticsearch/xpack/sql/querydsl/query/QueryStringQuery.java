@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;

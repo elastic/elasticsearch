@@ -42,7 +42,7 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Strings.hasLength(currentFieldName) && Fields.FORMAT.match(currentFieldName)) {
+            } else if (Strings.hasLength(currentFieldName) && Fields.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {

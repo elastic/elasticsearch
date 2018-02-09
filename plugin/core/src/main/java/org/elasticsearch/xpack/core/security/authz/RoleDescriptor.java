@@ -245,19 +245,20 @@ public class RoleDescriptor implements ToXContentObject {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Fields.INDEX.match(currentFieldName) || Fields.INDICES.match(currentFieldName)) {
+            } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())
+                    || Fields.INDICES.match(currentFieldName, parser.getDeprecationHandler())) {
                 indicesPrivileges = parseIndices(name, parser, allow2xFormat);
-            } else if (Fields.RUN_AS.match(currentFieldName)) {
+            } else if (Fields.RUN_AS.match(currentFieldName, parser.getDeprecationHandler())) {
                 runAsUsers = readStringArray(name, parser, true);
-            } else if (Fields.CLUSTER.match(currentFieldName)) {
+            } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                 clusterPrivileges = readStringArray(name, parser, true);
-            } else if (Fields.METADATA.match(currentFieldName)) {
+            } else if (Fields.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
                             "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
                 }
                 metadata = parser.map();
-            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     // consume object but just drop
                     parser.map();
@@ -265,7 +266,7 @@ public class RoleDescriptor implements ToXContentObject {
                     throw new ElasticsearchParseException("expected field [{}] to be an object, but found [{}] instead",
                             currentFieldName, token);
                 }
-            } else if (Fields.TYPE.match(currentFieldName)) {
+            } else if (Fields.TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                 // don't need it
             } else {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
@@ -298,9 +299,9 @@ public class RoleDescriptor implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Fields.INDEX.match(currentFieldName)) {
+                } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     indexPrivileges = parseIndices(description, parser, false);
-                } else if (Fields.CLUSTER.match(currentFieldName)) {
+                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusterPrivileges = readStringArray(description, parser, true);
                 } else {
                     throw new ElasticsearchParseException("failed to parse privileges check [{}]. unexpected field [{}]",
@@ -353,7 +354,7 @@ public class RoleDescriptor implements ToXContentObject {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Fields.NAMES.match(currentFieldName)) {
+            } else if (Fields.NAMES.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     names = new String[] { parser.text() };
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -366,7 +367,7 @@ public class RoleDescriptor implements ToXContentObject {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
                 }
-            } else if (Fields.QUERY.match(currentFieldName)) {
+            } else if (Fields.QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
@@ -381,20 +382,20 @@ public class RoleDescriptor implements ToXContentObject {
                             "value to be null, a string, an array, or an object, but found [{}] instead", roleName, currentFieldName,
                             token);
                 }
-            } else if (Fields.FIELD_PERMISSIONS.match(currentFieldName)) {
+            } else if (Fields.FIELD_PERMISSIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     token = parser.nextToken();
                     do {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                            if (Fields.GRANT_FIELDS.match(currentFieldName)) {
+                            if (Fields.GRANT_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 parser.nextToken();
                                 grantedFields = readStringArray(roleName, parser, true);
                                 if (grantedFields == null) {
                                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} must not " +
                                             "be null.", roleName, Fields.GRANT_FIELDS);
                                 }
-                            } else if (Fields.EXCEPT_FIELDS.match(currentFieldName)) {
+                            } else if (Fields.EXCEPT_FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 parser.nextToken();
                                 deniedFields = readStringArray(roleName, parser, true);
                                 if (deniedFields == null) {
@@ -423,9 +424,9 @@ public class RoleDescriptor implements ToXContentObject {
                             " in \"{}\".", roleName, XContentParser.Token.START_OBJECT,
                             XContentParser.Token.START_ARRAY, token, Fields.FIELD_PERMISSIONS);
                 }
-            } else if (Fields.PRIVILEGES.match(currentFieldName)) {
+            } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                 privileges = readStringArray(roleName, parser, true);
-            } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName)) {
+            } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (allow2xFormat) {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {
@@ -433,7 +434,7 @@ public class RoleDescriptor implements ToXContentObject {
                             " permissions in role [{}], use [\"{}\": {\"{}\":[...]," + "\"{}\":[...]}] instead",
                             roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS, roleName);
                 }
-            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         // it is transient metadata, skip it

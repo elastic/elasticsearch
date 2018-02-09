@@ -206,13 +206,13 @@ public class ActionWrapper implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (WatchField.CONDITION.match(currentFieldName)) {
+                if (WatchField.CONDITION.match(currentFieldName, parser.getDeprecationHandler())) {
                     condition = actionRegistry.getConditionRegistry().parseExecutable(watchId, parser);
-                } else if (Transform.TRANSFORM.match(currentFieldName)) {
+                } else if (Transform.TRANSFORM.match(currentFieldName, parser.getDeprecationHandler())) {
                     transform = actionRegistry.getTransformRegistry().parse(watchId, parser);
-                } else if (ThrottlerField.THROTTLE_PERIOD.match(currentFieldName)) {
+                } else if (ThrottlerField.THROTTLE_PERIOD.match(currentFieldName, parser.getDeprecationHandler())) {
                     throttlePeriod = timeValueMillis(parser.longValue());
-                } else if (ThrottlerField.THROTTLE_PERIOD_HUMAN.match(currentFieldName)) {
+                } else if (ThrottlerField.THROTTLE_PERIOD_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, ThrottlerField.THROTTLE_PERIOD_HUMAN.toString());
                     } catch (ElasticsearchParseException pe) {

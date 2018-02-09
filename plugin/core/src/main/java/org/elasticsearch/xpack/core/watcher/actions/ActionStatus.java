@@ -166,13 +166,13 @@ public class ActionStatus implements ToXContentObject {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.ACK_STATUS.match(currentFieldName)) {
+            } else if (Field.ACK_STATUS.match(currentFieldName, parser.getDeprecationHandler())) {
                 ackStatus = AckStatus.parse(watchId, actionId, parser);
-            } else if (Field.LAST_EXECUTION.match(currentFieldName)) {
+            } else if (Field.LAST_EXECUTION.match(currentFieldName, parser.getDeprecationHandler())) {
                 lastExecution = Execution.parse(watchId, actionId, parser);
-            } else if (Field.LAST_SUCCESSFUL_EXECUTION.match(currentFieldName)) {
+            } else if (Field.LAST_SUCCESSFUL_EXECUTION.match(currentFieldName, parser.getDeprecationHandler())) {
                 lastSuccessfulExecution = Execution.parse(watchId, actionId, parser);
-            } else if (Field.LAST_THROTTLE.match(currentFieldName)) {
+            } else if (Field.LAST_THROTTLE.match(currentFieldName, parser.getDeprecationHandler())) {
                 lastThrottle = Throttle.parse(watchId, actionId, parser);
             } else {
                 throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}]", watchId,
@@ -258,9 +258,9 @@ public class ActionStatus implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.TIMESTAMP.match(currentFieldName)) {
+                } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
-                } else if (Field.ACK_STATUS_STATE.match(currentFieldName)) {
+                } else if (Field.ACK_STATUS_STATE.match(currentFieldName, parser.getDeprecationHandler())) {
                     state = State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                 } else {
                     throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
@@ -360,11 +360,11 @@ public class ActionStatus implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.TIMESTAMP.match(currentFieldName)) {
+                } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
-                } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName)) {
+                } else if (Field.EXECUTION_SUCCESSFUL.match(currentFieldName, parser.getDeprecationHandler())) {
                     successful = parser.booleanValue();
-                } else if (Field.REASON.match(currentFieldName)) {
+                } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,
@@ -456,9 +456,9 @@ public class ActionStatus implements ToXContentObject {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (Field.TIMESTAMP.match(currentFieldName)) {
+                } else if (Field.TIMESTAMP.match(currentFieldName, parser.getDeprecationHandler())) {
                     timestamp = dateTimeFormatter.parser().parseDateTime(parser.text());
-                } else if (Field.REASON.match(currentFieldName)) {
+                } else if (Field.REASON.match(currentFieldName, parser.getDeprecationHandler())) {
                     reason = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse action status for [{}/{}]. unexpected field [{}.{}]", watchId,

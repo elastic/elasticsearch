@@ -79,16 +79,16 @@ public class HipChatAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.ACCOUNT.match(currentFieldName)) {
+            } else if (Field.ACCOUNT.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
                             "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
-            } else if (Field.PROXY.match(currentFieldName)) {
+            } else if (Field.PROXY.match(currentFieldName, parser.getDeprecationHandler())) {
                 proxy = HttpProxy.parse(parser);
-            } else if (Field.MESSAGE.match(currentFieldName)) {
+            } else if (Field.MESSAGE.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     message = HipChatMessage.Template.parse(parser);
                 } catch (Exception e) {

@@ -86,7 +86,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Expected start object but got [" + parser.currentToken() + "]");
         }
-        if (parser.nextToken() != XContentParser.Token.FIELD_NAME || CATEGORIZATION_ANALYZER.match(parser.currentName()) == false) {
+        if (parser.nextToken() != XContentParser.Token.FIELD_NAME
+                || CATEGORIZATION_ANALYZER.match(parser.currentName(), parser.getDeprecationHandler()) == false) {
             throw new IllegalArgumentException("Expected [" + CATEGORIZATION_ANALYZER + "] field but got [" + parser.currentToken() + "]");
         }
         parser.nextToken();
@@ -116,7 +117,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (CHAR_FILTERS.match(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                } else if (CHAR_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             builder.addCharFilter(parser.text());
@@ -127,7 +129,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                                     "] array element should contain char_filter's name or settings [" + token + "]");
                         }
                     }
-                } else if (TOKENIZER.match(currentFieldName)) {
+                } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         builder.setTokenizer(parser.text());
                     } else if (token == XContentParser.Token.START_OBJECT) {
@@ -136,7 +138,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
                         throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
                                 "] should be tokenizer's name or settings [" + token + "]");
                     }
-                } else if (TOKEN_FILTERS.match(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             builder.addTokenFilter(parser.text());

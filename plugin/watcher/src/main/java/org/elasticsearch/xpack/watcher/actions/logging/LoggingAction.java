@@ -76,7 +76,7 @@ public class LoggingAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Field.TEXT.match(currentFieldName)) {
+            } else if (Field.TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     text = TextTemplate.parse(parser);
                 } catch (ElasticsearchParseException pe) {
@@ -84,9 +84,9 @@ public class LoggingAction implements Action {
                             watchId, actionId, Field.TEXT.getPreferredName());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (Field.CATEGORY.match(currentFieldName)) {
+                if (Field.CATEGORY.match(currentFieldName, parser.getDeprecationHandler())) {
                     category = parser.text();
-                } else if (Field.LEVEL.match(currentFieldName)) {
+                } else if (Field.LEVEL.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {

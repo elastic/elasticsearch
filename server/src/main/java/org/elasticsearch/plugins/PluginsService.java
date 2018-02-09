@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
@@ -102,7 +103,7 @@ public class PluginsService extends AbstractComponent {
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
                                                    pluginClass.getName(), Collections.emptyList(), false, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
@@ -317,7 +318,27 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
+    /**
+     * Get the plugin bundles from the specified directory.
+     *
+     * @param pluginsDirectory the directory
+     * @return the set of plugin bundles in the specified directory
+     * @throws IOException if an I/O exception occurs reading the plugin bundles
+     */
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+        return getPluginBundles(pluginsDirectory, true);
+    }
+
+    /**
+     * Get the plugin bundles from the specified directory. If {@code enforceVersion} is true, then the version in each plugin descriptor
+     * must match the current version.
+     *
+     * @param pluginsDirectory the directory
+     * @param enforceVersion   whether or not to enforce the version when reading plugin descriptors
+     * @return the set of plugin bundles in the specified directory
+     * @throws IOException if an I/O exception occurs reading the plugin bundles
+     */
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory, final boolean enforceVersion) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
         Set<Bundle> bundles = new LinkedHashSet<>();
 
@@ -326,10 +347,10 @@ public class PluginsService extends AbstractComponent {
             logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
             final PluginInfo info;
             try {
-                info = PluginInfo.readFromProperties(plugin);
+                info = PluginInfo.readFromProperties(plugin, enforceVersion);
             } catch (IOException e) {
                 throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+                        + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
             }
             if (bundles.add(new Bundle(info, plugin)) == false) {
                 throw new IllegalStateException("duplicate plugin: " + info);

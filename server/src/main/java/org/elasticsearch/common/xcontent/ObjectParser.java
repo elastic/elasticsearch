@@ -363,7 +363,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
-            if (parseField.match(currentFieldName) == false) {
+            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                 throw new ParsingException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
@@ -416,7 +416,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING),
-        VALUE_OBJECT_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING, START_OBJECT, START_ARRAY);
+        VALUE_OBJECT_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING, START_OBJECT, START_ARRAY),
+        VALUE_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_NUMBER, VALUE_STRING, START_ARRAY);
 
         private final EnumSet<XContentParser.Token> tokens;
 

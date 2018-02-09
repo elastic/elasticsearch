@@ -333,15 +333,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     }
                 }
             } else if (token.isValue()) {
-                if (DISABLE_COORD_FIELD.match(currentFieldName)) {
+                if (DISABLE_COORD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore
-                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName)) {
+                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (BOOST_FIELD.match(currentFieldName)) {
+                } else if (BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (ADJUST_PURE_NEGATIVE.match(currentFieldName)) {
+                } else if (ADJUST_PURE_NEGATIVE.match(currentFieldName, parser.getDeprecationHandler())) {
                     adjustPureNegative = parser.booleanValue();
-                } else if (NAME_FIELD.match(currentFieldName)) {
+                } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");

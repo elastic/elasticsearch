@@ -31,7 +31,7 @@ task bwcTest {
     group = 'verification'
 }
 
-for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+for (Version version : bwcVersions.indexCompatible) {
     // the BWC version under test will fail to start in this situation so we skip creating the test task
     if (project.cgroupsV2Enabled && version.isVersionBrokenIfCgroupsV2Enabled()) {
         continue
@@ -61,9 +61,10 @@ for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
 test.enabled = false
 
 task integTest {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
-        dependsOn "v${version}#bwcTest"
-    }
+  if (project.bwc_tests_enabled) {
+    final def version = bwcVersions.snapshotsIndexCompatible.first()
+    dependsOn "v${version}#bwcTest"
+  }
 }
 
 task verifyDocsLuceneVersion {

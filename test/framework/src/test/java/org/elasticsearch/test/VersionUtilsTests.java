@@ -262,25 +262,26 @@ public class VersionUtilsTests extends ESTestCase {
         final List<Version> expectedUnreleased;
         if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
             expectedReleased = Arrays.asList(
-                    TestNewMajorRelease.V_5_6_0,
-                    TestNewMajorRelease.V_5_6_1,
-                    TestNewMajorRelease.V_6_0_0_alpha1,
-                    TestNewMajorRelease.V_6_0_0_alpha2,
-                    TestNewMajorRelease.V_6_0_0_beta1,
-                    TestNewMajorRelease.V_6_0_0_beta2,
-                    TestNewMajorRelease.V_6_0_0);
-            expectedUnreleased = Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1);
+                TestNewMajorRelease.V_5_6_0,
+                TestNewMajorRelease.V_5_6_1,
+                TestNewMajorRelease.V_5_6_2,
+                TestNewMajorRelease.V_6_0_0_alpha1,
+                TestNewMajorRelease.V_6_0_0_alpha2,
+                TestNewMajorRelease.V_6_0_0_beta1,
+                TestNewMajorRelease.V_6_0_0_beta2,
+                TestNewMajorRelease.V_6_0_0);
+            expectedUnreleased = Arrays.asList(TestNewMajorRelease.V_6_0_1);
         } else {
             expectedReleased = Arrays.asList(
-                    TestNewMajorRelease.V_5_6_0,
-                    TestNewMajorRelease.V_5_6_1,
-                    TestNewMajorRelease.V_5_6_2,
-                    TestNewMajorRelease.V_6_0_0_alpha1,
-                    TestNewMajorRelease.V_6_0_0_alpha2,
-                    TestNewMajorRelease.V_6_0_0_beta1,
-                    TestNewMajorRelease.V_6_0_0_beta2,
-                    TestNewMajorRelease.V_6_0_0,
-                    TestNewMajorRelease.V_6_0_1);
+                TestNewMajorRelease.V_5_6_0,
+                TestNewMajorRelease.V_5_6_1,
+                TestNewMajorRelease.V_5_6_2,
+                TestNewMajorRelease.V_6_0_0_alpha1,
+                TestNewMajorRelease.V_6_0_0_alpha2,
+                TestNewMajorRelease.V_6_0_0_beta1,
+                TestNewMajorRelease.V_6_0_0_beta2,
+                TestNewMajorRelease.V_6_0_0,
+                TestNewMajorRelease.V_6_0_1);
             expectedUnreleased = Collections.emptyList();
         }
 
@@ -315,12 +316,13 @@ public class VersionUtilsTests extends ESTestCase {
             expectedReleased = Arrays.asList(
                     TestVersionBumpIn6x.V_5_6_0,
                     TestVersionBumpIn6x.V_5_6_1,
+                    TestVersionBumpIn6x.V_5_6_2,
                     TestVersionBumpIn6x.V_6_0_0_alpha1,
                     TestVersionBumpIn6x.V_6_0_0_alpha2,
                     TestVersionBumpIn6x.V_6_0_0_beta1,
                     TestVersionBumpIn6x.V_6_0_0_beta2,
                     TestVersionBumpIn6x.V_6_0_0);
-            expectedUnreleased = Arrays.asList(TestVersionBumpIn6x.V_5_6_2, TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0);
+            expectedUnreleased = Arrays.asList(TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0);
         } else {
             expectedReleased = Arrays.asList(
                     TestVersionBumpIn6x.V_5_6_0,
@@ -369,16 +371,16 @@ public class VersionUtilsTests extends ESTestCase {
             expectedReleased = Arrays.asList(
                     TestNewMinorBranchIn6x.V_5_6_0,
                     TestNewMinorBranchIn6x.V_5_6_1,
+                    TestNewMinorBranchIn6x.V_5_6_2,
                     TestNewMinorBranchIn6x.V_6_0_0_alpha1,
                     TestNewMinorBranchIn6x.V_6_0_0_alpha2,
                     TestNewMinorBranchIn6x.V_6_0_0_beta1,
                     TestNewMinorBranchIn6x.V_6_0_0_beta2,
                     TestNewMinorBranchIn6x.V_6_0_0,
+                    TestNewMinorBranchIn6x.V_6_0_1,
                     TestNewMinorBranchIn6x.V_6_1_0,
                     TestNewMinorBranchIn6x.V_6_1_1);
             expectedUnreleased = Arrays.asList(
-                    TestNewMinorBranchIn6x.V_5_6_2,
-                    TestNewMinorBranchIn6x.V_6_0_1,
                     TestNewMinorBranchIn6x.V_6_1_2,
                     TestNewMinorBranchIn6x.V_6_2_0);
         } else {
@@ -407,6 +409,7 @@ public class VersionUtilsTests extends ESTestCase {
      * Tests that {@link Version#minimumCompatibilityVersion()} and {@link VersionUtils#allReleasedVersions()}
      * agree with the list of wire and index compatible versions we build in gradle.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/28505")
     public void testGradleVersionsMatchVersionUtils() {
         // First check the index compatible versions
         VersionsFromProperty indexCompatible = new VersionsFromProperty("tests.gradle_index_compat_versions");

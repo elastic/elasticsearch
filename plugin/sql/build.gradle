@@ -5,7 +5,6 @@ esplugin {
     name 'x-pack-sql'
     description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
     classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-    requiresKeystore true
     extendedPlugins = ['x-pack-core']
 }
 

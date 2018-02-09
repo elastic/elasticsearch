@@ -115,7 +115,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                        .put(super.nodeSettings(nodeOrdinal))
                        .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters._http.type", "http")
-                       .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar")
+                       .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
+                       .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
                        .put("xpack.monitoring.exporters._http.enabled", false)
                        .build();
     }

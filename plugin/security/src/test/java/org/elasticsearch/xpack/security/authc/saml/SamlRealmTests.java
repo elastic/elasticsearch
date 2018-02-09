@@ -79,7 +79,7 @@ import static org.mockito.Mockito.mock;
 public class SamlRealmTests extends SamlTestCase {
 
     public static final String TEST_IDP_ENTITY_ID = "http://demo_josso_1.josso.dev.docker:8081/IDBUS/JOSSO-TUTORIAL/IDP1/SAML2/MD";
-    private static final int METADATA_REFRESH = 50;
+    private static final int METADATA_REFRESH = 3000;
 
     private static final String REALM_NAME = "my-saml";
     private static final String REALM_SETTINGS_PREFIX = "xpack.security.authc.realms." + REALM_NAME;

@@ -291,7 +291,6 @@ xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: user
-      user: watcher-user@example.com
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
@@ -304,7 +303,6 @@ xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: user
-      user: watcher-user@example.com
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
       message:
         format: text

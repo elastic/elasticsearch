@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -100,29 +101,33 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(newValue));
     }
 
-    public void testSetMetadata() throws Exception {
-        IngestDocument.MetaData randomMetaData = randomFrom(IngestDocument.MetaData.values());
+    public void testSetMetadataExceptVersion() throws Exception {
+        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING, MetaData.PARENT);
+        Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
+    }
+
+    public void testSetMetadataVersion() throws Exception {
+        MetaData randomMetaData = randomFrom(MetaData.VERSION, MetaData.VERSION_TYPE);
         Processor processor;
         long version = 0L;
         String versionType = new String();
         if (randomMetaData == IngestDocument.MetaData.VERSION) {
-            version = randomLong();
+            version = randomNonNegativeLong();
             processor = createSetProcessor(randomMetaData.getFieldName(), version, true);
-        } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
-            versionType = randomFrom("internal", "external", "external_gt", "external_gte");
-            processor = createSetProcessor(randomMetaData.getFieldName(), versionType, true);
         } else {
-            processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
+            versionType = randomFrom("internal", "external", "external_gte");
+            processor = createSetProcessor(randomMetaData.getFieldName(), versionType, true);
         }
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         if (randomMetaData == IngestDocument.MetaData.VERSION) {
             assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), Long.class), Matchers.equalTo(version));
-        } else if (randomMetaData == IngestDocument.MetaData.VERSION_TYPE) {
+        } else {
             assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), VersionType.class),
                        Matchers.equalTo(VersionType.fromString(versionType)));
-        } else {
-            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), String.class), Matchers.equalTo("_value"));
         }
     }
 

@@ -56,7 +56,8 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing, String parent,
+                          Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -68,20 +69,15 @@ public final class IngestDocument {
         if (parent != null) {
             this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
         }
-
-        this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
-    }
-
-    public IngestDocument(String index, String type, String id, String routing,String parent,
-                          Long version, VersionType versionType,Map<String, Object> source) {
-        this(index, type, id, routing, parent, source);
         if (version != null) {
             sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
             sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), versionType);
         }
+
+        this.ingestMetadata = new HashMap<>();
+        this.ingestMetadata.put(TIMESTAMP, ZonedDateTime.now(ZoneOffset.UTC));
     }
 
     /**
@@ -631,7 +627,7 @@ public final class IngestDocument {
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean ||
-            value instanceof ZonedDateTime) {
+            value instanceof ZonedDateTime || value instanceof VersionType) {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();

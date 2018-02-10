@@ -1,0 +1,94 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test set document version & version type":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_version",
+                  "value": 3
+                }
+              },
+              {
+                "set" : {
+                  "field" : "_version_type",
+                  "value": "external_gte"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _version: 3 }
+
+---
+"Test append document version & version type":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "append" : {
+                  "field" : "_version",
+                  "value": [3, 6, 9]
+                }
+              },
+              {
+                "append" : {
+                  "field" : "_version_type",
+                  "value":["external", "external_gte"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _version: [1, 3, 6, 9] }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
@@ -30,6 +31,10 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
     public MonitoringFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> exporters) {
         super(XPackField.MONITORING, available, enabled);
         this.exporters = exporters;
+    }
+
+    public Map<String, Object> getExporters() {
+        return exporters == null ? Collections.emptyMap() : Collections.unmodifiableMap(exporters);
     }
 
     @Override

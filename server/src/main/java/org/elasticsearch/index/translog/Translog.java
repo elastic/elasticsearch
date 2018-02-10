@@ -287,6 +287,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
+        return openReader(path, checkpoint, translogUUID);
+    }
+
+    private static TranslogReader openReader(Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
@@ -1682,7 +1686,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** Reads and returns the current checkpoint */
-    static final Checkpoint readCheckpoint(final Path location) throws IOException {
+    static Checkpoint readCheckpoint(final Path location) throws IOException {
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
@@ -1693,8 +1697,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return the global checkpoint
      * @throws IOException if an I/O exception occurred reading the checkpoint
      */
-    public static final long readGlobalCheckpoint(final Path location) throws IOException {
-        return readCheckpoint(location).globalCheckpoint;
+    public static long readGlobalCheckpoint(final Path location, final String expectedTranslogUUID) throws IOException {
+        final Checkpoint checkpoint = readCheckpoint(location);
+        // We open files in reverse order in order to validate translog uuid before we start traversing the translog based on
+        // the generation id we found in the lucene commit. This gives for better error messages if the wrong translog was found.
+        for (long i = checkpoint.generation - 1; i >= checkpoint.minTranslogGeneration; i--) {
+            final Path translogFile = location.resolve(getFilename(i));
+            if (Files.exists(translogFile) == false) {
+                throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
+            }
+            // Open a reader to validate its header.
+            try (TranslogReader reader = openReader(translogFile,
+                Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))), expectedTranslogUUID)) {
+            }
+        }
+        return checkpoint.globalCheckpoint;
     }
 
     /**

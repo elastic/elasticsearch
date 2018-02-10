@@ -311,16 +311,16 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
     private String parseMediaType(String rawContentType) {
         final String contentType = rawContentType.toLowerCase(Locale.ROOT);
-        int firstSemiColonIndex = contentType.indexOf(';');
+        final int firstSemiColonIndex = contentType.indexOf(';');
         if (firstSemiColonIndex == -1) {
             return contentType;
         }
         final String mediaType = contentType.substring(0, firstSemiColonIndex).trim();
         final String charsetCandidate = contentType.substring(firstSemiColonIndex + 1);
 
-        String[] keyValue = charsetCandidate.split("=", 2);
-        if (keyValue.length != 2 || !keyValue[0].trim().equalsIgnoreCase("charset")
-            || !keyValue[1].trim().equalsIgnoreCase("utf-8")) {
+        final String[] keyValue = charsetCandidate.split("=", 2);
+        if (keyValue.length != 2 || keyValue[0].trim().equalsIgnoreCase("charset") == false
+            || keyValue[1].trim().equalsIgnoreCase("utf-8") == false) {
             deprecationLogger.deprecated("Content-Type [" + rawContentType + "] contains unrecognized [" + charsetCandidate + "]");
         }
         return mediaType;

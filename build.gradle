@@ -77,7 +77,7 @@ subprojects {
 
   bwcVersions.snapshotProjectNames.each { snapshotName ->
     Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
-    if (snapshot != null ) {
+    if (snapshot != null && snapshot.onOrAfter("6.3.0")) {
       String snapshotProject = ":x-pack-elasticsearch:plugin:bwc:${snapshotName}"
       project(snapshotProject).ext.bwcVersion = snapshot
         ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${snapshot}"] = snapshotProject

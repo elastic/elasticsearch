@@ -84,7 +84,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
     @Before
     @SuppressWarnings("unchecked")
-    public void setUpMocks() throws Exception {
+    public void setUpMocks() {
         listener = mock(ActionListener.class);
         exporters = mock(Exporters.class);
         threadPool = mock(ThreadPool.class);
@@ -113,7 +113,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
     }
 
-    public void testExecuteEmptyRequest() throws Exception {
+    public void testExecuteEmptyRequest() {
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
                                                                                        transportService, filters, resolver, exporters);
 
@@ -184,7 +184,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         verify(clusterService).localNode();
     }
 
-    public void testAsyncActionCreateMonitoringDocsWithNoDocs() throws Exception {
+    public void testAsyncActionCreateMonitoringDocsWithNoDocs() {
         final Collection<MonitoringBulkDoc> bulkDocs = new ArrayList<>();
         if (randomBoolean()) {
             final int nbDocs = randomIntBetween(1, 50);
@@ -202,7 +202,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         assertThat(results.size(), equalTo(0));
     }
 
-    public void testAsyncActionCreateMonitoringDocs() throws Exception {
+    public void testAsyncActionCreateMonitoringDocs() {
         final List<MonitoringBulkDoc> docs = new ArrayList<>();
 
         final MonitoredSystem system = randomFrom(MonitoredSystem.KIBANA, MonitoredSystem.LOGSTASH, MonitoredSystem.BEATS);
@@ -243,7 +243,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         });
     }
 
-    public void testAsyncActionCreateMonitoringDocWithNoTimestamp() throws Exception {
+    public void testAsyncActionCreateMonitoringDocWithNoTimestamp() {
         final MonitoringBulkDoc monitoringBulkDoc =
             new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
 
@@ -293,7 +293,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAsyncActionExecuteExport() throws Exception {
+    public void testAsyncActionExecuteExport() {
         final int nbDocs = randomIntBetween(1, 25);
         final Collection<MonitoringDoc> docs = new ArrayList<>(nbDocs);
         for (int i = 0; i < nbDocs; i++) {
@@ -318,7 +318,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAsyncActionExportThrowsException() throws Exception {
+    public void testAsyncActionExportThrowsException() {
         final int nbDocs = randomIntBetween(1, 25);
         final Collection<MonitoringDoc> docs = new ArrayList<>(nbDocs);
         for (int i = 0; i < nbDocs; i++) {

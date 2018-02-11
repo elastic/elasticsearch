@@ -19,6 +19,7 @@
 
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -30,7 +31,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+for (Version version : bwcVersions.indexCompatible) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -105,10 +106,11 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
+    for (final def version : bwcVersions.snapshotsIndexCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }
 }
 
 check.dependsOn(integTest)
+

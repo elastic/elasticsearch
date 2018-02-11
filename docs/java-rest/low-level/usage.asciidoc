@@ -22,6 +22,9 @@ released with `5.0.0-alpha4`. There is no relation between the client version
 and the Elasticsearch version that the client can communicate with. The
 low-level REST client is compatible with all Elasticsearch versions.
 
+If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
+at https://snapshots.elastic.co/maven/.
+
 [[java-rest-low-usage-maven-maven]]
 ==== Maven configuration
 

@@ -1692,10 +1692,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Reads the sequence numbers global checkpoint from the translog checkpoint.
+     * This ensures that the translogUUID from this translog matches with the provided translogUUID.
      *
      * @param location the location of the translog
      * @return the global checkpoint
-     * @throws IOException if an I/O exception occurred reading the checkpoint
+     * @throws IOException                if an I/O exception occurred reading the checkpoint
+     * @throws TranslogCorruptedException if the translog is corrupted or mismatched with the given uuid
      */
     public static long readGlobalCheckpoint(final Path location, final String expectedTranslogUUID) throws IOException {
         final Checkpoint checkpoint = readCheckpoint(location);
@@ -1706,7 +1708,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (Files.exists(translogFile) == false) {
                 throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
             }
-            // Open a reader to validate its header.
             try (TranslogReader reader = openReader(translogFile,
                 Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))), expectedTranslogUUID)) {
             }

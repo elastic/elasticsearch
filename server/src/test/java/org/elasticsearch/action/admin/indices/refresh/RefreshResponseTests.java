@@ -26,9 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -37,58 +34,40 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.CoreMatchers.both;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RefreshResponseTests extends ESTestCase {
 
-    private static List<DefaultShardOperationFailedException> failures = new ArrayList<>();
-
-    private static class FakeElasticsearchException extends ElasticsearchException {
-
-        private Index index;
-        private ShardId shardId;
-        private RestStatus status;
-
-        public FakeElasticsearchException(String index, int shardId, RestStatus status, String msg) {
-            super(msg);
-            this.index = new Index(index, "_na_");
-            this.shardId = new ShardId(this.index, shardId);
-            this.status = status;
-        }
-
-        @Override
-        public Index getIndex() {
-            return this.index;
-        }
-
-        @Override
-        public ShardId getShardId() {
-            return this.shardId;
-        }
-
-        @Override
-        public RestStatus status() {
-            return this.status;
-        }
-    }
+    private static List<DefaultShardOperationFailedException> failures;
 
     @BeforeClass
     public static void prepareException() {
         failures = new ArrayList<>();
-        failures.add(new DefaultShardOperationFailedException(
-            new FakeElasticsearchException("index1", 1, RestStatus.INTERNAL_SERVER_ERROR, "fake exception 1")));
-        failures.add(new DefaultShardOperationFailedException(
-            new FakeElasticsearchException("index2", 2, RestStatus.GATEWAY_TIMEOUT, "fake exception 2")));
+        failures.add(new DefaultShardOperationFailedException(new ElasticsearchException("exception message 1")));
+        failures.add(new DefaultShardOperationFailedException(new ElasticsearchException("exception message 2")));
     }
 
     public void testToXContent() {
-        RefreshResponse response = new RefreshResponse(10, 10, 0, null);
-        String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
+        {
+            RefreshResponse response = new RefreshResponse(10, 10, 0, null);
+            String output = Strings.toString(response);
+            assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
+        }
+        {
+            RefreshResponse responseWithFailures = new RefreshResponse(10, 10, 0, failures);
+            String output = Strings.toString(responseWithFailures);
+            assertThat(output, both(containsString("exception message 1")).and(containsString("exception message 2")));
+        }
     }
 
     public void testToAndFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
@@ -108,6 +87,17 @@ public class RefreshResponseTests extends ESTestCase {
         assertThat(response.getTotalShards(), equalTo(parsedResponse.getTotalShards()));
         assertThat(response.getSuccessfulShards(), equalTo(parsedResponse.getSuccessfulShards()));
         assertThat(response.getFailedShards(), equalTo(parsedResponse.getFailedShards()));
-        assertThat(response.getShardFailures(), equalTo(parsedResponse.getShardFailures()));
+        compareFailures(response.getShardFailures(), parsedResponse.getShardFailures());
+    }
+
+    private static void compareFailures(DefaultShardOperationFailedException[] original,
+                                        DefaultShardOperationFailedException[] parsedback) {
+        assertThat(original.length, equalTo(parsedback.length));
+        for (int i = 0; i < original.length; i++) {
+            assertThat(original[i].index(), equalTo(parsedback[i].index()));
+            assertThat(original[i].shardId(), equalTo(parsedback[i].shardId()));
+            assertThat(original[i].status(), equalTo(parsedback[i].status()));
+            assertThat(parsedback[i].getCause().getMessage(), containsString(original[i].getCause().getMessage()));
+        }
     }
 }

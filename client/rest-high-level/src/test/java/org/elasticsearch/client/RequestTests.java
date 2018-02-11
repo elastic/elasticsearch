@@ -39,6 +39,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -530,6 +531,18 @@ public class RequestTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
+    }
+
+    public void testRefresh() {
+        String[] indices = randomIndicesNames(1, 5);
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
+
+        Request request = Request.refresh(refreshRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_refresh");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters().size(), equalTo(0));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
     }
 
     public void testUpdate() throws IOException {
@@ -1055,7 +1068,7 @@ public class RequestTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
         assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
     }
-    
+
     public void testRankEval() throws Exception {
         RankEvalSpec spec = new RankEvalSpec(
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),

@@ -27,6 +27,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,8 +39,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class Gateway extends AbstractComponent implements ClusterStateApplier {
 
@@ -128,6 +131,26 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
                 if (electedIndexMetaData != null) {
                     if (indexMetaDataCount < requiredAllocation) {
                         logger.debug("[{}] found [{}], required [{}], not adding", index, indexMetaDataCount, requiredAllocation);
+                        
+                        //if we have 5 nodes cluster(such as 1,2,3,4,5 node),when 5 node leave the cluster,and now cluster delete one index.
+                        //then restart all nodes,if 1,2,5 join and find master,then 3,4 join the cluster.After started, this cluster state is red,
+                        //because the delete index(lose some shards) is still part of the cluster metedata.
+                        //to avoid this problem,this check the tomstones and indices,if tomston has index which is same in indices,
+                        //don't put index in metedata                  
+                        List<IndexGraveyard.Tombstone> tombstones = electedGlobalState.indexGraveyard().getTombstones();
+                        List<Index> deleteIndexList = tombstones.stream().map(IndexGraveyard.Tombstone::getIndex).collect(Collectors.toList());
+                        boolean isAlreadyDelete = false;
+                        for (Index deleteIndex : deleteIndexList) {
+                            if (deleteIndex.getName().equals(electedIndexMetaData.getIndex().getName()) &&
+                                deleteIndex.getUUID().equals(electedIndexMetaData.getIndexUUID())) {
+                                logger.trace("[{}] index delete in some node but not in allNode, so need't put into metaData", index.getName());
+                                isAlreadyDelete = true;
+                                break;
+                            }
+                        }
+                        if (isAlreadyDelete == true) {
+                            continue;
+                        }
                     } // TODO if this logging statement is correct then we are missing an else here
                     try {
                         if (electedIndexMetaData.getState() == IndexMetaData.State.OPEN) {

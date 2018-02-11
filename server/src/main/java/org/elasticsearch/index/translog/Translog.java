@@ -287,10 +287,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
-        return openReader(path, checkpoint, translogUUID);
-    }
-
-    private static TranslogReader openReader(Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
@@ -1699,26 +1695,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static final long readGlobalCheckpoint(final Path location) throws IOException {
         return readCheckpoint(location).globalCheckpoint;
-    }
-
-    /**
-     * Ensures that the translog at the given location matches with the provided translogUUID. This method does not return value but
-     * throws {@link TranslogCorruptedException} or {@link IOException} if the translog is corrupted or mismatched with the given uuid.
-     */
-    public static void ensureOwnership(Path translogLocation, String expectedTranslogUUID) throws IOException {
-        // We open files in reverse order in order to validate translog uuid before we start traversing the translog based on
-        // the generation id we found in the lucene commit. This gives for better error messages if the wrong translog was found.
-        final Checkpoint checkpoint = readCheckpoint(translogLocation);
-        for (long i = checkpoint.generation - 1; i >= checkpoint.minTranslogGeneration; i--) {
-            final Path translogFile = translogLocation.resolve(getFilename(i));
-            if (Files.exists(translogFile) == false) {
-                throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
-            }
-            // Open a reader to validate its header.
-            try (TranslogReader reader = openReader(
-                translogFile, Checkpoint.read(translogLocation.resolve(getCommitCheckpointFileName(i))), expectedTranslogUUID)) {
-            }
-        }
     }
 
     /**

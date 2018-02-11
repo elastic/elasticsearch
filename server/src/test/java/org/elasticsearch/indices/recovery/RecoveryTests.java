@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
@@ -47,7 +46,6 @@ import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +57,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
@@ -333,45 +330,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
-            shards.assertAllEqual(numDocs);
-        }
-    }
-
-    /**
-     * This asserts that if translog is corrupted or mismatched the safe index commit,
-     * the file-based recovery will be exercised rather than the sequenced-based recovery.
-     */
-    public void testRecoveryWithCorruptedTranslogOnReplica() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
-            shards.startAll();
-            final IndexShard replica = shards.getReplicas().get(0);
-            final int numDocs = shards.indexDocs(between(10, 100));
-            shards.syncGlobalCheckpoint();
-            shards.flush();
-            shards.removeReplica(replica);
-            final Path translogLocation = replica.getTranslog().location();
-            replica.close("test", false);
-            // Write a new translogUUID to the safe commit - this forces the file-based recovery occurred
-            List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
-            IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, Translog.readGlobalCheckpoint(translogLocation));
-            assertThat(safeCommit, notNullValue());
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setIndexCommit(safeCommit)
-                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
-                final Map<String, String> userData = new HashMap<>(safeCommit.getUserData());
-                userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
-                writer.setLiveCommitData(userData.entrySet());
-                writer.commit();
-            }
-            replica.store().close();
-            // File-based recovery should be made
-            final IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            assertThat(newReplica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

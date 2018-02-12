@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.watcher.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
 import javax.net.ssl.HostnameVerifier;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,9 +62,7 @@ public class HttpClient extends AbstractComponent {
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final CloseableHttpClient client;
-    private final Integer proxyPort;
-    private final String proxyHost;
-    private final String proxyScheme;
+    private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
     private final ByteSizeValue maxResponseSize;
@@ -76,17 +73,7 @@ public class HttpClient extends AbstractComponent {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
-
-        // proxy setup
-        this.proxyHost = HttpSettings.PROXY_HOST.get(settings);
-        this.proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ? HttpSettings.PROXY_SCHEME.get(settings) : null;
-        this.proxyPort = HttpSettings.PROXY_PORT.get(settings);
-        if (proxyPort != 0 && Strings.hasText(proxyHost)) {
-            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
-        } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
-            throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
-                    HttpSettings.PROXY_PORT.getKey() + "]");
-        }
+        this.settingsProxy = getProxyFromSettings();
 
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
 
@@ -122,8 +109,6 @@ public class HttpClient extends AbstractComponent {
         }
         internalRequest.setHeader(HttpHeaders.ACCEPT_CHARSET, StandardCharsets.UTF_8.name());
 
-        RequestConfig.Builder config = RequestConfig.custom();
-
         // headers
         if (request.headers().isEmpty() == false) {
             for (Map.Entry<String, String> entry : request.headers.entrySet()) {
@@ -139,19 +124,8 @@ public class HttpClient extends AbstractComponent {
             }
         }
 
-        // proxy
-        if (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) {
-            // if a proxy scheme is configured use this, but fall back to the same than the request in case there was no special
-            // configuration given
-            String scheme = request.proxy.getScheme() != null ? request.proxy.getScheme().scheme() : request.scheme.scheme();
-            HttpHost proxy = new HttpHost(request.proxy.getHost(), request.proxy.getPort(), scheme);
-            config.setProxy(proxy);
-        } else if (proxyPort != null && Strings.hasText(proxyHost)) {
-            String scheme = proxyScheme != null ? proxyScheme : request.scheme.scheme();
-            HttpHost proxy = new HttpHost(proxyHost, proxyPort, scheme);
-            config.setProxy(proxy);
-        }
-
+        RequestConfig.Builder config = RequestConfig.custom();
+        setProxy(config, request, settingsProxy);
         HttpClientContext localContext = HttpClientContext.create();
         // auth
         if (request.auth() != null) {
@@ -216,6 +190,49 @@ public class HttpClient extends AbstractComponent {
             }
             return new HttpResponse(response.getStatusLine().getStatusCode(), body, responseHeaders);
         }
+    }
+
+    /**
+     * Enriches the config object optionally with proxy information
+     *
+     * @param config    The request builder config object
+     * @param request   The request parsed into the HTTP client
+     */
+    static void setProxy(RequestConfig.Builder config, HttpRequest request, HttpProxy configuredProxy) {
+        if (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) {
+            // if a proxy scheme is configured use this, but fall back to the same than the request in case there was no special
+            // configuration given
+            String scheme = request.proxy.getScheme() != null ? request.proxy.getScheme().scheme() : Scheme.HTTP.scheme();
+            HttpHost proxy = new HttpHost(request.proxy.getHost(), request.proxy.getPort(), scheme);
+            config.setProxy(proxy);
+        } else if (HttpProxy.NO_PROXY.equals(configuredProxy) == false) {
+            HttpHost proxy = new HttpHost(configuredProxy.getHost(), configuredProxy.getPort(), configuredProxy.getScheme().scheme());
+            config.setProxy(proxy);
+        }
+    }
+
+    /**
+     * Creates a HTTP proxy from the system wide settings
+     *
+     * @return A http proxy instance, if no settings are configured this will be a HttpProxy.NO_PROXY instance
+     */
+    private HttpProxy getProxyFromSettings() {
+        String proxyHost = HttpSettings.PROXY_HOST.get(settings);
+        Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
+                Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
+        int proxyPort = HttpSettings.PROXY_PORT.get(settings);
+        if (proxyPort != 0 && Strings.hasText(proxyHost)) {
+            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
+        } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
+            throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
+                    HttpSettings.PROXY_PORT.getKey() + "]");
+        }
+
+        if (proxyPort > 0 && Strings.hasText(proxyHost)) {
+            return new HttpProxy(proxyHost, proxyPort, proxyScheme);
+        }
+
+        return HttpProxy.NO_PROXY;
     }
 
     private URI createURI(HttpRequest request) {

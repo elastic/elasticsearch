@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -115,16 +116,21 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
                 // part of an execution, so we can exit early
                 boolean isWatchExecutionOperation = watch.status().version() != -1;
                 if (isWatchExecutionOperation) {
+                    logger.debug("not updating trigger for watch [{}], watch has been updated as part of an execution", watch.id());
                     return operation;
                 }
 
                 boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
                 if (shouldBeTriggered) {
                     if (watch.status().state().isActive()) {
+                        logger.debug("adding watch [{}] to trigger", watch.id());
                         triggerService.add(watch);
                     } else {
+                        logger.debug("removing watch [{}] to trigger", watch.id());
                         triggerService.remove(watch.id());
                     }
+                } else {
+                    logger.debug("watch [{}] should not be triggered", watch.id());
                 }
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Could not parse watch with id [{}]", e, operation.id());
@@ -152,6 +158,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
         if (isWatchDocument(shardId.getIndexName(), index.type())) {
+            logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
             triggerService.remove(index.id());
         }
     }

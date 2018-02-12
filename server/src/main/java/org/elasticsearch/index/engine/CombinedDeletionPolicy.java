@@ -170,7 +170,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
      *
      * @return true if the snapshotting commit can be clean up.
-     * The commit can be removed only if the releasing snapshot is its last snapshot and the commit isn't the last commit.
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
@@ -180,10 +179,9 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
-            return releasingCommit.equals(lastCommit) == false;
-        } else {
-            return false;
         }
+        // The commit can be clean up only if no pending snapshot and it is not the last commit.
+        return refCount == 0 && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

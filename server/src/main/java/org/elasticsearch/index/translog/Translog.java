@@ -1701,16 +1701,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static long readGlobalCheckpoint(final Path location, final String expectedTranslogUUID) throws IOException {
         final Checkpoint checkpoint = readCheckpoint(location);
-        // We open files in reverse order in order to validate translog uuid before we start traversing the translog based on
-        // the generation id we found in the lucene commit. This gives for better error messages if the wrong translog was found.
-        for (long i = checkpoint.generation - 1; i >= checkpoint.minTranslogGeneration; i--) {
-            final Path translogFile = location.resolve(getFilename(i));
-            if (Files.exists(translogFile) == false) {
-                throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
-            }
-            try (TranslogReader reader = openReader(translogFile,
-                Checkpoint.read(location.resolve(getCommitCheckpointFileName(i))), expectedTranslogUUID)) {
-            }
+        // We need to open at least translog reader to validate the translogUUID.
+        final Path translogFile = location.resolve(getFilename(checkpoint.generation));
+        if (Files.exists(translogFile) == false) {
+            throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
+        }
+        try (TranslogReader reader = openReader(translogFile,
+            Checkpoint.read(location.resolve(getCommitCheckpointFileName(checkpoint.generation))), expectedTranslogUUID)) {
         }
         return checkpoint.globalCheckpoint;
     }

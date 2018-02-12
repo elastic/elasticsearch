@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -71,7 +72,8 @@ public class ForceMergeActionTests extends AbstractSerializingTestCase<ForceMerg
 
     public void testMissingMaxNumSegments() throws IOException {
         BytesReference emptyObject = JsonXContent.contentBuilder().startObject().endObject().bytes();
-        XContentParser parser = XContentHelper.createParser(null, emptyObject, XContentType.JSON);
+        XContentParser parser = XContentHelper.createParser(null, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            emptyObject, XContentType.JSON);
         Exception e = expectThrows(IllegalArgumentException.class, () -> ForceMergeAction.parse(parser));
         assertThat(e.getMessage(), equalTo("Required [max_num_segments]"));
     }

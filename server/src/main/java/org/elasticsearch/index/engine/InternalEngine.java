@@ -1719,7 +1719,9 @@ public class InternalEngine extends Engine {
         return new Engine.IndexCommitRef(snapshotCommit, () -> {
             // Revisit the deletion policy if we can clean up the snapshotting commit.
             if (combinedDeletionPolicy.releaseCommit(snapshotCommit)) {
-                indexWriter.deleteUnusedFiles();
+                if (indexWriter.isOpen()) {
+                    indexWriter.deleteUnusedFiles();
+                }
             }
         });
     }

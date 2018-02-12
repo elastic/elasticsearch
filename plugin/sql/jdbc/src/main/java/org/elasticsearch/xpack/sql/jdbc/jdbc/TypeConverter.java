@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.math.BigDecimal;
-import java.sql.Blob;
-import java.sql.Clob;
 import java.sql.Date;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -38,13 +36,10 @@ import static java.util.Calendar.YEAR;
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
  * <p>
- * The following JDBC types are supported as part of Elasticsearch Response. See org.elasticsearch.xpack.sql.type.DataType for details.
+ * Only the following JDBC types are supported as part of Elasticsearch response and parameters.
+ * See org.elasticsearch.xpack.sql.type.DataType for details.
  * <p>
  * NULL, BOOLEAN, TINYINT, SMALLINT, INTEGER, BIGINT, DOUBLE, REAL, FLOAT, VARCHAR, VARBINARY and TIMESTAMP
- * <p>
- * The following additional types are also supported as parameters:
- * <p>
- * NUMERIC, DECIMAL, BIT, BINARY, LONGVARBINARY, CHAR, LONGVARCHAR, DATE, TIME, BLOB, CLOB, TIMESTAMP_WITH_TIMEZONE
  */
 final class TypeConverter {
 
@@ -172,57 +167,17 @@ final class TypeConverter {
      * https://db.apache.org/derby/docs/10.5/ref/rrefjdbc20377.html
      */
     public static String classNameOf(JDBCType jdbcType) throws JdbcSQLException {
-        switch (jdbcType) {
-
-            // ES - supported types
-            case BOOLEAN:
-                return Boolean.class.getName();
-            case TINYINT: // BYTE DataType
-                return Byte.class.getName();
-            case SMALLINT: // SHORT DataType
-                return Short.class.getName();
-            case INTEGER:
-                return Integer.class.getName();
-            case BIGINT: // LONG DataType
-                return Long.class.getName();
-            case DOUBLE:
-                return Double.class.getName();
-            case REAL: // FLOAT DataType
-                return Float.class.getName();
-            case FLOAT: // HALF_FLOAT DataType
-                return Double.class.getName(); // TODO: Is this correct?
-            case VARCHAR: // KEYWORD or TEXT DataType
-                return String.class.getName();
-            case VARBINARY: // BINARY DataType
-                return byte[].class.getName();
-            case TIMESTAMP: // DATE DataType
-                return Timestamp.class.getName();
-
-            // Parameters data types that cannot be returned by ES but can appear in client - supplied parameters
-            case NUMERIC:
-            case DECIMAL:
-                return BigDecimal.class.getName();
-            case BIT:
-                return Boolean.class.getName();
-            case BINARY:
-            case LONGVARBINARY:
-                return byte[].class.getName();
-            case CHAR:
-            case LONGVARCHAR:
-                return String.class.getName();
-            case DATE:
-                return Date.class.getName();
-            case TIME:
-                return Time.class.getName();
-            case BLOB:
-                return Blob.class.getName();
-            case CLOB:
-                return Clob.class.getName();
-            case TIMESTAMP_WITH_TIMEZONE:
-                return Long.class.getName();
-            default:
-                throw new JdbcSQLException("Unsupported JDBC type [" + jdbcType + "]");
+        final DataType dataType;
+        try {
+            dataType = DataType.fromJdbcType(jdbcType);
+        } catch (IllegalArgumentException ex) {
+            // Convert unsupported exception to JdbcSQLException
+            throw new JdbcSQLException(ex, ex.getMessage());
         }
+        if (dataType.javaName == null) {
+            throw new JdbcSQLException("Unsupported JDBC type [" + jdbcType + "]");
+        }
+        return dataType.javaName;
     }
 
     /**
@@ -235,8 +190,6 @@ final class TypeConverter {
             case NULL:
                 return null;
             case BOOLEAN:
-            case BINARY:
-            case VARBINARY:
             case VARCHAR:
                 return v;  // These types are already represented correctly in JSON
             case TINYINT:
@@ -265,43 +218,15 @@ final class TypeConverter {
      * <p>
      * It needs to support both params and column types
      */
-    static boolean isSigned(JDBCType type) throws SQLException {
-        switch (type) {
-            // ES Supported types
-            case BIGINT:
-            case DOUBLE:
-            case FLOAT:
-            case INTEGER:
-            case TINYINT:
-            case SMALLINT:
-                return true;
-            case NULL:
-            case BOOLEAN:
-            case VARCHAR:
-            case VARBINARY:
-            case TIMESTAMP:
-                return false;
-
-            // Parameter types
-            case REAL:
-            case DECIMAL:
-            case NUMERIC:
-                return true;
-            case BIT:
-            case BINARY:
-            case LONGVARBINARY:
-            case CHAR:
-            case LONGVARCHAR:
-            case DATE:
-            case TIME:
-            case BLOB:
-            case CLOB:
-            case TIMESTAMP_WITH_TIMEZONE:
-                return false;
-
-            default:
-                throw new SQLException("Unexpected column or parameter type [" + type + "]");
+    static boolean isSigned(JDBCType jdbcType) throws SQLException {
+        final DataType dataType;
+        try {
+            dataType = DataType.fromJdbcType(jdbcType);
+        } catch (IllegalArgumentException ex) {
+            // Convert unsupported exception to JdbcSQLException
+            throw new JdbcSQLException(ex, ex.getMessage());
         }
+        return dataType.isSigned();
     }
 
     private static Double doubleValue(Object v) {
@@ -427,12 +352,7 @@ final class TypeConverter {
             case FLOAT:
             case DOUBLE:
                 return safeToLong(((Number) val).doubleValue());
-            case DATE:
-                return utcMillisRemoveTime(((Number) val).longValue());
-            case TIME:
-                return utcMillisRemoveDate(((Number) val).longValue());
             case TIMESTAMP:
-            case TIMESTAMP_WITH_TIMEZONE:
                 return ((Number) val).longValue();
             default:
         }
@@ -479,47 +399,23 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, JDBCType columnType) throws SQLException {
-        switch (columnType) {
-            case TIME:
-                // time has no date component
-                return new Date(0);
-            case DATE:
-            case TIMESTAMP:
-            case TIMESTAMP_WITH_TIMEZONE:
-                return new Date(utcMillisRemoveTime(((Number) val).longValue()));
-            default:
+        if (columnType == JDBCType.TIMESTAMP) {
+            return new Date(utcMillisRemoveTime(((Number) val).longValue()));
         }
-
         throw new SQLException("Conversion from type [" + columnType + "] to [Date] not supported");
     }
 
     private static Time asTime(Object val, JDBCType columnType) throws SQLException {
-        switch (columnType) {
-            case DATE:
-                // date has no time component
-                return new Time(0);
-            case TIME:
-            case TIMESTAMP:
-            case TIMESTAMP_WITH_TIMEZONE:
-                return new Time(utcMillisRemoveDate(((Number) val).longValue()));
-            default:
+        if (columnType == JDBCType.TIMESTAMP) {
+            return new Time(utcMillisRemoveDate(((Number) val).longValue()));
         }
-
         throw new SQLException("Conversion from type [" + columnType + "] to [Time] not supported");
     }
 
     private static Timestamp asTimestamp(Object val, JDBCType columnType) throws SQLException {
-        switch (columnType) {
-            case DATE:
-                return new Timestamp(utcMillisRemoveTime(((Number) val).longValue()));
-            case TIME:
-                return new Timestamp(utcMillisRemoveDate(((Number) val).longValue()));
-            case TIMESTAMP:
-            case TIMESTAMP_WITH_TIMEZONE:
-                return new Timestamp(((Number) val).longValue());
-            default:
+        if (columnType == JDBCType.TIMESTAMP) {
+            return new Timestamp(((Number) val).longValue());
         }
-
         throw new SQLException("Conversion from type [" + columnType + "] to [Timestamp] not supported");
     }
 

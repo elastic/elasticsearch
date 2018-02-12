@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
@@ -91,26 +92,26 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                 Map.Entry<String, Object> entry = itr.next();
                 String parameterName = entry.getKey();
                 Object parameterValue = entry.getValue();
-                if (Script.LANG_PARSE_FIELD.match(parameterName)) {
+                if (Script.LANG_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof String || parameterValue == null) {
                         lang = (String) parameterValue;
                     } else {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
-                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName)) {
+                } else if (Script.PARAMS_PARSE_FIELD.match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof Map || parameterValue == null) {
                         params = (Map<String, Object>) parameterValue;
                     } else {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
-                } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
+                } else if (ScriptType.INLINE.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof String || parameterValue == null) {
                         script = (String) parameterValue;
                         type = ScriptType.INLINE;
                     } else {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
-                } else if (ScriptType.STORED.getParseField().match(parameterName)) {
+                } else if (ScriptType.STORED.getParseField().match(parameterName, LoggingDeprecationHandler.INSTANCE)) {
                     if (parameterValue instanceof String || parameterValue == null) {
                         script = (String) parameterValue;
                         type = ScriptType.STORED;

@@ -74,6 +74,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private Boolean requestCache;
 
+    private Boolean allowPartialSearchResults;
+    
+    
     private Scroll scroll;
 
     private int batchedReduceSize = 512;
@@ -135,6 +138,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             maxConcurrentShardRequests = in.readVInt();
             preFilterShardSize = in.readVInt();
         }
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            allowPartialSearchResults = in.readOptionalBoolean();
+        }           
     }
 
     @Override
@@ -157,6 +163,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             out.writeVInt(maxConcurrentShardRequests);
             out.writeVInt(preFilterShardSize);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeOptionalBoolean(allowPartialSearchResults);
+        }         
     }
 
     @Override
@@ -351,6 +360,20 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     public Boolean requestCache() {
         return this.requestCache;
     }
+    
+    /**
+     * Sets if this request should allow partial results. (If method is not called,
+     * will default to the cluster level setting).
+     */
+    public SearchRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        return this;
+    }
+
+    public Boolean allowPartialSearchResults() {
+        return this.allowPartialSearchResults;
+    }    
+    
 
     /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
@@ -478,13 +501,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(preFilterShardSize, that.preFilterShardSize) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+                Objects.equals(indicesOptions, that.indicesOptions) &&
+                Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize, 
+                allowPartialSearchResults);
     }
 
     @Override
@@ -501,6 +526,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
                 ", preFilterShardSize=" + preFilterShardSize +
+                ", allowPartialSearchResults=" + allowPartialSearchResults +
                 ", source=" + source + '}';
     }
 }

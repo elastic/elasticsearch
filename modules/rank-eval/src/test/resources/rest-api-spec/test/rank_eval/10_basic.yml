@@ -2,8 +2,8 @@
 "Response format":
 
   - skip:
-      version: " - 6.1.99"
-      reason: the ranking evaluation feature is available since 6.2
+      version: " - 6.2.99"
+      reason: response format was updated in 6.3
 
   - do:
      indices.create:
@@ -67,7 +67,7 @@
   - match: { quality_level: 1}
   - match: { details.amsterdam_query.quality_level: 1.0}
   - match: { details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
-  - match: { details.amsterdam_query.metric_details: {"relevant_docs_retrieved": 2, "docs_retrieved": 2}}
+  - match: { details.amsterdam_query.metric_details.precision: {"relevant_docs_retrieved": 2, "docs_retrieved": 2}}
   
   - length: { details.amsterdam_query.hits: 3}
   - match: { details.amsterdam_query.hits.0.hit._id:  "doc2"}
@@ -79,7 +79,7 @@
   
   - match: { details.berlin_query.quality_level: 1.0}
   - match: { details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc4"}]}
-  - match: { details.berlin_query.metric_details: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
+  - match: { details.berlin_query.metric_details.precision: {"relevant_docs_retrieved": 1, "docs_retrieved": 1}}
   - length: { details.berlin_query.hits: 2}
   - match: { details.berlin_query.hits.0.hit._id: "doc1" }
   - match: { details.berlin_query.hits.0.rating: 1}
@@ -90,8 +90,8 @@
 "Mean Reciprocal Rank":
 
   - skip:
-      version: " - 6.99.99"
-      reason: the ranking evaluation feature is only available on 7.0
+      version: " - 6.2.99"
+      reason: response format was updated in 6.3
 
   - do:
      indices.create:
@@ -156,10 +156,10 @@
   - lt: {quality_level: 0.417}
   - gt: {details.amsterdam_query.quality_level: 0.333}
   - lt: {details.amsterdam_query.quality_level: 0.334}
-  - match: {details.amsterdam_query.metric_details: {"first_relevant": 3}}
+  - match: {details.amsterdam_query.metric_details.mean_reciprocal_rank: {"first_relevant": 3}}
   - match: {details.amsterdam_query.unknown_docs:  [ {"_index": "foo", "_id": "doc2"},
                                                                {"_index": "foo", "_id": "doc3"} ]}
   - match: {details.berlin_query.quality_level: 0.5}
-  - match: {details.berlin_query.metric_details: {"first_relevant": 2}}
+  - match: {details.berlin_query.metric_details.mean_reciprocal_rank: {"first_relevant": 2}}
   - match: {details.berlin_query.unknown_docs:  [ {"_index": "foo", "_id": "doc1"}]}
 

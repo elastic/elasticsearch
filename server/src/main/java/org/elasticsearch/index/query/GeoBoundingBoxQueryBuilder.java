@@ -403,15 +403,15 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                     throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
                 }
             } else if (token.isValue()) {
-                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (TYPE_FIELD.match(currentFieldName)) {
+                } else if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
@@ -479,30 +479,30 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 token = parser.nextToken();
-                if (WKT_FIELD.match(currentFieldName)) {
+                if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     envelope = (EnvelopeBuilder)(GeoWKTParser.parseExpectedType(parser, GeoShapeType.ENVELOPE));
-                } else if (TOP_FIELD.match(currentFieldName)) {
+                } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     top = parser.doubleValue();
-                } else if (BOTTOM_FIELD.match(currentFieldName)) {
+                } else if (BOTTOM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     bottom = parser.doubleValue();
-                } else if (LEFT_FIELD.match(currentFieldName)) {
+                } else if (LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     left = parser.doubleValue();
-                } else if (RIGHT_FIELD.match(currentFieldName)) {
+                } else if (RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     right = parser.doubleValue();
                 } else {
-                    if (TOP_LEFT_FIELD.match(currentFieldName)) {
+                    if (TOP_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         GeoUtils.parseGeoPoint(parser, sparse);
                         top = sparse.getLat();
                         left = sparse.getLon();
-                    } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName)) {
+                    } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         GeoUtils.parseGeoPoint(parser, sparse);
                         bottom = sparse.getLat();
                         right = sparse.getLon();
-                    } else if (TOP_RIGHT_FIELD.match(currentFieldName)) {
+                    } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         GeoUtils.parseGeoPoint(parser, sparse);
                         top = sparse.getLat();
                         right = sparse.getLon();
-                    } else if (BOTTOM_LEFT_FIELD.match(currentFieldName)) {
+                    } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         GeoUtils.parseGeoPoint(parser, sparse);
                         bottom = sparse.getLat();
                         left = sparse.getLon();

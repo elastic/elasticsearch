@@ -21,6 +21,7 @@ package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -239,6 +241,42 @@ public class MemoryCircuitBreakerTests extends ESTestCase {
             long newUsed = (long)(breaker.getUsed() * breaker.getOverhead());
             assertThat(cbe.getMessage().contains("would be [" + newUsed + "/"), equalTo(true));
             assertThat(cbe.getMessage().contains("field [" + field + "]"), equalTo(true));
+        }
+    }
+
+    /**
+     * Test that a breaker correctly redistributes to a different breaker, in
+     * this case, the request breaker borrows space from the fielddata breaker
+     */
+    public void testBorrowingSiblingBreakerMemory() throws Exception {
+        Settings clusterSettings = Settings.builder()
+                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200mb")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
+                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "150mb")
+                .build();
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+                new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            CircuitBreaker requestCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.REQUEST);
+            CircuitBreaker fieldDataCircuitBreaker = service.getBreaker(MemoryCircuitBreaker.FIELDDATA);
+
+            assertEquals(new ByteSizeValue(200, ByteSizeUnit.MB).getBytes(),
+                    service.stats().getStats(MemoryCircuitBreaker.PARENT).getLimit());
+            assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), requestCircuitBreaker.getLimit());
+            assertEquals(new ByteSizeValue(150, ByteSizeUnit.MB).getBytes(), fieldDataCircuitBreaker.getLimit());
+
+            double fieldDataUsedBytes = fieldDataCircuitBreaker
+                    .addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should not break");
+            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), fieldDataUsedBytes, 0.0);
+            double requestUsedBytes = requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
+                    "should not break");
+            assertEquals(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), requestUsedBytes, 0.0);
+            requestUsedBytes = requestCircuitBreaker.addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(),
+                    "should not break");
+            assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes(), requestUsedBytes, 0.0);
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> requestCircuitBreaker
+                    .addEstimateBytesAndMaybeBreak(new ByteSizeValue(50, ByteSizeUnit.MB).getBytes(), "should break"));
+            assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [should break] would be"));
+            assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
         }
     }
 }

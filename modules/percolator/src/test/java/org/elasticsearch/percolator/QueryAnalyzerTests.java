@@ -1108,6 +1108,66 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals("_field1", new ArrayList<>(result.extractions).get(1).range.fieldName);
     }
 
+    public void testExtractQueryMetadata_duplicatedClauses() {
+        BooleanQuery.Builder builder = new BooleanQuery.Builder();
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.MUST
+        );
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.MUST
+        );
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value4")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.MUST
+        );
+        Result result = analyze(builder.build(), Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(4));
+        assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
+                new Term("field", "value3"), new Term("field", "value4"));
+
+        builder = new BooleanQuery.Builder().setMinimumNumberShouldMatch(2);
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value1")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.SHOULD
+        );
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value2")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.SHOULD
+        );
+        builder.add(
+                new BooleanQuery.Builder()
+                        .add(new TermQuery(new Term("field", "value3")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("field", "value4")), BooleanClause.Occur.MUST)
+                        .build(),
+                BooleanClause.Occur.SHOULD
+        );
+        result = analyze(builder.build(), Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.matchAllDocs, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
+                new Term("field", "value3"), new Term("field", "value4"));
+    }
+
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {
         byte[] dest = new byte[expected.length];
         consumer.accept(dest);

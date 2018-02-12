@@ -117,6 +117,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -139,6 +140,10 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.persistent.PersistentTasksService;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
@@ -337,7 +342,7 @@ public class Node implements Closeable {
             List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
                ClusterModule.getClusterStateCustomSuppliers(clusterPlugins));
-            clusterService.addListener(scriptModule.getScriptService());
+            clusterService.addStateApplier(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
@@ -461,6 +466,17 @@ public class Node implements Closeable {
                 threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
                 responseCollectorService);
 
+            final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
+                .filterPlugins(PersistentTaskPlugin.class).stream()
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
+                .flatMap(List::stream)
+                .collect(toList());
+
+            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(settings, tasksExecutors);
+            final PersistentTasksClusterService persistentTasksClusterService =
+                new PersistentTasksClusterService(settings, registry, clusterService);
+            final PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, client);
+
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -504,6 +520,9 @@ public class Node implements Closeable {
                     }
                     httpBind.accept(b);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
+                    b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
+                    b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
+                    b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
                 }
             );
             injector = modules.createInjector();
@@ -651,7 +670,6 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        // tribe nodes don't have a master so we shouldn't register an observer         s
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);

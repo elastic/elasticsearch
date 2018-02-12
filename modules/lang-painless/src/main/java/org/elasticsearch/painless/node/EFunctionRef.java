@@ -66,7 +66,7 @@ public final class EFunctionRef extends AExpression implements ILambda {
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.getFunctionalMethod();
+                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], not a functional interface");
@@ -76,22 +76,21 @@ public final class EFunctionRef extends AExpression implements ILambda {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                            "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
-                    ref = new FunctionRef(locals.getDefinition().ClassToType(expected), interfaceMethod, delegateMethod, 0);
+                    ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = interfaceMethod.arguments.get(i);
-                        Definition.Type to = delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = interfaceMethod.arguments.get(i);
+                        Class<?> to = delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                        AnalyzerCaster.getLegalCast(
-                            location, Definition.TypeToClass(delegateMethod.rtn), Definition.TypeToClass(interfaceMethod.rtn), false, true);
+                    if (interfaceMethod.rtn != void.class) {
+                        AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
                     }
                 } else {
                     // whitelist lookup
-                    ref = new FunctionRef(locals.getDefinition(), locals.getDefinition().ClassToType(expected), type, call, 0);
+                    ref = new FunctionRef(locals.getDefinition(), expected, type, call, 0);
                 }
 
             } catch (IllegalArgumentException e) {

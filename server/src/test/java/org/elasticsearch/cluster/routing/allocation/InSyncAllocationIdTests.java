@@ -23,7 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.ShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -135,7 +135,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("fail primary shard");
         ShardRouting startedPrimary = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
-        clusterState = allocation.applyFailedShard(clusterState, startedPrimary);
+        clusterState = allocation.applyFailedShard(clusterState, startedPrimary, true);
 
         assertThat(clusterState.getRoutingTable().shardsWithState(STARTED).size(), equalTo(0));
         assertEquals(Collections.singleton(startedPrimary.allocationId().getId()),
@@ -167,7 +167,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
         long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
         clusterState = failedClusterStateTaskExecutor.execute(clusterState, Arrays.asList(
-                new ShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null))
+                new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true))
             ).resultingState;
 
         assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0).size(), equalTo(1));
@@ -189,11 +189,11 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
 
-        List<ShardEntry> failureEntries = new ArrayList<>();
-        failureEntries.add(new ShardEntry(
-            shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null));
-        failureEntries.add(new ShardEntry(
-            shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null));
+        List<FailedShardEntry> failureEntries = new ArrayList<>();
+        failureEntries.add(new FailedShardEntry(
+            shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true));
+        failureEntries.add(new FailedShardEntry(
+            shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true));
         Collections.shuffle(failureEntries, random());
         logger.info("Failing {}", failureEntries);
 
@@ -333,8 +333,8 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         assertEquals(inSyncSet, clusterState.metaData().index("test").inSyncAllocationIds(0));
 
         logger.info("fail primary shard");
-        clusterState = failedClusterStateTaskExecutor.execute(clusterState, Collections.singletonList(new ShardEntry(
-            shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null))).resultingState;
+        clusterState = failedClusterStateTaskExecutor.execute(clusterState, Collections.singletonList(new FailedShardEntry(
+            shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true))).resultingState;
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(0));
         // in-sync allocation ids should not be updated

@@ -91,7 +91,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < retries-1; i++) {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
-                    new UnsupportedOperationException()));
+                    new UnsupportedOperationException(), randomBoolean()));
             ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -104,7 +104,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         // now we go and check that we are actually stick to unassigned on the next failure
         List<FailedShard> failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
-                new UnsupportedOperationException()));
+                new UnsupportedOperationException(), randomBoolean()));
         ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -130,7 +130,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < retries-1; i++) {
         failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
-                new UnsupportedOperationException()));
+                new UnsupportedOperationException(), randomBoolean()));
 
         newState = strategy.applyFailedShards(clusterState, failedShards);
         assertThat(newState, not(equalTo(clusterState)));
@@ -145,7 +145,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         // now we go and check that we are actually stick to unassigned on the next failure
         failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
-                new UnsupportedOperationException()));
+                new UnsupportedOperationException(), randomBoolean()));
         newState = strategy.applyFailedShards(clusterState, failedShards);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -164,7 +164,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < retries-1; i++) {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
-                    new UnsupportedOperationException()));
+                    new UnsupportedOperationException(), randomBoolean()));
             ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -182,7 +182,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom",
-                    new UnsupportedOperationException()));
+                    new UnsupportedOperationException(), randomBoolean()));
             ClusterState newState = strategy.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -231,7 +231,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         // now fail again and see if it has a new counter
         List<FailedShard> failedShards = Collections.singletonList(
             new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "ZOOOMG",
-                new UnsupportedOperationException()));
+                new UnsupportedOperationException(), randomBoolean()));
         newState = strategy.applyFailedShards(clusterState, failedShards);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;

@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, ValueCountAggregationBuilder> {
     public static final String NAME = "value_count";
@@ -52,6 +53,16 @@ public class ValueCountAggregationBuilder extends ValuesSourceAggregationBuilder
 
     public ValueCountAggregationBuilder(String name, ValueType targetValueType) {
         super(name, ValuesSourceType.ANY, targetValueType);
+    }
+
+    protected ValueCountAggregationBuilder(ValueCountAggregationBuilder clone,
+                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ValueCountAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

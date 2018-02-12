@@ -124,6 +124,11 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         }
 
+        if (request.hasParam("allow_partial_search_results")) {
+            // only set if we have the parameter passed to override the cluster-level default
+            searchRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", null));
+        }
+        
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.

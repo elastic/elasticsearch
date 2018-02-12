@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -864,7 +865,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc != null) {
             XContentType xContentType = doc.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, doc.source(), xContentType)) {
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, doc.source(), xContentType)) {
                 builder.field("doc");
                 builder.copyCurrentStructure(parser);
             }
@@ -874,7 +876,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (upsertRequest != null) {
             XContentType xContentType = upsertRequest.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, upsertRequest.source(), xContentType)) {
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, upsertRequest.source(), xContentType)) {
                 builder.field("upsert");
                 builder.copyCurrentStructure(parser);
             }

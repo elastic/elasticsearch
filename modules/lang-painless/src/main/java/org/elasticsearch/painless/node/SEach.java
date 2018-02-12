@@ -69,16 +69,16 @@ public class SEach extends AStatement {
         expression.expected = expression.actual;
         expression = expression.cast(locals);
 
-        final Type type;
+        Class<?> clazz;
 
         try {
-            type = locals.getDefinition().getType(this.type);
+            clazz = Definition.TypeToClass(locals.getDefinition().getType(this.type));
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
-        Variable variable = locals.addVariable(location, type, name, true);
+        Variable variable = locals.addVariable(location, clazz, name, true);
 
         if (expression.actual.isArray()) {
             sub = new SSubEachArray(location, variable, expression, block);

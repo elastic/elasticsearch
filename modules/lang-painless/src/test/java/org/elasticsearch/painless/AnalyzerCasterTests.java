@@ -20,12 +20,10 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.spi.Whitelist;
+
 import org.elasticsearch.test.ESTestCase;
 
 public class AnalyzerCasterTests extends ESTestCase {
-
-    private static final Definition definition = new Definition(Whitelist.BASE_WHITELISTS);
 
     private static void assertCast(Class<?> actual, Class<?> expected, boolean mustBeExplicit) {
         Location location = new Location("dummy", 0);

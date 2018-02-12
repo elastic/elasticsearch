@@ -76,7 +76,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
         configureRepositories(project)
@@ -261,6 +260,9 @@ class BuildPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     static void configureConfigurations(Project project) {
+        // we want to test compileOnly deps!
+        project.configurations.testCompile.extendsFrom(project.configurations.compileOnly)
+
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
@@ -297,7 +299,7 @@ class BuildPlugin implements Plugin<Project> {
 
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
-        project.configurations.provided.dependencies.all(disableTransitiveDeps)
+        project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
     }
 
     /** Adds repositories used by ES dependencies */
@@ -567,6 +569,9 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                jvmArg '--illegal-access=warn'
+            }
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
@@ -662,7 +667,7 @@ class BuildPlugin implements Plugin<Project> {
         // only require dependency licenses for non-elasticsearch deps
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
-        } - project.configurations.provided
+        } - project.configurations.compileOnly
     }
 
     private static configureDependenciesInfo(Project project) {

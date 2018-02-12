@@ -165,7 +165,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
                     parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
                 } else {
-                    fieldParser.assertSupports(name, token, currentFieldName, parser.getTokenLocation());
+                    fieldParser.assertSupports(name, parser, currentFieldName);
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
@@ -298,6 +298,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Get the name of the parser.
      */
+    @Override
     public String getName() {
         return name;
     }
@@ -361,13 +362,14 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             this.type = type;
         }
 
-        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, XContentLocation location) {
-            if (parseField.match(currentFieldName) == false) {
-                throw new ParsingException(location, "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
+        void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
+            if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
-            if (supportedTokens.contains(token) == false) {
-                throw new ParsingException(location, 
-                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + token);
+            if (supportedTokens.contains(parser.currentToken()) == false) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + parser.currentToken());
             }
         }
 
@@ -399,6 +401,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         LONG(VALUE_NUMBER, VALUE_STRING),
         LONG_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         INT(VALUE_NUMBER, VALUE_STRING),
+        INT_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         BOOLEAN(VALUE_BOOLEAN, VALUE_STRING),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
         FLOAT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
@@ -413,7 +416,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING),
-        VALUE_OBJECT_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING, START_OBJECT, START_ARRAY);
+        VALUE_OBJECT_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING, START_OBJECT, START_ARRAY),
+        VALUE_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_NUMBER, VALUE_STRING, START_ARRAY);
 
         private final EnumSet<XContentParser.Token> tokens;
 

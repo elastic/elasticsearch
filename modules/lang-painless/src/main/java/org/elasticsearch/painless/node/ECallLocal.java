@@ -69,14 +69,14 @@ public final class ECallLocal extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = Definition.TypeToClass(method.arguments.get(argument));
+            expression.expected = method.arguments.get(argument);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
-        actual = Definition.TypeToClass(method.rtn);
+        actual = method.rtn;
     }
 
     @Override

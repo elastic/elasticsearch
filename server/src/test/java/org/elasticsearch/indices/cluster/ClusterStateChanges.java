@@ -46,7 +46,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.ShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -221,16 +222,16 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<ShardEntry> entries = failedShards.stream().map(failedShard ->
-            new ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
-                0L, failedShard.getMessage(), failedShard.getFailure()))
+        List<FailedShardEntry> entries = failedShards.stream().map(failedShard ->
+            new FailedShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
+                0L, failedShard.getMessage(), failedShard.getFailure(), failedShard.markAsStale()))
             .collect(Collectors.toList());
         return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        List<ShardEntry> entries = startedShards.stream().map(startedShard ->
-            new ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null))
+        List<StartedShardEntry> entries = startedShards.stream().map(startedShard ->
+            new StartedShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), "shard started"))
             .collect(Collectors.toList());
         return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
     }

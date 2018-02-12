@@ -311,15 +311,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                     }
                 }
             } else if (token.isValue()) {
-                if (DISTANCE_FIELD.match(currentFieldName)) {
+                if (DISTANCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         vDistance = parser.text(); // a String
                     } else {
                         vDistance = parser.numberValue(); // a Number
                     }
-                } else if (UNIT_FIELD.match(currentFieldName)) {
+                } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (DISTANCE_TYPE_FIELD.match(currentFieldName)) {
+                } else if (DISTANCE_TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(".lat")) {
                     point.resetLat(parser.doubleValue());
@@ -327,13 +327,13 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 } else if (currentFieldName.endsWith(".lon")) {
                     point.resetLon(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - ".lon".length());
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
                     if (fieldName == null) {

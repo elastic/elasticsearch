@@ -308,3 +308,5 @@ specific bucket like this:
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
+In case your S3 endpoint is in the same region as your AWS instances you should think about enabling link:https://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/vpc-endpoints-s3.html[Gateway VPC Endpoints for S3] which overcomes the traffic limitation but also safes money in most cases.

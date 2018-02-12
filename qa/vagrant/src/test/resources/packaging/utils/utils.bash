@@ -416,6 +416,8 @@ stop_elasticsearch_service() {
 }
 
 # the default netcat packages in the distributions we test are not all compatible
+# so we use /dev/tcp - a feature of bash which makes tcp connections
+# http://tldp.org/LDP/abs/html/devref1.html#DEVTCP
 test_port() {
     local host="$1"
     local port="$2"
@@ -425,8 +427,7 @@ test_port() {
 describe_port() {
     local host="$1"
     local port="$2"
-    run test_port "$host" "$port"
-    if [ "$status" -eq 0 ]; then
+    if test_port "$host" "$port"; then
         echo "port $port on host $host is open"
     else
         echo "port $port on host $host is not open"
@@ -466,7 +467,7 @@ wait_for_elasticsearch_status() {
     local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries 120 http://localhost:9200/_cluster/health || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries=120 http://localhost:9200/_cluster/health || {
         echo "Looks like elasticsearch never started"
         debug_collect_logs
         false

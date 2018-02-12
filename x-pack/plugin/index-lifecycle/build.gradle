@@ -17,10 +17,8 @@ licenseHeaders.enabled = false
 integTest.enabled = false
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
-    provided "org.elasticsearch.plugin:x-pack-core:${version}"
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {

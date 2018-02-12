@@ -50,6 +50,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private volatile int pendingSnapshots;
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
 
@@ -61,6 +62,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.startingCommit = startingCommit;
         this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.pendingSnapshots = 0;
     }
 
     @Override
@@ -163,6 +165,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
         snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        pendingSnapshots++;
         return new SnapshotIndexCommit(snapshotting);
     }
 
@@ -178,6 +181,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
         }
+        pendingSnapshots--;
     }
 
     /**
@@ -235,7 +239,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     boolean hasUnreferencedCommits() throws IOException {
         final IndexCommit lastCommit = this.lastCommit;
-        if (safeCommit != lastCommit) { // Race condition can happen but harmless
+        if (safeCommit != lastCommit && pendingSnapshots == 0) { // Race condition can happen but harmless
             if (lastCommit.getUserData().containsKey(SequenceNumbers.MAX_SEQ_NO)) {
                 final long maxSeqNoFromLastCommit = Long.parseLong(lastCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
                 // We can clean up the current safe commit if the last commit is safe

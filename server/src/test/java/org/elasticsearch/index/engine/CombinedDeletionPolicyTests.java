@@ -277,6 +277,9 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false));
             // Advanced enough
             globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
+            final IndexCommit snapshot = indexPolicy.acquireIndexCommit(randomBoolean());
+            assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(false)); // Having snapshot -> false.
+            indexPolicy.releaseCommit(snapshot);
             assertThat(indexPolicy.hasUnreferencedCommits(), equalTo(true));
             commitList.forEach(this::resetDeletion);
             indexPolicy.onCommit(commitList);

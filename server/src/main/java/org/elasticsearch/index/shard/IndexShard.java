@@ -1360,7 +1360,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
 
         assert openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG || assertMaxUnsafeAutoIdInCommit();
-        
+
         final EngineConfig config = newEngineConfig(openMode, forceNewHistoryUUID);
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
@@ -1370,8 +1370,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we have to set it before we open an engine and recover from the translog because
             // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
             // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            globalCheckpointTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
-                "read from translog checkpoint");
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         }
         createNewEngine(config);
         verifyNotClosed();

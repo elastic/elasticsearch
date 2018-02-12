@@ -430,7 +430,8 @@ public class InternalEngine extends Engine {
             case OPEN_INDEX_AND_TRANSLOG:
                 // Use the safe commit
                 final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+                final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                 existingCommits = DirectoryReader.listCommits(store.directory());
                 // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
                 // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.

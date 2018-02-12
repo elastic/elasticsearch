@@ -21,9 +21,11 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -40,6 +42,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Tracks shard operation permits. Each operation on the shard obtains a permit. When we need to block operations (e.g., to transition
@@ -58,9 +61,9 @@ final class IndexShardOperationPermits implements Closeable {
     private volatile boolean closed;
     private boolean delayed; // does not need to be volatile as all accesses are done under a lock on this
 
-    // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics. Value is an
-    // exception with some extra info in the message + a stack trace of the acquirer
-    private final Map<AtomicBoolean, Throwable> issuedPermits;
+    // only valid when assertions are enabled. Key is AtomicBoolean associated with each permit to ensure close once semantics.
+    // Value is a tuple, with a some debug information supplied by the caller and a stack trace of the acquiring thread
+    private final Map<AtomicBoolean, Tuple<String, StackTraceElement[]>> issuedPermits;
 
     /**
      * Construct operation permits for the specified shards.
@@ -196,7 +199,7 @@ final class IndexShardOperationPermits implements Closeable {
              */
             threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                 for (DelayedOperation queuedAction : queuedActions) {
-                    acquire(queuedAction.listener, null, false, queuedAction.debugInfo);
+                    acquire(queuedAction.listener, null, false, queuedAction.debugInfo, queuedAction.stackTrace);
                 }
             });
         }
@@ -221,17 +224,17 @@ final class IndexShardOperationPermits implements Closeable {
      */
     public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
                         final Object debugInfo) {
-        final Throwable debugInfoWithStackTrace;
+        final StackTraceElement[] stackTrace;
         if (Assertions.ENABLED) {
-            debugInfoWithStackTrace = new Throwable(debugInfo.toString());
+            stackTrace = Thread.currentThread().getStackTrace();
         } else {
-            debugInfoWithStackTrace = null;
+            stackTrace = null;
         }
-        acquire(onAcquired, executorOnDelay, forceExecution, debugInfoWithStackTrace);
+        acquire(onAcquired, executorOnDelay, forceExecution, debugInfo, stackTrace);
     }
 
     private void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
-                        final Throwable debugInfo) {
+                        final Object debugInfo, final StackTraceElement[] stackTrace) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
@@ -249,10 +252,10 @@ final class IndexShardOperationPermits implements Closeable {
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
-                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo));
+                    delayedOperations.add(new DelayedOperation(wrappedListener, debugInfo, stackTrace));
                     return;
                 } else {
-                    releasable = acquire(debugInfo);
+                    releasable = acquire(debugInfo, stackTrace);
                 }
             }
         } catch (final InterruptedException e) {
@@ -263,21 +266,21 @@ final class IndexShardOperationPermits implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    private Releasable acquire(Throwable debugInfo) throws InterruptedException {
+    private Releasable acquire(Object debugInfo, StackTraceElement[] stackTrace) throws InterruptedException {
         assert Thread.holdsLock(this);
         if (semaphore.tryAcquire(1, 0, TimeUnit.SECONDS)) { // the un-timed tryAcquire methods do not honor the fairness setting
             final AtomicBoolean closed = new AtomicBoolean();
             final Releasable releasable = () -> {
                 if (closed.compareAndSet(false, true)) {
                     if (Assertions.ENABLED) {
-                        Throwable e = issuedPermits.remove(closed);
-                        assert e != null;
+                        Tuple<String, StackTraceElement[]> existing = issuedPermits.remove(closed);
+                        assert existing != null;
                     }
                     semaphore.release(1);
                 }
             };
             if (Assertions.ENABLED) {
-                issuedPermits.put(closed, debugInfo);
+                issuedPermits.put(closed, new Tuple<>(debugInfo.toString(), stackTrace));
             }
             return releasable;
         } else {
@@ -306,23 +309,28 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * @return a list of containing an exception for each permit that wasn't released yet. The stack traces of the exceptions
-     *         was captured when the operation acquired the permit and their message contains the debug information supplied at the time.
+     * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
+     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
      */
-    List<Throwable> getActiveOperations() {
-        return new ArrayList<>(issuedPermits.values());
+    List<String> getActiveOperations() {
+        return issuedPermits.values().stream().map(
+            t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2()))
+            .collect(Collectors.toList());
     }
 
     private static class DelayedOperation {
-       private final ActionListener<Releasable> listener;
-       private final Throwable debugInfo;
+        private final ActionListener<Releasable> listener;
+        private final String debugInfo;
+        private final StackTraceElement[] stackTrace;
 
-        private DelayedOperation(ActionListener<Releasable> listener, Throwable debugInfo) {
+        private DelayedOperation(ActionListener<Releasable> listener, Object debugInfo, StackTraceElement[] stackTrace) {
             this.listener = listener;
             if (Assertions.ENABLED) {
-                this.debugInfo = new Throwable("delayed", debugInfo);
+                this.debugInfo = "[delayed] " + debugInfo;
+                this.stackTrace = stackTrace;
             } else {
                 this.debugInfo = null;
+                this.stackTrace = null;
             }
         }
     }

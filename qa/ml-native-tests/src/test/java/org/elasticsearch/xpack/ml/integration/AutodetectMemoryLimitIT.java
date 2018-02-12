@@ -84,10 +84,10 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // it is important to check that while we rejected partitions, we still managed
         // to create some by fields; it shows we utilize memory in a meaningful way
         // rather than creating empty partitions
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(1000L));
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(600L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(900L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(600L));
+        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(1100L));
+        assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(850L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1000L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(750L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -133,8 +133,8 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(2100L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1500L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(2300L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(2000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
@@ -235,7 +235,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(95000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(90000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(75000000L));
         assertThat(modelSizeStats.getTotalOverFieldCount(), greaterThan(140000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.OK));

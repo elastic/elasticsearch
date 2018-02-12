@@ -143,15 +143,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
-    @Override
-    protected void afterIfFailed(List<Throwable> errors) {
-        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-        logger.info("Stash dump on failure [{}]",
-                Strings.toString(restTestExecutionContext.stash(), true, true)
-                        .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-        super.afterIfFailed(errors);
-    }
-
     public static Iterable<Object[]> createParameters() throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
@@ -343,10 +334,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private void executeSection(ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage(executableSection, e), e);
-        } catch (AssertionError e) {
-            throw new AssertionError(errorMessage(executableSection, e), e);
+        } catch (AssertionError | Exception e) {
+            // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+            logger.info("Stash dump on test failure [{}]",
+                    Strings.toString(restTestExecutionContext.stash(), true, true)
+                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            if (e instanceof AssertionError) {
+                throw new AssertionError(errorMessage(executableSection, e), e);
+            } else {
+                throw new RuntimeException(errorMessage(executableSection, e), e);
+            }
         }
     }
 

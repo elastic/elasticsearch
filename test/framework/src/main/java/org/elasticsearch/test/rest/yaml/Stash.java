@@ -37,6 +37,8 @@ import java.util.regex.Pattern;
 /**
  * Allows to cache the last obtained test response and or part of it within variables
  * that can be used as input values in following requests and assertions.
+ *
+ * Note that this class is not thread safe.
  */
 public class Stash implements ToXContentFragment {
     private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
@@ -44,15 +46,16 @@ public class Stash implements ToXContentFragment {
 
     private static final Logger logger = Loggers.getLogger(Stash.class);
 
-    public static final Stash EMPTY = new Stash();
-
     private final Map<String, Object> stash = new HashMap<>();
     private final ObjectPath stashObjectPath = new ObjectPath(stash);
+
+    private final Thread creationThread = Thread.currentThread();
 
     /**
      * Allows to saved a specific field in the stash as key-value pair
      */
     public void stashValue(String key, Object value) {
+        assertThread();
         logger.trace("stashing [{}]=[{}]", key, value);
         Object old = stash.put(key, value);
         if (old != null && old != value) {
@@ -64,6 +67,7 @@ public class Stash implements ToXContentFragment {
      * Clears the previously stashed values
      */
     public void clear() {
+        assertThread();
         stash.clear();
     }
 
@@ -74,6 +78,7 @@ public class Stash implements ToXContentFragment {
      * as arguments for following requests (e.g. scroll_id)
      */
     public boolean containsStashedValue(Object key) {
+        assertThread();
         if (key == null || false == key instanceof CharSequence) {
             return false;
         }
@@ -93,6 +98,7 @@ public class Stash implements ToXContentFragment {
      * as arguments for following requests (e.g. scroll_id)
      */
     public Object getValue(String key) throws IOException {
+        assertThread();
         if (key.charAt(0) == '$' && key.charAt(1) != '{') {
             return unstash(key.substring(1));
         }
@@ -126,6 +132,7 @@ public class Stash implements ToXContentFragment {
      */
     @SuppressWarnings("unchecked") // Safe because we check that all the map keys are string in unstashObject
     public Map<String, Object> replaceStashedValues(Map<String, Object> map) throws IOException {
+        assertThread();
         return (Map<String, Object>) unstashObject(new ArrayList<>(), map);
     }
 
@@ -201,7 +208,16 @@ public class Stash implements ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assertThread();
         builder.field("stash", stash);
         return builder;
+    }
+
+    private void assertThread() {
+        if (creationThread != Thread.currentThread()) {
+            throw new AssertionError(this + " are only supposed to be consumed in "
+                    + "the thread in which they have been acquired. But was acquired in "
+                    + creationThread + " and consumed in " + Thread.currentThread() + ".");
+        }
     }
 }

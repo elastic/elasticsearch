@@ -1703,11 +1703,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final Checkpoint checkpoint = readCheckpoint(location);
         // We need to open at least translog reader to validate the translogUUID.
         final Path translogFile = location.resolve(getFilename(checkpoint.generation));
-        if (Files.exists(translogFile) == false) {
-            throw new TranslogCorruptedException("Translog file [" + translogFile + "] doesn't exist; checkpoint [" + checkpoint + "]");
-        }
-        try (TranslogReader reader = openReader(translogFile,
-            Checkpoint.read(location.resolve(getCommitCheckpointFileName(checkpoint.generation))), expectedTranslogUUID)) {
+        try (TranslogReader reader = openReader(translogFile, checkpoint, expectedTranslogUUID)) {
+
+        } catch (TranslogCorruptedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new TranslogCorruptedException("Translog at [" + location + "] is corrupted", ex);
         }
         return checkpoint.globalCheckpoint;
     }

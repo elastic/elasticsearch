@@ -39,6 +39,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -143,14 +144,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
                                                             Version esVersion, Map<HttpHost, Version> hostVersionMap) throws IOException {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, hostVersionMap);
-    }
-
-    @Override
-    protected void afterIfFailed(List<Throwable> errors) {
-        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-        logger.info("Stash dump on failure [{}]",
-                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-        super.afterIfFailed(errors);
     }
 
     public static Iterable<Object[]> createParameters() throws Exception {
@@ -344,10 +337,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private void executeSection(ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage(executableSection, e), e);
-        } catch (AssertionError e) {
-            throw new AssertionError(errorMessage(executableSection, e), e);
+        } catch (AssertionError | Exception e) {
+            // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+            Map<String, String> params = new HashMap<>();
+            params.put("pretty", "true");
+            params.put("human", "true");
+            logger.info("Stash dump on test failure [{}]",
+                    XContentHelper.toString(restTestExecutionContext.stash(), new ToXContent.MapParams(params))
+                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            if (e instanceof AssertionError) {
+                throw new AssertionError(errorMessage(executableSection, e), e);
+            } else {
+                throw new RuntimeException(errorMessage(executableSection, e), e);
+            }
         }
     }
 

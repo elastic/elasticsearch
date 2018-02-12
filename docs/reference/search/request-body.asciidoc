@@ -120,6 +120,12 @@ all clients support GET with body, POST is allowed as well.
 [float]
 === Fast check for any matching docs
 
+NOTE: `terminate_after` is always applied **after** the `post_filter` and stops
+       the query as well as the aggregation executions when enough hits have been
+       collected on the shard. Though the doc count on aggregations may not reflect
+       the `hits.total` in the response since aggregations are applied **before** the
+       post filtering.
+
 In case we only want to know if there are any documents matching a
 specific query, we can set the `size` to `0` to indicate that we are not
 interested in the search results. Also we can set `terminate_after` to `1`
@@ -128,7 +134,7 @@ matching document was found (per shard).
 
 [source,js]
 --------------------------------------------------
-GET /_search?q=message:elasticsearch&size=0&terminate_after=1
+GET /_search?q=message:number&size=0&terminate_after=1
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

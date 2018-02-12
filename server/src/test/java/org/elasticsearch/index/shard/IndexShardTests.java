@@ -1146,12 +1146,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
 
-        if (randomBoolean() || true) { // try to serialize it to ensure values survive the serialization
-            BytesStreamOutput out = new BytesStreamOutput();
-            stats.writeTo(out);
-            StreamInput in = out.bytes().streamInput();
-            stats = ShardStats.readShardStats(in);
-        }
+        // try to serialize it to ensure values survive the serialization
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        stats = ShardStats.readShardStats(in);
+
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);

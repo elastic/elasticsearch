@@ -121,9 +121,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         // random cities with no location
         for (String cityName : Arrays.asList("london", "singapour", "tokyo", "milan")) {
-            if (randomBoolean() || true) {
-                cities.add(indexCity("idx-multi", cityName));
-            }
+            cities.add(indexCity("idx-multi", cityName));
         }
         indexRandom(true, cities);
         prepareCreate("empty_bucket_idx")

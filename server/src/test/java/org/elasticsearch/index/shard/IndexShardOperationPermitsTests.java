@@ -662,21 +662,21 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         permits.acquire(listener2, null, false, "listener2");
 
         assertThat(permits.getActiveOperationsCount(), equalTo(2));
-        List<String> messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+        List<String> messages = permits.getActiveOperations().stream().collect(Collectors.toList());
         assertThat(messages, hasSize(2));
         assertThat(messages, containsInAnyOrder(Arrays.asList(containsString("listener1"), containsString("listener2"))));
 
         if (randomBoolean()) {
             listener1.get().close();
             assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
             assertThat(messages, hasSize(1));
             assertThat(messages, contains(containsString("listener2")));
             listener2.get().close();
         } else {
             listener2.get().close();
             assertThat(permits.getActiveOperationsCount(), equalTo(1));
-            messages = permits.getActiveOperations().stream().map(Throwable::getMessage).collect(Collectors.toList());
+            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
             assertThat(messages, hasSize(1));
             assertThat(messages, contains(containsString("listener1")));
             listener1.get().close();

@@ -1706,7 +1706,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (TranslogReader reader = openReader(translogFile, checkpoint, expectedTranslogUUID)) {
 
         } catch (TranslogCorruptedException ex) {
-            throw ex;
+            throw ex; // just bubble up.
         } catch (Exception ex) {
             throw new TranslogCorruptedException("Translog at [" + location + "] is corrupted", ex);
         }

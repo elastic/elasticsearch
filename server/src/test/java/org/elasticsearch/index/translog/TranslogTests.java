@@ -36,6 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -2580,6 +2581,22 @@ public class TranslogTests extends ESTestCase {
                 assertThat(deletionPolicy.getTranslogRefCount(minGen), equalTo(0L));
             }
         }
+    }
+
+    public void testReadGlobalCheckpoint() throws Exception {
+        final String translogUUID = translog.getTranslogUUID();
+        globalCheckpoint.set(randomNonNegativeLong());
+        final int operations = randomIntBetween(1, 100);
+        for (int i = 0; i < operations; i++) {
+            translog.add(new Translog.NoOp(randomNonNegativeLong(), 0, "test'"));
+            if (rarely()) {
+                translog.rollGeneration();
+            }
+        }
+        rollAndCommit(translog);
+        translog.close();
+        assertThat(Translog.readGlobalCheckpoint(translogDir, translogUUID), equalTo(globalCheckpoint.get()));
+        expectThrows(TranslogCorruptedException.class, () -> Translog.readGlobalCheckpoint(translogDir, UUIDs.randomBase64UUID()));
     }
 
     public void testSnapshotReadOperationInReverse() throws Exception {

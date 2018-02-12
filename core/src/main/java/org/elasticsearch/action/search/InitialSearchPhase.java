@@ -250,8 +250,11 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         if (xTotalOps == expectedTotalOps) {
             onPhaseDone();
         } else if (xTotalOps > expectedTotalOps) {
-            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
-                + expectedTotalOps + "]");
+            StringBuilder toSkipShardsIds = new StringBuilder();
+            toSkipShardsIts.forEach(s -> toSkipShardsIds.append(s.shardId()).append(","));
+            throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps
+                    + "]. Last successful shard info: shardId: [" + shardsIt.shardId() + "], shardRoutings: ["
+                    + shardsIt.getShardRoutings() + "]. Shards set to skip: [" + toSkipShardsIds + "]");
         } else if (shardsIt.skip() == false) {
             maybeExecuteNext();
         }

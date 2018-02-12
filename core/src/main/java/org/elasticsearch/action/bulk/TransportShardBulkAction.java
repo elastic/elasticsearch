@@ -395,7 +395,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         Exception failure = operationResult.getFailure();
                         assert failure instanceof VersionConflictEngineException
                                 || failure instanceof MapperParsingException
-                                : "expected version conflict or mapper parsing failures";
+                                : "expected version conflict or mapper parsing failures, but got "
+                            + ExceptionsHelper.stackTrace(operationResult.getFailure());
                         if (!TransportActions.isShardNotAvailableException(failure)) {
                             throw failure;
                         }

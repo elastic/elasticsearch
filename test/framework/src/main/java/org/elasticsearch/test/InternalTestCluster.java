@@ -28,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -1138,11 +1137,11 @@ public final class InternalTestCluster extends TestCluster {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        List<Throwable> operations = indexShard.getActiveOperations();
+                        List<String> operations = indexShard.getActiveOperations();
                         if (operations.size() > 0) {
                             throw new AssertionError(
-                                "shard " + indexShard.shardId() + " on node [" + nodeAndClient.name + "] has pending operations:\n" +
-                                    operations.stream().map(e -> "--> " + ExceptionsHelper.stackTrace(e)).collect(Collectors.joining("\n"))
+                                "shard " + indexShard.shardId() + " on node [" + nodeAndClient.name + "] has pending operations:\n --> " +
+                                    operations.stream().collect(Collectors.joining("\n --> "))
                             );
                         }
                     }

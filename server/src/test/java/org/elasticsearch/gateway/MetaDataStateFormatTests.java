@@ -74,7 +74,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
      * Ensure we can read a pre-generated cluster state.
      */
     public void testReadClusterState() throws URISyntaxException, IOException {
-        final MetaDataStateFormat<MetaData> format = new MetaDataStateFormat<MetaData>(randomFrom(XContentType.values()), "global-") {
+        final MetaDataStateFormat<MetaData> format = new MetaDataStateFormat<MetaData>("global-") {
 
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
@@ -103,7 +103,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
-        Format format = new Format(randomFrom(XContentType.values()), "foo-");
+        Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
@@ -145,7 +145,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final long id = addDummyFiles("foo-", dirs);
 
-        Format format = new Format(randomFrom(XContentType.values()), "foo-");
+        Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
@@ -169,7 +169,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             dirs[i] = createTempDir();
         }
         final long id = addDummyFiles("foo-", dirs);
-        Format format = new Format(randomFrom(XContentType.values()), "foo-");
+        Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
@@ -244,17 +244,16 @@ public class MetaDataStateFormatTests extends ESTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = metaDataFormat(randomFrom(XContentType.values()));
+        MetaDataStateFormat<MetaData> format = metaDataFormat();
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numLegacy; j++) {
-                XContentType type = format.format();
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-"+j);
                     Files.createFile(file); // randomly create 0-byte files -- there is extra logic to skip them
                 } else {
-                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(type,
+                    try (XContentBuilder xcontentBuilder = XContentFactory.contentBuilder(MetaDataStateFormat.FORMAT,
                         Files.newOutputStream(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j)))) {
                         xcontentBuilder.startObject();
                         MetaData.Builder.toXContent(meta.get(j), xcontentBuilder, ToXContent.EMPTY_PARAMS);
@@ -309,8 +308,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    private static MetaDataStateFormat<MetaData> metaDataFormat(XContentType format) {
-        return new MetaDataStateFormat<MetaData>(format, MetaData.GLOBAL_STATE_FILE_PREFIX) {
+    private static MetaDataStateFormat<MetaData> metaDataFormat() {
+        return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
                 MetaData.Builder.toXContent(state, builder, ToXContent.EMPTY_PARAMS);
@@ -347,8 +346,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private class Format extends MetaDataStateFormat<DummyState> {
 
-        Format(XContentType format, String prefix) {
-            super(format, prefix);
+        Format(String prefix) {
+            super(prefix);
         }
 
         @Override

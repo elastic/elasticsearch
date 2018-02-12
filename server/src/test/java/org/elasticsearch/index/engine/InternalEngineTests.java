@@ -2079,9 +2079,9 @@ public class InternalEngineTests extends EngineTestCase {
     // this test writes documents to the engine while concurrently flushing/commit
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
-        List<Engine.IndexCommitRef> commits = new ArrayList<>();
         try (Store store = createStore();
              InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
+            final List<Engine.IndexCommitRef> commits = new ArrayList<>();
 
             final int numIndexingThreads = scaledRandomIntBetween(2, 4);
             final int numDocsPerThread = randomIntBetween(500, 1000);
@@ -2166,8 +2166,6 @@ public class InternalEngineTests extends EngineTestCase {
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
-        } finally {
-            IOUtils.close(commits);
         }
     }
 

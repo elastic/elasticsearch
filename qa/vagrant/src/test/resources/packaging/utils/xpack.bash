@@ -96,7 +96,12 @@ assert_number_of_files() {
 wait_for_xpack() {
     local host=${1:-localhost}
     local port=${2:-9200}
-    for i in {1..30}; do
-        echo "GET / HTTP/1.0" > /dev/tcp/$host/$port && break || sleep 1;
+
+    local waitFor
+    for i in {1..60}; do
+        waitFor=$(echo "GET / HTTP/1.0" > /dev/tcp/$host/$port; echo $?)
+        [ "$waitFor" -eq "0" ] && break || sleep 1;
     done
+
+    [ "$waitFor" -eq "0" ]
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
@@ -41,6 +40,8 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
@@ -51,8 +52,6 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
 import org.elasticsearch.xpack.watcher.notification.email.Email;
@@ -220,66 +219,60 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     private void createWatcherIndicesOrAliases() throws Exception {
         if (internalCluster().size() > 0) {
             // alias for .watches, setting the index template to the same as well
+            String watchIndexName;
+            String triggeredWatchIndexName;
             if (rarely()) {
-                String newIndex = ".watches-alias-index";
+                watchIndexName = ".watches-alias-index";
                 BytesReference bytesReference = TemplateUtils.load("/watches.json");
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
                     Map<String, Object> parserMap = parser.map();
                     Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 
-                    CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                    CreateIndexResponse response = client().admin().indices().prepareCreate(watchIndexName)
                             .setCause("Index to test aliases with .watches index")
                             .addAlias(new Alias(Watch.INDEX))
                             .setSettings((Map<String, Object>) parserMap.get("settings"))
                             .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
                             .get();
                     assertAcked(response);
-                    ensureGreen(newIndex);
                 }
-                logger.info("set alias for .watches index to [{}]", newIndex);
+                logger.info("set alias for .watches index to [{}]", watchIndexName);
             } else {
+                watchIndexName = Watch.INDEX;
                 Settings.Builder builder = Settings.builder();
                 if (randomBoolean()) {
                     builder.put("index.number_of_shards", scaledRandomIntBetween(1, 5));
                 }
-                if (randomBoolean()) {
-                    // maximum number of replicas
-                    ClusterState state = internalCluster().getDataNodeInstance(ClusterService.class).state();
-                    int dataNodeCount = state.nodes().getDataNodes().size();
-                    int replicas = scaledRandomIntBetween(0, dataNodeCount - 1);
-                    builder.put("index.number_of_replicas", replicas);
-                }
-                assertAcked(client().admin().indices().prepareCreate(Watch.INDEX).setSettings(builder));
-                ensureGreen(Watch.INDEX);
+                assertAcked(client().admin().indices().prepareCreate(watchIndexName).setSettings(builder));
             }
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (rarely()) {
-                String newIndex = ".triggered-watches-alias-index";
+                triggeredWatchIndexName = ".triggered-watches-alias-index";
                 BytesReference bytesReference = TemplateUtils.load("/triggered-watches.json");
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
                     Map<String, Object> parserMap = parser.map();
                     Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 
-                    CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
+                    CreateIndexResponse response = client().admin().indices().prepareCreate(triggeredWatchIndexName)
                             .setCause("Index to test aliases with .triggered-watches index")
                             .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
                             .setSettings((Map<String, Object>) parserMap.get("settings"))
                             .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
                             .get();
                     assertAcked(response);
-                    ensureGreen(newIndex);
+                    ensureGreen(triggeredWatchIndexName);
                 }
-                logger.info("set alias for .triggered-watches index to [{}]", newIndex);
+                logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
-                assertAcked(client().admin().indices().prepareCreate(TriggeredWatchStoreField.INDEX_NAME));
-                ensureGreen(TriggeredWatchStoreField.INDEX_NAME);
+                triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
+                assertAcked(client().admin().indices().prepareCreate(triggeredWatchIndexName));
             }
 
             String historyIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
             assertAcked(client().admin().indices().prepareCreate(historyIndex));
             logger.info("creating watch history index [{}]", historyIndex);
-            ensureGreen(historyIndex);
+            ensureGreen(historyIndex, watchIndexName, triggeredWatchIndexName);
         }
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -33,7 +34,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -321,6 +321,42 @@ public class HttpClientTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(0));
             assertThat(proxyServer.requests(), hasSize(1));
         }
+    }
+
+    public void testSetProxy() throws Exception {
+        HttpProxy localhostHttpProxy = new HttpProxy("localhost", 1234, Scheme.HTTP);
+        RequestConfig.Builder config = RequestConfig.custom();
+
+        // no proxy configured at all
+        HttpClient.setProxy(config, HttpRequest.builder().fromUrl("https://elastic.co").build(), HttpProxy.NO_PROXY);
+        assertThat(config.build().getProxy(), is(nullValue()));
+
+        // no system wide proxy configured, proxy in request
+        config = RequestConfig.custom();
+        HttpClient.setProxy(config,
+                HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456)).build(),
+                HttpProxy.NO_PROXY);
+        assertThat(config.build().getProxy().toString(), is("http://localhost:23456"));
+
+        // system wide proxy configured, no proxy in request
+        config = RequestConfig.custom();
+        HttpClient.setProxy(config, HttpRequest.builder().fromUrl("https://elastic.co").build(),
+                localhostHttpProxy);
+        assertThat(config.build().getProxy().toString(), is("http://localhost:1234"));
+
+        // proxy in request, no system wide proxy configured. request
+        config = RequestConfig.custom();
+        HttpClient.setProxy(config,
+                HttpRequest.builder().fromUrl("https://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTP)).build(),
+                HttpProxy.NO_PROXY);
+        assertThat(config.build().getProxy().toString(), is("http://localhost:23456"));
+
+        // proxy in request, system wide proxy configured. request wins
+        config = RequestConfig.custom();
+        HttpClient.setProxy(config,
+                HttpRequest.builder().fromUrl("http://elastic.co").proxy(new HttpProxy("localhost", 23456, Scheme.HTTPS)).build(),
+                localhostHttpProxy);
+        assertThat(config.build().getProxy().toString(), is("https://localhost:23456"));
     }
 
     public void testProxyCanHaveDifferentSchemeThanRequest() throws Exception {

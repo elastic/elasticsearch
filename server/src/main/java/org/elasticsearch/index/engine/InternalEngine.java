@@ -480,13 +480,18 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            translogUUID = loadTranslogUUIDFromLastCommit();
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
+        final String translogUUID;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID =
+                    Translog.createEmptyTranslog(translogConfig.getTranslogPath(), globalCheckpointSupplier.getAsLong(), shardId);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                translogUUID = loadTranslogUUIDFromLastCommit();
+                break;
+            default:
+                throw new AssertionError("Unknown openMode " + openMode);
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }

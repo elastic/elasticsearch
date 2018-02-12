@@ -13,6 +13,7 @@ integTestCluster {
   setting 'xpack.watcher.enabled', 'true'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
 
   // exporter settings are configured dynamically in our tests
   // configure a local exporter, the HTTP exporter is configured via dynamic settings change

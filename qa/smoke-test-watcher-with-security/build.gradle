@@ -28,6 +28,7 @@ integTestCluster {
   setting 'xpack.notification.email.account._email.smtp.port', '587'
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
   setting 'xpack.notification.email.account._email.smtp.password', '_passwd'
+  setting 'xpack.license.self_generated.type', 'trial'
   plugin xpackProject('plugin').path
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',

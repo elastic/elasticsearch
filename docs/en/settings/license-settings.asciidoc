@@ -10,10 +10,10 @@ For more information, see
 {xpack-ref}/license-management.html[{xpack} License Management].
 
 `xpack.license.self_generated.type`::
-Set to `trial` (default) to enable all {xpack} features. +
+Set to `basic` (default) to enable basic {xpack} features. +
 +
 --
-If set to `basic`, the self-generated license gives access only to the features
-of a standard basic license. You can later upgrade the cluster to a trial
-license.
+If set to `trial`, the self-generated license gives access only to all the features
+of a x-pack for 30 days. You can later downgrade the cluster to a basic license if
+needed.
 --

@@ -51,7 +51,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyGetLicense() throws Exception {
-        // trail license is added async, we should wait for it
+        // basic license is added async, we should wait for it
         assertBusy(() -> {
             try {
                 final ActionFuture<GetLicenseResponse> getLicenseFuture =
@@ -59,7 +59,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
                 final GetLicenseResponse getLicenseResponse;
                 getLicenseResponse = getLicenseFuture.get();
                 assertNotNull(getLicenseResponse.license());
-                assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.TRIAL));
+                assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.BASIC));
             } catch (Exception e) {
                 throw new RuntimeException("unexpected exception", e);
             }

@@ -59,6 +59,7 @@ integTestCluster {
   setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
   setting 'xpack.security.audit.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
   plugin xpackProject('plugin').path
 
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'

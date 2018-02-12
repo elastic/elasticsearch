@@ -142,6 +142,7 @@ integTestCluster {
     // Disable monitoring exporters for the docs tests
     setting 'xpack.monitoring.exporters._local.type', 'local'
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
     setupCommand 'setupTestAdmin',
             'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     waitCondition = waitWithAuth

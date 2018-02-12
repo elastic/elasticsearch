@@ -13,6 +13,7 @@ integTestCluster {
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   [
     test_admin: 'superuser',

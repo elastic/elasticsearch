@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -56,6 +57,7 @@ public class HipChatServiceTests extends ESSingleNodeTestCase {
         return Settings.builder()
                 .put(super.nodeSettings())
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), true)
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
                 .put("xpack.notification.hipchat.account.integration_account.profile", "integration")

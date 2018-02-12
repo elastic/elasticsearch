@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
@@ -79,6 +80,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
 //        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
 //        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
 //        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);

@@ -21,6 +21,7 @@ integTestRunner {
 integTestCluster {
   plugin xpackProject('plugin').path
   setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupTransportClientUser',

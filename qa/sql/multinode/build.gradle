@@ -9,4 +9,5 @@ description = 'Run a subset of SQL tests against multiple nodes'
 integTestCluster {
   numNodes = 2
   setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
 }

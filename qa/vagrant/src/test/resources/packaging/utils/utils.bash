@@ -443,13 +443,13 @@ debug_collect_logs() {
         cat "$es_logfile"
     else
         echo "The elasticsearch log doesn't exist at $es_logfile"
+    fi
 
-	if [ -e "$system_logfile" ]; then
-            echo "Maybe $system_logfile has something:"
-            tail -n20 "$system_logfile"
-	else
-            echo "The logfile at $system_logfile doesn't exist either"
-        fi
+    if [ -e "$system_logfile" ]; then
+        echo "Here's the tail of the log at $system_logfile:"
+        tail -n20 "$system_logfile"
+    else
+        echo "The logfile at $system_logfile doesn't exist"
     fi
 
     echo "Current java processes:"

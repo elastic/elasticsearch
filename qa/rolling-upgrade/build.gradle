@@ -21,6 +21,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     // wait up to two minutes
     final long stopTime = System.currentTimeMillis() + (2 * 60000L);
     Exception lastException = null;
+    int lastResponseCode = 0
 
     while (System.currentTimeMillis() < stopTime) {
 
@@ -36,7 +37,8 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
             httpURLConnection.setConnectTimeout(1000);
             httpURLConnection.setReadTimeout(30000); // read needs to wait for nodes!
             httpURLConnection.connect();
-            if (httpURLConnection.getResponseCode() == 200) {
+            lastResponseCode = httpURLConnection.getResponseCode()
+            if (lastResponseCode == 200) {
                 tmpFile.withWriter StandardCharsets.UTF_8.name(), {
                     it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
                 }
@@ -54,8 +56,13 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         // did not start, so wait a bit before trying again
         Thread.sleep(500L);
     }
-    if (tmpFile.exists() == false && lastException != null) {
-        logger.error("final attempt of calling cluster health failed", lastException)
+    if (tmpFile.exists() == false) {
+        final String message = "final attempt of calling cluster health failed [lastResponseCode=${lastResponseCode}]"
+        if (lastException != null) {
+            logger.error(message, lastException)
+        } else {
+            logger.error(message + " [no exception]")
+        }
     }
     return tmpFile.exists()
 }

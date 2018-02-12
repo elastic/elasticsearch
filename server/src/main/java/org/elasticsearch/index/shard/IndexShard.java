@@ -2149,19 +2149,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
+     *
+     * @param debugInfo an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                  the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                  isn't used
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
         verifyPrimary();
 
-        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
+        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
     private final Object primaryTermMutex = new Object();
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -2170,9 +2174,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo            an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                             isn't used
      */
     public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
-                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
+                                              final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
         final boolean globalCheckpointUpdated;
@@ -2208,7 +2216,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     getLocalCheckpoint(),
                                     localCheckpoint);
                             getEngine().getLocalCheckpointTracker().resetCheckpoint(localCheckpoint);
-                            getEngine().getTranslog().rollGeneration();
+                            getEngine().rollTranslogGeneration();
                         });
                         globalCheckpointUpdated = true;
                     } catch (final Exception e) {
@@ -2258,11 +2266,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 },
                 executorOnDelay,
-                true);
+                true, debugInfo);
     }
 
     public int getActiveOperationsCount() {
         return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    /**
+     * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
+     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
+     */
+    public List<String> getActiveOperations() {
+        return indexShardOperationPermits.getActiveOperations();
     }
 
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {

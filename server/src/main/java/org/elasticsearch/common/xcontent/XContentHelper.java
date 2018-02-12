@@ -51,7 +51,7 @@ public class XContentHelper {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, compressedInput);
+            return XContentFactory.xContent(contentType).createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, compressedInput);
         } else {
             return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
         }

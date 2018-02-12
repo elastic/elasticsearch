@@ -134,7 +134,7 @@ public class NamedXContentRegistry {
         if (entry == null) {
             throw new UnknownNamedObjectException(parser.getTokenLocation(), categoryClass, name);
         }
-        if (false == entry.name.match(name)) {
+        if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
             throw new ParsingException(parser.getTokenLocation(),

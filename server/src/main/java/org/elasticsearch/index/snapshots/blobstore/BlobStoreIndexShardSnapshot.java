@@ -516,24 +516,24 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if (PARSE_NAME.match(currentFieldName)) {
+                        if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
                             snapshot = parser.text();
-                        } else if (PARSE_INDEX_VERSION.match(currentFieldName)) {
+                        } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                             // The index-version is needed for backward compatibility with v 1.0
                             indexVersion = parser.longValue();
-                        } else if (PARSE_START_TIME.match(currentFieldName)) {
+                        } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                             startTime = parser.longValue();
-                        } else if (PARSE_TIME.match(currentFieldName)) {
+                        } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                             time = parser.longValue();
-                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName)) {
+                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
                             numberOfFiles = parser.intValue();
-                        } else if (PARSE_TOTAL_SIZE.match(currentFieldName)) {
+                        } else if (PARSE_TOTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                             totalSize = parser.longValue();
                         } else {
                             throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (PARSE_FILES.match(currentFieldName)) {
+                        if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
                             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 indexFiles.add(FileInfo.fromXContent(parser));
                             }

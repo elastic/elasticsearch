@@ -20,16 +20,21 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
+import java.io.IOException;;
 
 /**
  * A response for a cluster update settings action.
  */
-public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
+public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implements ToXContentObject {
 
     Settings transientSettings;
     Settings persistentSettings;
@@ -67,5 +72,32 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
         Settings.writeSettingsToStream(transientSettings, out);
         Settings.writeSettingsToStream(persistentSettings, out);
         writeAcknowledged(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        addAcknowledgedField(builder);
+        builder.startObject("persistent");
+        persistentSettings.toXContent(builder, params);
+        builder.endObject();
+        builder.startObject("transient");
+        transientSettings.toXContent(builder, params);
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    private static final ObjectParser<ClusterUpdateSettingsResponse, Void> PARSER = new ObjectParser<>("clustre_update_settings_response",
+            true, ClusterUpdateSettingsResponse::new);
+
+    static {
+        PARSER.declareBoolean((r, a) -> r.acknowledged = a, new ParseField("acknowledged"));
+        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), new ParseField("persistent"));
+        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), new ParseField("transient"));
+    }
+
+    public static ClusterUpdateSettingsResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 }

@@ -43,7 +43,7 @@ public abstract class AcknowledgedResponse extends ActionResponse {
             ObjectParser.ValueType.BOOLEAN);
     }
 
-    private boolean acknowledged;
+    protected boolean acknowledged;
 
     protected AcknowledgedResponse() {
 

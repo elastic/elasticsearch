@@ -70,7 +70,7 @@ import java.util.concurrent.TimeUnit;
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
+ * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {

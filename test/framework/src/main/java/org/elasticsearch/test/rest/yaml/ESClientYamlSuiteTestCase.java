@@ -308,14 +308,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
-                try {
-                    executeSection(doSection);
-                } catch (AssertionError | Exception e) {
-                    logger.info("Stash dump on setup failure [{}]",
-                            Strings.toString(restTestExecutionContext.stash(), true, true)
-                                    .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-                    throw e;
-                }
+                executeSection(doSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
@@ -324,27 +317,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                try {
-                    executeSection(executableSection);
-                } catch (AssertionError | Exception e) {
-                    // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-                    logger.info("Stash dump on test failure [{}]",
-                            Strings.toString(restTestExecutionContext.stash(), true, true)
-                                    .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-                    throw e;
-                }
+                executeSection(executableSection);
             }
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                try {
-                    executeSection(doSection);
-                } catch (AssertionError | Exception e) {
-                    logger.info("Stash dump on tear down failure [{}]",
-                            Strings.toString(restTestExecutionContext.stash(), true, true)
-                                    .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-                    // Don't rethrow exception here, that could hide the exception caused by a test.
-                }
+                executeSection(doSection);
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
@@ -356,10 +334,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private void executeSection(ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage(executableSection, e), e);
-        } catch (AssertionError e) {
-            throw new AssertionError(errorMessage(executableSection, e), e);
+        } catch (AssertionError | Exception e) {
+            // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+            logger.info("Stash dump on test failure [{}]",
+                    Strings.toString(restTestExecutionContext.stash(), true, true)
+                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            if (e instanceof AssertionError) {
+                throw new AssertionError(errorMessage(executableSection, e), e);
+            } else {
+                throw new RuntimeException(errorMessage(executableSection, e), e);
+            }
         }
     }
 

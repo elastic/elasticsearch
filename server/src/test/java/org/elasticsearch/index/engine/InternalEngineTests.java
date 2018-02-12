@@ -4449,6 +4449,40 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testCleanupCommitsWhenReleaseSnapshot() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            final int numDocs = scaledRandomIntBetween(10, 100);
+            for (int docId = 0; docId < numDocs; docId++) {
+                index(engine, docId);
+                if (frequently()) {
+                    engine.flush(randomBoolean(), randomBoolean());
+                }
+            }
+            engine.flush(false, randomBoolean());
+            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            final IndexCommit lastCommit = commits.get(commits.size() - 1);
+            final IndexCommit safeCommit = commits.get(0);
+            int numSnapshots = between(1, 10);
+            final List<Engine.IndexCommitRef> snapshots = new ArrayList<>();
+            for (int i = 0; i < numSnapshots; i++) {
+                snapshots.add(engine.acquireIndexCommit(true, false)); // taking snapshots from the safe commit.
+            }
+            // Global checkpoint advanced - clean up all commits except the last commit and the safe commit (snapshotted).
+            globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getCheckpoint(), Long.MAX_VALUE));
+            engine.syncTranslog();
+            assertThat(DirectoryReader.listCommits(store.directory()), contains(safeCommit, lastCommit));
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshots.get(i).close();
+                assertThat(DirectoryReader.listCommits(store.directory()), contains(safeCommit, lastCommit));
+            }
+            snapshots.get(numSnapshots - 1).close(); // released last snapshot - delete the commit.
+            assertThat(DirectoryReader.listCommits(store.directory()), contains(lastCommit));
+        }
+    }
+
     public void testShouldPeriodicallyFlush() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         int numDocs = between(10, 100);

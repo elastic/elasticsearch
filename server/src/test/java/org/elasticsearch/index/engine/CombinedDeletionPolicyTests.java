@@ -133,7 +133,9 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             }
             randomSubsetOf(snapshottingCommits).forEach(snapshot -> {
                 snapshottingCommits.remove(snapshot);
-                indexPolicy.releaseCommit(snapshot);
+                final long pendingSnapshots = snapshottingCommits.stream().filter(snapshot::equals).count();
+                final IndexCommit lastCommit = commitList.get(commitList.size() - 1);
+                assertThat(indexPolicy.releaseCommit(snapshot), equalTo(pendingSnapshots == 0 && snapshot.equals(lastCommit) == false));
             });
             // Snapshotting commits must not be deleted.
             snapshottingCommits.forEach(snapshot -> assertThat(snapshot.isDeleted(), equalTo(false)));

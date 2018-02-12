@@ -123,6 +123,7 @@ import org.elasticsearch.xpack.watcher.input.transform.TransformInput;
 import org.elasticsearch.xpack.watcher.input.transform.TransformInputFactory;
 import org.elasticsearch.xpack.watcher.notification.email.Account;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
+import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.DataAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentsParser;
@@ -420,6 +421,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         // notification services
         settings.addAll(SlackService.getSettings());
         settings.addAll(EmailService.getSettings());
+        settings.addAll(HtmlSanitizer.getSettings());
         settings.addAll(HipChatService.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());

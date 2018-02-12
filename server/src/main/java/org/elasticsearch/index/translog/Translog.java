@@ -287,6 +287,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
+        return openReader(path, checkpoint, translogUUID);
+    }
+
+    private static TranslogReader openReader(Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
@@ -1682,19 +1686,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** Reads and returns the current checkpoint */
-    static final Checkpoint readCheckpoint(final Path location) throws IOException {
+    static Checkpoint readCheckpoint(final Path location) throws IOException {
         return Checkpoint.read(location.resolve(CHECKPOINT_FILE_NAME));
     }
 
     /**
      * Reads the sequence numbers global checkpoint from the translog checkpoint.
+     * This ensures that the translogUUID from this translog matches with the provided translogUUID.
      *
      * @param location the location of the translog
      * @return the global checkpoint
-     * @throws IOException if an I/O exception occurred reading the checkpoint
+     * @throws IOException                if an I/O exception occurred reading the checkpoint
+     * @throws TranslogCorruptedException if the translog is corrupted or mismatched with the given uuid
      */
-    public static final long readGlobalCheckpoint(final Path location) throws IOException {
-        return readCheckpoint(location).globalCheckpoint;
+    public static long readGlobalCheckpoint(final Path location, final String expectedTranslogUUID) throws IOException {
+        final Checkpoint checkpoint = readCheckpoint(location);
+        // We need to open at least translog reader to validate the translogUUID.
+        final Path translogFile = location.resolve(getFilename(checkpoint.generation));
+        try (TranslogReader reader = openReader(translogFile, checkpoint, expectedTranslogUUID)) {
+
+        } catch (TranslogCorruptedException ex) {
+            throw ex; // just bubble up.
+        } catch (Exception ex) {
+            throw new TranslogCorruptedException("Translog at [" + location + "] is corrupted", ex);
+        }
+        return checkpoint.globalCheckpoint;
     }
 
     /**

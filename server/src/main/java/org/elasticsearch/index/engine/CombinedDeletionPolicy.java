@@ -186,7 +186,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * If an index was created before v6.2, and we haven't retained a safe commit yet, this method will return the oldest commit.
      *
      * @param commits          a list of existing commit points
-     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
+     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path, String)}
      * @return a safe commit or the oldest commit if a safe commit is not found
      */
     public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {

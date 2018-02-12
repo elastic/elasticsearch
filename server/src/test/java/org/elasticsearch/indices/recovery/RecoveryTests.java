@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
@@ -44,13 +43,9 @@ import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
-import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 
-import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -335,42 +330,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
             assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
             assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
-            shards.assertAllEqual(numDocs);
-        }
-    }
-
-    /**
-     * This test verifies that if translog on a replica is corrupted, its store will be marked corrupted too;
-     * and the replica will eventually be recovered from the primary by copying index files.
-     */
-    public void testRecoveryWithCorruptedTranslogOnReplica() throws Exception {
-        try (ReplicationGroup shards = createGroup(1)) {
-            shards.startAll();
-            IndexShard replica = shards.getReplicas().get(0);
-            int numDocs = shards.indexDocs(between(10, 100));
-            shards.syncGlobalCheckpoint();
-            shards.flush();
-            shards.removeReplica(replica);
-            // Corrupt translog on the replica
-            TestTranslog.corruptTranslogFiles(logger, random(), Collections.singleton(replica.getTranslog().location()));
-            replica.close("test", false);
-            replica.store().close();
-            // Sequence-based recovery but will fail
-            IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            try {
-                shards.recoverReplica(newReplica);
-                fail("Recovery should fail because translog on replica is corrupted");
-            } catch (Exception ignore) {
-                assertThat(newReplica.store().isMarkedCorrupted(), equalTo(true));
-                shards.removeReplica(newReplica);
-                newReplica.close("test", false);
-                newReplica.store().close();
-            }
-            // File-based recovery should be made
-            newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
-            shards.recoverReplica(newReplica);
-            assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-            assertThat(newReplica.getTranslog().totalOperations(), equalTo(numDocs));
             shards.assertAllEqual(numDocs);
         }
     }

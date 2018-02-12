@@ -80,7 +80,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -118,7 +117,6 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -1326,15 +1324,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void openIndexAndSkipTranslogRecovery() throws IOException {
         assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
-        try {
-            innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
-            getEngine().skipTranslogRecovery();
-        } catch (EngineCreationFailureException ex) {
-            if (ex.getCause() instanceof TranslogCorruptedException) {
-                store.markStoreCorrupted(new IOException("Translog is corrupted", ex));
-            }
-            throw ex;
-        }
+        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+        getEngine().skipTranslogRecovery();
     }
 
     private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {

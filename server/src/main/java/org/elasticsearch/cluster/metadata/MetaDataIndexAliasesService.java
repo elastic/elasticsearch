@@ -133,7 +133,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);
                     aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
                     if (Strings.hasLength(filter)) {
-                        IndexService indexService = indices.get(index.getIndex());
+                        IndexService indexService = indices.get(index.getIndex().getName());
                         if (indexService == null) {
                             indexService = indicesService.indexService(index.getIndex());
                             if (indexService == null) {

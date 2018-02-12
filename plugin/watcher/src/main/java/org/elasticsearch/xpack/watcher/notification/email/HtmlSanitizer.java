@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.owasp.html.CssSchema;
 import org.owasp.html.ElementPolicy;
@@ -13,9 +15,11 @@ import org.owasp.html.HtmlPolicyBuilder;
 import org.owasp.html.PolicyFactory;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 
 public class HtmlSanitizer {
 
@@ -33,14 +37,25 @@ public class HtmlSanitizer {
             "body", "head", "_tables", "_links", "_blocks", "_formatting", "img:embedded"
     );
 
+    private static Setting<Boolean> SETTING_SANITIZATION_ENABLED =
+            Setting.boolSetting("xpack.notification.email.html.sanitization.enabled", true, Property.NodeScope);
+
+    private static Setting<List<String>> SETTING_SANITIZATION_ALLOW =
+            Setting.listSetting("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED, Function.identity(),
+                    Property.NodeScope);
+
+    private static Setting<List<String>> SETTING_SANITIZATION_DISALLOW =
+            Setting.listSetting("xpack.notification.email.html.sanitization.disallow", Collections.emptyList(), Function.identity(),
+                    Property.NodeScope);
+
     private final boolean enabled;
     @SuppressForbidden( reason = "PolicyFactory uses guava Function")
     private final PolicyFactory policy;
     
     public HtmlSanitizer(Settings settings) {
-        enabled = settings.getAsBoolean("xpack.notification.email.html.sanitization.enabled", true);
-        List<String> allow = settings.getAsList("xpack.notification.email.html.sanitization.allow", DEFAULT_ALLOWED);
-        List<String> disallow = settings.getAsList("xpack.notification.email.html.sanitization.disallow");
+        enabled = SETTING_SANITIZATION_ENABLED.get(settings);
+        List<String> allow = SETTING_SANITIZATION_ALLOW.get(settings);
+        List<String> disallow = SETTING_SANITIZATION_DISALLOW.get(settings);
         policy = createCommonPolicy(allow, disallow);
     }
 
@@ -188,5 +203,9 @@ public class HtmlSanitizer {
     enum Images {
         ALL,
         EMBEDDED
+    }
+
+    public static List<Setting<?>> getSettings() {
+        return Arrays.asList(SETTING_SANITIZATION_ALLOW, SETTING_SANITIZATION_DISALLOW, SETTING_SANITIZATION_ENABLED);
     }
 }

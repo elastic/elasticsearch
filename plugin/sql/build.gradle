@@ -35,12 +35,13 @@ dependencies {
     }
 }
 
-/* Bundle the sql-cli into the binary files. This is useful
- * because it is an executable jar that can be moved wherever
- * it is needed. */
+/* Bundle the sql-cli into the binary files. It should end up
+ * in $ES_HOME/bin/x-pack/. This is useful because it is an
+ * executable jar that can be moved wherever it is needed.
+ */
 bundlePlugin {
     from (configurations.bin) {
-        into 'elasticsearch/bin'
+        into 'bin'
     }
 }
 

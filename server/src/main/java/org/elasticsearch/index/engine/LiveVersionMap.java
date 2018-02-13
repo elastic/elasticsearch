@@ -41,6 +41,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     private static final class VersionLookup {
 
+        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account
+         *  for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not clear this RAM. */
+        final AtomicLong ramBytesUsed = new AtomicLong();
+
         private static final VersionLookup EMPTY = new VersionLookup(Collections.emptyMap());
         private final Map<BytesRef, VersionValue> map;
 
@@ -55,6 +59,9 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // that will prevent concurrent updates to the same document ID and therefore we can rely on the happens-before guanratee of the
         // map reference itself.
         private boolean unsafe;
+
+        // minimum timestamp of delete operations that were made while this map was active. this is used to make sure they are kept in
+        // the tombstone
         private final AtomicLong minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
 
         private VersionLookup(Map<BytesRef, VersionValue> map) {
@@ -93,6 +100,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             long time = delete.time;
             minDeleteTimestamp.updateAndGet(prev -> Math.min(time, prev));
         }
+
     }
 
     private static final class Maps {
@@ -107,20 +115,16 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         // have the volatile read of the Maps reference to make it visible even across threads.
         boolean needsSafeAccess;
         final boolean previousMapsNeededSafeAccess;
-        /** Tracks bytes used by current map, i.e. what is freed on refresh. For deletes, which are also added to tombstones, we only account
-         *  for the CHM entry here, and account for BytesRef/VersionValue against the tombstones, since refresh would not clear this RAM. */
-        final AtomicLong ramBytesUsed;
 
-        Maps(AtomicLong ramBytesUsed, VersionLookup current, VersionLookup old, boolean previousMapsNeededSafeAccess) {
+
+        Maps(VersionLookup current, VersionLookup old, boolean previousMapsNeededSafeAccess) {
             this.current = current;
             this.old = old;
             this.previousMapsNeededSafeAccess = previousMapsNeededSafeAccess;
-            this.ramBytesUsed = ramBytesUsed;
         }
 
         Maps() {
-            this(new AtomicLong(),
-                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
+            this(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency()), VersionLookup.EMPTY, false);
         }
 
         boolean isSafeAccessMode() {
@@ -138,8 +142,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * Builds a new map for the refresh transition this should be called in beforeRefresh()
          */
         Maps buildTransitionMap() {
-            return new Maps(new AtomicLong(),
-                new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())), current,
+            return new Maps(new VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency(current.size())), current,
                 shouldInheritSafeAccess());
         }
 
@@ -147,7 +150,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
          * builds a new map that invalidates the old map but maintains the current. This should be called in afterRefresh()
          */
         Maps invalidateOldMap() {
-            return new Maps(ramBytesUsed, current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
+            return new Maps(current, VersionLookup.EMPTY, previousMapsNeededSafeAccess);
         }
 
         void put(BytesRef uid, VersionValue version) {
@@ -160,7 +163,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
         void adjustRam(long value) {
             if (value != 0) {
-                long v = ramBytesUsed.addAndGet(value);
+                long v = current.ramBytesUsed.addAndGet(value);
                 assert v >= 0 : "bytes=" + v;
             }
         }
@@ -421,7 +424,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
 
     @Override
     public long ramBytesUsed() {
-        return maps.ramBytesUsed.get() + ramBytesUsedTombstones.get();
+        return maps.current.ramBytesUsed.get() + ramBytesUsedTombstones.get();
     }
 
     /**
@@ -429,7 +432,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * don't clear on refresh.
      */
     long ramBytesUsedForRefresh() {
-        return maps.ramBytesUsed.get();
+        return maps.current.ramBytesUsed.get();
     }
 
     @Override

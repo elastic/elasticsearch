@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
@@ -575,15 +576,16 @@ public final class ThreadContext implements Closeable, Writeable {
                      */
                     try {
                         ((RunnableFuture) in).get();
+                    } catch (final CancellationException e) {
+                      // task was cancelled, ignore
                     } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                     } catch (final ExecutionException e) {
                         if (e.getCause() instanceof Error) {
                             // rethrow this as an error where it will propagate to the uncaught exception handler
                             throw (Error) e.getCause();
-                        } else {
-                            throw new RuntimeException(e.getCause());
                         }
+                        // we assume that a general exception has been handled by the executed task or the task submitter
                     }
                 }
                 whileRunning = false;

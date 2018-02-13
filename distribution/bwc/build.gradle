@@ -61,7 +61,7 @@ if (project.hasProperty('bwcVersion')) {
     doLast {
       project.ext.remoteExists = false
       output.toString('UTF-8').eachLine {
-        if (it.contains("${remote}\thttps://github.com/${remote}/elasticsearch.git")) {
+        if (it.contains("${remote}\t")) {
           project.ext.remoteExists = true
         }
       }

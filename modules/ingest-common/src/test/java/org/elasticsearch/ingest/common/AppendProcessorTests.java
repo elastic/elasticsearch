@@ -157,45 +157,6 @@ public class AppendProcessorTests extends ESTestCase {
         }
     }
 
-    public void testAppendMetadataVersion() throws Exception {
-        // append version or version type may not make sense in most of the cases,
-        // but support for append is streamlined like for set so we test it
-        MetaData randomMetaData = randomFrom(MetaData.VERSION, MetaData.VERSION_TYPE);
-        List<Object> values = new ArrayList<>();
-        Processor appendProcessor;
-        if (randomMetaData == MetaData.VERSION) {
-            int valuesSize = randomIntBetween(0, 10);
-            if (randomBoolean()) {
-                Long version = randomNonNegativeLong();
-                values.add(version);
-                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), version);
-            } else {
-                for (int i = 0; i < valuesSize; i++) {
-                    values.add(randomNonNegativeLong());
-                }
-                appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), values);
-            }
-        } else {
-            String versionType = randomFrom("internal", "external", "external_gte");
-            values.add(VersionType.fromString(versionType));
-            appendProcessor = createAppendProcessor(randomMetaData.getFieldName(), versionType);
-        }
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Object initialValue = ingestDocument.getSourceAndMetadata().get(randomMetaData.getFieldName());
-        appendProcessor.execute(ingestDocument);
-        List list = ingestDocument.getFieldValue(randomMetaData.getFieldName(), List.class);
-        if (initialValue == null) {
-            assertThat(list, equalTo(values));
-        } else {
-            assertThat(list.size(), equalTo(values.size() + 1));
-            assertThat(list.get(0), equalTo(initialValue));
-            for (int i = 1; i < list.size(); i++) {
-                assertThat(list.get(i), equalTo(values.get(i - 1)));
-            }
-        }
-    }
-
     private static Processor createAppendProcessor(String fieldName, Object fieldValue) {
         return new AppendProcessor(randomAlphaOfLength(10),
             new TestTemplateService.MockTemplateScript.Factory(fieldName),

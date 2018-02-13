@@ -49,8 +49,9 @@ public final class Messages {
     public static final String INVALID_GROUP = "Invalid group id ''{0}''; must be non-empty string and may contain lowercase alphanumeric" +
             " (a-z and 0-9), hyphens or underscores; must start and end with alphanumeric";
 
-    public static final String JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
+    public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";
     public static final String JOB_AUDIT_CREATED = "Job created";
+    public static final String JOB_AUDIT_UPDATED = "Job updated: {0}";
     public static final String JOB_AUDIT_CLOSING = "Job is closing";
     public static final String JOB_AUDIT_FORCE_CLOSING = "Job is closing (forced)";
     public static final String JOB_AUDIT_DATAFEED_CONTINUED_REALTIME = "Datafeed continued in real-time";
@@ -68,6 +69,8 @@ public final class Messages {
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
     public static final String JOB_AUDIT_REVERTED = "Job model snapshot reverted to ''{0}''";
     public static final String JOB_AUDIT_SNAPSHOT_DELETED = "Model snapshot [{0}] with description ''{1}'' deleted";
+    public static final String JOB_AUDIT_FILTER_UPDATED_ON_PROCESS = "Updated filter [{0}] in running process";
+    public static final String JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS = "Updated calendars in running process";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =

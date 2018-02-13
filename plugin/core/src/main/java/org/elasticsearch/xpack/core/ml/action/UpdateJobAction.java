@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -49,12 +50,24 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         private String jobId;
         private JobUpdate update;
 
+        /** Indicates an update that was not triggered by a user */
+        private boolean isInternal;
+
         public Request(String jobId, JobUpdate update) {
+            this(jobId, update, false);
+        }
+
+        private Request(String jobId, JobUpdate update, boolean isInternal) {
             this.jobId = jobId;
             this.update = update;
+            this.isInternal = isInternal;
         }
 
         public Request() {
+        }
+
+        public static Request internal(String jobId, JobUpdate update) {
+            return new Request(jobId, update, true);
         }
 
         public String getJobId() {
@@ -63,6 +76,10 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
 
         public JobUpdate getJobUpdate() {
             return update;
+        }
+
+        public boolean isInternal() {
+            return isInternal;
         }
 
         @Override
@@ -75,6 +92,11 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             super.readFrom(in);
             jobId = in.readString();
             update = new JobUpdate(in);
+            if (in.getVersion().onOrAfter(Version.V_6_2_2)) {
+                isInternal = in.readBoolean();
+            } else {
+                isInternal = false;
+            }
         }
 
         @Override
@@ -82,6 +104,9 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
             super.writeTo(out);
             out.writeString(jobId);
             update.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
+                out.writeBoolean(isInternal);
+            }
         }
 
         @Override
@@ -95,14 +120,15 @@ public class UpdateJobAction extends Action<UpdateJobAction.Request, PutJobActio
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            UpdateJobAction.Request request = (UpdateJobAction.Request) o;
-            return Objects.equals(jobId, request.jobId) &&
-                    Objects.equals(update, request.update);
+            UpdateJobAction.Request that = (UpdateJobAction.Request) o;
+            return Objects.equals(jobId, that.jobId) &&
+                    Objects.equals(update, that.update) &&
+                    isInternal == that.isInternal;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, update);
+            return Objects.hash(jobId, update, isInternal);
         }
 
         @Override

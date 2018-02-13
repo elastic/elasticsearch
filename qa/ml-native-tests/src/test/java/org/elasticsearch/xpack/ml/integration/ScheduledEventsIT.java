@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -27,6 +31,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
@@ -188,7 +193,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * Test an open job picks up changes to scheduled events/calendars
      */
-    public void testOnlineUpdate() throws IOException, InterruptedException {
+    public void testOnlineUpdate() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         Job.Builder job = createJob("scheduled-events-online-update", bucketSpan);
 
@@ -216,10 +221,19 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         postScheduledEvents(calendarId, events);
 
-        // The update process action is aysnc so give it chance to update
-        // the job with the added scheduled events
-        // TODO Wait for the task to finish once #3767 is implemented
-        Thread.sleep(1000);
+        // Wait until the notification that the process was updated is indexed
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+                    .setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ).get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(1));
+            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
+        });
 
         // write some more buckets of data that cover the scheduled event period
         postData(job.getId(), generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5,

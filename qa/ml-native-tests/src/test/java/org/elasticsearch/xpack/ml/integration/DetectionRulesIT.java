@@ -5,7 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Condition;
@@ -148,7 +152,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(secondHaldRecordByFieldValues, contains("by_field_value_1", "by_field_value_2"));
     }
 
-    public void testCategoricalRule() throws IOException, InterruptedException {
+    public void testCategoricalRule() throws Exception {
         MlFilter safeIps = new MlFilter("safe_ips", Arrays.asList("111.111.111.111", "222.222.222.222"));
         assertThat(putMlFilter(safeIps), is(true));
 
@@ -211,8 +215,19 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         MlFilter updatedFilter = new MlFilter(safeIps.getId(), Collections.singletonList("333.333.333.333"));
         assertThat(putMlFilter(updatedFilter), is(true));
 
-        // We need to give some time for the update to be applied on the autodetect process
-        Thread.sleep(1000);
+        // Wait until the notification that the process was updated is indexed
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch(".ml-notifications")
+                    .setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(QueryBuilders.boolQuery()
+                                    .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ).get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(1));
+            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated filter [safe_ips] in running process"));
+        });
 
         long secondAnomalyTime = timestamp;
         // Send another anomalous bucket

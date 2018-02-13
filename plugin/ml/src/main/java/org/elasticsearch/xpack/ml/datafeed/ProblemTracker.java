@@ -85,7 +85,7 @@ class ProblemTracker {
 
     public void reportNoneEmptyCount() {
         if (emptyDataCount >= EMPTY_DATA_WARN_COUNT) {
-            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIR_DATAFEED_DATA_SEEN_AGAIN));
+            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN));
         }
         emptyDataCount = 0;
     }

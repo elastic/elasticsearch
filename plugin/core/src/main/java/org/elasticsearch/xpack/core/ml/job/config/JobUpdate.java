@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
@@ -265,6 +267,50 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         builder.endObject();
         return builder;
+    }
+
+    public Set<String> getUpdateFields() {
+        Set<String> updateFields = new TreeSet<>();
+        if (groups != null) {
+            updateFields.add(Job.GROUPS.getPreferredName());
+        }
+        if (description != null) {
+            updateFields.add(Job.DESCRIPTION.getPreferredName());
+        }
+        if (detectorUpdates != null) {
+            updateFields.add(DETECTORS.getPreferredName());
+        }
+        if (modelPlotConfig != null) {
+            updateFields.add(Job.MODEL_PLOT_CONFIG.getPreferredName());
+        }
+        if (analysisLimits != null) {
+            updateFields.add(Job.ANALYSIS_LIMITS.getPreferredName());
+        }
+        if (renormalizationWindowDays != null) {
+            updateFields.add(Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName());
+        }
+        if (backgroundPersistInterval != null) {
+            updateFields.add(Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName());
+        }
+        if (modelSnapshotRetentionDays != null) {
+            updateFields.add(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName());
+        }
+        if (resultsRetentionDays != null) {
+            updateFields.add(Job.RESULTS_RETENTION_DAYS.getPreferredName());
+        }
+        if (categorizationFilters != null) {
+            updateFields.add(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName());
+        }
+        if (customSettings != null) {
+            updateFields.add(Job.CUSTOM_SETTINGS.getPreferredName());
+        }
+        if (modelSnapshotId != null) {
+            updateFields.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
+        }
+        if (establishedModelMemory != null) {
+            updateFields.add(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName());
+        }
+        return updateFields;
     }
 
     /**

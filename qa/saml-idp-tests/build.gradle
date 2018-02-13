@@ -32,6 +32,7 @@ if (project.rootProject.vagrantSupported) {
 integTestCluster {
   plugin xpackProject('plugin').path
 
+  setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.realms.file.type', 'file'

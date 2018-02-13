@@ -34,6 +34,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -564,6 +567,25 @@ public final class ThreadContext implements Closeable, Writeable {
                 ctx.restore();
                 whileRunning = true;
                 in.run();
+                if (in instanceof RunnableFuture) {
+                    /*
+                     * The wrapped runnable arose from asynchronous submission of a task to an executor. If an uncaught exception was thrown
+                     * during the execution of this task, we need to inspect this runnable and see if it is an error that should be
+                     * propagated to the uncaught exception handler.
+                     */
+                    try {
+                        ((RunnableFuture) in).get();
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } catch (final ExecutionException e) {
+                        if (e.getCause() instanceof Error) {
+                            // rethrow this as an error where it will propagate to the uncaught exception handler
+                            throw (Error) e.getCause();
+                        } else {
+                            throw new RuntimeException(e.getCause());
+                        }
+                    }
+                }
                 whileRunning = false;
             } catch (IllegalStateException ex) {
                 if (whileRunning || threadLocal.closed.get() == false) {

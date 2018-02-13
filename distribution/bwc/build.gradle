@@ -68,7 +68,7 @@ subprojects {
     doLast {
       project.ext.remoteExists = false
       output.toString('UTF-8').eachLine {
-        if (it.contains("${remote}\thttps://github.com/${remote}/elasticsearch.git")) {
+        if (it.contains("${remote}\t")) {
           project.ext.remoteExists = true
         }
       }
@@ -139,7 +139,7 @@ subprojects {
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
     }
-    args ":distribution:deb:assemble", ":distribution:rpm:assemble", ":distribution:zip:assemble", "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"
+    args ":distribution:deb:assemble", ":distribution:rpm:assemble", ":distribution:zip:assemble", "-Dbuild.snapshot=true"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
       args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

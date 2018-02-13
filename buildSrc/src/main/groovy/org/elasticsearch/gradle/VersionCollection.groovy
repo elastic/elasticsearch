@@ -64,10 +64,7 @@ class VersionCollection {
                                                'next-bugfix-snapshot',
                                                'maintenance-bugfix-snapshot']
 
-
-
     // When we roll 8.0 its very likely these will need to be extracted from this class
-    private final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
     private final boolean isReleasableBranch = true
 
     /**
@@ -76,6 +73,7 @@ class VersionCollection {
      * @param versionLines The lines of the Version.java file.
      */
     VersionCollection(List<String> versionLines) {
+        final boolean buildSnapshot = System.getProperty("build.snapshot", "true") == "true"
 
         List<Version> versions = []
         // This class should be converted wholesale to use the treeset
@@ -303,7 +301,7 @@ class VersionCollection {
      */
     private Version replaceAsSnapshot(Version version) {
         versionSet.remove(version)
-        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, buildSnapshot)
+        Version snapshotVersion = new Version(version.major, version.minor, version.revision, version.suffix, true)
         safeAddToSet(snapshotVersion)
         return snapshotVersion
     }

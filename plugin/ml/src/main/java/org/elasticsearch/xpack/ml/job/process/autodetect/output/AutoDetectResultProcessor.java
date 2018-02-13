@@ -295,7 +295,7 @@ public class AutoDetectResultProcessor {
 
     protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
         JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
-        UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(jobId, update);
+        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
 
         try {
             // This blocks the main processing thread in the unlikely event
@@ -328,7 +328,7 @@ public class AutoDetectResultProcessor {
         jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStats, establishedModelMemory -> {
             JobUpdate update = new JobUpdate.Builder(jobId)
                     .setEstablishedModelMemory(establishedModelMemory).build();
-            UpdateJobAction.Request updateRequest = new UpdateJobAction.Request(jobId, update);
+            UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
 
             executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
                 @Override

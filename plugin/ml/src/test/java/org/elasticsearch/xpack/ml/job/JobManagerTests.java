@@ -217,7 +217,7 @@ public class JobManagerTests extends ESTestCase {
         jobManager.updateProcessOnFilterChanged(filter);
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
@@ -256,7 +256,7 @@ public class JobManagerTests extends ESTestCase {
         jobManager.updateProcessOnCalendarChanged(Arrays.asList("job-1", "job-3", "job-4"));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
@@ -295,7 +295,7 @@ public class JobManagerTests extends ESTestCase {
         jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture());
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));

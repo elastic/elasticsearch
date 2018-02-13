@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
 
@@ -34,7 +35,7 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final LinkedBlockingQueue<UpdateParams> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
+    private final LinkedBlockingQueue<UpdateHolder> orderedJobUpdates = new LinkedBlockingQueue<>(1000);
 
     private volatile ThreadPool.Cancellable cancellable;
 
@@ -51,8 +52,8 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
         });
     }
 
-    boolean submitJobUpdate(UpdateParams updateParams) {
-        return orderedJobUpdates.offer(updateParams);
+    boolean submitJobUpdate(UpdateParams update, ActionListener<Boolean> listener) {
+        return orderedJobUpdates.offer(new UpdateHolder(update, listener));
     }
 
     @Override
@@ -85,7 +86,7 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
     }
 
     private void processNextUpdate() {
-        List<UpdateParams> updates = new ArrayList<>(orderedJobUpdates.size());
+        List<UpdateHolder> updates = new ArrayList<>(orderedJobUpdates.size());
         try {
             orderedJobUpdates.drainTo(updates);
             executeProcessUpdates(new VolatileCursorIterator<>(updates));
@@ -94,11 +95,12 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
         }
     }
 
-    void executeProcessUpdates(Iterator<UpdateParams> updatesIterator) {
+    void executeProcessUpdates(Iterator<UpdateHolder> updatesIterator) {
         if (updatesIterator.hasNext() == false) {
             return;
         }
-        UpdateParams update = updatesIterator.next();
+        UpdateHolder updateHolder = updatesIterator.next();
+        UpdateParams update = updateHolder.update;
         Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getDetectorUpdates(), update.getFilter(),
                 update.isUpdateScheduledEvents());
 
@@ -108,8 +110,11 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
                     public void onResponse(Response response) {
                         if (response.isUpdated()) {
                             logger.info("Successfully updated remote job [{}]", update.getJobId());
+                            updateHolder.listener.onResponse(true);
                         } else {
-                            logger.error("Failed to update remote job [{}]", update.getJobId());
+                            String msg = "Failed to update remote job [" + update.getJobId() + "]";
+                            logger.error(msg);
+                            updateHolder.listener.onFailure(ExceptionsHelper.serverError(msg));
                         }
                         executeProcessUpdates(updatesIterator);
                     }
@@ -124,9 +129,19 @@ public class UpdateJobProcessNotifier extends AbstractComponent implements Local
                         } else {
                             logger.error("Failed to update remote job [" + update.getJobId() + "]", e);
                         }
+                        updateHolder.listener.onFailure(e);
                         executeProcessUpdates(updatesIterator);
                     }
                 });
     }
 
+    private static class UpdateHolder {
+        private final UpdateParams update;
+        private final ActionListener<Boolean> listener;
+
+        private UpdateHolder(UpdateParams update, ActionListener<Boolean> listener) {
+            this.update = update;
+            this.listener = listener;
+        }
+    }
 }

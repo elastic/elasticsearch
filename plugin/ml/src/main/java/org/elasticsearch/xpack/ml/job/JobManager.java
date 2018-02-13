@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
@@ -26,12 +25,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -235,13 +235,13 @@ public class JobManager extends AbstractComponent {
         jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
-    public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
-        Job job = getJobOrThrowIfUnknown(jobId);
-        validate(jobUpdate, job, isValid -> {
+    public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+        Job job = getJobOrThrowIfUnknown(request.getJobId());
+        validate(request.getJobUpdate(), job, isValid -> {
             if (isValid) {
-                internalJobUpdate(jobId, jobUpdate, request, actionListener);
+                internalJobUpdate(request, actionListener);
             } else {
-                actionListener.onFailure(new IllegalArgumentException("Invalid update to job [" + jobId + "]"));
+                actionListener.onFailure(new IllegalArgumentException("Invalid update to job [" + request.getJobId() + "]"));
             }
         }, actionListener::onFailure);
     }
@@ -268,12 +268,11 @@ public class JobManager extends AbstractComponent {
         }
     }
 
-    private void internalJobUpdate(String jobId, JobUpdate jobUpdate, AckedRequest request,
-                                   ActionListener<PutJobAction.Response> actionListener) {
-        clusterService.submitStateUpdateTask("update-job-" + jobId,
+    private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
+        clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
                 new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
                     private volatile Job updatedJob;
-                    private volatile boolean changeWasRequired;
+                    private volatile boolean processUpdateRequired;
 
                     @Override
                     protected PutJobAction.Response newResponse(boolean acknowledged) {
@@ -281,26 +280,33 @@ public class JobManager extends AbstractComponent {
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        Job job = getJobOrThrowIfUnknown(jobId, currentState);
-                        updatedJob = jobUpdate.mergeWithJob(job, maxModelMemoryLimit);
+                    public ClusterState execute(ClusterState currentState) {
+                        Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
+                        updatedJob = request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit);
                         if (updatedJob.equals(job)) {
                             // nothing to do
                             return currentState;
                         }
                         // No change is required if the fields that the C++ uses aren't being updated
-                        changeWasRequired = jobUpdate.isAutodetectProcessUpdate();
+                        processUpdateRequired = request.getJobUpdate().isAutodetectProcessUpdate();
                         return updateClusterState(updatedJob, true, currentState);
                     }
 
                     @Override
                     public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        if (changeWasRequired) {
-                            if (isJobOpen(newState, jobId)) {
-                                updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate));
-                            }
+                        JobUpdate jobUpdate = request.getJobUpdate();
+                        if (processUpdateRequired && isJobOpen(newState, request.getJobId())) {
+                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                                isUpdated -> {
+                                    if (isUpdated) {
+                                        auditJobUpdatedIfNotInternal(request);
+                                    }
+                                }, e -> {
+                                    // No need to do anything
+                                }
+                            ));
                         } else {
-                            logger.debug("[{}] Ignored job update with no changes: {}", () -> jobId, () -> {
+                            logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
                                 try {
                                     XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
                                     jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -309,9 +315,17 @@ public class JobManager extends AbstractComponent {
                                     return "(unprintable due to " + e.getMessage() + ")";
                                 }
                             });
+
+                            auditJobUpdatedIfNotInternal(request);
                         }
                     }
                 });
+    }
+
+    private void auditJobUpdatedIfNotInternal(UpdateJobAction.Request request) {
+        if (request.isInternal() == false) {
+            auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_UPDATED, request.getJobUpdate().getUpdateFields()));
+        }
     }
 
     private boolean isJobOpen(ClusterState clusterState, String jobId) {
@@ -320,7 +334,7 @@ public class JobManager extends AbstractComponent {
         return jobState == JobState.OPENED;
     }
 
-    ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
+    private ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
         MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
         builder.putJob(job, overwrite);
         return buildNewClusterState(currentState, builder);
@@ -333,7 +347,14 @@ public class JobManager extends AbstractComponent {
             if (isJobOpen(clusterState, job.getId())) {
                 Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
                 if (jobFilters.contains(filter.getId())) {
-                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter));
+                    updateJobProcessNotifier.submitJobUpdate(UpdateParams.filterUpdate(job.getId(), filter), ActionListener.wrap(
+                            isUpdated -> {
+                                if (isUpdated) {
+                                    auditor.info(job.getId(),
+                                            Messages.getMessage(Messages.JOB_AUDIT_FILTER_UPDATED_ON_PROCESS, filter.getId()));
+                                }
+                            }, e -> {}
+                    ));
                 }
             }
         }
@@ -345,7 +366,13 @@ public class JobManager extends AbstractComponent {
         calendarJobIds.forEach(jobId -> expandedJobIds.addAll(expandJobIds(jobId, true, clusterState)));
         for (String jobId : expandedJobIds) {
             if (isJobOpen(clusterState, jobId)) {
-                updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId));
+                updateJobProcessNotifier.submitJobUpdate(UpdateParams.scheduledEventsUpdate(jobId), ActionListener.wrap(
+                        isUpdated -> {
+                            if (isUpdated) {
+                                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
+                            }
+                        }, e -> {}
+                ));
             }
         }
     }

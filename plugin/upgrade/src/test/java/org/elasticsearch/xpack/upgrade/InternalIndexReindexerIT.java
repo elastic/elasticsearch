@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3729")
 public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
 
     @Override

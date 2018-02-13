@@ -112,7 +112,7 @@ public class ExecutionService extends AbstractComponent {
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    public void start(ClusterState state) throws Exception {
+    public synchronized void start(ClusterState state) throws Exception {
         if (started.get()) {
             return;
         }
@@ -136,7 +136,7 @@ public class ExecutionService extends AbstractComponent {
         return triggeredWatchStore.validate(state) && HistoryStore.validate(state);
     }
 
-    public void stop() {
+    public synchronized void stop() {
         if (started.compareAndSet(true, false)) {
             logger.debug("stopping execution service");
             // We could also rely on the shutdown in #updateSettings call, but
@@ -545,7 +545,7 @@ public class ExecutionService extends AbstractComponent {
      * This clears out the current executions and sets new empty current executions
      * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
      */
-    public void clearExecutions() {
+    public synchronized void clearExecutions() {
         currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
         currentExecutions = new CurrentExecutions();
     }

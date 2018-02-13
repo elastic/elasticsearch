@@ -55,7 +55,7 @@ public class RestSplitIndexAction extends BaseRestHandler {
         }
         ResizeRequest shrinkIndexRequest = new ResizeRequest(request.param("target"), request.param("index"));
         shrinkIndexRequest.setResizeType(ResizeType.SPLIT);
-        request.applyContentParser(parser -> ResizeRequest.PARSER.parse(parser, shrinkIndexRequest, null));
+        request.applyContentParser(shrinkIndexRequest::fromXContent);
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));

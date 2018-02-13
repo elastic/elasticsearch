@@ -37,6 +37,10 @@ public class RankEvalNamedXContentProvider implements NamedXContentProvider {
                 MeanReciprocalRank::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(EvaluationMetric.class, new ParseField(DiscountedCumulativeGain.NAME),
                 DiscountedCumulativeGain::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(MetricDetail.class, new ParseField(PrecisionAtK.NAME),
+                PrecisionAtK.Breakdown::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(MetricDetail.class, new ParseField(MeanReciprocalRank.NAME),
+                MeanReciprocalRank.Breakdown::fromXContent));
         return namedXContent;
     }
 }

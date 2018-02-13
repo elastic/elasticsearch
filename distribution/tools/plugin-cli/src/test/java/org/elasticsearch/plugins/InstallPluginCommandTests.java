@@ -22,7 +22,7 @@ package org.elasticsearch.plugins;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.IOUtils;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
@@ -45,7 +45,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -114,6 +113,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -127,6 +127,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         terminal.reset();
     }
 
+    @Override
     @After
     @SuppressForbidden(reason = "resets java.io.tmpdir")
     public void tearDown() throws Exception {
@@ -258,12 +259,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure, null);
     }
 
     static Path createMetaPlugin(String name, Path structure) throws IOException {
         writeMetaPlugin(name, structure);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure, null);
     }
 
     void installPlugin(String pluginUrl, Path home) throws Exception {
@@ -810,7 +811,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = metaDir.resolve("fake");
         Files.createDirectory(pluginDir);
         Files.createFile(pluginDir.resolve("fake.yml"));
-        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
@@ -821,23 +822,23 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
-    public void testMissingDirectory() throws Exception {
+    public void testContainsIntermediateDirectory() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
         assertInstallCleaned(env.v2());
     }
 
-    public void testMissingDirectoryMeta() throws Exception {
+    public void testContainsIntermediateDirectoryMeta() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve(MetaPluginInfo.ES_META_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
         assertInstallCleaned(env.v2());
     }
 
@@ -845,11 +846,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path zip = createTempDir().resolve("broken.zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+            stream.putNextEntry(new ZipEntry("../blah"));
         }
         String pluginZip = zip.toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+        assertInstallCleaned(env.v2());
     }
 
     public void testOfficialPluginsHelpSorted() throws Exception {
@@ -1208,7 +1210,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertEquals("installation aborted by user", e.getMessage());
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        assertThat(Files.list(env.v2().pluginsFile()).collect(Collectors.toList()), empty());
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
 
         // explicitly do not install
         terminal.reset();
@@ -1216,7 +1220,9 @@ public class InstallPluginCommandTests extends ESTestCase {
         e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertEquals("installation aborted by user", e.getMessage());
         assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        assertThat(Files.list(env.v2().pluginsFile()).collect(Collectors.toList()), empty());
+        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            assertThat(fileStream.collect(Collectors.toList()), empty());
+        }
 
         // allow installation
         terminal.reset();

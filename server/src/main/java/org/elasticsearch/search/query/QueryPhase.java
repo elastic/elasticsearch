@@ -177,6 +177,13 @@ public class QueryPhase implements SearchPhase {
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+                // add terminate_after before the filter collectors
+                // it will only be applied on documents accepted by these filter collectors
+                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                // this collector can filter documents during the collection
+                hasFilterCollector = true;
+            }
             if (searchContext.parsedPostFilter() != null) {
                 // add post filters before aggregations
                 // it will only be applied to top hits
@@ -191,12 +198,6 @@ public class QueryPhase implements SearchPhase {
             if (searchContext.minimumScore() != null) {
                 // apply the minimum score after multi collector so we filter aggs as well
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
-                // this collector can filter documents during the collection
-                hasFilterCollector = true;
-            }
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
-                // apply terminate after after all filters collectors
-                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
@@ -263,8 +264,15 @@ public class QueryPhase implements SearchPhase {
 
             try {
                 searcher.search(query, queryCollector);
+            } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+                queryResult.terminatedEarly(true);
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+                
+                if (searchContext.request().allowPartialSearchResults() == false) {
+                    // Can't rethrow TimeExceededException because not serializable
+                    throw new QueryPhaseExecutionException(searchContext, "Time exceeded");
+                }
                 queryResult.searchTimedOut(true);
             } finally {
                 searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);

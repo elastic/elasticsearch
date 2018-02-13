@@ -36,6 +36,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
@@ -128,22 +129,22 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 if (fieldName.equals("type")) {
                     continue;
                 }
-                if (Fields.ANALYZER.match(fieldName)) {
+                if (Fields.ANALYZER.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
-                } else if (Fields.SEARCH_ANALYZER.match(fieldName)) {
+                } else if (Fields.SEARCH_ANALYZER.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
-                } else if (Fields.PRESERVE_SEPARATORS.match(fieldName)) {
+                } else if (Fields.PRESERVE_SEPARATORS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.PRESERVE_POSITION_INCREMENTS.match(fieldName)) {
+                } else if (Fields.PRESERVE_POSITION_INCREMENTS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
+                } else if (Fields.MAX_INPUT_LENGTH.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
-                } else if (Fields.CONTEXTS.match(fieldName)) {
+                } else if (Fields.CONTEXTS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.percentiles.hdr.HDRPercentileRanksAggregatorFactory;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
@@ -128,6 +130,22 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         double[] sortedValues = Arrays.copyOf(values, values.length);
         Arrays.sort(sortedValues);
         this.values = sortedValues;
+    }
+
+    protected PercentileRanksAggregationBuilder(PercentileRanksAggregationBuilder clone,
+                                                Builder factoriesBuilder,
+                                                Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.values = clone.values;
+        this.method = clone.method;
+        this.numberOfSignificantValueDigits = clone.numberOfSignificantValueDigits;
+        this.compression = clone.compression;
+        this.keyed = clone.keyed;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new PercentileRanksAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

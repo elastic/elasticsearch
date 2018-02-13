@@ -21,7 +21,7 @@ package org.elasticsearch.common.rounding;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * A strategy for rounding long values.
  */
-public abstract class Rounding implements Streamable {
+public abstract class Rounding implements Writeable {
 
     public abstract byte id();
 
@@ -107,17 +107,23 @@ public abstract class Rounding implements Streamable {
 
         static final byte ID = 1;
 
-        private DateTimeUnit unit;
-        private DateTimeField field;
-        private DateTimeZone timeZone;
-
-        TimeUnitRounding() { // for serialization
-        }
+        private final DateTimeUnit unit;
+        private final DateTimeField field;
+        private final DateTimeZone timeZone;
+        private final boolean unitRoundsToMidnight;
 
         TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
             this.field = unit.field(timeZone);
+            unitRoundsToMidnight = this.field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
             this.timeZone = timeZone;
+        }
+
+        TimeUnitRounding(StreamInput in) throws IOException {
+            unit = DateTimeUnit.resolve(in.readByte());
+            timeZone = DateTimeZone.forID(in.readString());
+            field = unit.field(timeZone);
+            unitRoundsToMidnight = field.getDurationField().getUnitMillis() > 60L * 60L * 1000L;
         }
 
         @Override
@@ -125,44 +131,102 @@ public abstract class Rounding implements Streamable {
             return ID;
         }
 
+        /**
+         * @return The latest timestamp T which is strictly before utcMillis
+         * and such that timeZone.getOffset(T) != timeZone.getOffset(utcMillis).
+         * If there is no such T, returns Long.MAX_VALUE.
+         */
+        private long previousTransition(long utcMillis) {
+            final int offsetAtInputTime = timeZone.getOffset(utcMillis);
+            do {
+                // Some timezones have transitions that do not change the offset, so we have to
+                // repeatedly call previousTransition until a nontrivial transition is found.
+
+                long previousTransition = timeZone.previousTransition(utcMillis);
+                if (previousTransition == utcMillis) {
+                    // There are no earlier transitions
+                    return Long.MAX_VALUE;
+                }
+                assert previousTransition < utcMillis; // Progress was made
+                utcMillis = previousTransition;
+            } while (timeZone.getOffset(utcMillis) == offsetAtInputTime);
+
+            return utcMillis;
+        }
+
         @Override
         public long round(long utcMillis) {
-            long rounded = field.roundFloor(utcMillis);
-            if (timeZone.isFixed() == false) {
-                // special cases for non-fixed time zones with dst transitions
-                if (timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
-                    /*
-                     * the offset change indicates a dst transition. In some
-                     * edge cases this will result in a value that is not a
-                     * rounded value before the transition. We round again to
-                     * make sure we really return a rounded value. This will
-                     * have no effect in cases where we already had a valid
-                     * rounded value
-                     */
-                    rounded = field.roundFloor(rounded);
-                } else {
-                    /*
-                     * check if the current time instant is at a start of a DST
-                     * overlap by comparing the offset of the instant and the
-                     * previous millisecond. We want to detect negative offset
-                     * changes that result in an overlap
-                     */
-                    if (timeZone.getOffset(rounded) < timeZone.getOffset(rounded - 1)) {
-                        /*
-                         * we are rounding a date just after a DST overlap. if
-                         * the overlap is smaller than the time unit we are
-                         * rounding to, we want to add the overlapping part to
-                         * the following rounding interval
-                         */
-                        long previousRounded = field.roundFloor(rounded - 1);
-                        if (rounded - previousRounded < field.getDurationField().getUnitMillis()) {
-                            rounded = previousRounded;
-                        }
-                    }
-                }
+
+            // field.roundFloor() works as long as the offset doesn't change.  It is worth getting this case out of the way first, as
+            // the calculations for fixing things near to offset changes are a little expensive and are unnecessary in the common case
+            // of working in UTC.
+            if (timeZone.isFixed()) {
+                return field.roundFloor(utcMillis);
             }
-            assert rounded == field.roundFloor(rounded);
-            return rounded;
+
+            // When rounding to hours we consider any local time of the form 'xx:00:00' as rounded, even though this gives duplicate
+            // bucket names for the times when the clocks go back. Shorter units behave similarly. However, longer units round down to
+            // midnight, and on the days where there are two midnights we would rather pick the earlier one, so that buckets are
+            // uniquely identified by the date.
+            if (unitRoundsToMidnight) {
+                final long anyLocalStartOfDay = field.roundFloor(utcMillis);
+                // `anyLocalStartOfDay` is _supposed_ to be the Unix timestamp for the start of the day in question in the current time
+                // zone.  Mostly this just means "midnight", which is fine, and on days with no local midnight it's the first time that
+                // does occur on that day which is also ok. However, on days with >1 local midnight this is _one_ of the midnights, but
+                // may not be the first. Check whether this is happening, and fix it if so.
+
+                final long previousTransition = previousTransition(anyLocalStartOfDay);
+
+                if (previousTransition == Long.MAX_VALUE) {
+                    // No previous transitions, so there can't be another earlier local midnight.
+                    return anyLocalStartOfDay;
+                }
+
+                final long currentOffset = timeZone.getOffset(anyLocalStartOfDay);
+                final long previousOffset = timeZone.getOffset(previousTransition);
+                assert currentOffset != previousOffset;
+
+                // NB we only assume interference from one previous transition. It's theoretically possible to have two transitions in
+                // quick succession, both of which have a midnight in them, but this doesn't appear to happen in the TZDB so (a) it's
+                // pointless to implement and (b) it won't be tested. I recognise that this comment is tempting fate and will likely
+                // cause this very situation to occur in the near future, and eagerly look forward to fixing this using a loop over
+                // previous transitions when it happens.
+
+                final long alsoLocalStartOfDay = anyLocalStartOfDay + currentOffset - previousOffset;
+                // `alsoLocalStartOfDay` is the Unix timestamp for the start of the day in question if the previous offset were in
+                // effect.
+
+                if (alsoLocalStartOfDay <= previousTransition) {
+                    // Therefore the previous offset _is_ in effect at `alsoLocalStartOfDay`, and it's earlier than anyLocalStartOfDay,
+                    // so this is the answer to use.
+                    return alsoLocalStartOfDay;
+                }
+                else {
+                    // The previous offset is not in effect at `alsoLocalStartOfDay`, so the current offset must be.
+                    return anyLocalStartOfDay;
+                }
+
+            } else {
+                do {
+                    long rounded = field.roundFloor(utcMillis);
+
+                    // field.roundFloor() mostly works as long as the offset hasn't changed in [rounded, utcMillis], so look at where
+                    // the offset most recently changed.
+
+                    final long previousTransition = previousTransition(utcMillis);
+
+                    if (previousTransition == Long.MAX_VALUE || previousTransition < rounded) {
+                        // The offset did not change in [rounded, utcMillis], so roundFloor() worked as expected.
+                        return rounded;
+                    }
+
+                    // The offset _did_ change in [rounded, utcMillis]. Put differently, this means that none of the times in
+                    // [previousTransition+1, utcMillis] were rounded, so the rounded time must be <= previousTransition.  This means
+                    // it's sufficient to try and round previousTransition down.
+                    assert previousTransition < utcMillis;
+                    utcMillis = previousTransition;
+                } while (true);
+            }
         }
 
         @Override
@@ -175,13 +239,6 @@ public abstract class Rounding implements Streamable {
                 next = round(field.add(floor, 2));
             }
             return next;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            unit = DateTimeUnit.resolve(in.readByte());
-            timeZone = DateTimeZone.forID(in.readString());
-            field = unit.field(timeZone);
         }
 
         @Override
@@ -217,17 +274,19 @@ public abstract class Rounding implements Streamable {
 
         static final byte ID = 2;
 
-        private long interval;
-        private DateTimeZone timeZone;
-
-        TimeIntervalRounding() { // for serialization
-        }
+        private final long interval;
+        private final DateTimeZone timeZone;
 
         TimeIntervalRounding(long interval, DateTimeZone timeZone) {
             if (interval < 1)
                 throw new IllegalArgumentException("Zero or negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
+        }
+
+        TimeIntervalRounding(StreamInput in) throws IOException {
+            interval = in.readVLong();
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
@@ -314,12 +373,6 @@ public abstract class Rounding implements Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            interval = in.readVLong();
-            timeZone = DateTimeZone.forID(in.readString());
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
             out.writeString(timeZone.getID());
@@ -354,11 +407,10 @@ public abstract class Rounding implements Streamable {
             Rounding rounding = null;
             byte id = in.readByte();
             switch (id) {
-                case TimeUnitRounding.ID: rounding = new TimeUnitRounding(); break;
-                case TimeIntervalRounding.ID: rounding = new TimeIntervalRounding(); break;
+                case TimeUnitRounding.ID: rounding = new TimeUnitRounding(in); break;
+                case TimeIntervalRounding.ID: rounding = new TimeIntervalRounding(in); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }
-            rounding.readFrom(in);
             return rounding;
         }
 

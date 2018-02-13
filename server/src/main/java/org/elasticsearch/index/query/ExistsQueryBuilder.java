@@ -99,11 +99,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (FIELD_FIELD.match(currentFieldName)) {
+                if (FIELD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fieldPattern = parser.text();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
@@ -131,7 +131,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(QueryShardContext context, String fieldPattern) {
-        
+
         final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
                 .getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
@@ -165,7 +165,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     private static Query newLegacyExistsQuery(Collection<String> fields) {
-        // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery() 
+        // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
         // so we don't end up with deprecation warnings
         if (fields.size() == 1) {
             Query filter = new TermQuery(new Term(FieldNamesFieldMapper.NAME, fields.iterator().next()));

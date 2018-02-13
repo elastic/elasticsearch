@@ -132,6 +132,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
     public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING =
         Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS =
+            Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
 
 
     private final ThreadPool threadPool;
@@ -158,6 +160,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile TimeValue defaultSearchTimeout;
 
+    private volatile boolean defaultAllowPartialSearchResults;
+    
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -193,6 +197,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
+        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, 
+                this::setDefaultAllowPartialSearchResults);
+        
+        
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
     }
@@ -215,6 +224,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.defaultSearchTimeout = defaultSearchTimeout;
     }
 
+    private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
+        this.defaultAllowPartialSearchResults = defaultAllowPartialSearchResults;
+    }
+    
+    public boolean defaultAllowPartialSearchResults() {
+        return defaultAllowPartialSearchResults;
+    }    
+    
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
     }

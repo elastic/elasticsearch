@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -114,6 +115,18 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      */
     public AdjacencyMatrixAggregationBuilder(String name, Map<String, QueryBuilder> filters) {
         this(name, DEFAULT_SEPARATOR, filters);
+    }
+
+    protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
+                                                Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.filters = new ArrayList<>(clone.filters);
+        this.separator = clone.separator;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

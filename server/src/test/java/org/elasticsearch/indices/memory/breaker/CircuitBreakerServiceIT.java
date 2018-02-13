@@ -29,7 +29,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -50,7 +49,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 
@@ -73,7 +71,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Integration tests for InternalCircuitBreakerService
@@ -220,88 +217,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
-    }
-
-    /**
-     * Test that a breaker correctly redistributes to a different breaker, in
-     * this case, the fielddata breaker borrows space from the request breaker
-     */
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.search:TRACE")
-    public void testParentChecking() throws Exception {
-        if (noopBreakerUsed()) {
-            logger.info("--> noop breakers used, skipping test");
-            return;
-        }
-        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
-                .addMapping("type", "test", "type=text,fielddata=true"));
-        Client client = client();
-
-        // index some different terms so we have some field data for loading
-        int docCount = scaledRandomIntBetween(300, 1000);
-        List<IndexRequestBuilder> reqs = new ArrayList<>();
-        for (long id = 0; id < docCount; id++) {
-            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", "value" + id));
-        }
-        indexRandom(true, reqs);
-
-        Settings resetSettings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "10b")
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
-                .build();
-        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
-
-        // Perform a search to load field data for the "test" field
-        try {
-            client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
-            fail("should have thrown an exception");
-        } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[fielddata] Data too large, data for [test] would be";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
-            errMsg = "which is larger than the limit of [10/10b]]";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
-        }
-
-        // execute a search that loads field data (sorting on the "test" field)
-        // again, this time it should trip the breaker
-        SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
-
-        String errMsg = "Data too large, data for [test] would be";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
-        errMsg = "which is larger than the limit of [10/10b]";
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
-
-        reset();
-
-        // Adjust settings so the parent breaker will fail, but neither the fielddata breaker nor the node request breaker will fail
-        resetSettings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "500b")
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "90%")
-                .put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.getKey(), 1.0)
-                .build();
-        client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings).execute().actionGet();
-
-        // Perform a search to load field data for the "test" field
-        try {
-            SearchResponse searchResponse = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
-            if (searchResponse.getShardFailures().length > 0) {
-                // each shard must have failed with CircuitBreakingException
-                for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                    Throwable cause = ExceptionsHelper.unwrap(shardSearchFailure.getCause(), CircuitBreakingException.class);
-                    assertThat(cause, instanceOf(CircuitBreakingException.class));
-                    assertEquals(((CircuitBreakingException) cause).getByteLimit(), 500L);
-                }
-            } else {
-                fail("should have thrown a CircuitBreakingException");
-            }
-        } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
-            assertThat(cause, instanceOf(CircuitBreakingException.class));
-            assertEquals(((CircuitBreakingException) cause).getByteLimit(), 500L);
-            assertThat("Exception: [" + cause.toString() + "] should be caused by the parent circuit breaker",
-                cause.toString(), startsWith("CircuitBreakingException[[parent] Data too large"));
-        }
-
-        reset();
     }
 
     public void testRequestBreaker() throws Exception {

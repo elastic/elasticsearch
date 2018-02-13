@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -32,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -45,6 +48,14 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
         super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
+    }
+
+    protected AbstractRangeBuilder(AbstractRangeBuilder<AB, R> clone,
+                                   AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.rangeFactory = clone.rangeFactory;
+        this.ranges = new ArrayList<>(clone.ranges);
+        this.keyed = clone.keyed;
     }
 
     /**

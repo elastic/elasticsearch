@@ -61,6 +61,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
 
         final SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
                 request, null, new GroupShardsIterator<>(Collections.singletonList(

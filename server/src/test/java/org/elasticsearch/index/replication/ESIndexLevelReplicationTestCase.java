@@ -499,8 +499,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
             @Override
             public org.elasticsearch.index.shard.ReplicationGroup getReplicationGroup() {
-                return new org.elasticsearch.index.shard.ReplicationGroup(replicationGroup.routingTable(Function.identity()),
-                    replicationGroup.activeIds());
+                return replicationGroup.primary.getReplicationGroup();
             }
 
         }
@@ -536,7 +535,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 listener.onFailure(e);
                             }
                         },
-                        ThreadPool.Names.INDEX);
+                        ThreadPool.Names.INDEX, request);
             }
 
             @Override

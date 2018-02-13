@@ -85,10 +85,8 @@ public class EvilThreadPoolTests extends ESTestCase {
 
             if (expectThrowable) {
                 latch.await();
-                consumer.accept(Optional.of(throwableReference.get()));
-            } else {
-                consumer.accept(Optional.empty());
             }
+            consumer.accept(Optional.ofNullable(throwableReference.get()));
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
         }

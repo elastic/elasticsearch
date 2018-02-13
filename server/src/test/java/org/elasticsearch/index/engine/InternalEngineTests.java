@@ -4461,24 +4461,20 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             engine.flush(false, randomBoolean());
-            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            final IndexCommit lastCommit = commits.get(commits.size() - 1);
-            final IndexCommit safeCommit = commits.get(0);
             int numSnapshots = between(1, 10);
             final List<Engine.IndexCommitRef> snapshots = new ArrayList<>();
             for (int i = 0; i < numSnapshots; i++) {
                 snapshots.add(engine.acquireIndexCommit(true, false)); // taking snapshots from the safe commit.
             }
-            // Global checkpoint advanced - clean up all commits except the last commit and the safe commit (snapshotted).
             globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getCheckpoint(), Long.MAX_VALUE));
             engine.syncTranslog();
-            assertThat(DirectoryReader.listCommits(store.directory()), contains(safeCommit, lastCommit));
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
             for (int i = 0; i < numSnapshots - 1; i++) {
                 snapshots.get(i).close();
-                assertThat(DirectoryReader.listCommits(store.directory()), contains(safeCommit, lastCommit));
+                assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits)); // Should not release any commit.
             }
-            snapshots.get(numSnapshots - 1).close(); // released last snapshot - delete the commit.
-            assertThat(DirectoryReader.listCommits(store.directory()), contains(lastCommit));
+            snapshots.get(numSnapshots - 1).close(); // released last snapshot - delete all except the last commit
+            assertThat(DirectoryReader.listCommits(store.directory()), hasSize(1));
         }
     }
 

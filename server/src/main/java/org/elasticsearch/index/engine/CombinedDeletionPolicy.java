@@ -180,8 +180,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
         }
-        // The commit can be clean up only if no pending snapshot and it is not the last commit.
-        return refCount == 0 && releasingCommit.equals(lastCommit) == false;
+        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

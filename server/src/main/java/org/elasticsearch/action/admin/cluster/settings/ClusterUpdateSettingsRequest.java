@@ -46,6 +46,17 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  */
 public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpdateSettingsRequest> implements ToXContentObject {
 
+    private static final String PERSISTENT = "persistent";
+    private static final String TRANSIENT = "transient";
+
+    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>("cluster_update_settings_request",
+            true, ClusterUpdateSettingsRequest::new);
+
+    static {
+        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT));
+        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT));
+    }
+
     private boolean flatSettings = false;
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
@@ -64,6 +75,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Sets the value of "flat_settings".
+     * Used only by the high-level REST client.
      * 
      * @param flatSettings
      *            value of "flat_settings" flag to be set
@@ -76,6 +88,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     /**
      * Return settings in flat format.
+     * Used only by the high-level REST client.
      * 
      * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
      */
@@ -186,22 +199,14 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject("persistent");
+        builder.startObject(PERSISTENT);
         persistentSettings.toXContent(builder, params);
         builder.endObject();
-        builder.startObject("transient");
+        builder.startObject(TRANSIENT);
         transientSettings.toXContent(builder, params);
         builder.endObject();
         builder.endObject();
         return builder;
-    }
-
-    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>("clustre_update_settings_request",
-            true, ClusterUpdateSettingsRequest::new);
-
-    static {
-        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), new ParseField("persistent"));
-        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), new ParseField("transient"));
     }
 
     public static ClusterUpdateSettingsRequest fromXContent(XContentParser parser) throws IOException {

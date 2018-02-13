@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Map;
@@ -64,18 +64,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         }
 
         return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
-                new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
-                    @Override
-                    protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
-                        builder.startObject("persistent");
-                        response.getPersistentSettings().toXContent(builder, request);
-                        builder.endObject();
-
-                        builder.startObject("transient");
-                        response.getTransientSettings().toXContent(builder, request);
-                        builder.endObject();
-                    }
-                });
+                new RestToXContentListener<ClusterUpdateSettingsResponse>(channel));
     }
 
     @Override

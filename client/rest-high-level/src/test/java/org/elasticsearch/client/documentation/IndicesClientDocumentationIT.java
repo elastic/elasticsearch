@@ -105,7 +105,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testIndicesExistAsync() throws IOException {
+    public void testIndicesExistAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -138,6 +138,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::indices-exists-async
             client.indices().existsAsync(request, listener); // <1>
             // end::indices-exists-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
     public void testDeleteIndex() throws IOException {

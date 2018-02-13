@@ -29,9 +29,9 @@ import java.io.IOException;
 import static java.util.Collections.emptySet;
 
 /**
- * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the cluster api.
+ * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
  * <p>
- * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Indices API on elastic.co</a>
+ * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
  */
 public final class ClusterClient {
     private final RestHighLevelClient restHighLevelClient;
@@ -46,9 +46,9 @@ public final class ClusterClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
      */
-    public ClusterUpdateSettingsResponse updateSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
+    public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, Header... headers)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, Request::clusterUpdateSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
@@ -58,9 +58,9 @@ public final class ClusterClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-update-settings.html"> Cluster Update Settings
      * API on elastic.co</a>
      */
-    public void updateSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
+    public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest,
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterUpdateSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 }

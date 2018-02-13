@@ -146,6 +146,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -965,6 +966,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         Map<String, Object> shuffledMap = shuffleMap((LinkedHashMap<String, Object>)parser.mapOrdered(),
             new HashSet<>(Arrays.asList(exceptFieldNames)));
         return xContentBuilder.map(shuffledMap);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}.
+     * Adds a random field value, inner object or array into each json object.
+     */
+    protected final BytesReference toShuffledXContentAndInsertRandomFields(ToXContent toXContent, XContentType xContentType,
+            ToXContent.Params params, boolean humanReadable, String... exceptFieldNames) throws IOException {
+        BytesReference originalBytes = toShuffledXContent(toXContent, xContentType, params, humanReadable, exceptFieldNames);
+        BytesReference mutated;
+        if (randomBoolean()) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
+        }
+        return mutated;
     }
 
     // shuffle fields of objects in the list, but not the list itself

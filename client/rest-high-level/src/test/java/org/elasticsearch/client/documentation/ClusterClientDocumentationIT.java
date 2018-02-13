@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -55,90 +56,89 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    public void testClusterUpdateSettings() throws IOException {
+    public void testClusterPutSettings() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
-        // tag::update-settings-request
+        // tag::put-settings-request
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        // end::indices-exists-request
+        // end::put-settings-request
 
-        // tag::update-settings-create-settings
+        // tag::put-settings-create-settings
         String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-
+        Settings transientSettings = Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build(); // <1>
+        
         String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
         String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
+        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build(); // <2>
+        // end::put-settings-create-settings
 
-        Settings transientSettings = Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build(); // <1>
-        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build();
-        // end::update-settings-create-settings
-
-        // tag::update-settings-request-cluster-settings
+        // tag::put-settings-request-cluster-settings
         request.transientSettings(transientSettings); // <1>
         request.persistentSettings(persistentSettings); // <2>
-        // tag::update-settings-request-cluster-settings
+        // end::put-settings-request-cluster-settings
 
         {
-            // tag::update-settings-settings-builder
+            // tag::put-settings-settings-builder
             Settings.Builder transientSettingsBuilder = Settings.builder().put(transientSettingKey, transientSettingValue,
                     ByteSizeUnit.BYTES); 
             request.transientSettings(transientSettingsBuilder); // <1>
-            // tag::update-settings-settings-builder
+            // end::put-settings-settings-builder
         }
         {
-            // tag::update-settings-settings-map
+            // tag::put-settings-settings-map
             Map<String, Object> map = new HashMap<>();
             map.put(transientSettingKey, transientSettingValue + ByteSizeUnit.BYTES.getSuffix());
             request.transientSettings(map); // <1>
-            // tag::update-settings-settings-map
+            // end::put-settings-settings-map
         }
         {
-            // tag::update-settings-settings-source
+            // tag::put-settings-settings-source
             request.transientSettings("{\"indices.recovery.max_bytes_per_sec\": \"10b\"}", XContentType.JSON); // <1>
-            // tag::update-settings-settings-source
+            // end::put-settings-settings-source
         }
 
-        // tag::update-settings-request-timeout
+        // tag::put-settings-request-timeout
         request.timeout(TimeValue.timeValueMinutes(2)); // <1>
         request.timeout("2m"); // <2>
-        // end::update-settings-request-timeout
-        // tag::update-settings-request-masterTimeout
+        // end::put-settings-request-timeout
+        // tag::put-settings-request-masterTimeout
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
         request.masterNodeTimeout("1m"); // <2>
-        // end::update-settings-request-masterTimeout
+        // end::put-settings-request-masterTimeout
 
-        // tag::update-settings-request-flat-settings
+        // tag::put-settings-request-flat-settings
         request.flatSettings(true); // <1>
-        // end::update-settings-request-flat-settings
+        // end::put-settings-request-flat-settings
 
-        // tag::update-settings-execute
-        ClusterUpdateSettingsResponse response = client.cluster().updateSettings(request);
-        // end::update-settings-execute
+        // tag::put-settings-execute
+        ClusterUpdateSettingsResponse response = client.cluster().putSettings(request);
+        // end::put-settings-execute
 
-        // tag::update-settings-response
+        // tag::put-settings-response
         boolean acknowledged = response.isAcknowledged(); // <1>
         Settings transientSettingsResponse = response.getTransientSettings(); // <2>
         Settings persistentSettingsResponse = response.getPersistentSettings(); // <3>
-        // end::update-settings-response
+        // end::put-settings-response
         assertTrue(acknowledged);
         assertThat(transientSettingsResponse.get(transientSettingKey), equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         assertThat(persistentSettingsResponse.get(persistentSettingKey), equalTo(persistentSettingValue));
 
-        // tag::update-settings-request-reset-transient
+        // tag::put-settings-request-reset-transient
         request.transientSettings(Settings.builder().putNull(transientSettingKey).build()); // <1>
-        // tag::update-settings-request-reset-transient
+        // tag::put-settings-request-reset-transient
         request.persistentSettings(Settings.builder().putNull(persistentSettingKey));
-        ClusterUpdateSettingsResponse resetResponse = client.cluster().updateSettings(request);
+        ClusterUpdateSettingsResponse resetResponse = client.cluster().putSettings(request);
 
         assertTrue(resetResponse.isAcknowledged());
     }
 
-    public void testClusterUpdateSettingsAsync() throws IOException {
+    public void testClusterUpdateSettingsAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
-            // tag::update-settings-execute-listener
+            // tag::put-settings-execute-listener
             ActionListener<ClusterUpdateSettingsResponse> listener = new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {
@@ -150,15 +150,17 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     // <2>
                 }
             };
-            // end::update-settings-execute-listener
+            // end::put-settings-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::update-settings-async
-            client.cluster().updateSettingsAsync(request, listener); // <1>
-            // end::update-settings-async
+            // tag::put-settings-execute-async
+            client.cluster().putSettingsAsync(request, listener); // <1>
+            // end::put-settings-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 }

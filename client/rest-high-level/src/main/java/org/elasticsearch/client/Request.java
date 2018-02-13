@@ -529,7 +529,7 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
-    static Request clusterUpdateSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Params parameters = Params.builder();
         parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());

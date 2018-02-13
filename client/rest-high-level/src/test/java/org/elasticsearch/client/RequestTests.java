@@ -31,7 +31,6 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -41,7 +40,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -96,7 +94,6 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -276,7 +273,7 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest, expectedParams);
+        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -1134,14 +1131,14 @@ public class RequestTests extends ESTestCase {
         assertToXContentBody(resizeRequest, request.getEntity());
     }
     
-    public void testClusterUpdateSettings() throws IOException {
+    public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
         setRandomFlatSettings(request::flatSettings, expectedParams);
         setRandomMasterTimeout(request, expectedParams);
         setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
-        Request expectedRequest = Request.clusterUpdateSettings(request);
+        Request expectedRequest = Request.clusterPutSettings(request);
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
@@ -1302,16 +1299,6 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomFlatSettings(GetIndexRequest request, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            request.flatSettings(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
-        }
-    }
-
     private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
@@ -1336,7 +1323,9 @@ public class RequestTests extends ESTestCase {
         if (randomBoolean()) {
             boolean flatSettings = randomBoolean();
             setter.accept(flatSettings);
-            expectedParams.put("flat_settings", String.valueOf(flatSettings));
+            if (flatSettings) {
+                expectedParams.put("flat_settings", String.valueOf(flatSettings));
+            }
         }
     }
 

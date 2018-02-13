@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterClientIT extends ESRestHighLevelClientTestCase {
 
-    public void testClusterUpdateSettings() throws IOException {
+    public void testClusterPutSettings() throws IOException {
         final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         final int transientSettingValue = 10;
 
@@ -56,8 +56,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         setRequest.transientSettings(transientSettings);
         setRequest.persistentSettings(map);
 
-        ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::updateSettings,
-                highLevelClient().cluster()::updateSettingsAsync);
+        ClusterUpdateSettingsResponse setResponse = execute(setRequest, highLevelClient().cluster()::putSettings,
+                highLevelClient().cluster()::putSettingsAsync);
 
         assertAcked(setResponse);
         assertThat(setResponse.getTransientSettings().get(transientSettingKey), notNullValue());
@@ -69,17 +69,17 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(setResponse.getPersistentSettings().get(persistentSettingKey), equalTo(persistentSettingValue));
 
         Map<String, Object> setMap = getAsMap("/_cluster/settings");
-        String transietSetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, setMap);
-        assertThat(transietSetValue, equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+        String transientSetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, setMap);
+        assertThat(transientSetValue, equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         String persistentSetValue = (String) XContentMapValues.extractValue("persistent." + persistentSettingKey, setMap);
         assertThat(persistentSetValue, equalTo(persistentSettingValue));
 
-        ClusterUpdateSettingsRequest reserRequest = new ClusterUpdateSettingsRequest();
-        reserRequest.transientSettings(Settings.builder().putNull(transientSettingKey));
-        reserRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
+        ClusterUpdateSettingsRequest resetRequest = new ClusterUpdateSettingsRequest();
+        resetRequest.transientSettings(Settings.builder().putNull(transientSettingKey));
+        resetRequest.persistentSettings("{\"" + persistentSettingKey + "\": null }", XContentType.JSON);
 
-        ClusterUpdateSettingsResponse resetResponse = execute(reserRequest, highLevelClient().cluster()::updateSettings,
-                highLevelClient().cluster()::updateSettingsAsync);
+        ClusterUpdateSettingsResponse resetResponse = execute(resetRequest, highLevelClient().cluster()::putSettings,
+                highLevelClient().cluster()::putSettingsAsync);
 
         assertThat(resetResponse.getTransientSettings().get(transientSettingKey), equalTo(null));
         assertThat(resetResponse.getPersistentSettings().get(persistentSettingKey), equalTo(null));
@@ -87,8 +87,8 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(resetResponse.getPersistentSettings(), equalTo(Settings.EMPTY));
 
         Map<String, Object> resetMap = getAsMap("/_cluster/settings");
-        String transietResetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, resetMap);
-        assertThat(transietResetValue, equalTo(null));
+        String transientResetValue = (String) XContentMapValues.extractValue("transient." + transientSettingKey, resetMap);
+        assertThat(transientResetValue, equalTo(null));
         String persistentResetValue = (String) XContentMapValues.extractValue("persistent." + persistentSettingKey, resetMap);
         assertThat(persistentResetValue, equalTo(null));
     }
@@ -100,7 +100,7 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         clusterUpdateSettingsRequest.transientSettings(Settings.builder().put(setting, value).build());
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(clusterUpdateSettingsRequest,
-                highLevelClient().cluster()::updateSettings, highLevelClient().cluster()::updateSettingsAsync));
+                highLevelClient().cluster()::putSettings, highLevelClient().cluster()::putSettingsAsync));
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));

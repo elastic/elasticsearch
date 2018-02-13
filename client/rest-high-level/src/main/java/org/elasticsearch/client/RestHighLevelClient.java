@@ -242,7 +242,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides a {@link ClusterClient} which can be used to access the Clustre API.
+     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
      */

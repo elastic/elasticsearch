@@ -1,68 +1,69 @@
-[[java-rest-high-cluster-update-settings]]
-=== Cluster Update Settings API
+[[java-rest-high-cluster-put-settings]]
+=== Cluster Put Settings API
 
-The Cluster Update Settings API allows to update cluster wide specific settings. 
+The Cluster Put Settings API allows to update cluster wide settings.
 
-[[java-rest-high-cluster-update-settings-request]]
+[[java-rest-high-cluster-put-settings-request]]
 ==== Cluster Update Settings Request
 
 A `ClusterUpdateSettingsRequest`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-request]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request]
 --------------------------------------------------
 
 ==== Cluster Settings
-At least one setting be updated must be provided:
+At least one setting to be updated must be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-request-cluster-settings]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-cluster-settings]
 --------------------------------------------------
-<1> The transient settings provided as `Settigs`
-<2> The persistent settings provided as `Settigs`
+<1> Sets the transient settings to be applied
+<2> Sets the persistent setting to be applied
 
 ==== Providing the Settings
-The settings to be updated can be provided in different ways:
+The settings to be applied can be provided in different ways:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-create-settings]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-create-settings]
 --------------------------------------------------
-<1> Settings provided as `Settings`
+<1> Creates a transient setting as `Settings`
+<2> Creates a persistent setting as `Settings`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-settings-builder]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-builder]
 --------------------------------------------------
 <1> Settings provided as `Settings.Builder`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-settings-source]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-source]
 --------------------------------------------------
 <1> Settings provided as `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-settings-map]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-settings-map]
 --------------------------------------------------
-<1> Settings provided as `Object` key-pairs, which gets converted to
-JSON format
+<1> Settings provided as a `Map`
 
 ==== Optional Arguments
 The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-request-flat-settings]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-flat-settings]
 --------------------------------------------------
-<1> Returned settings in flat format
+<1> Wether the updated settings returned in the `ClusterUpdateSettings` should
+be in a flat format
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-request-timeout]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the all the nodes to acknowledge the settings were applied
 as a `TimeValue`
@@ -71,20 +72,20 @@ as a `String`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-request-masterTimeout]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-[[java-rest-high-cluster-update-settings-sync]]
+[[java-rest-high-cluster-put-settings-sync]]
 ==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-execute]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute]
 --------------------------------------------------
 
-[[java-rest-high-cluster-update-settings-async]]
+[[java-rest-high-cluster-put-settings-async]]
 ==== Asynchronous Execution
 
 The asynchronous execution of a cluster update settings requires both the
@@ -93,7 +94,7 @@ passed to the asynchronous method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-execute-async]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute-async]
 --------------------------------------------------
 <1> The `ClusterUpdateSettingsRequest` to execute and the `ActionListener`
 to use when the execution completes
@@ -107,13 +108,13 @@ A typical listener for `ClusterUpdateSettingsResponse` looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-execute-listener]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-execute-listener]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
 provided as an argument
 <2> Called in case of a failure. The raised exception is provided as an argument
 
-[[java-rest-high-clustre-update-settings-response]]
+[[java-rest-high-cluster-put-settings-response]]
 ==== Cluster Update Settings Response
 
 The returned `ClusterUpdateSettings` allows to retrieve information about the
@@ -121,7 +122,7 @@ executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[update-settings-response]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[put-settings-response]
 --------------------------------------------------
 <1> Indicates whether all of the nodes have acknowledged the request
 <2> Indicates which transient settings have been applied

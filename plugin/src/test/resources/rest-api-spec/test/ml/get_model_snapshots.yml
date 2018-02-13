@@ -34,6 +34,17 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
+        index:  .ml-state
+        type:   doc
+        id:     "get-model-snapshots_model_state_1#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
         index:  .ml-anomalies-get-model-snapshots
         type:   doc
         id:     "get-model-snapshots-2"
@@ -48,8 +59,30 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        type:   doc
+        id:     "get-model-snapshots_model_state_2#1"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-state
+        type:   doc
+        id:     "get-model-snapshots_model_state_2#2"
+        body:  >
+          {
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-anomalies-get-model-snapshots
+        index: [.ml-anomalies-get-model-snapshots,.ml-state]
 
 ---
 "Test get model snapshots API with no params":

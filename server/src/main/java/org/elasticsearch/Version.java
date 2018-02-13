@@ -163,11 +163,6 @@ public class Version implements Comparable<Version> {
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
     }
 
-    private static final List<Version> DECLARED_VERSIONS;
-    static {
-        DECLARED_VERSIONS = getDeclaredVersions(Version.class);
-    }
-
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -377,6 +372,8 @@ public class Version implements Comparable<Version> {
     public final byte build;
     public final org.apache.lucene.util.Version luceneVersion;
 
+    private List<Version> declaredVersionsCache;
+
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
@@ -417,9 +414,17 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         if (major >= 6) {
             // all major versions from 6 onwards are compatible with last minor series of the previous major
+            List<Version> declaredVersions = declaredVersionsCache;
+
+            if (declaredVersions == null) {
+                declaredVersions = Collections.unmodifiableList(getDeclaredVersions(getClass()));
+                declaredVersionsCache = declaredVersions;
+            }
+
             Version bwcVersion = null;
-            for (int i = DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
-                final Version candidateVersion = DECLARED_VERSIONS.get(i);
+
+            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = declaredVersions.get(i);
                 if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;

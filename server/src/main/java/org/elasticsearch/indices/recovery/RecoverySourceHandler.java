@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -469,13 +470,17 @@ public class RecoverySourceHandler {
             "required [" + requiredSeqNoRangeStart + ":" + endingSeqNo + "]");
 
         // send all the snapshot's translog operations to the target
-        final SendSnapshotResult result = sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
-
-        stopWatch.stop();
-        logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
-        response.phase2Time = stopWatch.totalTime().millis();
-        response.phase2Operations = result.totalOperations;
-        return result.targetLocalCheckpoint;
+        try {
+            final SendSnapshotResult result = sendSnapshot(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
+            stopWatch.stop();
+            logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
+            response.phase2Time = stopWatch.totalTime().millis();
+            response.phase2Operations = result.totalOperations;
+            return result.targetLocalCheckpoint;
+        } catch (TranslogCorruptedException ex) {
+            failEngine(new IOException("failed to read translog operations", ex));
+            throw ex;
+        }
     }
 
     /*

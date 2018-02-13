@@ -45,6 +45,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -192,6 +193,8 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
+            Store.removeCorruptionMarker(dir);
+            dir.syncMetaData();
         } catch (LockObtainFailedException lofe) {
             throw new ElasticsearchException("Failed to lock shard's directory at [" + idxLocation + "], is Elasticsearch still running?");
         }

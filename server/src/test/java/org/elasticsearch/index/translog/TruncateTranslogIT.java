@@ -46,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -100,6 +101,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             .put("index.routing.allocation.exclude._name", replicaNode)
         ));
         ensureYellow();
+        final String primaryNode = Iterables.get(internalCluster().nodesInclude("test"), 0);
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put("index.routing.allocation.exclude._name", (String)null)
@@ -197,7 +199,11 @@ public class TruncateTranslogIT extends ESIntegTestCase {
             ttc.execute(t, options, null /* TODO: env should be real here, and ttc should actually use it... */);
             logger.info("--> output:\n{}", t.getOutput());
         }
-
+        // since the store on the primary was marked as corrupted, the gateway may have failed to fetch the metadata;
+        // we need to restart the primary node so that the gateway can fetch metadata from the primary node again.
+        logger.info("--> Restart the primary node");
+        internalCluster().restartNode(primaryNode, new InternalTestCluster.RestartCallback());
+        ensureGreen();
         // Re-open index
         logger.info("--> opening 'test' index");
         client().admin().indices().prepareOpen("test").get();

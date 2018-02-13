@@ -119,6 +119,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -2632,7 +2633,7 @@ public class InternalEngineTests extends EngineTestCase {
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");
-        } catch (EngineCreationFailureException ex) {
+        } catch (EngineCreationFailureException | TranslogCorruptedException ex) {
         }
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!

@@ -68,6 +68,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -901,7 +902,7 @@ public abstract class Engine implements Closeable {
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
+                    if (Lucene.isCorruptionException(failure) || failure instanceof TranslogCorruptedException) {
                         try {
                             store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
                         } catch (IOException e) {

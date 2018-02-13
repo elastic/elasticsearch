@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -89,7 +90,9 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -1720,6 +1723,31 @@ public class IndexShardTests extends IndexShardTestCase {
         newShard.refresh("test");
         assertDocCount(newShard, 1);
 
+        closeShards(newShard);
+    }
+
+    public void testRecoverFromStoreFailIfTranslogCorrupted() throws Exception {
+        final IndexShard shard = newStartedShard(true);
+        final int numDocs = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "test", Integer.toString(i));
+        }
+        TestTranslog.corruptTranslogFiles(logger, random(), Collections.singletonList(shard.getTranslog().location()));
+        IndexShard newShard = reinitShard(shard);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        ShardRouting routing = newShard.routingEntry();
+        newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+        final Store store = newShard.store();
+        store.incRef();
+        try {
+            newShard.recoverFromStore();
+            fail("Recover from store with corrupted translog");
+        } catch (Exception ex) {
+            assertThat(ExceptionsHelper.unwrap(ex, TranslogCorruptedException.class), instanceOf(TranslogCorruptedException.class));
+            assertThat(store.isMarkedCorrupted(), equalTo(true));
+        }finally {
+            store.decRef();
+        }
         closeShards(newShard);
     }
 

@@ -117,6 +117,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -1345,15 +1346,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // we have to set it before we open an engine and recover from the translog because
-            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+        try {
+            if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
+                // we have to set it before we open an engine and recover from the translog because
+                // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+                // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+                final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+                replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+            }
+            createNewEngine(config);
+        } catch (TranslogCorruptedException ex) {
+            store.markStoreCorrupted(new IOException("failed to open engine; translog corrupted", ex));
+            throw ex;
         }
-        createNewEngine(config);
         verifyNotClosed();
         if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
             // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,

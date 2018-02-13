@@ -581,7 +581,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void removeCorruptionMarker() throws IOException {
         ensureOpen();
-        final Directory directory = directory();
+        removeCorruptionMarker(directory);
+    }
+
+    public static void removeCorruptionMarker(Directory directory) throws IOException {
         IOException firstException = null;
         final String[] files = directory.listAll();
         for (String file : files) {

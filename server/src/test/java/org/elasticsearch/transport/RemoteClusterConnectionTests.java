@@ -480,7 +480,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                                 new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(5, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();

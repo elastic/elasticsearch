@@ -49,7 +49,8 @@ public class EvilThreadPoolTests extends ESTestCase {
         );
     }
 
-    private void runExecutionExceptionTest(final Supplier<Throwable> supplier, final Consumer<Throwable> consumer) throws InterruptedException {
+    private void runExecutionExceptionTest(
+            final Supplier<Throwable> supplier, final Consumer<Throwable> consumer) throws InterruptedException {
         final AtomicReference<Throwable> maybeThrowable = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch latch = new CountDownLatch(1);

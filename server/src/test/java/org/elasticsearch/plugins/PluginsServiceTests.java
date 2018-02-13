@@ -590,4 +590,18 @@ public class PluginsServiceTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
+
+    public void testIncompatibleElasticsearchVersion() throws Exception {
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_5_0_0,
+            "1.8", "FakePlugin", Collections.emptyList(), false, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 5.0.0"));
+    }
+
+    public void testIncompatibleJavaVersion() throws Exception {
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.CURRENT,
+            "1000000.0", "FakePlugin", Collections.emptyList(), false, false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("my_plugin requires Java"));
+    }
 }

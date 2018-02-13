@@ -19,8 +19,20 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.translog.Translog;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -72,6 +84,24 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 replica.getTranslog().sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
+                recoveryTarget.decRef();
+            }
+            // Different translogUUID, fallback to file-based
+            {
+                replica.close("test", false);
+                final List<IndexCommit> commits = DirectoryReader.listCommits(replica.store().directory());
+                IndexWriterConfig iwc = new IndexWriterConfig(null)
+                    .setCommitOnClose(false)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+                try (IndexWriter writer = new IndexWriter(replica.store().directory(), iwc)) {
+                    final Map<String, String> userData = new HashMap<>(commits.get(commits.size() - 1).getUserData());
+                    userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
+                    writer.setLiveCommitData(userData.entrySet());
+                    writer.commit();
+                }
+                final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+                assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
                 recoveryTarget.decRef();
             }
         } finally {

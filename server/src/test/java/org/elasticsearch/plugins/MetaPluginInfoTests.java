@@ -113,7 +113,7 @@ public class MetaPluginInfoTests extends ESTestCase {
             "classname", "FakePlugin");
 
         IllegalStateException exc =
-            expectThrows(IllegalStateException.class, () -> PluginInfo.extractAllPlugins(pluginDir));
+            expectThrows(IllegalStateException.class, () -> PluginsService.findPluginDirs(pluginDir));
         assertThat(exc.getMessage(), containsString("duplicate plugin"));
         assertThat(exc.getMessage(), endsWith("plugin1"));
     }

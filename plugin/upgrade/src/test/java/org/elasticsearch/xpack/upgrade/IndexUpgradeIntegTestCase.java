@@ -35,7 +35,7 @@ public abstract class IndexUpgradeIntegTestCase extends AbstractLicensesIntegrat
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(XPackClientPlugin.class);
+        return Arrays.asList(XPackClientPlugin.class, ReindexPlugin.class);
     }
     private static String randomValidLicenseType() {
         return randomFrom("trial", "platinum", "gold", "standard", "basic");

@@ -95,6 +95,7 @@ SETUP_OK
     [ "$status" -eq 0 ] || {
         echo "Expected x-pack setup-passwords tool exit code to be zero but got [$status]"
         cat /tmp/setup-passwords-output-with-bootstrap
+        debug_collect_logs
         false
     }
 

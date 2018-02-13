@@ -96,12 +96,19 @@ assert_number_of_files() {
 wait_for_xpack() {
     local host=${1:-localhost}
     local port=${2:-9200}
-
-    local waitFor
+    local listening=1
     for i in {1..60}; do
-        waitFor=$(echo "GET / HTTP/1.0" > /dev/tcp/$host/$port; echo $?)
-        [ "$waitFor" -eq "0" ] && break || sleep 1;
+        if test_port "$host" "$port"; then
+	    listening=0
+            break
+        else
+            sleep 1
+        fi
     done
 
-    [ "$waitFor" -eq "0" ]
+    [ "$listening" -eq 0 ] || {
+        echo "Looks like elasticsearch with x-pack never started."
+        debug_collect_logs
+        false
+    }
 }

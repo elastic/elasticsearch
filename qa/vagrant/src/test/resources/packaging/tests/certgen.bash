@@ -261,6 +261,7 @@ MASTER_SETTINGS
     [ "$status" -eq 0 ] || {
 	    echo "Failed to connect to master node using HTTPS:"
 	    echo "$output"
+	    debug_collect_logs
 	    false
     }
     echo "$output" | grep "node-master"
@@ -359,6 +360,7 @@ DATA_SETTINGS
         -XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
         -d '{"title": "Elasticsearch The Definitive Guide"}')
 
+    debug_collect_logs
     echo "$testIndex" | grep '"result":"created"'
 
     masterSettings=$(sudo curl -u "elastic:changeme" \

@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -51,40 +52,43 @@ public class EvilThreadPoolTests extends ESTestCase {
                 () -> {
                     throw new Error("future error");
                 },
-                t -> {
-                    assertThat(t, instanceOf(Error.class));
-                    assertThat(t, hasToString(containsString("future error")));
+                true,
+                o -> {
+                    assertTrue(o.isPresent());
+                    assertThat(o.get(), instanceOf(Error.class));
+                    assertThat(o.get(), hasToString(containsString("future error")));
                 });
         runExecutionExceptionTest(
                 () -> {
                     throw new IllegalStateException("future exception");
                 },
-                t -> {
-                    assertThat(t, instanceOf(RuntimeException.class));
-                    assertNotNull(t.getCause());
-                    assertThat(t.getCause(), instanceOf(IllegalStateException.class));
-                    assertThat(t.getCause(), hasToString(containsString("future exception")));
-                }
-        );
+                false,
+                o -> assertFalse(o.isPresent()));
     }
 
     private void runExecutionExceptionTest(
-            final Supplier<Throwable> supplier, final Consumer<Throwable> consumer) throws InterruptedException {
-        final AtomicReference<Throwable> maybeThrowable = new AtomicReference<>();
+            final Supplier<Throwable> supplier,
+            final boolean expectThrowable,
+            final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
+        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch latch = new CountDownLatch(1);
 
         try {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                maybeThrowable.set(e);
+                assertTrue(expectThrowable);
+                throwableReference.set(e);
                 latch.countDown();
             });
 
             threadPool.generic().submit(supplier::get);
 
-            latch.await();
-            assertNotNull(maybeThrowable.get());
-            consumer.accept(maybeThrowable.get());
+            if (expectThrowable) {
+                latch.await();
+                consumer.accept(Optional.of(throwableReference.get()));
+            } else {
+                consumer.accept(Optional.empty());
+            }
         } finally {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
         }

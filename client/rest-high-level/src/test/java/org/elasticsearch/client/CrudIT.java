@@ -807,4 +807,27 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index")));
     }
+
+    public void testParamsEncode() throws IOException {
+        //parameters are encoded by the low-level client but let's test that everything works the same when we use the high-level one
+        String routing = "routing/value#1?";
+        {
+            IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+            indexRequest.source("field", "value");
+            indexRequest.routing(routing);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            assertEquals("index", indexResponse.getIndex());
+            assertEquals("type", indexResponse.getType());
+            assertEquals("id", indexResponse.getId());
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id").routing(routing);
+            GetResponse getResponse = highLevelClient().get(getRequest);
+            assertTrue(getResponse.isExists());
+            assertEquals("index", getResponse.getIndex());
+            assertEquals("type", getResponse.getType());
+            assertEquals("id", getResponse.getId());
+            assertEquals(routing, getResponse.getField("_routing").getValue());
+        }
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -189,7 +190,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     public void testWatcher() throws Exception {
         if (runningAgainstOldCluster) {
-            logger.info("Adding a watch on old cluster");
+            logger.info("Adding a watch on old cluster {}", oldClusterVersion);
             client().performRequest("PUT", "_xpack/watcher/watch/bwc_watch", emptyMap(),
                     new StringEntity(loadWatch("simple-watch.json"), ContentType.APPLICATION_JSON));
 
@@ -380,17 +381,32 @@ public class FullClusterRestartIT extends ESRestTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("wait_for_status", "yellow");
         params.put("timeout", "30s");
+        params.put("wait_for_no_relocating_shards", "true");
+        if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
+            params.put("wait_for_no_initializing_shards", "true");
+        }
         Map<String, Object> response = toMap(client().performRequest("GET", "/_cluster/health/" + indexName, params));
         assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
     }
 
     @SuppressWarnings("unchecked")
     private void waitForHits(String indexName, int expectedHits) throws Exception {
+        Map<String, String> params = singletonMap("size", "0");
         assertBusy(() -> {
-            Map<String, Object> response = toMap(client().performRequest("GET", "/" + indexName + "/_search", singletonMap("size", "0")));
-            Map<String, Object> hits = (Map<String, Object>) response.get("hits");
-            int total = (int) hits.get("total");
-            assertThat(total, greaterThanOrEqualTo(expectedHits));
+            try {
+                Map<String, Object> response = toMap(client().performRequest("GET", "/" + indexName + "/_search", params));
+                Map<String, Object> hits = (Map<String, Object>) response.get("hits");
+                int total = (int) hits.get("total");
+                assertThat(total, greaterThanOrEqualTo(expectedHits));
+            } catch (IOException ioe) {
+                if (ioe instanceof ResponseException) {
+                    Response response = ((ResponseException) ioe).getResponse();
+                    if (RestStatus.fromCode(response.getStatusLine().getStatusCode()) == RestStatus.SERVICE_UNAVAILABLE) {
+                        fail("shards are not yet active");
+                    }
+                }
+                throw ioe;
+            }
         }, 30, TimeUnit.SECONDS);
     }
 

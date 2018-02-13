@@ -351,9 +351,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
         // Also enroll the delete into tombstones, and account for its RAM too:
         final VersionValue prevTombstone = tombstones.put(uid, version);
-        // We initially account for BytesRef/VersionValue RAM for a delete against the tombstones, because this RAM will not be freed up
-        // on refresh. Later, in removeTombstoneUnderLock, if we clear the tombstone entry but the delete remains in current, we shift
-        // the accounting to current:
         long accountRam = (BASE_BYTES_PER_CHM_ENTRY + version.ramBytesUsed() + uidRAMBytesUsed);
         // Deduct tombstones bytes used for the version we just removed or replaced:
         if (prevTombstone != null) {

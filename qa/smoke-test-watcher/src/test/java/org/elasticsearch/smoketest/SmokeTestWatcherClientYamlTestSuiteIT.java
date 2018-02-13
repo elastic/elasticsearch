@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
 @Network // Needed to access to an external Jira server
-@TestLogging("_root:TRACE")
 public class SmokeTestWatcherClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public SmokeTestWatcherClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

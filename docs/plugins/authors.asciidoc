@@ -31,7 +31,7 @@ All plugin files must be contained in a directory called `elasticsearch`.
 All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`.
 The format for this file is described in detail in this example:
 
-["source","properties",subs="attributes"]
+["source","properties"]
 --------------------------------------------------
 include::{plugin-properties-files}/plugin-descriptor.properties[]
 --------------------------------------------------

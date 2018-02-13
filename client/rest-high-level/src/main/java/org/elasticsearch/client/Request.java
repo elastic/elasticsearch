@@ -25,6 +25,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
@@ -73,6 +74,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
@@ -568,7 +570,14 @@ public final class Request {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
-                joiner.add(part);
+                try {
+                    //encode each part (e.g. index, type and id) separately before merging them into the path
+                    URIBuilder uriBuilder = new URIBuilder().setPath(part);
+                    //make sure that "/" in each part are properly encoded too
+                    joiner.add(uriBuilder.build().getRawPath().replaceAll("/", "%2F"));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
+                }
             }
         }
         return joiner.toString();

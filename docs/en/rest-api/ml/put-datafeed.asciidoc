@@ -104,8 +104,7 @@ PUT _xpack/ml/datafeeds/datafeed-total-requests
 {
   "job_id": "total-requests",
   "indices": ["server-metrics"],
-  "types": ["metric"],
-  "scroll_size": 1000
+  "types": ["metric"]
 }
 --------------------------------------------------
 // CONSOLE
@@ -135,5 +134,5 @@ When the {dfeed} is created, you receive the following results:
   }
 }
 ----
-//TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
-//TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]
+// TESTRESPONSE[s/"query_delay": "83474ms"/"query_delay": $body.query_delay/]
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

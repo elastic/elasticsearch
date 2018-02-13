@@ -50,7 +50,7 @@ https://download.elastic.co/demos/machine_learning/gettingstarted/server_metrics
 
 Use the following commands to extract the files:
 
-[source,shell]
+[source,sh]
 ----------------------------------
 tar -zxvf server_metrics.tar.gz
 ----------------------------------
@@ -77,6 +77,7 @@ Each document in the server-metrics data set has the following schema:
   "total":40476
 }
 ----------------------------------
+// NOTCONSOLE
 
 TIP: The sample data sets include summarized data. For example, the `total`
 value is a sum of the requests that were received by a specific service at a
@@ -103,9 +104,8 @@ with your actual user ID and password.
 The script runs a command similar to the following example, which sets up a
 mapping for the data set:
 
-[source,shell]
+[source,sh]
 ----------------------------------
-
 curl -u elastic:x-pack-test-password -X PUT -H 'Content-Type: application/json'
 http://localhost:9200/server-metrics -d '{
    "settings":{
@@ -141,27 +141,17 @@ http://localhost:9200/server-metrics -d '{
    }
 }'
 ----------------------------------
+// NOTCONSOLE
 
 NOTE: If you run this command, you must replace `x-pack-test-password` with your
 actual password.
-
-////
-This mapping specifies the following qualities for the data set:
-
-* The _@timestamp_ field is a date.
-//that uses the ISO format `epoch_second`,
-//which is the number of seconds since the epoch.
-* The _accept_, _deny_, and _total_ fields are long numbers.
-* The _host
-////
 
 You can then use the {es} `bulk` API to load the data set. The
 `upload_server-metrics.sh` script runs commands similar to the following
 example, which loads the four JSON files:
 
-[source,shell]
+[source,sh]
 ----------------------------------
-
 curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_1.json"
 
@@ -174,6 +164,7 @@ http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_3.json
 curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
+// NOTCONSOLE
 
 TIP: This will upload 200MB of data. This is split into 4 files as there is a
 maximum 100MB limit when using the `_bulk` API.
@@ -183,20 +174,20 @@ available.
 
 You can verify that the data was loaded successfully with the following command:
 
-[source,shell]
+[source,sh]
 ----------------------------------
-
 curl 'http://localhost:9200/_cat/indices?v' -u elastic:x-pack-test-password
 ----------------------------------
+// NOTCONSOLE
 
 You should see output similar to the following:
 
-[source,shell]
+[source,txt]
 ----------------------------------
-
 health status index ... pri rep docs.count  ...
 green  open   server-metrics ... 1 0 905940  ...
 ----------------------------------
+// NOTCONSOLE
 
 Next, you must define an index pattern for this data set:
 

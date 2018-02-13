@@ -40,6 +40,11 @@ so do not set the `background_persist_interval` value too low.
 `description`::
   (string) An optional description of the job.
 
+`established_model_memory`::
+  (long) The approximate amount of memory resources that have been used for
+  analytical processing. This field is present only when the analytics have used
+  a stable amount of memory for several consecutive buckets.
+
 `finished_time`::
   (string) If the job closed or failed, this is the time the job finished,
   otherwise it is `null`.
@@ -55,6 +60,9 @@ so do not set the `background_persist_interval` value too low.
 
 `job_type`::
   (string) Reserved for future use, currently set to `anomaly_detector`.
+
+`job_version`::
+ (string) The version of {es} that existed on the node when the job was created.
 
 `model_plot_config`::
   (object) Configuration properties for storing additional model information.
@@ -217,6 +225,11 @@ Each detector has the following properties:
 `detector_description`::
   (string) A description of the detector. For example, `Low event rate`.
 
+`detector_index`::
+  (integer) A unique identifier for the detector. This identifier is based on
+  the order of the detectors in the `analysis_config`, starting at zero. You can
+  use this identifier when you want to update a specific detector.
+
 `exclude_frequent`::
   (string) Contains one of the following values: `all`, `none`, `by`, or `over`.
   If set, frequent entities are excluded from influencing the anomaly results.
@@ -265,10 +278,6 @@ LEAVE UNDOCUMENTED
  `rules`::
   (array) TBD
 ////
-
-`detector_index`::
-  (integer) Unique ID for the detector, used when updating it.
-  Based on the order of detectors within the `analysis_config`, starting at zero.
 
 [float]
 [[ml-datadescription]]

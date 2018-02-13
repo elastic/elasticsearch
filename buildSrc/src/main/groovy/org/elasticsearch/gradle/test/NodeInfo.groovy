@@ -163,6 +163,7 @@ class NodeInfo {
         }
 
         env = ['JAVA_HOME': project.runtimeJavaHome]
+        args.addAll("-E", "logger.org.elasticsearch.bootstrap=debug", "-E", "logger.org.elasticsearch.common.network=debug")
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs

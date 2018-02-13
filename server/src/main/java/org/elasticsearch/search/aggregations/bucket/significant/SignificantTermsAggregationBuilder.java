@@ -97,7 +97,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
             aggregationParser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name, LoggingDeprecationHandler.INSTANCE);
+                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
                         return significanceHeuristicParser.parse(p);
                     },
                     new ParseField(name));

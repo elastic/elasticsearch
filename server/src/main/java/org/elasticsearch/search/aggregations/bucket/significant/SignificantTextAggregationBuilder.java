@@ -112,7 +112,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
             PARSER.declareObject(SignificantTextAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name, LoggingDeprecationHandler.INSTANCE);
+                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
                         return significanceHeuristicParser.parse(p);
                     }, new ParseField(name));
         }

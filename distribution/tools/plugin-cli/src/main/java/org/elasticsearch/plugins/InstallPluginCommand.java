@@ -565,6 +565,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Load information about the plugin, and verify it can be installed with no errors. */
     private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+        PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
         verifyPluginName(env.pluginsFile(), info.getName(), pluginRoot);
@@ -649,6 +650,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     continue;
                 }
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
+                PluginsService.verifyCompatibility(info);
                 verifyPluginName(env.pluginsFile(), info.getName(), plugin);
                 pluginPaths.add(plugin);
             }

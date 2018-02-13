@@ -150,67 +150,13 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Extracts all {@link PluginInfo} from the provided {@code rootPath} expanding meta plugins if needed.
-     * @param rootPath the path where the plugins are installed
-     * @return A list of all plugin paths installed in the {@code rootPath}
-     * @throws IOException if an I/O exception occurred reading the plugin descriptors
-     */
-    public static List<Path> extractAllPlugins(final Path rootPath) throws IOException {
-        final List<Path> plugins = new LinkedList<>();  // order is already lost, but some filesystems have it
-        final Set<String> seen = new HashSet<>();
-        if (Files.exists(rootPath)) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
-                for (Path plugin : stream) {
-                    if (FileSystemUtils.isDesktopServicesStore(plugin) ||
-                            plugin.getFileName().toString().startsWith(".removing-")) {
-                        continue;
-                    }
-                    if (seen.add(plugin.getFileName().toString()) == false) {
-                        throw new IllegalStateException("duplicate plugin: " + plugin);
-                    }
-                    if (MetaPluginInfo.isMetaPlugin(plugin)) {
-                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
-                            for (Path subPlugin : subStream) {
-                                if (MetaPluginInfo.isPropertiesFile(subPlugin) ||
-                                        FileSystemUtils.isDesktopServicesStore(subPlugin)) {
-                                    continue;
-                                }
-                                if (seen.add(subPlugin.getFileName().toString()) == false) {
-                                    throw new IllegalStateException("duplicate plugin: " + subPlugin);
-                                }
-                                plugins.add(subPlugin);
-                            }
-                        }
-                    } else {
-                        plugins.add(plugin);
-                    }
-                }
-            }
-        }
-        return plugins;
-    }
-
-    /**
-     * Reads and validates the plugin descriptor file.
+     * Reads the plugin descriptor file.
      *
-     * @param path the path to the root directory for the plugin
+     * @param path           the path to the root directory for the plugin
      * @return the plugin info
      * @throws IOException if an I/O exception occurred reading the plugin descriptor
      */
     public static PluginInfo readFromProperties(final Path path) throws IOException {
-        return readFromProperties(path, true);
-    }
-
-    /**
-     * Reads and validates the plugin descriptor file. If {@code enforceVersion} is false then version enforcement for the plugin descriptor
-     * is skipped.
-     *
-     * @param path           the path to the root directory for the plugin
-     * @param enforceVersion whether or not to enforce the version when reading plugin descriptors
-     * @return the plugin info
-     * @throws IOException if an I/O exception occurred reading the plugin descriptor
-     */
-    static PluginInfo readFromProperties(final Path path, final boolean enforceVersion) throws IOException {
         final Path descriptor = path.resolve(ES_PLUGIN_PROPERTIES);
 
         final Map<String, String> propsMap;
@@ -244,22 +190,12 @@ public class PluginInfo implements Writeable, ToXContentObject {
                     "property [elasticsearch.version] is missing for plugin [" + name + "]");
         }
         final Version esVersion = Version.fromString(esVersionString);
-        if (enforceVersion && esVersion.equals(Version.CURRENT) == false) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "plugin [%s] is incompatible with version [%s]; was designed for version [%s]",
-                    name,
-                    Version.CURRENT.toString(),
-                    esVersionString);
-            throw new IllegalArgumentException(message);
-        }
         final String javaVersionString = propsMap.remove("java.version");
         if (javaVersionString == null) {
             throw new IllegalArgumentException(
                     "property [java.version] is missing for plugin [" + name + "]");
         }
         JarHell.checkVersionFormat(javaVersionString);
-        JarHell.checkJavaVersion(name, javaVersionString);
         final String classname = propsMap.remove("classname");
         if (classname == null) {
             throw new IllegalArgumentException(

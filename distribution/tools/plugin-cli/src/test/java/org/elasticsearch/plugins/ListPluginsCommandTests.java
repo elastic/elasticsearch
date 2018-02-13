@@ -362,11 +362,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        final String message = String.format(Locale.ROOT,
-                "plugin [%s] is incompatible with version [%s]; was designed for version [%s]",
-                "fake_plugin1",
-                Version.CURRENT.toString(),
-                "1.0.0");
+        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0 but version " + Version.CURRENT + " is required";
         assertEquals(
                 "fake_plugin1\n" + "WARNING: " + message + "\n" + "fake_plugin2\n",
                 terminal.getOutput());
@@ -388,11 +384,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
         MockTerminal terminal = listPlugins(home);
-        final String message = String.format(Locale.ROOT,
-            "plugin [%s] is incompatible with version [%s]; was designed for version [%s]",
-            "fake_plugin1",
-            Version.CURRENT.toString(),
-            "1.0.0");
+        String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0 but version " + Version.CURRENT + " is required";
         assertEquals(
             "fake_plugin2\nmeta_plugin\n\tfake_plugin1\n" + "WARNING: " + message + "\n",
             terminal.getOutput());

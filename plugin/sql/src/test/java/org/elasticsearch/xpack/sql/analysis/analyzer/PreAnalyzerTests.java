@@ -11,7 +11,8 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.joda.time.DateTimeZone;
 
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PreAnalyzerTests extends ESTestCase {
@@ -23,20 +24,53 @@ public class PreAnalyzerTests extends ESTestCase {
         LogicalPlan plan = parser.createStatement("SELECT * FROM index");
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
-        assertThat(result.indices, contains("index"));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), nullValue());
+        assertThat(result.indices.get(0).index(), is("index"));
+    }
+
+    public void testBasicIndexWithCatalog() {
+        LogicalPlan plan = parser.createStatement("SELECT * FROM elastic:index");
+        PreAnalysis result = preAnalyzer.preAnalyze(plan);
+        assertThat(plan.preAnalyzed(), is(true));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), is("elastic"));
+        assertThat(result.indices.get(0).index(), is("index"));
+    }
+
+    public void testWildIndexWithCatalog() {
+        LogicalPlan plan = parser.createStatement("SELECT * FROM elastic:index*");
+        PreAnalysis result = preAnalyzer.preAnalyze(plan);
+        assertThat(plan.preAnalyzed(), is(true));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), is("elastic"));
+        assertThat(result.indices.get(0).index(), is("index*"));
     }
 
     public void testQuotedIndex() {
         LogicalPlan plan = parser.createStatement("SELECT * FROM \"aaa\"");
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
-        assertThat(result.indices, contains("aaa"));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), nullValue());
+        assertThat(result.indices.get(0).index(), is("aaa"));
+    }
+
+    public void testQuotedCatalog() {
+        LogicalPlan plan = parser.createStatement("SELECT * FROM \"elastic\":\"aaa\"");
+        PreAnalysis result = preAnalyzer.preAnalyze(plan);
+        assertThat(plan.preAnalyzed(), is(true));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), is("elastic"));
+        assertThat(result.indices.get(0).index(), is("aaa"));
     }
 
     public void testComplicatedQuery() {
         LogicalPlan plan = parser.createStatement("SELECT MAX(a) FROM aaa WHERE d > 10 GROUP BY b HAVING AVG(c) ORDER BY e ASC");
         PreAnalysis result = preAnalyzer.preAnalyze(plan);
         assertThat(plan.preAnalyzed(), is(true));
-        assertThat(result.indices, contains("aaa"));
+        assertThat(result.indices, hasSize(1));
+        assertThat(result.indices.get(0).cluster(), nullValue());
+        assertThat(result.indices.get(0).index(), is("aaa"));
     }
 }

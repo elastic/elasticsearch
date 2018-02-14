@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
@@ -115,8 +117,15 @@ public class SqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (preAnalysis.indices.size() == 1) {
-            String indexName = preAnalysis.indices.get(0);
-            indexResolver.resolveWithSameMapping(indexName, null,
+            TableIdentifier table = preAnalysis.indices.get(0);
+
+            String cluster = table.cluster();
+
+            if (Strings.hasText(cluster) && !indexResolver.clusterName().equals(cluster)) {
+                listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
+            }
+
+            indexResolver.resolveWithSameMapping(table.index(), null,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

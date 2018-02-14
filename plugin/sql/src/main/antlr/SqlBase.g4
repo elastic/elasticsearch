@@ -233,8 +233,8 @@ identifier
     ;
 
 tableIdentifier
-    : TABLE_IDENTIFIER
-    | identifier
+    : (catalog=identifier ':')? TABLE_IDENTIFIER
+    | (catalog=identifier ':')? name=identifier
     ;
 
 quoteIdentifier

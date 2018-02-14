@@ -20,7 +20,7 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 public class UnresolvedRelationTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         Location location = new Location(between(1, 1000), between(1, 1000));
-        TableIdentifier table = new TableIdentifier(location, randomAlphaOfLength(5));
+        TableIdentifier table = new TableIdentifier(location, randomAlphaOfLength(5), randomAlphaOfLength(5));
         String alias = randomBoolean() ? null : randomAlphaOfLength(5);
         String unresolvedMessage = randomAlphaOfLength(5);
         UnresolvedRelation relation = new UnresolvedRelation(location, table, alias, unresolvedMessage);
@@ -32,7 +32,7 @@ public class UnresolvedRelationTests extends ESTestCase {
             r.unresolvedMessage()));
         mutators.add(r -> new UnresolvedRelation(
             r.location(),
-            new TableIdentifier(r.location(), r.table().index() + "m"),
+            new TableIdentifier(r.location(), r.table().cluster(), r.table().index() + "m"),
             r.alias(),
             r.unresolvedMessage()));
         mutators.add(r -> new UnresolvedRelation(

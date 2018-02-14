@@ -21,6 +21,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
@@ -35,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -200,7 +202,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
         if (watcherIndexMetaData == null) {
             if (clearAllocationIds() && callWatcherService) {
-                executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
+                executor.execute(wrapWatcherService(() -> watcherService.pauseExecution("no watcher index found"),
+                        e -> logger.error("error pausing watch execution", e)));
             }
             return;
         }
@@ -210,7 +213,9 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         // this can happen if the node does not hold any data
         if (routingNode == null) {
             if (clearAllocationIds() && callWatcherService) {
-                executor.execute(() -> watcherService.pauseExecution("no routing node for local node found, network issue?"));
+                executor.execute(wrapWatcherService(
+                        () -> watcherService.pauseExecution("no routing node for local node found, network issue?"),
+                        e -> logger.error("error pausing watch execution", e)));
             }
             return;
         }
@@ -220,7 +225,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         // no local shards, empty out watcher and dont waste resources!
         if (localShards.isEmpty()) {
             if (clearAllocationIds() && callWatcherService) {
-                executor.execute(() -> watcherService.pauseExecution("no local watcher shards found"));
+                executor.execute(wrapWatcherService(() -> watcherService.pauseExecution("no local watcher shards found"),
+                        e -> logger.error("error pausing watch execution", e)));
             }
             return;
         }
@@ -234,7 +240,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
             previousAllocationIds.set(Collections.unmodifiableList(currentAllocationIds));
             if (callWatcherService) {
-                executor.execute(() -> watcherService.reload(state, "new local watcher shard allocation ids"));
+                executor.execute(wrapWatcherService(() -> watcherService.reload(state, "new local watcher shard allocation ids"),
+                        e -> logger.error("error reloading watcher", e)));
             }
         }
     }
@@ -251,5 +258,28 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     // for testing purposes only
     List<String> allocationIds() {
         return previousAllocationIds.get();
+    }
+
+    /**
+     * Wraps an abstract runnable to easier supply onFailure and doRun methods via lambdas
+     * This ensures that the uncaught exception handler in the executing threadpool does not get called
+     *
+     * @param run                 The code to be executed in the runnable
+     * @param exceptionConsumer   The exception handling code to be executed, if the runnable fails
+     * @return                    The AbstractRunnable instance to pass to the executor
+     */
+    private static AbstractRunnable wrapWatcherService(Runnable run, Consumer<Exception> exceptionConsumer) {
+
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                exceptionConsumer.accept(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                run.run();
+            }
+        };
     }
 }

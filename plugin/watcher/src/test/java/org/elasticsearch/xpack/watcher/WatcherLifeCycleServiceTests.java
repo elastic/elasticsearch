@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -20,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -575,6 +576,124 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         verify(watcherService, never()).reload(eq(state), anyString());
         assertThat(lifeCycleService.allocationIds(), hasSize(1));
+    }
+
+    public void testWatcherServiceExceptionsAreCaught() {
+        Index index = new Index(Watch.INDEX, "foo");
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addShard(
+                TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX).settings(settings(Version.CURRENT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+                .numberOfShards(1).numberOfReplicas(0).build();
+
+        // special setup for one of the following cluster states
+        DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
+        DiscoveryNode localNode = mock(DiscoveryNode.class);
+        when(discoveryNodes.getMasterNodeId()).thenReturn("node_1");
+        when(discoveryNodes.getLocalNode()).thenReturn(localNode);
+        when(localNode.isDataNode()).thenReturn(true);
+        when(localNode.getId()).thenReturn("does_not_exist");
+
+        ClusterState clusterState = randomFrom(
+                // cluster state with no watcher index
+                ClusterState.builder(new ClusterName("my-cluster"))
+                        .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
+                        .metaData(MetaData.builder()
+                                .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .build())
+                        .build(),
+                // cluster state with no routing node
+                ClusterState.builder(new ClusterName("my-cluster"))
+                        .nodes(discoveryNodes)
+                        .metaData(MetaData.builder()
+                                .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .build())
+                        .build(),
+
+                // cluster state with no local shards
+                ClusterState.builder(new ClusterName("my-cluster"))
+                        .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
+                        .metaData(MetaData.builder()
+                                .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(indexMetaData, true)
+                                .build())
+                        .build()
+        );
+
+        ClusterState stateWithWatcherShards = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
+                        .add(newNode("node_1")))
+                .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
+                .metaData(MetaData.builder()
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(indexMetaData, true)
+                        .build())
+                .build();
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stateWithWatcherShards, stateWithWatcherShards));
+
+        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+        doAnswer(invocation -> {
+            throw new ElasticsearchSecurityException("breakme");
+        }).when(watcherService).pauseExecution(anyString());
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, stateWithWatcherShards));
+        verify(watcherService, times(1)).pauseExecution(anyString());
+    }
+
+    public void testWatcherServiceExceptionsAreCaughtOnReload() {
+        Index index = new Index(Watch.INDEX, "foo");
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        indexRoutingTableBuilder.addShard(
+                TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        IndexMetaData indexMetaData = IndexMetaData.builder(Watch.INDEX).settings(settings(Version.CURRENT)
+                .put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+                .numberOfShards(1).numberOfReplicas(0).build();
+
+        // cluster state with different local shards (another shard id)
+        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1"))).routingTable(
+                        RoutingTable.builder().add(IndexRoutingTable.builder(index)
+                                .addShard(TestShardRouting.newShardRouting(Watch.INDEX, 1, "node_1", true, ShardRoutingState.STARTED))
+                                .build()).build()).metaData(
+                        MetaData.builder().put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                                .put(indexMetaData, true).build()).build();
+
+        ClusterState stateWithWatcherShards = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
+                        .add(newNode("node_1")))
+                .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
+                .metaData(MetaData.builder()
+                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+                        .put(indexMetaData, true)
+                        .build())
+                .build();
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stateWithWatcherShards, stateWithWatcherShards));
+
+        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.state()).thenReturn(WatcherState.STARTED);
+        doAnswer(invocation -> {
+            throw new ElasticsearchSecurityException("breakme");
+        }).when(watcherService).reload(eq(clusterState), anyString());
+
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", clusterState, stateWithWatcherShards));
+        verify(watcherService, times(1)).reload(eq(clusterState), anyString());
+
     }
 
     private List<String> randomIndexPatterns() {

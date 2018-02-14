@@ -31,7 +31,7 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -316,7 +316,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
             try (XContentParser parser = XContentFactory.xContent(contentType)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)) {
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -395,7 +395,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         // EMPTY is safe here because we never call namedObject
         try (StreamInput input = content.streamInput();
              XContentParser parser = xContent
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
             copyCurrentStructure(parser);
         }
     }

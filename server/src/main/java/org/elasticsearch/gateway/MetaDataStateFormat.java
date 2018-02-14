@@ -309,7 +309,8 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {

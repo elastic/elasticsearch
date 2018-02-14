@@ -113,12 +113,23 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     }
 
     public void testNoErrors() throws Exception {
-        final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong());
+        final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), false);
         final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
         final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
-        assertThat(restResponse.content().utf8ToString(), is("{\"took\":" + response.getTookInMillis() + ",\"errors\":false}"));
+        assertThat(restResponse.content().utf8ToString(),
+                   is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":false}"));
+    }
+
+    public void testNoErrorsButIgnored() throws Exception {
+        final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), true);
+        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
+        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+
+        assertThat(restResponse.status(), is(RestStatus.ACCEPTED));
+        assertThat(restResponse.content().utf8ToString(),
+                is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
     }
 
     public void testWithErrors() throws Exception {
@@ -137,7 +148,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(restResponse.content().utf8ToString(),
-                   is("{\"took\":" + response.getTookInMillis() + ",\"errors\":true,\"error\":" + errorJson + "}"));
+                   is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":false,\"errors\":true,\"error\":" + errorJson + "}"));
     }
 
     /**

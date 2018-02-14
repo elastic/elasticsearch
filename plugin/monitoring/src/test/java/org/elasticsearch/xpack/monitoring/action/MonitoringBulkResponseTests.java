@@ -25,11 +25,18 @@ public class MonitoringBulkResponseTests extends ESTestCase {
 
     public void testResponseStatus() {
         final long took = Math.abs(randomLong());
-        MonitoringBulkResponse response = new MonitoringBulkResponse(took);
+
+        MonitoringBulkResponse response = new MonitoringBulkResponse(took, false);
 
         assertThat(response.getTookInMillis(), equalTo(took));
         assertThat(response.getError(), is(nullValue()));
         assertThat(response.status(), equalTo(RestStatus.OK));
+
+        response = new MonitoringBulkResponse(took, true);
+
+        assertThat(response.getTookInMillis(), equalTo(took));
+        assertThat(response.getError(), is(nullValue()));
+        assertThat(response.status(), equalTo(RestStatus.ACCEPTED));
 
         ExportException exception = new ExportException(randomAlphaOfLength(10));
         response = new MonitoringBulkResponse(took, new MonitoringBulkResponse.Error(exception));
@@ -44,7 +51,7 @@ public class MonitoringBulkResponseTests extends ESTestCase {
         for (int i = 0; i < iterations; i++) {
             MonitoringBulkResponse response;
             if (randomBoolean()) {
-                response = new MonitoringBulkResponse(Math.abs(randomLong()));
+                response = new MonitoringBulkResponse(Math.abs(randomLong()), randomBoolean());
             } else {
                 Exception exception = randomFrom(
                         new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
@@ -68,6 +75,12 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 assertThat(response2.getError(), is(nullValue()));
             } else {
                 assertThat(response2.getError(), is(notNullValue()));
+            }
+
+            if (version.onOrAfter(Version.V_6_3_0)) {
+                assertThat(response2.isIgnored(), is(response.isIgnored()));
+            } else {
+                assertThat(response2.isIgnored(), is(false));
             }
         }
     }

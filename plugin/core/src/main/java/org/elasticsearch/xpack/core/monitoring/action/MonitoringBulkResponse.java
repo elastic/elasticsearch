@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,16 +24,18 @@ public class MonitoringBulkResponse extends ActionResponse {
 
     private long tookInMillis;
     private Error error;
+    private boolean ignored;
 
     public MonitoringBulkResponse() {
     }
 
-    public MonitoringBulkResponse(long tookInMillis) {
-        this(tookInMillis, null);
+    public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
+        this.tookInMillis = tookInMillis;
+        this.ignored = ignored;
     }
 
-    public MonitoringBulkResponse(long tookInMillis, Error error) {
-        this.tookInMillis = tookInMillis;
+    public MonitoringBulkResponse(final long tookInMillis, final Error error) {
+        this(tookInMillis, false);
         this.error = error;
     }
 
@@ -45,14 +48,29 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     /**
+     * Determine if the request was ignored.
+     *
+     * @return {@code true} if the request was ignored because collection was disabled.
+     */
+    public boolean isIgnored() {
+        return ignored;
+    }
+
+    /**
      * Returns HTTP status
+     *
      * <ul>
      * <li>{@link RestStatus#OK} if monitoring bulk request was successful</li>
+     * <li>{@link RestStatus#ACCEPTED} if monitoring bulk request was ignored because collection is disabled</li>
      * <li>{@link RestStatus#INTERNAL_SERVER_ERROR} if monitoring bulk request was partially successful or failed completely</li>
      * </ul>
      */
     public RestStatus status() {
-        return error == null ? RestStatus.OK : RestStatus.INTERNAL_SERVER_ERROR;
+        if (error == null) {
+            return ignored ? RestStatus.ACCEPTED : RestStatus.OK;
+        }
+
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 
     public Error getError() {
@@ -64,6 +82,10 @@ public class MonitoringBulkResponse extends ActionResponse {
         super.readFrom(in);
         tookInMillis = in.readVLong();
         error = in.readOptionalWriteable(Error::new);
+
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            ignored = in.readBoolean();
+        }
     }
 
     @Override
@@ -71,6 +93,10 @@ public class MonitoringBulkResponse extends ActionResponse {
         super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeOptionalWriteable(error);
+
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeBoolean(ignored);
+        }
     }
 
     public static class Error implements Writeable, ToXContentObject {

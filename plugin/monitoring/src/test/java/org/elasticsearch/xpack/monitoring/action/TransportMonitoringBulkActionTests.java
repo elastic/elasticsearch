@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BytesReferenceMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
@@ -56,6 +58,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -81,6 +84,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     private IndexNameExpressionResolver resolver;
     private XPackLicenseState licenseState;
     private TaskManager taskManager;
+    private final MonitoringService monitoringService = mock(MonitoringService.class);
 
     @Before
     @SuppressWarnings("unchecked")
@@ -105,7 +109,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).blocks(clusterBlock).build());
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters);
+                                                                                       transportService, filters, resolver, exporters,
+                                                                                       monitoringService);
 
         final MonitoringBulkRequest request = randomRequest();
         final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
@@ -113,9 +118,35 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("ClusterBlockException[blocked by: [SERVICE_UNAVAILABLE/2/no master]")));
     }
 
-    public void testExecuteEmptyRequest() {
+    public void testExecuteIgnoresRequestWhenCollectionIsDisabled() throws Exception {
+        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).build());
+        when(monitoringService.isMonitoringActive()).thenReturn(false);
+
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters);
+                                                                                       transportService, filters, resolver, exporters,
+                                                                                       monitoringService);
+
+        final MonitoringBulkDoc doc = mock(MonitoringBulkDoc.class);
+        when(doc.getSource()).thenReturn(new BytesArray("test"));
+
+        final MonitoringBulkRequest request = new MonitoringBulkRequest();
+        request.add(doc);
+
+        final MonitoringBulkResponse response = action.execute(request).get();
+
+        assertThat(response.status(), is(RestStatus.ACCEPTED));
+        assertThat(response.isIgnored(), is(true));
+        assertThat(response.getTookInMillis(), is(0L));
+        assertThat(response.getError(), nullValue());
+    }
+
+    public void testExecuteEmptyRequest() {
+        // it validates the request before it tries to execute it
+        when(monitoringService.isMonitoringActive()).thenReturn(randomBoolean());
+
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+                                                                                       transportService, filters, resolver, exporters,
+                                                                                       monitoringService);
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
         final ExecutionException e = expectThrows(ExecutionException.class, () -> action.execute(request).get());
@@ -125,6 +156,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExecuteRequest() throws Exception {
+        when(monitoringService.isMonitoringActive()).thenReturn(true);
+
         final DiscoveryNode discoveryNode =  new DiscoveryNode("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), CURRENT);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
@@ -176,7 +209,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
         final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
-                                                                                       transportService, filters, resolver, exporters);
+                                                                                       transportService, filters, resolver, exporters,
+                                                                                       monitoringService);
         action.execute(request).get();
 
         verify(exporters).export(any(Collection.class), any(ActionListener.class));

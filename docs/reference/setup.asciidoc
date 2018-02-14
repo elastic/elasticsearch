@@ -29,8 +29,8 @@ in order to run. Only Oracle's Java and the OpenJDK are supported. The same JVM
 version should be used on all Elasticsearch nodes and clients.
 
 We recommend installing Java version *{jdk} or a later version in the Java
-{jdk_major} release series*. We recommend using a
-link:/support/matrix[supported]
+{jdk_major} release series*. As of Elasticsearch 6.2, we also support Java 9.
+We recommend using a link:/support/matrix[supported]
 http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
 

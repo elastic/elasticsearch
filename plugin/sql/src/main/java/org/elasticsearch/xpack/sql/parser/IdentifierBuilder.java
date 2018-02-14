@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QualifiedNameContext;
@@ -16,11 +17,12 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public TableIdentifier visitTableIdentifier(TableIdentifierContext ctx) {
-        String index = ctx.getText();
         Location source = source(ctx);
+        ParseTree tree = ctx.name != null ? ctx.name : ctx.TABLE_IDENTIFIER();
+        String index = tree.getText();
 
-        validateIndex(ctx.getText(), source);
-        return new TableIdentifier(source, index);
+        validateIndex(index, source);
+        return new TableIdentifier(source, visitIdentifier(ctx.catalog), index);
     }
 
     // see https://github.com/elastic/elasticsearch/issues/6736

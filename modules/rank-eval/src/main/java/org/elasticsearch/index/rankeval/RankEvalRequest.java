@@ -22,6 +22,9 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,14 +35,16 @@ import java.util.Objects;
 /**
  * Request to perform a search ranking evaluation.
  */
-public class RankEvalRequest extends ActionRequest {
+public class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     private RankEvalSpec rankingEvaluationSpec;
+
+    private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
 
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
-        this.rankingEvaluationSpec = rankingEvaluationSpec;
-        setIndices(indices);
+        this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
+        indices(indices);
     }
 
     RankEvalRequest() {
@@ -72,7 +77,8 @@ public class RankEvalRequest extends ActionRequest {
     /**
      * Sets the indices the search will be executed on.
      */
-    public RankEvalRequest setIndices(String... indices) {
+    @Override
+    public RankEvalRequest indices(String... indices) {
         Objects.requireNonNull(indices, "indices must not be null");
         for (String index : indices) {
             Objects.requireNonNull(index, "index must not be null");
@@ -84,8 +90,18 @@ public class RankEvalRequest extends ActionRequest {
     /**
      * @return the indices for this request
      */
-    public String[] getIndices() {
+    @Override
+    public String[] indices() {
         return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    public void indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
     }
 
     @Override
@@ -94,6 +110,7 @@ public class RankEvalRequest extends ActionRequest {
         rankingEvaluationSpec = new RankEvalSpec(in);
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
         } else {
             // readStringArray uses readVInt for size, we used readInt in 6.2
             int indicesSize = in.readInt();
@@ -101,6 +118,7 @@ public class RankEvalRequest extends ActionRequest {
             for (int i = 0; i < indicesSize; i++) {
                 indices[i] = in.readString();
             }
+            // no indices options yet
         }
     }
 
@@ -110,12 +128,14 @@ public class RankEvalRequest extends ActionRequest {
         rankingEvaluationSpec.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeStringArray(indices);
+            indicesOptions.writeIndicesOptions(out);
         } else {
             // writeStringArray uses writeVInt for size, we used writeInt in 6.2
             out.writeInt(indices.length);
             for (String index : indices) {
                 out.writeString(index);
             }
+            // no indices options yet
         }
     }
 }

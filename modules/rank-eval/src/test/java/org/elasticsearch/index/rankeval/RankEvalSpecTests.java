@@ -70,7 +70,7 @@ public class RankEvalSpecTests extends ESTestCase {
         return result;
     }
 
-    private static RankEvalSpec createTestItem() throws IOException {
+    static RankEvalSpec createTestItem() throws IOException {
         Supplier<EvaluationMetric> metric = randomFrom(Arrays.asList(
                 () -> PrecisionAtKTests.createTestItem(),
                 () -> MeanReciprocalRankTests.createTestItem(),

@@ -576,7 +576,7 @@ public final class Request {
                     //paths that start with `-` or contain `:`
                     URI uri = new URI(null, null, null, -1, "/" + part, null, null);
                     //manually encode any slash that each part may contain
-                    joiner.add(uri.getRawPath().replaceAll("/", "%2F"));
+                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
                 } catch (URISyntaxException e) {
                     throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
                 }

@@ -50,6 +50,13 @@ public final class QueryBuilders {
     }
 
     /**
+     * A query that matches no documents.
+     */
+    public static MatchNoneQueryBuilder matchNoneQuery() {
+        return new MatchNoneQueryBuilder();
+    }
+
+    /**
      * Creates a match query with type "BOOLEAN" for the provided field name and text.
      *
      * @param name The field name.

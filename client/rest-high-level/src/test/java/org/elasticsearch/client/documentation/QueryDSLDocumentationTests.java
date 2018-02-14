@@ -54,6 +54,7 @@ import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchNoneQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
@@ -247,6 +248,12 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         // tag::match_all
         matchAllQuery();
         // end::match_all
+    }
+
+    public void testMatchNone() {
+        // tag::match_none
+        matchNoneQuery();
+        // end::match_none
     }
 
     public void testMatch() {

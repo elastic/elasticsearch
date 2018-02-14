@@ -30,12 +30,15 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.SSLException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -259,12 +262,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          *            where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
-            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
+            URL route = createURL(url, "/_xpack/security/_authenticate", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Testing if bootstrap password is valid for " + route.toString());
             try {
-                final int httpCode = client.postURL("GET", route, elasticUser, elasticUserPassword, () -> null,
-                        is -> verboseLogResponse(is, terminal));
+                final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
+                        is -> responseBuilder(is, terminal));
+                final int httpCode = httpResponse.getHttpStatus();
+
                 // keystore password is not valid
                 if (httpCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
                     terminal.println("");
@@ -278,12 +283,26 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 } else if (httpCode != HttpURLConnection.HTTP_OK) {
                     terminal.println("");
                     terminal.println("Unexpected response code [" + httpCode + "] from calling GET " + route.toString());
+                    XPackSecurityFeatureConfig xPackSecurityFeatureConfig = getXPackSecurityConfig(terminal);
+                    if (xPackSecurityFeatureConfig.isAvailable == false) {
+                        terminal.println("It doesn't look like the X-Pack security feature is available on this Elasticsearch node.");
+                        terminal.println("Please check if you have installed a license that allows access to X-Pack Security feature.");
+                        terminal.println("");
+                        throw new UserException(ExitCodes.CONFIG, "X-Pack Security is not available.");
+                    }
+                    if (xPackSecurityFeatureConfig.isEnabled == false) {
+                        terminal.println("It doesn't look like the X-Pack security feature is enabled on this Elasticsearch node.");
+                        terminal.println("Please check if you have enabled X-Pack security in your elasticsearch.yml configuration file.");
+                        terminal.println("");
+                        throw new UserException(ExitCodes.CONFIG, "X-Pack Security is disabled by configuration.");
+                    }
+                    terminal.println("X-Pack security feature is available and enabled on this Elasticsearch node.");
                     terminal.println("Possible causes include:");
                     terminal.println(" * The relative path of the URL is incorrect. Is there a proxy in-between?");
                     terminal.println(" * The protocol (http/https) does not match the port.");
                     terminal.println(" * Is this really an Elasticsearch server?");
                     terminal.println("");
-                    throw new UserException(ExitCodes.CONFIG, "Uknown error");
+                    throw new UserException(ExitCodes.CONFIG, "Unknown error");
                 }
             } catch (SSLException e) {
                 terminal.println("");
@@ -305,6 +324,51 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
+        @SuppressWarnings("unchecked")
+        private XPackSecurityFeatureConfig getXPackSecurityConfig(Terminal terminal) throws Exception {
+            // Get x-pack security info.
+            URL route = createURL(url, "/_xpack", "?categories=features&human=false&pretty");
+            final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
+                    is -> responseBuilder(is, terminal));
+            if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
+                terminal.println("");
+                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_BAD_REQUEST) {
+                    terminal.println("It doesn't look like the X-Pack is available on this Elasticsearch node.");
+                    terminal.println("Please check that you have followed all installation instructions and that this tool");
+                    terminal.println("   is pointing to the correct Elasticsearch server.");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.CONFIG, "X-Pack is not available on this Elasticsearch node.");
+                } else {
+                    terminal.println("* Try running this tool again.");
+                    terminal.println("* Verify that the tool is pointing to the correct Elasticsearch server.");
+                    terminal.println("* Check the elasticsearch logs for additional error details.");
+                    terminal.println("");
+                    throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to determine x-pack security feature configuration.");
+                }
+            }
+            final XPackSecurityFeatureConfig xPackSecurityFeatureConfig;
+            if (httpResponse.getHttpStatus() == HttpURLConnection.HTTP_OK && httpResponse.getResponseBody() != null) {
+                Map<String, Object> features = (Map<String, Object>) httpResponse.getResponseBody().get("features");
+                if (features != null) {
+                    Map<String, Object> featureInfo = (Map<String, Object>) features.get("security");
+                    if (featureInfo != null) {
+                        xPackSecurityFeatureConfig =
+                                new XPackSecurityFeatureConfig(Boolean.parseBoolean(featureInfo.get("available").toString()),
+                                        Boolean.parseBoolean(featureInfo.get("enabled").toString()));
+                        return xPackSecurityFeatureConfig;
+                    }
+                }
+            }
+            terminal.println("");
+            terminal.println("Unexpected response from calling GET " + route.toString());
+            terminal.println("* Try running this tool again.");
+            terminal.println("* Verify that the tool is pointing to the correct Elasticsearch server.");
+            terminal.println("* Check the elasticsearch logs for additional error details.");
+            terminal.println("");
+            throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to determine x-pack security feature configuration.");
+        }
+
         /**
          * Sets one user's password using the elastic superUser credentials.
          *
@@ -314,14 +378,13 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          *            the new password of the user.
          */
         private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
-            URL route = new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") +
-                    "?pretty");
+            URL route = createURL(url, "/_xpack/security/user/" + user + "/_password", "?pretty");
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {
                 // supplier should own his resources
                 SecureString supplierPassword = password.clone();
-                final int httpCode = client.postURL("PUT", route, elasticUser, elasticUserPassword, () -> {
+                final HttpResponse httpResponse = client.execute("PUT", route, elasticUser, elasticUserPassword, () -> {
                     try {
                         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                         xContentBuilder.startObject().field("password", supplierPassword.toString()).endObject();
@@ -329,10 +392,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     } finally {
                         supplierPassword.close();
                     }
-                }, is -> verboseLogResponse(is, terminal));
-                if (httpCode != HttpURLConnection.HTTP_OK) {
+                }, is -> responseBuilder(is, terminal));
+                if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                     terminal.println("");
-                    terminal.println("Unexpected response code [" + httpCode + "] from calling PUT " + route.toString());
+                    terminal.println(
+                            "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
                     terminal.println("Possible next steps:");
                     terminal.println("* Try running this tool again.");
                     terminal.println("* Check the elasticsearch logs for additional error details.");
@@ -391,13 +455,34 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
         }
 
-        private void verboseLogResponse(InputStream is, Terminal terminal) throws IOException {
+        private HttpResponseBuilder responseBuilder(InputStream is, Terminal terminal) throws IOException {
+            HttpResponseBuilder httpResponseBuilder = new HttpResponseBuilder();
             if (is != null) {
                 byte[] bytes = Streams.readAll(is);
-                terminal.println(Verbosity.VERBOSE, new String(bytes, StandardCharsets.UTF_8));
+                String responseBody = new String(bytes, StandardCharsets.UTF_8);
+                terminal.println(Verbosity.VERBOSE, responseBody);
+                httpResponseBuilder.withResponseBody(responseBody);
             } else {
                 terminal.println(Verbosity.VERBOSE, "<Empty response>");
             }
+            return httpResponseBuilder;
+        }
+    }
+
+    private static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
+        URL route = new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
+        return route;
+    }
+
+    /**
+     * This class is used to capture x-pack security feature configuration.
+     */
+    static class XPackSecurityFeatureConfig {
+        final boolean isAvailable;
+        final boolean isEnabled;
+        XPackSecurityFeatureConfig(boolean isAvailable, boolean isEnabled) {
+            this.isAvailable = isAvailable;
+            this.isEnabled = isEnabled;
         }
     }
 

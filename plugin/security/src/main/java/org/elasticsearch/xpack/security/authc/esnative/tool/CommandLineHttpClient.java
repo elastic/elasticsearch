@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -66,13 +67,14 @@ public class CommandLineHttpClient {
      *            password in the authorization header.
      * @param requestBodySupplier
      *            supplier for the JSON string body of the request.
-     * @param responseConsumer
-     *            consumer of the response Input Stream.
+     * @param responseHandler
+     *            handler of the response Input Stream.
      * @return HTTP protocol response code.
      */
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    public int postURL(String method, URL url, String user, SecureString password, CheckedSupplier<String, Exception> requestBodySupplier,
-            CheckedConsumer<InputStream, Exception> responseConsumer) throws Exception {
+    public HttpResponse execute(String method, URL url, String user, SecureString password,
+            CheckedSupplier<String, Exception> requestBodySupplier,
+            CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
         HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
@@ -106,18 +108,20 @@ public class CommandLineHttpClient {
             }
         }
         // this throws IOException if there is a network problem
-        final int ans = conn.getResponseCode();
+        final int responseCode = conn.getResponseCode();
+        HttpResponseBuilder responseBuilder = null;
         try (InputStream inputStream = conn.getInputStream()) {
-            responseConsumer.accept(inputStream);
+            responseBuilder = responseHandler.apply(inputStream);
         } catch (IOException e) {
             // this IOException is if the HTTP response code is 'BAD' (>= 400)
             try (InputStream errorStream = conn.getErrorStream()) {
-                responseConsumer.accept(errorStream);
+                responseBuilder = responseHandler.apply(errorStream);
             }
         } finally {
             Releasables.closeWhileHandlingException(conn::disconnect);
         }
-        return ans;
+        responseBuilder.withHttpStatus(responseCode);
+        return responseBuilder.build();
     }
 
     String getDefaultURL() {

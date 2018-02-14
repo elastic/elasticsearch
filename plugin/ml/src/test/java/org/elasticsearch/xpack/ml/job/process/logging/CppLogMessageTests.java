@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.logging;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -39,7 +40,7 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
         String input = "{\"logger\":\"controller\",\"level\":\"INFO\","
                 + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
                 + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
-        XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input);
+        XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input);
         CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
 
         Instant after = Instant.now();

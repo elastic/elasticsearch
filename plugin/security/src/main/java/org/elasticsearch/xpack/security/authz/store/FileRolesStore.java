@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -207,7 +208,8 @@ public class FileRolesStore extends AbstractComponent {
         String roleName = null;
         try {
             // EMPTY is safe here because we never use namedObject
-            XContentParser parser = YamlXContent.yamlXContent.createParser(NamedXContentRegistry.EMPTY, segment);
+            XContentParser parser = YamlXContent.yamlXContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, segment);
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();

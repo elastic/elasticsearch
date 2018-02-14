@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,8 +57,8 @@ class SelfGeneratedLicense {
             byteBuffer.get(content);
             final License expectedLicense;
             // EMPTY is safe here because we don't call namedObject
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
-                    decrypt(content))) {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decrypt(content))) {
                 parser.nextToken();
                 expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser),
                         license.signature()).version(-version).build();

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -228,7 +229,8 @@ public class XContentRecordReaderTests extends ESTestCase {
         InputStream inputStream2 = new CountingInputStream(inputStream,
                 mock(DataCountsReporter.class));
         return XContentFactory.xContent(XContentType.JSON)
-                .createParser(new NamedXContentRegistry(Collections.emptyList()), inputStream2);
+                .createParser(new NamedXContentRegistry(Collections.emptyList()),
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream2);
     }
 
     private Map<String, Integer> createFieldMap() {

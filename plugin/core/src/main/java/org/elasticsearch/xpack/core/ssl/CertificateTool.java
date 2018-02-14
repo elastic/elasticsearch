@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -907,7 +908,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     static Collection<CertificateInformation> parseFile(Path file) throws Exception {
         try (Reader reader = Files.newBufferedReader(file)) {
             // EMPTY is safe here because we never use namedObject
-            XContentParser xContentParser = XContentType.YAML.xContent().createParser(NamedXContentRegistry.EMPTY, reader);
+            XContentParser xContentParser = XContentType.YAML.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, reader);
             return CertificateToolParser.PARSER.parse(xContentParser, new ArrayList<>(), null);
         }
     }

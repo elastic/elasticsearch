@@ -25,6 +25,7 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -149,7 +150,8 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
     private ExpressionRoleMapping parse(String json, String name) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        final XContentParser parser = XContentType.JSON.xContent().createParser(registry, json);
+        final XContentParser parser = XContentType.JSON.xContent()
+                .createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         final ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
         assertThat(mapping, notNullValue());
         assertThat(mapping.getName(), equalTo(name));

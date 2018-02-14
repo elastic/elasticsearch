@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -304,7 +305,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
             // now parse the action
             // EMPTY is safe here because we never call namedObject
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, data.slice(from, nextMarker - from))) {
+            try (XContentParser parser = xContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                        data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -429,7 +432,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject
                         try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                                        sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
+                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {

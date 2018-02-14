@@ -93,7 +93,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
   module.afterEvaluate({
-    module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest')
+    module.integTest.mustRunAfter(':distribution:archives:integ-test-zip:integTest')
   })
   restTestExpansions['expected.modules.count'] += 1
 }
@@ -128,7 +128,7 @@ configure(distributions) {
   project.integTest {
     includePackaged project.name == 'integ-test-zip'
     if (project.name != 'integ-test-zip') {
-      mustRunAfter ':distribution:integ-test-zip:integTest'
+      mustRunAfter ':distribution:archives:integ-test-zip:integTest'
     }
   }
   project.integTestCluster {

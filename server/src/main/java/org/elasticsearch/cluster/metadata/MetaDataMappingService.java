@@ -175,9 +175,9 @@ public class MetaDataMappingService extends AbstractComponent {
         String index = indexService.index().getName();
         try {
             List<String> updatedTypes = new ArrayList<>();
-            for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+            for (DocumentMapper mapper : indexService.mapperService().docMappers()) {
                 final String type = mapper.type();
-                if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
+                if (builder.mapping(type) == null || mapper.mappingSource().equals(builder.mapping(type).source()) == false) {
                     updatedTypes.add(type);
                 }
             }
@@ -186,7 +186,7 @@ public class MetaDataMappingService extends AbstractComponent {
             if (updatedTypes.isEmpty() == false) {
                 logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
                 dirty = true;
-                for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+                for (DocumentMapper mapper : indexService.mapperService().docMappers()) {
                     builder.putMapping(new MappingMetaData(mapper));
                 }
             }
@@ -255,32 +255,26 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper(request.type());
-                if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
-                    // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
+                DocumentMapper newMapper = mapperService.parse(request.type(), mappingUpdateSource);
+                if (existingMapper != null) {
+                    // first, simulate: just call merge and ignore the result
+                    existingMapper.merge(newMapper.mapping());
                 } else {
-                    newMapper = mapperService.parse(request.type(), mappingUpdateSource, existingMapper == null);
-                    if (existingMapper != null) {
-                        // first, simulate: just call merge and ignore the result
-                        existingMapper.merge(newMapper.mapping());
-                    } else {
-                        // TODO: can we find a better place for this validation?
-                        // The reason this validation is here is that the mapper service doesn't learn about
-                        // new types all at once , which can create a false error.
+                    // TODO: can we find a better place for this validation?
+                    // The reason this validation is here is that the mapper service doesn't learn about
+                    // new types all at once , which can create a false error.
 
-                        // For example in MapperService we can't distinguish between a create index api call
-                        // and a put mapping api call, so we don't which type did exist before.
-                        // Also the order of the mappings may be backwards.
-                        if (newMapper.parentFieldMapper().active()) {
-                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                String parentType = newMapper.parentFieldMapper().type();
-                                if (parentType.equals(mapping.value.type()) &&
-                                        mapperService.getParentTypes().contains(parentType) == false) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an " +
-                                        "already existing type, that isn't already a parent");
-                                }
+                    // For example in MapperService we can't distinguish between a create index api call
+                    // and a put mapping api call, so we don't which type did exist before.
+                    // Also the order of the mappings may be backwards.
+                    if (newMapper.parentFieldMapper().active()) {
+                        for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
+                            String parentType = newMapper.parentFieldMapper().type();
+                            if (parentType.equals(mapping.value.type()) &&
+                                    mapperService.getParentTypes().contains(parentType) == false) {
+                                throw new IllegalArgumentException("can't add a _parent field that points to an " +
+                                    "already existing type, that isn't already a parent");
                             }
                         }
                     }
@@ -292,12 +286,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
             assert mappingType != null;
-
-            if (MapperService.DEFAULT_MAPPING.equals(mappingType) == false
-                    && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
-                    && mappingType.charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
-            }
+            // We don't validate the type name here, it will be done when attempting to merge with existing mappings
             MetaData.Builder builder = MetaData.builder(metaData);
             boolean updated = false;
             for (IndexMetaData indexMetaData : updateList) {
@@ -338,7 +327,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
+                for (DocumentMapper mapper : mapperService.docMappers()) {
                     indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                 }
                 builder.put(indexMetaDataBuilder);

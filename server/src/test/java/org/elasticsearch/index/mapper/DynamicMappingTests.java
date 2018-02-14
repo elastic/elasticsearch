@@ -188,22 +188,6 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         assertNotNull(fieldType);
     }
 
-    public void testTypeNotCreatedOnIndexFailure() throws IOException, InterruptedException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_default_")
-                .field("dynamic", "strict")
-                .endObject().endObject();
-        createIndex("test", Settings.EMPTY, "_default_", mapping);
-        try {
-            client().prepareIndex().setIndex("test").setType("type").setSource(jsonBuilder().startObject().field("test", "test").endObject()).get();
-            fail();
-        } catch (StrictDynamicMappingException e) {
-
-        }
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNull(getMappingsResponse.getMappings().get("test").get("type"));
-    }
-
     private String serialize(ToXContent mapper) throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, new ToXContent.MapParams(emptyMap()));

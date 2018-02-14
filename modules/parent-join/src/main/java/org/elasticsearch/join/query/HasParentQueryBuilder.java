@@ -227,7 +227,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         }
 
         Set<String> childTypes = new HashSet<>();
-        for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
+        for (DocumentMapper documentMapper : context.getMapperService().docMappers()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active() && type.equals(parentFieldMapper.type())) {
                 childTypes.add(documentMapper.type());

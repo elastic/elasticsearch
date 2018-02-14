@@ -35,6 +35,3 @@ automatically or explicitly.
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
-
-include::dynamic/default-mapping.asciidoc[]
-

@@ -90,6 +90,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
         newMetaData = archiveBrokenIndexSettings(newMetaData);
+        // remove the _default_ mapping if applicable
+        newMetaData = MapperService.MAPPINGS_METADATA_6x_UPGRADER.apply(newMetaData);
         // only run the check with the upgraded settings!!
         checkMappingsCompatibility(newMetaData);
         // apply plugin checks

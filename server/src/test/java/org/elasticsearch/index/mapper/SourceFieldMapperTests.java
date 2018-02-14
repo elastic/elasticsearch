@@ -20,11 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -112,82 +109,6 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
-    }
-
-    public void testDefaultMappingAndNoMapping() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject().string();
-
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        DocumentMapper mapper = parser.parse("my_type", null, defaultMapping);
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-        try {
-            mapper = parser.parse(null, null, defaultMapping);
-            assertThat(mapper.type(), equalTo("my_type"));
-            assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            fail();
-        } catch (MapperParsingException e) {
-            // all is well
-        }
-        try {
-            mapper = parser.parse(null, new CompressedXContent("{}"), defaultMapping);
-            assertThat(mapper.type(), equalTo("my_type"));
-            assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-            fail();
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("malformed mapping no root object found"));
-            // all is well
-        }
-    }
-
-    public void testDefaultMappingAndWithMappingOverride() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject().string();
-
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
-                .startObject("_source").field("enabled", true).endObject()
-                .endObject().endObject().string();
-
-        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("my_type", new CompressedXContent(mapping), defaultMapping);
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(true));
-    }
-
-    public void testDefaultMappingAndNoMappingWithMapperService() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject().string();
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(false));
-    }
-
-    public void testDefaultMappingAndWithMappingOverrideWithMapperService() throws Exception {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                .startObject("_source").field("enabled", false).endObject()
-                .endObject().endObject().string();
-
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
-                .startObject("_source").field("enabled", true).endObject()
-                .endObject().endObject().string();
-        mapperService.merge("my_type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        DocumentMapper mapper = mapperService.documentMapper("my_type");
-        assertThat(mapper.type(), equalTo("my_type"));
-        assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
 
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {

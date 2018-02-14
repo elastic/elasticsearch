@@ -165,3 +165,41 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+---
+"Verify the indices with a default mapping were upgraded":
+
+  - skip:
+      features: warnings
+
+  - do:
+     indices.get_mapping:
+       index: index_with_default_mapping
+
+  - is_true: index_with_default_mapping.mappings.my_type
+  - is_false: index_with_default_mapping.mappings._default_
+
+  - do:
+     indices.get_mapping:
+       index: index_with_default_mapping2
+
+  - is_true: index_with_default_mapping2.mappings._doc
+  - is_false: index_with_default_mapping2.mappings._default_
+
+
+---
+"Verify that we still reject default mappings":
+
+  - skip:
+      features: warnings
+
+  - do:
+      catch: /invalid_type_name_exception/
+      indices.put_mapping:
+        index: index_with_default_mapping2
+        type: _default_
+        body:
+          _default_:
+            properties:
+              foo:
+                type:     keyword

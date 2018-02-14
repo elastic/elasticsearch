@@ -476,7 +476,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // now, update the mappings with the actual source
                 Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
+                for (DocumentMapper mapper : mapperService.docMappers()) {
                     MappingMetaData mappingMd = new MappingMetaData(mapper);
                     mappingsMetaData.put(mapper.type(), mappingMd);
                 }
@@ -660,8 +660,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
         }
 
-        if ((targetIndexMappingsTypes.size() > 1 ||
-            (targetIndexMappingsTypes.isEmpty() || targetIndexMappingsTypes.contains(MapperService.DEFAULT_MAPPING)) == false)) {
+        if (targetIndexMappingsTypes.isEmpty() == false) {
             throw new IllegalArgumentException("mappings are not allowed when resizing indices" +
                 ", all mappings are copied from the source index");
         }

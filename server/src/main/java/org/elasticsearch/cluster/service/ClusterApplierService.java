@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
@@ -455,6 +456,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     private void applyChanges(UpdateTask task, ClusterState previousClusterState, ClusterState newClusterState) {
+        // We remove _default_ mappings dynamically on cluster state application.
+        // This is harmless since 6.x indices may not have more than one type.
+        // We still fail if a _default_ mapping is provided explicitly, this leniency only applies to
+        // cluster states that are sent from 6.x nodes.
+        newClusterState = MapperService.CLUSTER_METADATA_6x_UPGRADER.apply(newClusterState);
         ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(task.source, newClusterState, previousClusterState);
         // new cluster state, notify all listeners
         final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();

@@ -25,7 +25,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -74,10 +73,6 @@ public class DocumentMapperParser {
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        return parse(type, source, null);
-    }
-
-    public DocumentMapper parse(@Nullable String type, CompressedXContent source, String defaultSource) throws MapperParsingException {
         Map<String, Object> mapping = null;
         if (source != null) {
             Map<String, Object> root = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
@@ -88,22 +83,14 @@ public class DocumentMapperParser {
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(type, mapping, defaultSource);
+        return parse(type, mapping);
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
+    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
-
-        if (defaultSource != null) {
-            Tuple<String, Map<String, Object>> t = extractMapping(MapperService.DEFAULT_MAPPING, defaultSource);
-            if (t.v2() != null) {
-                XContentHelper.mergeDefaults(mapping, t.v2());
-            }
-        }
-
 
         Mapper.TypeParser.ParserContext parserContext = parserContext(type);
         // parse RootObjectMapper
@@ -158,16 +145,6 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
-        Map<String, Object> root;
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, source)) {
-            root = parser.mapOrdered();
-        } catch (Exception e) {
-            throw new MapperParsingException("failed to parse mapping definition", e);
-        }
-        return extractMapping(type, root);
     }
 
     @SuppressWarnings({"unchecked"})

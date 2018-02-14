@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -58,6 +59,35 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         return Collections.singleton(InternalSettingsPlugin.class);
     }
 
+    public void testUpgradeIndexMetaData() throws IOException {
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_1_2)
+                .build();
+        IndexMetaData meta1 = new IndexMetaData.Builder("index")
+                .settings(settings)
+                .putMapping("_doc", "{\"properties\": {\"foo\": {\"type\": \"keyword\"}}}")
+                .build();
+        IndexMetaData upgradedMeta1 = MapperService.MAPPINGS_METADATA_6x_UPGRADER.apply(meta1);
+        assertSame(meta1, upgradedMeta1);
+
+        IndexMetaData meta2 = new IndexMetaData.Builder("index")
+                .settings(settings)
+                .putMapping("_default_", "{\"properties\": {\"foo\": {\"type\": \"keyword\"}}}")
+                .build();
+        IndexMetaData upgradedMeta2 = MapperService.MAPPINGS_METADATA_6x_UPGRADER.apply(meta2);
+        assertEquals(meta1, upgradedMeta2);
+
+        IndexMetaData meta3 = new IndexMetaData.Builder("index")
+                .settings(settings)
+                .putMapping("_doc", "{\"properties\": {\"foo\": {\"type\": \"keyword\"}}}")
+                .putMapping("_default_", "{\"properties\": {\"bar\": {\"type\": \"keyword\"}}}")
+                .build();
+        IndexMetaData upgradedMeta3 = MapperService.MAPPINGS_METADATA_6x_UPGRADER.apply(meta3);
+        assertEquals(meta1, upgradedMeta3);
+    }
+
     public void testTypeNameStartsWithIllegalDot() {
         String index = "test-index";
         String type = ".test-type";
@@ -90,15 +120,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertEquals(Collections.emptySet(), mapperService.types());
 
         mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(Collections.singleton("type1"), mapperService.types());
-
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(Collections.singleton("type1"), mapperService.types());
 
         mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
         assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
     }
 
@@ -110,32 +134,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertEquals("mapping type name [_document] can't start with '_' unless it is called [_doc]", e.getMessage());
 
         MapperService.validateTypeName("_doc"); // no exception
-    }
-
-    public void testIndexIntoDefaultMapping() throws Throwable {
-        // 1. test implicit index creation
-        ExecutionException e = expectThrows(ExecutionException.class, () -> {
-            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "1").setSource("{}", XContentType.JSON).execute().get();
-        });
-        Throwable throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-
-        // 2. already existing index
-        IndexService indexService = createIndex("index2");
-        e = expectThrows(ExecutionException.class, () -> {
-            client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
-        });
-        throwable = ExceptionsHelper.unwrapCause(e.getCause());
-        if (throwable instanceof IllegalArgumentException) {
-            assertEquals("It is forbidden to index into the default mapping [_default_]", throwable.getMessage());
-        } else {
-            throw e;
-        }
-        assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
     }
 
     public void testTotalFieldsExceedsLimit() throws Throwable {
@@ -198,15 +196,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
-        MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
-
-        mappings.clear();
         mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
 
-        e = expectThrows( MapperParsingException.class,
+        MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
@@ -323,11 +315,4 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
-    public void testDefaultMappingIsDeprecated() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject().string();
-        MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
-                "cannot have more than one type");
-    }
 }

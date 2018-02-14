@@ -37,6 +37,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         enableLicensing();
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfo() {
         // Testing only negative case here, the positive test is done in bwcTests
         assertAcked(client().admin().indices().prepareCreate("test").get());
@@ -45,6 +46,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getActions().entrySet(), empty());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfoLicense() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         ensureYellow("test");

@@ -631,20 +631,44 @@ public class MlJobIT extends ESRestTestCase {
             assertNull(recreationException.get().getMessage(), recreationException.get());
         }
 
-        // Check that the job aliases exist.  These are the last thing to be deleted when a job is deleted, so
-        // if there's been a race between deletion and recreation these are what will be missing.
-        Response response = client().performRequest("get", "_aliases");
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        String responseAsString = responseEntityToString(response);
+        try {
+            // The idea of the code above is that the deletion is sufficiently time-consuming that
+            // all threads enter the deletion call before the first one exits it.  Usually this happens,
+            // but in the case that it does not the job that is recreated may get deleted.
+            // It is not a error if the job does not exist but the following assertions
+            // will fail in that case.
+            client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
 
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+            // Check that the job aliases exist.  These are the last thing to be deleted when a job is deleted, so
+            // if there's been a race between deletion and recreation these are what will be missing.
+            String aliases = getAliases();
+
+            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
+            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+
+
+        } catch (ResponseException missingJobException) {
+            // The job does not exist
+            assertThat(missingJobException.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+
+            // The job aliases should be deleted
+            String aliases = getAliases();
+            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}")));
+            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}")));
+        }
 
         assertEquals(numThreads, recreationGuard.get());
     }
 
-    private static String responseEntityToString(Response response) throws Exception {
+    private String getAliases() throws IOException {
+        Response response = client().performRequest("get", "_aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        return responseEntityToString(response);
+    }
+
+    private static String responseEntityToString(Response response) throws IOException {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
             return reader.lines().collect(Collectors.joining("\n"));
         }

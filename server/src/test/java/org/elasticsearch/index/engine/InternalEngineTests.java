@@ -4466,14 +4466,15 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numSnapshots; i++) {
                 snapshots.add(engine.acquireIndexCommit(true, false)); // taking snapshots from the safe commit.
             }
-            globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getCheckpoint(), Long.MAX_VALUE));
+            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
             engine.syncTranslog();
             final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
             for (int i = 0; i < numSnapshots - 1; i++) {
                 snapshots.get(i).close();
-                assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits)); // Should not release any commit.
+                // pending snapshots - should not release any commit.
+                assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits));
             }
-            snapshots.get(numSnapshots - 1).close(); // released last snapshot - delete all except the last commit
+            snapshots.get(numSnapshots - 1).close(); // release the last snapshot - delete all except the last commit
             assertThat(DirectoryReader.listCommits(store.directory()), hasSize(1));
         }
     }

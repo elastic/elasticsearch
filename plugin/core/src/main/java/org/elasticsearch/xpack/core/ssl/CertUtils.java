@@ -459,11 +459,10 @@ public class CertUtils {
                 throw new IllegalArgumentException("ca certificate is not a CA!");
             }
             issuer = X500Name.getInstance(caCert.getIssuerX500Principal().getEncoded());
-            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert);
+            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(caCert.getPublicKey());
         } else {
             issuer = subject;
-            authorityKeyIdentifier =
-                    extUtils.createAuthorityKeyIdentifier(keyPair.getPublic(), new X500Principal(issuer.toString()), serial);
+            authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(keyPair.getPublic());
         }
 
         JcaX509v3CertificateBuilder builder =

@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -131,7 +132,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
                     String templateResult = evaluateTemplate(bytesReference.utf8ToString());
                     try (XContentParser parser = XContentFactory.xContent(templateResult)
-                            .createParser(queryShardContext.getXContentRegistry(), templateResult)) {
+                            .createParser(queryShardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, templateResult)) {
                         QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(queryBuilder, queryShardContext);
@@ -249,7 +250,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     String evaluateTemplate(String querySource) throws IOException {
         // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY, querySource)) {
+        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, querySource)) {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("Unexpected token [" + token + "]");

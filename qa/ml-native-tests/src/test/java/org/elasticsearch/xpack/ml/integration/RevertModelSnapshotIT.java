@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -162,7 +163,8 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         SearchHits hits = response.getHits();
         assertThat(hits.getTotalHits(), equalTo(1L));
         try {
-            XContentParser parser = JsonXContent.jsonXContent.createParser(null, hits.getAt(0).getSourceAsString());
+            XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(null, LoggingDeprecationHandler.INSTANCE, hits.getAt(0).getSourceAsString());
             return Quantiles.PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -79,7 +80,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, inputStream)) {
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)) {
             writeJson(categorizationAnalyzer, parser);
         }
     }
@@ -91,7 +92,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
                 break;
             }
             try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
-                    .createParser(xContentRegistry, nextObject)) {
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, nextObject)) {
                 writeJson(categorizationAnalyzer, parser);
             }
         }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -205,7 +206,8 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             Set<String> existingUsers = new HashSet<>();
             String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/user/", options, null);
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, allUsersJson)) {
+            try (XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allUsersJson)) {
                 XContentParser.Token token = parser.nextToken();
                 String userName;
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -287,7 +289,8 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             Set<String> existingRoles = new HashSet<>();
             String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/role/", options, null);
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, allRolesJson)) {
+            try (XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, allRolesJson)) {
                 XContentParser.Token token = parser.nextToken();
                 String roleName;
                 if (token == XContentParser.Token.START_OBJECT) {

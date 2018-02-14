@@ -10,16 +10,23 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * A failure that happened on the remote server.
@@ -77,13 +84,20 @@ public class RemoteFailure {
     private final String reason;
     private final String remoteTrace;
     private final Map<String, String> headers;
+    private final Map<String, List<String>> metadata;
     private final RemoteFailure cause;
 
-    RemoteFailure(String type, String reason, String remoteTrace, Map<String, String> headers, RemoteFailure cause) {
+    RemoteFailure(String type,
+                  String reason,
+                  String remoteTrace,
+                  Map<String, String> headers,
+                  Map<String, List<String>> metadata,
+                  RemoteFailure cause) {
         this.type = type;
         this.reason = reason;
         this.remoteTrace = remoteTrace;
         this.headers = headers;
+        this.metadata = metadata;
         this.cause = cause;
     }
 
@@ -108,6 +122,13 @@ public class RemoteFailure {
      */
     public Map<String, String> headers() {
         return headers;
+    }
+
+    /**
+     * Metadata sent by the remote failure.
+     */
+    public Map<String, List<String>> metadata() {
+        return metadata;
     }
 
     /**
@@ -162,6 +183,7 @@ public class RemoteFailure {
         String remoteTrace = null;
         Map<String, String> headers = emptyMap();
         RemoteFailure cause = null;
+        final Map<String, List<String>> metadata = new LinkedHashMap<>();
 
         JsonToken token;
         String fieldName = null;
@@ -212,8 +234,7 @@ public class RemoteFailure {
                     type = parser.getText();
                     break;
                 default:
-                    throw new IOException("Expected one of [caused_by, reason, root_cause, stack_trace, type] but got ["
-                            + fieldName + "]");
+                    metadata.putAll(parseMetadata(parser));
                 }
             }
         }
@@ -223,7 +244,7 @@ public class RemoteFailure {
         if (remoteTrace == null) {
             throw new IOException("expected [stack_trace] cannot but didn't see it");
         }
-        return new RemoteFailure(type, reason, remoteTrace, headers, cause);
+        return new RemoteFailure(type, reason, remoteTrace, headers, metadata, cause);
     }
 
     private static Map<String, String> parseHeaders(JsonParser parser) throws IOException {
@@ -244,6 +265,41 @@ public class RemoteFailure {
         }
 
         return headers;
+    }
+
+    private static Map<String, List<String>> parseMetadata(final JsonParser parser) throws IOException {
+        final Map<String, List<String>> metadata = new HashMap<>();
+        final String currentFieldName = parser.getCurrentName();
+
+        JsonToken token = parser.currentToken();
+        if (token == JsonToken.VALUE_STRING) {
+            metadata.put(currentFieldName, singletonList(parser.getText()));
+
+        } else if (token == JsonToken.START_ARRAY) {
+            // Parse the array and add each item to the corresponding list of metadata.
+            // Arrays of objects are not supported yet and just ignored and skipped.
+            final List<String> values = new ArrayList<>();
+            while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
+                if (token ==JsonToken.VALUE_STRING) {
+                    values.add(parser.getText());
+                } else {
+                    parser.skipChildren();
+                }
+            }
+            if (values.size() > 0) {
+                if (metadata.containsKey(currentFieldName)) {
+                    values.addAll(metadata.get(currentFieldName));
+                }
+                metadata.put(currentFieldName, unmodifiableList(values));
+            }
+
+        } else {
+            // Any additional metadata object added by the metadataToXContent method is ignored
+            // and skipped, so that the parser does not fail on unknown fields. The parser only
+            // support metadata key-pairs and metadata arrays of values.
+            parser.skipChildren();
+        }
+        return unmodifiableMap(metadata);
     }
 
     /**
@@ -276,6 +332,6 @@ public class RemoteFailure {
             parserLocation = " at [line " + parser.getTokenLocation().getLineNr()
                     + " col " + parser.getTokenLocation().getColumnNr() + "]";
         }
-        return "Can't parse error from Elasticearch [" + message + "]" + parserLocation + ". "  + responseMessage;
+        return "Can't parse error from Elasticsearch [" + message + "]" + parserLocation + ". "  + responseMessage;
     }
 }

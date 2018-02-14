@@ -25,7 +25,6 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
@@ -74,6 +73,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
@@ -572,9 +572,11 @@ public final class Request {
             if (Strings.hasLength(part)) {
                 try {
                     //encode each part (e.g. index, type and id) separately before merging them into the path
-                    URIBuilder uriBuilder = new URIBuilder().setPath(part);
-                    //make sure that "/" in each part are properly encoded too
-                    joiner.add(uriBuilder.build().getRawPath().replaceAll("/", "%2F"));
+                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                    //paths that start with `-` or contain `:`
+                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
+                    //manually encode any slash that each part may contain
+                    joiner.add(uri.getRawPath().replaceAll("/", "%2F"));
                 } catch (URISyntaxException e) {
                     throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
                 }

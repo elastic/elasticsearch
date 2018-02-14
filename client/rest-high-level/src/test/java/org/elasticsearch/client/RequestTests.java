@@ -1185,11 +1185,12 @@ public class RequestTests extends ESTestCase {
         assertEquals("/index/type/this%7Cis%7Cthe%7Cid", Request.buildEndpoint("index", "type", "this|is|the|id"));
         assertEquals("/index/type/id%231", Request.buildEndpoint("index", "type", "id#1"));
         assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", Request.buildEndpoint("<logstash-{now/M}>", "_search"));
-        assertEquals("/%E4%B8%AD%E6%96%87", Request.buildEndpoint("中文"));
+        assertEquals("/中文", Request.buildEndpoint("中文"));
         assertEquals("/foo%20bar", Request.buildEndpoint("foo bar"));
         assertEquals("/foo+bar", Request.buildEndpoint("foo+bar"));
         assertEquals("/foo%2Fbar", Request.buildEndpoint("foo/bar"));
         assertEquals("/foo%5Ebar", Request.buildEndpoint("foo^bar"));
+        assertEquals("/cluster1:index1,index2/_search", Request.buildEndpoint("cluster1:index1,index2", "_search"));
         assertEquals("/*", Request.buildEndpoint("*"));
     }
 

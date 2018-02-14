@@ -788,21 +788,22 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id#1", getResponse.getId());
         }
 
+        String docId = "this/is/the/id/中文";
         {
-            IndexRequest indexRequest = new IndexRequest("index", "type", "this/is/the/id");
+            IndexRequest indexRequest = new IndexRequest("index", "type", docId);
             indexRequest.source("field", "value");
             IndexResponse indexResponse = highLevelClient().index(indexRequest);
             assertEquals("index", indexResponse.getIndex());
             assertEquals("type", indexResponse.getType());
-            assertEquals("this/is/the/id", indexResponse.getId());
+            assertEquals(docId, indexResponse.getId());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "type", "this/is/the/id");
+            GetRequest getRequest = new GetRequest("index", "type", docId);
             GetResponse getResponse = highLevelClient().get(getRequest);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
             assertEquals("type", getResponse.getType());
-            assertEquals("this/is/the/id", getResponse.getId());
+            assertEquals(docId, getResponse.getId());
         }
 
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index")));
@@ -810,7 +811,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
     public void testParamsEncode() throws IOException {
         //parameters are encoded by the low-level client but let's test that everything works the same when we use the high-level one
-        String routing = "routing/value#1?";
+        String routing = "routing/中文value#1?";
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "id");
             indexRequest.source("field", "value");

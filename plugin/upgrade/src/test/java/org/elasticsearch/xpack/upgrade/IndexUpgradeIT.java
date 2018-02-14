@@ -128,6 +128,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertTrue(postUpgradeIsCalled.get());
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfoOnEmptyCluster() {
         // On empty cluster asking for all indices shouldn't fail since no indices means nothing needs to be upgraded
         Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("_all").get();

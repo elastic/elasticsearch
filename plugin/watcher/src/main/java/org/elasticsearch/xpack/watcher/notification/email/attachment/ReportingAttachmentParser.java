@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -200,7 +201,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      */
     private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body)) {
+        try (XContentParser parser = JsonXContent.jsonXContent
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
             KibanaReportingPayload payload = new KibanaReportingPayload();
             PAYLOAD_PARSER.parse(parser, payload, null);
             String path = payload.getPath();

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.rest;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
@@ -30,7 +31,8 @@ public class RestRequestFilterTests extends ESTestCase {
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
-        Map<String, Object> map = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, filtered.content()).map();
+        Map<String, Object> map = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");
@@ -47,7 +49,8 @@ public class RestRequestFilterTests extends ESTestCase {
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
-        Map<String, Object> map = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, filtered.content()).map();
+        Map<String, Object> map = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");
@@ -64,7 +67,8 @@ public class RestRequestFilterTests extends ESTestCase {
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
-        Map<String, Object> map = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, filtered.content()).map();
+        Map<String, Object> map = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");

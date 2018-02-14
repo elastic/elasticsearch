@@ -19,6 +19,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -496,7 +497,8 @@ public class License implements ToXContentObject {
             throw new ElasticsearchParseException("failed to parse license - no content-type provided");
         }
         // EMPTY is safe here because we don't call namedObject
-        final XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes);
+        final XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes);
         License license = null;
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.pagerduty;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -103,7 +104,8 @@ public class SentEvent implements ToXContentObject {
         // based on https://developer.pagerduty.com/documentation/rest/errors
         try {
             // EMPTY is safe here because we never call namedObject
-            XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, response.body());
+            XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body());
             parser.nextToken();
 
             String message = null;

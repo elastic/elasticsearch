@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +42,7 @@ public class ValidateJobConfigActionRequestTests extends AbstractStreamableTestC
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         XContentBuilder xContentBuilder = jobConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, xContentBuilder.bytes());
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContentBuilder.bytes());
 
         expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(parser));
     }

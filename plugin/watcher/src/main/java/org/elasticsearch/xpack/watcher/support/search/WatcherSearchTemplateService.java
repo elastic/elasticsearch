@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -63,7 +64,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
+            try (XContentParser parser = XContentFactory.xContent(source)
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
                 sourceBuilder.parseXContent(parser);
                 searchRequest.source(sourceBuilder);
             }

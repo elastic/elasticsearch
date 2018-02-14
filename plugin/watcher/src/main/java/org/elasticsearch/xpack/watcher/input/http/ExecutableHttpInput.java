@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -79,7 +80,8 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
 
         if (contentType != null) {
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = contentType.xContent().createParser(NamedXContentRegistry.EMPTY, response.body())) {
+            try (XContentParser parser = contentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body())) {
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
                 } else {

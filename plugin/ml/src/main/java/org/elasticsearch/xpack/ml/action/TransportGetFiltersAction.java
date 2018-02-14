@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -81,7 +82,8 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         XContentParser parser =
-                                XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
+                                XContentFactory.xContent(docSource)
+                                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource);
                         MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
                         responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
@@ -120,7 +122,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
                     try (XContentParser parser = XContentFactory.xContent(docSource).createParser(
-                            NamedXContentRegistry.EMPTY, docSource)) {
+                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource)) {
                         docs.add(MlFilter.PARSER.apply(parser, null).build());
                     } catch (IOException e) {
                         this.onFailure(e);

@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -105,7 +106,8 @@ public class WatchParser extends AbstractComponent {
         XContentParser parser = null;
         try {
             // EMPTY is safe here because we never use namedObject
-            parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source),
+            parser = new WatcherXContentParser(xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source),
                     new HaltedClock(now), withSecrets ? cryptoService : null);
             parser.nextToken();
             return parse(id, includeStatus, parser);

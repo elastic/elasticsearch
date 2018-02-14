@@ -11,6 +11,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -143,8 +144,9 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         assertEquals(restRequest, handlerRequest.get());
         assertEquals(restRequest.content(), handlerRequest.get().content());
-        Map<String, Object> original = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, handlerRequest.get()
-                .content()).map();
+        Map<String, Object> original = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, handlerRequest.get().content()).map();
         assertEquals(2, original.size());
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
@@ -152,8 +154,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertNotEquals(restRequest, authcServiceRequest.get());
         assertNotEquals(restRequest.content(), authcServiceRequest.get().content());
 
-        Map<String, Object> map = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, authcServiceRequest.get()
-                .content()).map();
+        Map<String, Object> map = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        authcServiceRequest.get().content()).map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
     }

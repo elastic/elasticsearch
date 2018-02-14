@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.BytesReferenceMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
@@ -35,20 +36,29 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
 
     private final ClusterService clusterService;
     private final Exporters exportService;
+    private final MonitoringService monitoringService;
 
     @Inject
     public TransportMonitoringBulkAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Exporters exportService) {
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Exporters exportService,
+                                         MonitoringService monitoringService) {
         super(settings, MonitoringBulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 MonitoringBulkRequest::new);
         this.clusterService = clusterService;
         this.exportService = exportService;
+        this.monitoringService = monitoringService;
     }
 
     @Override
     protected void doExecute(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener) {
         clusterService.state().blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
+
+        // ignore incoming bulk requests when collection is disabled in ES
+        if (monitoringService.isMonitoringActive() == false) {
+            listener.onResponse(new MonitoringBulkResponse(0, true));
+            return;
+        }
 
         final long timestamp = System.currentTimeMillis();
         final String cluster = clusterService.state().metaData().clusterUUID();
@@ -138,7 +148,7 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
     }
 
     private static MonitoringBulkResponse response(final long start) {
-        return new MonitoringBulkResponse(took(start));
+        return new MonitoringBulkResponse(took(start), false);
     }
 
     private static MonitoringBulkResponse response(final long start, final Exception e) {

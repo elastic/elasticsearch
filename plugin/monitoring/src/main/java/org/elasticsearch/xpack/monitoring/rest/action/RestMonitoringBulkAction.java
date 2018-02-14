@@ -106,6 +106,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
                 builder.startObject();
                 {
                     builder.field("took", response.getTookInMillis());
+                    builder.field("ignored", response.isIgnored());
 
                     final MonitoringBulkResponse.Error error = response.getError();
                     builder.field("errors", error != null);

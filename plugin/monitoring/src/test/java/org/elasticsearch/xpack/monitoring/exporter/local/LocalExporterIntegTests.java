@@ -66,7 +66,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         super();
     }
 
-    private void stopMonitoring() throws Exception {
+    private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                 Settings.builder().putNull(MonitoringService.INTERVAL.getKey())
@@ -87,7 +87,9 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 indexRandom(true, indexRequestBuilders);
             }
 
-            Settings.Builder exporterSettings = Settings.builder()
+            // start the monitoring service so that _xpack/monitoring/_bulk is not ignored
+            final Settings.Builder exporterSettings = Settings.builder()
+                    .put(MonitoringService.INTERVAL.getKey(), 3L, TimeUnit.SECONDS)
                     .put("xpack.monitoring.exporters._local.enabled", true)
                     .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
@@ -123,11 +125,6 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 checkMonitoringPipelines();
                 checkMonitoringDocs();
             }
-
-            // monitoring service is started
-            exporterSettings = Settings.builder()
-                    .put(MonitoringService.INTERVAL.getKey(), 3L, TimeUnit.SECONDS);
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             final int numNodes = internalCluster().getNodeNames().length;
             assertBusy(() -> {

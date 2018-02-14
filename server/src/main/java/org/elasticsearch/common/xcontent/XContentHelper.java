@@ -83,13 +83,37 @@ public class XContentHelper {
     @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
             throws ElasticsearchParseException {
-        return convertToMap(bytes, ordered, null);
+        return convertToMap(bytes, ordered, null, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered.
+     * @deprecated this method relies on auto-detection of content type.
+     *             Use {@link #convertToMap(BytesReference, boolean, XContentType, DeprecationHandler)}
+     *             instead with the proper {@link XContentType}
+     */
+    @Deprecated
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered,
+                                                                        LoggingDeprecationHandler deprecationHandler)
+            throws ElasticsearchParseException {
+        return convertToMap(bytes, ordered, null, deprecationHandler);
+    }
+
+    /**
+     * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
+     * @deprecated Use {@link #convertToMap(BytesReference, boolean, XContentType, DeprecationHandler)} instead
+     */
+    @Deprecated
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+        throws ElasticsearchParseException {
+        return convertToMap(bytes, ordered, xContentType, LoggingDeprecationHandler.INSTANCE);
     }
 
     /**
      * Converts the given bytes into a map that is optionally ordered. The provided {@link XContentType} must be non-null.
      */
-    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType,
+                                                                        DeprecationHandler deprecationHandler)
         throws ElasticsearchParseException {
         try {
             final XContentType contentType;
@@ -105,7 +129,8 @@ public class XContentHelper {
                 input = bytes.streamInput();
             }
             contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), input, ordered));
+            return new Tuple<>(Objects.requireNonNull(contentType),
+                    convertToMap(XContentFactory.xContent(contentType), input, ordered, deprecationHandler));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
         }
@@ -114,10 +139,21 @@ public class XContentHelper {
     /**
      * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
      * error.
+     * @deprecated will be removed in favor of {@link #convertToMap(XContent, String, boolean, DeprecationHandler)}
      */
+    @Deprecated
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
+        return convertToMap(xContent, string, ordered, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    /**
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered,
+                                                   DeprecationHandler deprecationHandler) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, string)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, deprecationHandler, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -127,11 +163,22 @@ public class XContentHelper {
     /**
      * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
      * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     * @deprecated will be removed in favor of {@link #convertToMap(XContent, InputStream, boolean, DeprecationHandler)}
      */
+    @Deprecated
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(xContent, input, ordered, LoggingDeprecationHandler.INSTANCE);
+    }
+
+    /**
+     * Convert a string in some {@link XContent} format to a {@link Map}. Throws an {@link ElasticsearchParseException} if there is any
+     * error. Note that unlike {@link #convertToMap(BytesReference, boolean)}, this doesn't automatically uncompress the input.
+     */
+    public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered, DeprecationHandler deprecationHandler)
+            throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, deprecationHandler, input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

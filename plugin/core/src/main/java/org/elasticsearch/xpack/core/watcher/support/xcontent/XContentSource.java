@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -105,7 +106,7 @@ public class XContentSource implements ToXContent {
     }
 
     public XContentParser parser(NamedXContentRegistry xContentRegistry) throws IOException {
-        return contentType.xContent().createParser(xContentRegistry, bytes);
+        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {

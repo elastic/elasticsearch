@@ -19,6 +19,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -157,7 +158,8 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private static XContentParser getParser(BytesReference source) throws IOException {
-        return XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, source);
+        return XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source);
     }
 
     /**

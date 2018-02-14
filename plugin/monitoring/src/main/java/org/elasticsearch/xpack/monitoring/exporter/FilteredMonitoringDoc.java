@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -59,7 +60,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
-            try (XContentParser parser = xContent.createParser(EMPTY, out.bytes())) {
+            try (XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, out.bytes())) {
                 return builder.copyCurrentStructure(parser);
             }
         }

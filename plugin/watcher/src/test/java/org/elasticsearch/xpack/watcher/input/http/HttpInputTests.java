@@ -9,6 +9,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -334,7 +335,8 @@ public class HttpInputTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference bytes = builder.bytes();
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, bytes)) {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes)) {
                 Map<String, Object> data = parser.map();
                 String reason = ObjectPath.eval("error.reason", data);
                 assertThat(reason, is("could not connect"));

@@ -9,6 +9,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -147,7 +148,8 @@ public class JiraIssue implements ToXContentObject {
         if (response.hasContent()) {
             final List<String> errors = new ArrayList<>();
             // EMPTY is safe here because we never call namedObject
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, response.body())) {
+            try (XContentParser parser = JsonXContent.jsonXContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body())) {
                 XContentParser.Token token = parser.currentToken();
                 if (token == null) {
                     token = parser.nextToken();

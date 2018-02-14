@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -79,7 +80,8 @@ public class JiraAccount {
             settings.getAsSettings(ISSUE_DEFAULTS_SETTING).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             this.issueDefaults = Collections.unmodifiableMap(XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(Collections.emptyList()), builder.bytes()).map());
+                    .createParser(new NamedXContentRegistry(Collections.emptyList()),
+                            LoggingDeprecationHandler.INSTANCE, builder.bytes()).map());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

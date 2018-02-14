@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -156,7 +157,7 @@ public class HttpClient {
 
     private <Response> Response fromXContent(XContentType xContentType, BytesReference bytesReference,
                                              CheckedFunction<XContentParser, Response, IOException> responseParser) {
-        try (XContentParser parser = xContentType.xContent().createParser(registry, bytesReference)) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, bytesReference)) {
             return responseParser.apply(parser);
         } catch (IOException ex) {
             throw new ClientException("Cannot parse response", ex);

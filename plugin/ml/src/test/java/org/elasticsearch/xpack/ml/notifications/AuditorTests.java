@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -95,7 +96,8 @@ public class AuditorTests extends ESTestCase {
     }
 
     private AuditMessage parseAuditMessage(BytesReference msg) throws IOException {
-        XContentParser parser = XContentFactory.xContent(msg).createParser(NamedXContentRegistry.EMPTY, msg);
+        XContentParser parser = XContentFactory.xContent(msg)
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, msg);
         return AuditMessage.PARSER.apply(parser, null);
     }
 }

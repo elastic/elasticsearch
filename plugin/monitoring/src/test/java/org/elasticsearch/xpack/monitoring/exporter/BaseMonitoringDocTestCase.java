@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -139,7 +140,8 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
         final T document = createMonitoringDoc(cluster, timestamp, interval, node, system, type, id);
 
         final BytesReference bytes = XContentHelper.toXContent(document, xContentType, false);
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {
             final Map<String, ?> map = parser.map();
 
             assertThat(map.get("cluster_uuid"), equalTo(cluster));

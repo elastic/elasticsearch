@@ -10,6 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -79,7 +80,8 @@ public class NormalizerResultHandler extends AbstractComponent {
     }
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
-        XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, bytesRef);
+        XContentParser parser = xContent
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesRef);
         NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
         normalizedResults.add(result);
     }

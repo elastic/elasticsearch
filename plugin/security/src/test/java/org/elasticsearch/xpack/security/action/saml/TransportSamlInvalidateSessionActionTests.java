@@ -34,6 +34,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -201,7 +202,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     private SearchHit tokenHit(int idx, BytesReference source) {
         try {
-            final Map<String, Object> sourceMap = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, source).map();
+            final Map<String, Object> sourceMap = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source).map();
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
             final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);

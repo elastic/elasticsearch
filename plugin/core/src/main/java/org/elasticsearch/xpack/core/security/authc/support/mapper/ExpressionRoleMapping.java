@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -143,7 +144,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        try (XContentParser parser = xContentType.xContent().createParser(registry, source)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(registry, LoggingDeprecationHandler.INSTANCE, source)) {
             return parse(name, parser);
         }
     }

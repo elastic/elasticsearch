@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -117,7 +118,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
         for (SearchHit hit : hits.getHits()) {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, hit.getSourceRef());
+                    NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, hit.getSourceRef());
             ForecastRequestStats forecastRequestStats = ForecastRequestStats.PARSER.apply(parser, null);
             if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
                 forecastsToDelete.add(forecastRequestStats);

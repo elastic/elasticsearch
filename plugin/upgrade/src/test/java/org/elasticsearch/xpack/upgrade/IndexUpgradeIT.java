@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,7 +37,6 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         enableLicensing();
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfo() {
         // Testing only negative case here, the positive test is done in bwcTests
         assertAcked(client().admin().indices().prepareCreate("test").get());
@@ -46,8 +45,11 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getActions().entrySet(), empty());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfoLicense() throws Exception {
+        // This test disables all licenses and generates a new one using dev private key
+        // in non-snapshot builds we are using produciton public key for license verification
+        // which makes this test to fail
+        assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("test").get());
         ensureYellow("test");
         disableLicensing();
@@ -128,7 +130,6 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertTrue(postUpgradeIsCalled.get());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/3921")
     public void testIndexUpgradeInfoOnEmptyCluster() {
         // On empty cluster asking for all indices shouldn't fail since no indices means nothing needs to be upgraded
         Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("_all").get();

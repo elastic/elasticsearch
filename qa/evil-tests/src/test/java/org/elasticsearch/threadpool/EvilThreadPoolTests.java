@@ -67,24 +67,34 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     private void runExecutionExceptionTest(
-            final Supplier<Throwable> supplier,
+            final Runnable runnable,
             final boolean expectThrowable,
             final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);
 
         try {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
                 assertTrue(expectThrowable);
                 throwableReference.set(e);
-                latch.countDown();
+                uncaughtExceptionHandlerLatch.countDown();
             });
 
-            threadPool.generic().submit(supplier::get);
+            final CountDownLatch supplierLatch = new CountDownLatch(1);
+
+            threadPool.generic().submit(() -> {
+                try {
+                    runnable.run();
+                } finally {
+                    supplierLatch.countDown();
+                }
+            });
+
+            supplierLatch.await();
 
             if (expectThrowable) {
-                latch.await();
+                uncaughtExceptionHandlerLatch.await();
             }
             consumer.accept(Optional.ofNullable(throwableReference.get()));
         } finally {

@@ -20,11 +20,10 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,6 +35,10 @@ import java.util.Map;
 import java.util.Set;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+
+    private static final String PERSISTENT = "persistent";
+    private static final String TRANSIENT = "transient";
+
     public RestClusterUpdateSettingsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_cluster/settings", this);
@@ -56,15 +59,14 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();
         }
-        if (source.containsKey("transient")) {
-            clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
+        if (source.containsKey(TRANSIENT)) {
+            clusterUpdateSettingsRequest.transientSettings((Map) source.get(TRANSIENT));
         }
-        if (source.containsKey("persistent")) {
-            clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
+        if (source.containsKey(PERSISTENT)) {
+            clusterUpdateSettingsRequest.persistentSettings((Map) source.get(PERSISTENT));
         }
 
-        return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest,
-                new RestToXContentListener<ClusterUpdateSettingsResponse>(channel));
+        return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

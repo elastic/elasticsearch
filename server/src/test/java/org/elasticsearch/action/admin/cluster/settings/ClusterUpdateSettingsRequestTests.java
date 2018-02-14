@@ -20,8 +20,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,37 +27,39 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
 
-    public void testFromToXContent() throws IOException {
+    public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final ClusterUpdateSettingsRequest request = createTestItem();
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = XContentType.JSON;
-        BytesReference xContent = toShuffledXContentAndInsertRandomFields(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
-        XContentParser parser = createParser(xContentType.xContent(), xContent);
-        ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
+        if (addRandomFields) {
+            BytesReference mutated = insertRandomFields(xContentType, originalBytes,
+                    p -> p.startsWith("transient") || p.startsWith("persistent"), random());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
+            assertTrue(e.getMessage().matches("\\[cluster_update_settings_request\\] unknown field \\[\\w*\\], parser not found"));
+        } else {
+            XContentParser parser = createParser(xContentType.xContent(), originalBytes);
+            ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);
 
-        assertNull(parser.nextToken());
-
-        Builder persistentBuilder = Settings.builder().put(request.persistentSettings());
-        Builder parsedPersistentBuilder = Settings.builder().put(parsedRequest.persistentSettings());
-
-        persistentBuilder.keys().forEach(k -> {
-            assertThat(parsedPersistentBuilder.keys(), hasItem(equalTo(k)));
-            assertThat(parsedPersistentBuilder.get(k), equalTo(persistentBuilder.get(k)));
-        });
-
-        Builder transientBuilder = Settings.builder().put(request.persistentSettings());
-        Builder parsedTransientBuilder = Settings.builder().put(parsedRequest.persistentSettings());
-
-        transientBuilder.keys().forEach(k -> {
-            assertThat(parsedTransientBuilder.keys(), hasItem(equalTo(k)));
-            assertThat(parsedTransientBuilder.get(k), equalTo(transientBuilder.get(k)));
-        });
+            assertNull(parser.nextToken());
+            assertThat(parsedRequest.transientSettings(), equalTo(request.transientSettings()));
+            assertThat(parsedRequest.persistentSettings(), equalTo(request.persistentSettings()));
+        }
     }
 
     private static ClusterUpdateSettingsRequest createTestItem() {

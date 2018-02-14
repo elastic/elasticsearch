@@ -64,13 +64,22 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
+        String transientSettingKey = 
+                RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int transientSettingValue = 10;
-        Settings transientSettings = Settings.builder().put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES).build(); // <1>
-        
-        String persistentSettingKey = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
-        String persistentSettingValue = EnableAllocationDecider.Allocation.NONE.name();
-        Settings persistentSettings = Settings.builder().put(persistentSettingKey, persistentSettingValue).build(); // <2>
+        Settings transientSettings = 
+                Settings.builder()
+                .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES)
+                .build(); // <1>
+
+        String persistentSettingKey = 
+                EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
+        String persistentSettingValue = 
+                EnableAllocationDecider.Allocation.NONE.name();
+        Settings persistentSettings = 
+                Settings.builder()
+                .put(persistentSettingKey, persistentSettingValue)
+                .build(); // <2>
         // end::put-settings-create-settings
 
         // tag::put-settings-request-cluster-settings
@@ -80,21 +89,25 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-settings-settings-builder
-            Settings.Builder transientSettingsBuilder = Settings.builder().put(transientSettingKey, transientSettingValue,
-                    ByteSizeUnit.BYTES); 
+            Settings.Builder transientSettingsBuilder = 
+                    Settings.builder()
+                    .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
         }
         {
             // tag::put-settings-settings-map
             Map<String, Object> map = new HashMap<>();
-            map.put(transientSettingKey, transientSettingValue + ByteSizeUnit.BYTES.getSuffix());
+            map.put(transientSettingKey
+                    , transientSettingValue + ByteSizeUnit.BYTES.getSuffix());
             request.transientSettings(map); // <1>
             // end::put-settings-settings-map
         }
         {
             // tag::put-settings-settings-source
-            request.transientSettings("{\"indices.recovery.max_bytes_per_sec\": \"10b\"}", XContentType.JSON); // <1>
+            request.transientSettings(
+                    "{\"indices.recovery.max_bytes_per_sec\": \"10b\"}"
+                    , XContentType.JSON); // <1>
             // end::put-settings-settings-source
         }
 
@@ -139,7 +152,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
             // tag::put-settings-execute-listener
-            ActionListener<ClusterUpdateSettingsResponse> listener = new ActionListener<ClusterUpdateSettingsResponse>() {
+            ActionListener<ClusterUpdateSettingsResponse> listener = 
+                    new ActionListener<ClusterUpdateSettingsResponse>() {
                 @Override
                 public void onResponse(ClusterUpdateSettingsResponse response) {
                     // <1>

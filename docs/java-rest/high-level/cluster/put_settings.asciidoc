@@ -1,5 +1,5 @@
 [[java-rest-high-cluster-put-settings]]
-=== Cluster Put Settings API
+=== Cluster Update Settings API
 
 The Cluster Put Settings API allows to update cluster wide settings.
 

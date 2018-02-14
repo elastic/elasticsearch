@@ -36,15 +36,15 @@ import java.io.IOException;
  */
 public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implements ToXContentObject {
 
-    private static final String PERSISTENT = "persistent";
-    private static final String TRANSIENT = "transient";
+    private static final ParseField PERSISTENT = new ParseField("persistent");
+    private static final ParseField TRANSIENT = new ParseField("transient");
 
     private static final ConstructingObjectParser<ClusterUpdateSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
             "cluster_update_settings_response", true, a -> new ClusterUpdateSettingsResponse((boolean) a[0]));
     static {
         declareAcknowledgedField(PARSER);
-        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT));
-        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT));
+        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), PERSISTENT);
+        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), TRANSIENT);
     }
 
     Settings transientSettings;
@@ -93,10 +93,10 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implemen
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         addAcknowledgedField(builder);
-        builder.startObject(PERSISTENT);
+        builder.startObject(PERSISTENT.getPreferredName());
         persistentSettings.toXContent(builder, params);
         builder.endObject();
-        builder.startObject(TRANSIENT);
+        builder.startObject(TRANSIENT.getPreferredName());
         transientSettings.toXContent(builder, params);
         builder.endObject();
         builder.endObject();

@@ -968,23 +968,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return xContentBuilder.map(shuffledMap);
     }
 
-    /**
-     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}.
-     * Adds a random field value, inner object or array into each json object.
-     */
-    protected final BytesReference toShuffledXContentAndInsertRandomFields(ToXContent toXContent, XContentType xContentType,
-            ToXContent.Params params, boolean humanReadable, String... exceptFieldNames) throws IOException {
-        BytesReference originalBytes = toShuffledXContent(toXContent, xContentType, params, humanReadable, exceptFieldNames);
-        BytesReference mutated;
-        if (randomBoolean()) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
-        return mutated;
-    }
-
     // shuffle fields of objects in the list, but not the list itself
     private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
         List<Object> targetList = new ArrayList<>();

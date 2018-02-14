@@ -31,39 +31,40 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class ClusterUpdateSettingsResponseTests extends ESTestCase {
 
-    public void testFromToXContent() throws IOException {
+    public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final ClusterUpdateSettingsResponse response = createTestItem();
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = XContentType.JSON;
 
-        BytesReference xContent = toShuffledXContentAndInsertRandomFields(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, p -> p.startsWith("transient") || p.startsWith("persistent"),
+                    random());
+        } else {
+            mutated = originalBytes;
+        }
 
-        XContentParser parser = createParser(xContentType.xContent(), xContent);
+        XContentParser parser = createParser(xContentType.xContent(), mutated);
         ClusterUpdateSettingsResponse parsedResponse = ClusterUpdateSettingsResponse.fromXContent(parser);
 
         assertNull(parser.nextToken());
         assertThat(parsedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-
-        Builder persistentBuilder = Settings.builder().put(response.persistentSettings);
-        Builder parsedPersistentBuilder = Settings.builder().put(parsedResponse.persistentSettings);
-
-        persistentBuilder.keys().forEach(k -> {
-            assertThat(parsedPersistentBuilder.keys(), hasItem(equalTo(k)));
-            assertThat(parsedPersistentBuilder.get(k), equalTo(persistentBuilder.get(k)));
-        });
-
-        Builder transientBuilder = Settings.builder().put(response.persistentSettings);
-        Builder parsedTransientBuilder = Settings.builder().put(parsedResponse.persistentSettings);
-
-        transientBuilder.keys().forEach(k -> {
-            assertThat(parsedTransientBuilder.keys(), hasItem(equalTo(k)));
-            assertThat(parsedTransientBuilder.get(k), equalTo(transientBuilder.get(k)));
-        });
+        assertThat(response.transientSettings, equalTo(response.transientSettings));
+        assertThat(response.persistentSettings, equalTo(response.persistentSettings));
     }
 
     public static Settings randomClusterSettings(int min, int max) {

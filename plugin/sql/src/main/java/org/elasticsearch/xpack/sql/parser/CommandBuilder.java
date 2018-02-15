@@ -139,7 +139,9 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public Object visitSysCatalogs(SysCatalogsContext ctx) {
         return new SysCatalogs(source(ctx));
-    }    @Override
+    }
+
+    @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
         for (TerminalNode string : ctx.STRING()) {

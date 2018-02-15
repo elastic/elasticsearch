@@ -55,6 +55,7 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
+    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)? 
                  (LIKE? tablePattern=pattern)?
                  (TYPE STRING (',' STRING)* )?                                                            #sysTables

@@ -537,7 +537,7 @@ public final class Request {
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
 
-        String endpoint = buildEndpoint("_cluster/settings");
+        String endpoint = buildEndpoint("_cluster", "settings");
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }

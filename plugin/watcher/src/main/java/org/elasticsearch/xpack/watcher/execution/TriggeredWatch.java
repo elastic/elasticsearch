@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +59,8 @@ public class TriggeredWatch implements ToXContentObject {
 
         public TriggeredWatch parse(String id, long version, BytesReference source) {
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+            try (XContentParser parser = XContentHelper
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
                 return parse(id, version, parser);
             } catch (IOException e) {
                 throw new ElasticsearchException("unable to parse watch record", e);

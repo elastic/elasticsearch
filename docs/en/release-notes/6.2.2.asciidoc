@@ -1,0 +1,8 @@
+[role="xpack"]
+[[xes-6.2.2]]
+== {es} {xpack} 6.2.2 Release Notes
+++++
+<titleabbrev>6.2.2 Release Notes</titleabbrev>
+++++
+
+To be determined...

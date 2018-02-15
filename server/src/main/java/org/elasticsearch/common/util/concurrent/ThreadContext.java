@@ -584,20 +584,21 @@ public final class ThreadContext implements Closeable, Writeable {
                          * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution
                          * exception. We want to ignore cancellation exceptions, restore the interrupt status on interrupted exceptions, and
                          * inspect the cause of an execution. We are going to be extra paranoid here though and completely unwrap the
-                         * exception to ensure that there is not a buried error anywhere.
+                         * exception to ensure that there is not a buried error anywhere. We assume that a general exception has been
+                         * handled by the executed task or the task submitter.
                          */
                         assert e instanceof CancellationException
                                 || e instanceof InterruptedException
                                 || e instanceof ExecutionException : e;
                         final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, ESLoggerFactory.getLogger(ThreadContext.class));
                         if (maybeError.isPresent()) {
-                            // rethrow this error where it will propagate to the uncaught exception handler
+                            // throw this error where it will propagate to the uncaught exception handler
                             throw maybeError.get();
                         }
                         if (e instanceof InterruptedException) {
+                            // restore the interrupt status
                             Thread.currentThread().interrupt();
                         }
-                        // we assume that a general exception has been handled by the executed task or the task submitter
                     }
                 }
                 whileRunning = false;

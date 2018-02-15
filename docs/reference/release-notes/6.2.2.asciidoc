@@ -1,6 +1,15 @@
 [[release-notes-6.2.2]]
 == 6.2.2 Release Notes
 
+[[enhancement-6.2.2]]
+[float]
+=== Enhancements
+
+Recovery::
+* Synced-flush should not seal index of out of sync replicas {pull}28464[#28464] (issue: {issue}10032[#10032])
+
+
+
 [[bug-6.2.2]]
 [float]
 === Bug fixes
@@ -13,8 +22,8 @@ Ingest::
 * Fix for bug that prevents pipelines to load that use stored scripts after a restart {pull}28588[#28588]
 
 Java High Level REST Client::
-* REST high-level client: Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
-* REST high-level client: move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
+* Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
+* Move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
 
 Packaging::
 * Disable console logging in the Windows service {pull}28618[#28618] (issue: {issue}20422[#20422])

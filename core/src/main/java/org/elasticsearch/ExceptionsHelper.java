@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
 
@@ -124,6 +126,10 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    public static String formatStackTrace(final StackTraceElement[] stackTrace) {
+        return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
     }
 
     static final int MAX_ITERATIONS = 1024;

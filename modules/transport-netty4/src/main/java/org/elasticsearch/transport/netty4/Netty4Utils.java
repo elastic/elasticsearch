@@ -181,8 +181,7 @@ public class Netty4Utils {
              */
             try {
                 // try to log the current stack trace
-                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 logger.error("fatal error on the network layer\n{}", formatted);
             } finally {
                 new Thread(

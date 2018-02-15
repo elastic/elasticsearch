@@ -93,6 +93,14 @@ assert_number_of_files() {
     }
 }
 
+generate_trial_license() {
+    sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NODE_SETTINGS"
+cat >> $ESCONFIG/elasticsearch.yml <<- EOF
+xpack.license.self_generated.type: trial
+EOF
+NODE_SETTINGS
+}
+
 wait_for_xpack() {
     local host=${1:-localhost}
     local port=${2:-9200}

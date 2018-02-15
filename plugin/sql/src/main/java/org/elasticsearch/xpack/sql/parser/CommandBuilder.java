@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysCatalogsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysColumnsContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTableTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTablesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -23,7 +25,9 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
+import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysCatalogs;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
+import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -127,10 +131,19 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         return new ShowColumns(source(ctx), identifier.index());
     }
 
+    @Override
+    public Object visitSysCatalogs(SysCatalogsContext ctx) {
+        return new SysCatalogs(source(ctx));
+    }
 
     @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         return new SysTables(source(ctx), visitPattern(ctx.pattern()));
+    }
+
+    @Override
+    public Object visitSysColumns(SysColumnsContext ctx) {
+        return new SysColumns(source(ctx), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
     }
 
     @Override
@@ -139,7 +152,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     }
 
     @Override
-    public Object visitSysColumns(SysColumnsContext ctx) {
-        return new SysColumns(source(ctx), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+    public Object visitSysTableTypes(SysTableTypesContext ctx) {
+        return new SysTableTypes(source(ctx));
     }
 }

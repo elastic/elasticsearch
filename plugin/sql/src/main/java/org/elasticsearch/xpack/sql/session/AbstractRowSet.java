@@ -12,8 +12,8 @@ public abstract class AbstractRowSet implements RowSet {
 
     @Override
     public Object column(int index) {
-        Check.isTrue(index >= 0, "Invalid index %d; needs to be positive", index);
-        Check.isTrue(index < columnCount(), "Invalid index %d for row of size %d", index, columnCount());
+        Check.isTrue(index >= 0, "Invalid index {}; needs to be positive", index);
+        Check.isTrue(index < columnCount(), "Invalid index {} for row of size {}", index, columnCount());
         Check.isTrue(hasCurrentRow(), "RowSet contains no (more) entries; use hasCurrent() to check its status");
         return getColumn(index);
     }

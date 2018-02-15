@@ -316,6 +316,9 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
             try (XContentParser parser = XContentFactory.xContent(contentType)
+                    // It's okay to pass the throwing deprecation handler
+                    // because we should not be writing raw fields when
+                    // generating JSON
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)) {
                 parser.nextToken();
                 writeFieldName(name);
@@ -395,6 +398,8 @@ public class JsonXContentGenerator implements XContentGenerator {
         // EMPTY is safe here because we never call namedObject
         try (StreamInput input = content.streamInput();
              XContentParser parser = xContent
+                // It's okay to pass the throwing deprecation handler because we
+                // should not be writing raw fields when generating JSON
                  .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
             copyCurrentStructure(parser);
         }

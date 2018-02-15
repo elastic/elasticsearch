@@ -19,9 +19,11 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -576,14 +579,23 @@ public final class ThreadContext implements Closeable, Writeable {
                      */
                     try {
                         ((RunnableFuture) in).get();
-                    } catch (final CancellationException e) {
-                      // task was cancelled, ignore
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (final ExecutionException e) {
-                        if (e.getCause() instanceof Error) {
-                            // rethrow this as an error where it will propagate to the uncaught exception handler
-                            throw (Error) e.getCause();
+                    } catch (final Exception e) {
+                        /*
+                         * In theory, Future#get can only throw a cancellation exception, an interrupted exception, or an execution
+                         * exception. We want to ignore cancellation exceptions, restore the interrupt status on interrupted exceptions, and
+                         * inspect the cause of an execution. We are going to be extra paranoid here though and completely unwrap the
+                         * exception to ensure that there is not a buried error anywhere.
+                         */
+                        assert e instanceof CancellationException
+                                || e instanceof InterruptedException
+                                || e instanceof ExecutionException : e;
+                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, ESLoggerFactory.getLogger(ThreadContext.class));
+                        if (maybeError.isPresent()) {
+                            // rethrow this error where it will propagate to the uncaught exception handler
+                            throw maybeError.get();
+                        }
+                        if (e instanceof InterruptedException) {
+                            Thread.currentThread().interrupt();
                         }
                         // we assume that a general exception has been handled by the executed task or the task submitter
                     }

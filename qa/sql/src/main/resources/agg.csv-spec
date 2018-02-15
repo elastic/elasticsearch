@@ -23,7 +23,7 @@ SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test
 
 gender:s             | p1:d                 | p2:d
 M                    | 10090.319            | 10089.320000000002
-F                    | 10095.128            | 10093.52
+F                    | 10096.826000000001   | 10094.68
 ;
 
 multiplePercentilesWithoutComma
@@ -31,7 +31,7 @@ SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_em
 
 gender:s             | p1:d                 | p2:d
 M                    | 10089.320000000002   | 10085.18
-F                    | 10093.52             | 10092.08
+F                    | 10094.68             | 10092.08
 ;
 
 multiplePercentilesWithComma

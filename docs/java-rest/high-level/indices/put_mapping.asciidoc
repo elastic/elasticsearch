@@ -20,7 +20,7 @@ A description of the fields to create on the mapping; if not defined, the mappin
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-mapping-request-source]
 --------------------------------------------------
-<1> The mapping source provided as a `String`
+<1> Mapping source provided as a `String`
 
 ==== Providing the mapping source
 The mapping source can be provided in different ways in addition to

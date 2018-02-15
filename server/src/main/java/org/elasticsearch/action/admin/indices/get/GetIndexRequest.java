@@ -26,8 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
@@ -108,6 +106,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     /**
      * Sets the value of "flat_settings".
+     * Used only by the high-level REST client.
+     * 
      * @param flatSettings value of "flat_settings" flag to be set
      * @return this request
      */
@@ -118,6 +118,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     /**
      * Return settings in flat format.
+     * Used only by the high-level REST client.
+     * 
      * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
      */
     public boolean flatSettings() {
@@ -126,6 +128,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     /**
      * Sets the value of "include_defaults".
+     * Used only by the high-level REST client.
+     * 
      * @param includeDefaults value of "include_defaults" to be set.
      * @return this request
      */
@@ -136,6 +140,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     /**
      * Whether to return all default settings for each of the indices.
+     * Used only by the high-level REST client.
+     * 
      * @return <code>true</code> if defaults settings for each of the indices need to returned;
      * <code>false</code> otherwise.
      */

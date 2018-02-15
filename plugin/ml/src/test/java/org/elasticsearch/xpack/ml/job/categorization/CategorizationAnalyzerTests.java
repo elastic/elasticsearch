@@ -46,9 +46,9 @@ public class CategorizationAnalyzerTests extends ESTestCase {
         CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, defaultConfig)) {
 
-            assertEquals(Arrays.asList("sol13m-8608.1.p2ps", "Info", "Source", "AES_SERVICE2", "on", "has", "shut", "down"),
+            assertEquals(Arrays.asList("ml13-4608.1.p2ps", "Info", "Source", "ML_SERVICE2", "on", "has", "shut", "down"),
                     categorizationAnalyzer.tokenizeField("p2ps",
-                            "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."));
+                            "<ml13-4608.1.p2ps: Info: > Source ML_SERVICE2 on 13122:867 has shut down."));
 
             assertEquals(Arrays.asList("Vpxa", "verbose", "VpxaHalCnxHostagent", "opID", "WFU-ddeadb59", "WaitForUpdatesDone", "Received",
                     "callback"),
@@ -61,7 +61,7 @@ public class CategorizationAnalyzerTests extends ESTestCase {
 
             assertEquals(Arrays.asList("INFO", "session", "PROXY", "Session", "DESTROYED"),
                     categorizationAnalyzer.tokenizeField("proxy",
-                            " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - " +
+                            " [1111529792] INFO  session <45409105041220090733@192.168.251.123> - " +
                                     "----------------- PROXY Session DESTROYED --------------------"));
 
             assertEquals(Arrays.asList("PSYoungGen", "total", "used"),
@@ -77,9 +77,9 @@ public class CategorizationAnalyzerTests extends ESTestCase {
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment,
                 defaultConfigWithCategorizationFilter)) {
 
-            assertEquals(Arrays.asList("sol13m-8608.1.p2ps", "Info", "Source", "AES_SERVICE2", "on", "has", "shut", "down"),
+            assertEquals(Arrays.asList("ml13-4608.1.p2ps", "Info", "Source", "ML_SERVICE2", "on", "has", "shut", "down"),
                     categorizationAnalyzer.tokenizeField("p2ps",
-                            "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."));
+                            "<ml13-4608.1.p2ps: Info: > Source ML_SERVICE2 on 13122:867 has shut down."));
 
             assertEquals(Arrays.asList("Vpxa", "Received", "callback"),
                     categorizationAnalyzer.tokenizeField("vmware",
@@ -91,7 +91,7 @@ public class CategorizationAnalyzerTests extends ESTestCase {
 
             assertEquals(Arrays.asList("INFO", "session", "PROXY", "Session", "DESTROYED"),
                     categorizationAnalyzer.tokenizeField("proxy",
-                            " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - " +
+                            " [1111529792] INFO  session <45409105041220090733@192.168.251.123> - " +
                                     "----------------- PROXY Session DESTROYED --------------------"));
 
             assertEquals(Arrays.asList("PSYoungGen", "total", "used"),
@@ -106,10 +106,10 @@ public class CategorizationAnalyzerTests extends ESTestCase {
         CategorizationAnalyzerConfig config = new CategorizationAnalyzerConfig.Builder().setAnalyzer("standard").build();
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, config)) {
 
-            assertEquals(Arrays.asList("sol13m", "8608.1", "p2ps", "info", "source", "aes_service2", "on", "33122", "967", "has", "shut",
+            assertEquals(Arrays.asList("ml13", "4608.1", "p2ps", "info", "source", "ml_service2", "on", "13122", "867", "has", "shut",
                     "down"),
                     categorizationAnalyzer.tokenizeField("p2ps",
-                            "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."));
+                            "<ml13-4608.1.p2ps: Info: > Source ML_SERVICE2 on 13122:867 has shut down."));
 
             assertEquals(Arrays.asList("vpxa", "49ec0b90", "verbose", "vpxahalcnxhostagent", "opid", "wfu", "ddeadb59",
                     "waitforupdatesdone", "received", "callback"),
@@ -120,10 +120,10 @@ public class CategorizationAnalyzerTests extends ESTestCase {
                     categorizationAnalyzer.tokenizeField("apache",
                             "org.apache.coyote.http11.Http11BaseProtocol destroy"));
 
-            assertEquals(Arrays.asList("1111529792", "info", "session", "45409105041220090733", "62.218.251.123", "proxy", "session",
+            assertEquals(Arrays.asList("1111529792", "info", "session", "45409105041220090733", "192.168.251.123", "proxy", "session",
                     "destroyed"),
                     categorizationAnalyzer.tokenizeField("proxy",
-                            " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - " +
+                            " [1111529792] INFO  session <45409105041220090733@192.168.251.123> - " +
                                     "----------------- PROXY Session DESTROYED --------------------"));
 
             assertEquals(Arrays.asList("psyounggen", "total", "2572800k", "used", "1759355k", "0x0000000759500000", "0x0000000800000000",
@@ -149,9 +149,9 @@ public class CategorizationAnalyzerTests extends ESTestCase {
                 .build();
         try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, environment, config)) {
 
-            assertEquals(Arrays.asList("sol13m-8608.1.p2p", "info", "sourc", "aes_service2", "on", "has", "shut", "down"),
+            assertEquals(Arrays.asList("ml13-4608.1.p2ps", "info", "sourc", "ml_service2", "on", "has", "shut", "down"),
                     categorizationAnalyzer.tokenizeField("p2ps",
-                            "<sol13m-8608.1.p2ps: Info: > Source AES_SERVICE2 on 33122:967 has shut down."));
+                            "<ml13-4608.1.p2ps: Info: > Source ML_SERVICE2 on 13122:867 has shut down."));
 
             assertEquals(Arrays.asList("vpxa", "receiv", "callback"),
                     categorizationAnalyzer.tokenizeField("vmware",
@@ -163,7 +163,7 @@ public class CategorizationAnalyzerTests extends ESTestCase {
 
             assertEquals(Arrays.asList("info", "session", "proxi", "session", "destroy"),
                     categorizationAnalyzer.tokenizeField("proxy",
-                            " [1111529792] INFO  session <45409105041220090733@62.218.251.123> - " +
+                            " [1111529792] INFO  session <45409105041220090733@192.168.251.123> - " +
                                     "----------------- PROXY Session DESTROYED --------------------"));
 
             assertEquals(Arrays.asList("psyounggen", "total", "use"),

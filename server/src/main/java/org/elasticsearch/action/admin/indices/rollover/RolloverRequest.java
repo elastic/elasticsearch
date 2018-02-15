@@ -30,6 +30,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -42,22 +45,38 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request class to swap index under an alias upon satisfying conditions
  */
-public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
+public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
-    public static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("conditions", null);
+    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover", null);
+    private static final ObjectParser<Set<Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions", null);
+
+    private static final ParseField CONDITIONS = new ParseField("conditions");
+    private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
+    private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
+    private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
+
     static {
-        PARSER.declareField((parser, request, context) -> Condition.PARSER.parse(parser, request.conditions, null),
-            new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
+        CONDITION_PARSER.declareString((conditions, s) ->
+                        conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+                MAX_AGE_CONDITION);
+        CONDITION_PARSER.declareLong((conditions, value) ->
+                conditions.add(new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
+        CONDITION_PARSER.declareString((conditions, s) ->
+                        conditions.add(new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
+                MAX_SIZE_CONDITION);
+
+        PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
+            CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
-            new ParseField("settings"), ObjectParser.ValueType.OBJECT);
+            CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                 request.createIndexRequest.mapping(mappingsEntry.getKey(),
                     (Map<String, Object>) mappingsEntry.getValue());
             }
-        }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
-            new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
+            CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
     }
 
     private String alias;
@@ -73,14 +92,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.newIndexName = newIndexName;
     }
 
+
+    //TODO at least one condition should be present???
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
+        ActionRequestValidationException validationException = createIndexRequest.validate();
         if (alias == null) {
             validationException = addValidationError("index alias is missing", validationException);
-        }
-        if (createIndexRequest == null) {
-            validationException = addValidationError("create index request is missing", validationException);
         }
         return validationException;
     }
@@ -148,21 +166,27 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds condition to check if the index is at least <code>age</code> old
      */
     public void addMaxIndexAgeCondition(TimeValue age) {
-        this.conditions.add(new MaxAgeCondition(age));
+        if (this.conditions.add(new MaxAgeCondition(age)) == false) {
+            throw new IllegalArgumentException(MaxAgeCondition.NAME + " condition is already set");
+        }
     }
 
     /**
      * Adds condition to check if the index has at least <code>numDocs</code>
      */
     public void addMaxIndexDocsCondition(long numDocs) {
-        this.conditions.add(new MaxDocsCondition(numDocs));
+        if (this.conditions.add(new MaxDocsCondition(numDocs)) == false) {
+            throw new IllegalArgumentException(MaxDocsCondition.NAME + " condition is already set");
+        }
     }
 
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */
     public void addMaxIndexSizeCondition(ByteSizeValue size) {
-        this.conditions.add(new MaxSizeCondition(size));
+        if (this.conditions.add(new MaxSizeCondition(size)) == false) {
+            throw new IllegalArgumentException(MaxSizeCondition.NAME + " condition is already set");
+        }
     }
 
     /**
@@ -173,7 +197,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
     }
 
-    boolean isDryRun() {
+    public boolean isDryRun() {
         return dryRun;
     }
 
@@ -181,15 +205,15 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return conditions;
     }
 
-    String getAlias() {
+    public String getAlias() {
         return alias;
     }
 
-    String getNewIndexName() {
+    public String getNewIndexName() {
         return newIndexName;
     }
 
-    CreateIndexRequest getCreateIndexRequest() {
+    public CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
     }
 
@@ -220,4 +244,26 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public ActiveShardCount getWaitForActiveShards() {
+        return createIndexRequest.waitForActiveShards();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        createIndexRequest.innerToXContent(builder, params);
+
+        builder.startObject(CONDITIONS.getPreferredName());
+        for (Condition condition : conditions) {
+            condition.toXContent(builder, params);
+        }
+        builder.endObject();
+
+        builder.endObject();
+        return builder;
+    }
+
+    public void fromXContent(XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, null);
+    }
 }

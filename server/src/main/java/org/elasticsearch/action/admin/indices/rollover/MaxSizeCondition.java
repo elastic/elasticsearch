@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -62,5 +63,11 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(value.getBytes());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(NAME, value.getStringRep());
+        return builder;
     }
 }

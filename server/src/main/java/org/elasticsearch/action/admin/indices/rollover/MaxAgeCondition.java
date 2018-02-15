@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -56,5 +57,11 @@ public class MaxAgeCondition extends Condition<TimeValue> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(value.getMillis());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(NAME, value.getStringRep());
+        return builder;
     }
 }

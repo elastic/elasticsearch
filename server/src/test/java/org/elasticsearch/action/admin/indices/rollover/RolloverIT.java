@@ -37,9 +37,7 @@ import org.joda.time.format.DateTimeFormat;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -145,10 +143,8 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.getConditionStatus().size(), equalTo(2));
 
 
-        assertThat(response.getConditionStatus(), everyItem(hasProperty("value", is(false))));
-        Set<String> conditions = response.getConditionStatus().stream()
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+        assertThat(response.getConditionStatus().values(), everyItem(hasProperty("value", is(false))));
+        Set<String> conditions = response.getConditionStatus().keySet();
         assertThat(conditions, containsInAnyOrder(
             new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString(),
             new MaxAgeCondition(TimeValue.timeValueHours(4)).toString()));

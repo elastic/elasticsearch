@@ -24,10 +24,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
+import java.util.Collections;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ClusterUpdateSettingsRequestTests extends ESTestCase {
@@ -47,11 +48,13 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
         if (addRandomFields) {
-            BytesReference mutated = insertRandomFields(xContentType, originalBytes,
-                    p -> p.startsWith("transient") || p.startsWith("persistent"), random());
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            String unsupportedField = "unsupported_field";
+            BytesReference mutated = XContentTestUtils.insertIntoXContent(xContentType.xContent(), originalBytes,
+                    Collections.singletonList(""), () -> unsupportedField, () -> randomAlphaOfLengthBetween(3, 10)).bytes();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                     () -> ClusterUpdateSettingsRequest.fromXContent(createParser(xContentType.xContent(), mutated)));
-            assertTrue(e.getMessage().matches("\\[cluster_update_settings_request\\] unknown field \\[\\w*\\], parser not found"));
+            assertThat(iae.getMessage(),
+                    equalTo("[cluster_update_settings_request] unknown field [" + unsupportedField + "], parser not found"));
         } else {
             XContentParser parser = createParser(xContentType.xContent(), originalBytes);
             ClusterUpdateSettingsRequest parsedRequest = ClusterUpdateSettingsRequest.fromXContent(parser);

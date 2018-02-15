@@ -286,7 +286,7 @@ public final class XContentTestUtils {
      * {@link ObjectPath}.
      * The key/value arguments can suppliers that either return fixed or random values.
      */
-    static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
+    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
             Supplier<Object> value) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {

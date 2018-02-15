@@ -63,7 +63,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         // end::put-settings-request
 
-        // @formatter:off
         // tag::put-settings-create-settings
         String transientSettingKey = 
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
@@ -82,7 +81,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put(persistentSettingKey, persistentSettingValue)
                 .build(); // <2>
         // end::put-settings-create-settings
-        // @formatter:on
 
         // tag::put-settings-request-cluster-settings
         request.transientSettings(transientSettings); // <1>
@@ -90,33 +88,27 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request-cluster-settings
 
         {
-            // @formatter:off
             // tag::put-settings-settings-builder
             Settings.Builder transientSettingsBuilder = 
                     Settings.builder()
                     .put(transientSettingKey, transientSettingValue, ByteSizeUnit.BYTES); 
             request.transientSettings(transientSettingsBuilder); // <1>
             // end::put-settings-settings-builder
-            // @formatter:on
         }
         {
-            // @formatter:off
             // tag::put-settings-settings-map
             Map<String, Object> map = new HashMap<>();
             map.put(transientSettingKey
                     , transientSettingValue + ByteSizeUnit.BYTES.getSuffix());
             request.transientSettings(map); // <1>
             // end::put-settings-settings-map
-            // @formatter:on
         }
         {
-            // @formatter:off
             // tag::put-settings-settings-source
             request.transientSettings(
                     "{\"indices.recovery.max_bytes_per_sec\": \"10b\"}"
                     , XContentType.JSON); // <1>
             // end::put-settings-settings-source
-            // @formatter:on
         }
 
         // tag::put-settings-request-timeout
@@ -159,7 +151,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
 
-            //@formatter:off
             // tag::put-settings-execute-listener
             ActionListener<ClusterUpdateSettingsResponse> listener = 
                     new ActionListener<ClusterUpdateSettingsResponse>() {
@@ -174,7 +165,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             };
             // end::put-settings-execute-listener
-            //@formatter:on
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);

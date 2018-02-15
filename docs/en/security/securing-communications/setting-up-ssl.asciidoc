@@ -21,7 +21,7 @@ applicable to your cluster.
 certificate and enable TLS on the transport layer. You can also optionally
 enable TLS on the HTTP layer. See
 {ref}/configuring-tls.html#tls-transport[Encrypting Communications Between Nodes in a Cluster] and
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications]. 
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
 
 . Configure {monitoring} to use encrypted connections. See <<secure-monitoring>>.
 
@@ -39,15 +39,3 @@ See <<java-clients>>.
 
 . Configure {es} for Apache Hadoop to use secured transport. See
 {hadoop-ref}/security.html[{es} for Apache Hadoop Security].
-
-//The following sections can be removed after we clean up all links to these anchors.
-
-[[installing-node-certificates]]
-==== Generating Node Certificates
-
-See {ref}/configuring-tls.html#node-certificates[Generating Node Certificates].
-
-[[enable-ssl]]
-==== Enabling SSL in the Node Configuration
-
-See {ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].

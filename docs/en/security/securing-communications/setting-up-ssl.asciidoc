@@ -18,7 +18,8 @@ applicable to your cluster.
 . Configure each node in the cluster to identify itself using its signed
 certificate and enable TLS on the transport layer. You can also optionally
 enable TLS on the HTTP layer. See
-{ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].
+{ref}/configuring-tls.html#tls-transport[Encrypting Communications Between Nodes in a Cluster] and
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications]. 
 
 . Configure {monitoring} to use encrypted connections. See <<secure-monitoring>>.
 

@@ -163,10 +163,6 @@ public class Version implements Comparable<Version> {
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
     }
 
-    private static class DeclaredVersionsHolder {
-        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
-    }
-
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
     }
@@ -404,6 +400,15 @@ public class Version implements Comparable<Version> {
     @Override
     public int compareTo(Version other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    /*
+     * We need the declared versions when computing the minimum compatibility version. As computing the declared versions uses reflection it
+     * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions
+     * lazily once.
+     */
+    private static class DeclaredVersionsHolder {
+        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
     /**

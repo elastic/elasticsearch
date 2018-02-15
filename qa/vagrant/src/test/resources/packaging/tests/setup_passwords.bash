@@ -14,6 +14,7 @@ setup() {
         install
 
         install_xpack
+        generate_trial_license
         verify_xpack_installation
     fi
 }

@@ -14,6 +14,7 @@ setup() {
         install
 
         install_xpack
+        generate_trial_license
         verify_xpack_installation
     fi
 }
@@ -61,7 +62,7 @@ NEW_PASS
 }
 
 @test "[$GROUP] test bootstrap.password is in setting list" {
-    run sudo -E -u $DATA_USER sh <<"NODE_SETTINGS"
+    run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NODE_SETTINGS"
 cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 network.host: 127.0.0.1
 http.port: 9200

@@ -27,7 +27,6 @@ import java.util.Optional;
 import static org.elasticsearch.ExceptionsHelper.MAX_ITERATIONS;
 import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.*;
 
 public class ExceptionsHelperTests extends ESTestCase {
 

@@ -99,6 +99,13 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return token == null ? null : unquoteString(token.getText());
     }
 
+    /**
+     * Extracts the actual unescaped string (literal) value of a terminal node.
+     */
+    static String string(TerminalNode node) {
+        return node == null ? null : unquoteString(node.getText());
+    }
+
     static String unquoteString(String text) {
         // remove leading and trailing ' for strings and also eliminate escaped single quotes
         return text == null ? null : text.substring(1, text.length() - 1).replace("''", "'");

@@ -71,20 +71,20 @@ public class SysParserTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysColsNoArgs(String commandVariation) throws Exception {
+    public void testSysColsNoArgs() throws Exception {
         runSysColumns("SYS COLUMNS");
     }
 
-    public void testSysColsTableOnlyPattern(String commandVariation) throws Exception {
-        runSysColumns("SYS COLUMNS TABLES LIKE 'test'");
+    public void testSysColsTableOnlyPattern() throws Exception {
+        runSysColumns("SYS COLUMNS TABLE LIKE 'test'");
     }
 
-    public void testSysColsColOnlyPattern(String commandVariation) throws Exception {
+    public void testSysColsColOnlyPattern() throws Exception {
         runSysColumns("SYS COLUMNS LIKE '%'");
     }
 
-    public void testSysColsTableAndColsPattern(String commandVariation) throws Exception {
-        runSysColumns("SYS COLUMNS TABLES LIKE 'test' LIKE '%'");
+    public void testSysColsTableAndColsPattern() throws Exception {
+        runSysColumns("SYS COLUMNS TABLE LIKE 'test' LIKE '%'");
     }
 
 
@@ -95,6 +95,7 @@ public class SysParserTests extends ESTestCase {
                 "text",
                 "keyword",
                 "unsupported",
+                "date",
                 "some",
                 "some.dotted",
                 "some.dotted.field",
@@ -114,7 +115,7 @@ public class SysParserTests extends ESTestCase {
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
             assertEquals(24, r.columnCount());
-            assertEquals(21, r.size());
+            assertEquals(22, r.size());
 
             for (int i = 0; i < r.size(); i++) {
                 assertEquals("cluster", r.column(0));

@@ -55,9 +55,11 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
-    | SYS TABLES (LIKE? pattern)?                                                                         #sysTables
-    | SYS COLUMNS (TABLES LIKE? indexPattern=pattern)? (LIKE? columnPattern=pattern)?                     #sysColumns
+    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)? 
+                 (LIKE? tablePattern=pattern)?
+                 (TYPE STRING (',' STRING)* )?                                                            #sysTables
+    | SYS COLUMNS (TABLE LIKE? indexPattern=pattern)?                                                     
+                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
@@ -269,7 +271,7 @@ nonReserved
     | QUERY 
     | RLIKE
     | SCHEMAS | SHOW | SYS
-    | TABLES | TEXT | TYPES
+    | TABLES | TEXT | TYPE | TYPES
     | VERIFY
     ;
 
@@ -283,8 +285,7 @@ ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
 CAST: 'CAST';
-CATALOGS: 'CATALOGS';
-COLUMNS: 'COLUMNS';
+CATALOG: 'CATALOG';CATALOGS: 'CATALOGS';COLUMNS: 'COLUMNS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -333,6 +334,7 @@ TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';
+TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';

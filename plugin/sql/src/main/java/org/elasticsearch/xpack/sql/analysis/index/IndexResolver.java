@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -22,11 +23,14 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.Types;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -51,13 +55,25 @@ public class IndexResolver {
         public String toSql() {
             return toSql;
         }
+
+        public static IndexType from(String name) {
+            if (name != null) {
+                name = name.toUpperCase(Locale.ROOT);
+                for (IndexType type : IndexType.values()) {
+                    if (type.toSql.equals(name)) {
+                        return type;
+                    }
+                }
+            }
+            return null;
+        }
     }
 
     public static class IndexInfo {
         private final String name;
         private final IndexType type;
 
-        private IndexInfo(String name, IndexType type) {
+        public IndexInfo(String name, IndexType type) {
             this.name = name;
             this.type = type;
         }
@@ -113,64 +129,83 @@ public class IndexResolver {
      * Resolves only the names, differentiating between indices and aliases.
      * This method is required since the other methods rely on mapping which is tied to an index (not an alias).
      */
-    public void resolveNames(String indexWildcard, String javaRegex, ActionListener<Set<IndexInfo>> listener) {
-        // first get aliases
-        GetAliasesRequest aliasRequest = new GetAliasesRequest()
-                .local(true)
-                .aliases(indexWildcard)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
+    public void resolveNames(String indexWildcard, String javaRegex, EnumSet<IndexType> types, ActionListener<Set<IndexInfo>> listener) {
 
-        client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases ->
-                        resolveIndices(indexWildcard, javaRegex, aliases, listener),
-                        ex -> {
-                            // with security, two exception can be thrown:
-                            // INFE - if no alias matches
-                            // security exception is the user cannot access aliases
+        // first get aliases (if specified)
+        boolean retrieveAliases = CollectionUtils.isEmpty(types) || types.contains(IndexType.ALIAS);
+        boolean retrieveIndices = CollectionUtils.isEmpty(types) || types.contains(IndexType.INDEX);
 
-                            // in both cases, that is allowed and we continue with the indices request
-                            if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                                resolveIndices(indexWildcard, javaRegex, null, listener);
-                            } else {
-                                listener.onFailure(ex);
-                            }
-                        }));
+        if (retrieveAliases) {
+            GetAliasesRequest aliasRequest = new GetAliasesRequest()
+                    .local(true)
+                    .aliases(indexWildcard)
+                    .indicesOptions(IndicesOptions.lenientExpandOpen());
+    
+            client.admin().indices().getAliases(aliasRequest, ActionListener.wrap(aliases ->
+                            resolveIndices(indexWildcard, javaRegex, aliases, retrieveIndices, listener),
+                            ex -> {
+                                // with security, two exception can be thrown:
+                                // INFE - if no alias matches
+                                // security exception is the user cannot access aliases
+    
+                                // in both cases, that is allowed and we continue with the indices request
+                                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                                    resolveIndices(indexWildcard, javaRegex, null, retrieveIndices, listener);
+                                } else {
+                                    listener.onFailure(ex);
+                                }
+                            }));
+        } else {
+            resolveIndices(indexWildcard, javaRegex, null, retrieveIndices, listener);
+        }
     }
 
-    private void resolveIndices(String indexWildcard, String javaRegex,  GetAliasesResponse aliases,
+    private void resolveIndices(String indexWildcard, String javaRegex, GetAliasesResponse aliases,
+            boolean retrieveIndices, ActionListener<Set<IndexInfo>> listener) {
+
+        if (retrieveIndices) {
+            GetIndexRequest indexRequest = new GetIndexRequest()
+                    .local(true)
+                    .indices(indexWildcard)
+                    .indicesOptions(IndicesOptions.lenientExpandOpen());
+    
+            client.admin().indices().getIndex(indexRequest,
+                    ActionListener.wrap(indices -> filterResults(indexWildcard, javaRegex, aliases, indices, listener),
+                            listener::onFailure));
+        } else {
+            filterResults(indexWildcard, javaRegex, aliases, null, listener);
+        }
+    }
+
+    private void filterResults(String indexWildcard, String javaRegex, GetAliasesResponse aliases, GetIndexResponse indices,
             ActionListener<Set<IndexInfo>> listener) {
-        GetIndexRequest indexRequest = new GetIndexRequest()
-                .local(true)
-                .indices(indexWildcard)
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
+        
+        // since the index name does not support ?, filter the results manually
+        Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
 
-        client.admin().indices().getIndex(indexRequest, ActionListener.wrap(indices -> {
-            String[] indicesNames = indices.indices();
-
-            // since the index name does not support ?, filter the results manually
-            Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
-
-            Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
-            // unpack aliases (if present)
-            if (aliases != null) {
-                for (ObjectCursor<List<AliasMetaData>> cursor : aliases.getAliases().values()) {
-                    for (AliasMetaData amd : cursor.value) {
-                        String alias = amd.alias();
-                        if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
-                            result.add(new IndexInfo(alias, IndexType.ALIAS));
-                        }
+        Set<IndexInfo> result = new TreeSet<>(Comparator.comparing(IndexInfo::name));
+        // filter aliases (if present)
+        if (aliases != null) {
+            for (ObjectCursor<List<AliasMetaData>> cursor : aliases.getAliases().values()) {
+                for (AliasMetaData amd : cursor.value) {
+                    String alias = amd.alias();
+                    if (alias != null && (pattern == null || pattern.matcher(alias).matches())) {
+                        result.add(new IndexInfo(alias, IndexType.ALIAS));
                     }
                 }
             }
-            if (indicesNames != null) {
-                for (String indexName : indicesNames) {
-                    if (pattern == null || pattern.matcher(indexName).matches()) {
-                        result.add(new IndexInfo(indexName, IndexType.INDEX));
-                    }
+        }
+        // filter indices (if present)
+        String[] indicesNames = indices != null ? indices.indices() : null;
+        if (indicesNames != null) {
+            for (String indexName : indicesNames) {
+                if (pattern == null || pattern.matcher(indexName).matches()) {
+                    result.add(new IndexInfo(indexName, IndexType.INDEX));
                 }
             }
-            
-            listener.onResponse(result);
-        }, listener::onFailure));
+        }
+
+        listener.onResponse(result);
     }
 
 

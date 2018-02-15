@@ -39,6 +39,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,8 +156,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Type changedArgType = argTypes[changedArgOffset];
 
             if (originalArgValue instanceof Collection) {
-                List<?> originalList = (List<?>) originalArgValue;
-                if (originalList.isEmpty()) {
+                Collection<?> col = (Collection<?>) originalArgValue;
+
+                if (col.isEmpty() || col instanceof EnumSet) {
                     /*
                      * We skip empty lists here because they'll spuriously
                      * pass the conditions below if statements even if they don't
@@ -168,6 +170,9 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
                     continue;
                 }
+
+                List<?> originalList = (List<?>) originalArgValue;
+
                 if (node.children().equals(originalList)) {
                     // The arg we're looking at *is* the children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
@@ -332,6 +337,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
+    @SuppressWarnings("unchecked")
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
         if (argType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) argType;
@@ -347,6 +353,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt, between(1, 10));
+            }
+            if (pt.getRawType() == EnumSet.class) {
+                @SuppressWarnings("rawtypes")
+                Enum enm = (Enum) makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
+                return EnumSet.of(enm);
             }
             if (pt.getRawType() == Supplier.class) {
                 if (toBuildClass == AggValueInput.class) {
@@ -455,7 +466,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
 
         if (argClass.isEnum()) {
-            // Can't mock enums but luckilly we can just pick one
+            // Can't mock enums but luckily we can just pick one
             return randomFrom(argClass.getEnumConstants());
         }
         if (argClass == boolean.class) {

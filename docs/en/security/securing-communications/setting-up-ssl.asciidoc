@@ -36,15 +36,3 @@ See <<java-clients>>.
 
 . Configure {es} for Apache Hadoop to use secured transport. See
 {hadoop-ref}/security.html[{es} for Apache Hadoop Security].
-
-//The following sections can be removed after we clean up all links to these anchors.
-
-[[installing-node-certificates]]
-==== Node Certificates
-
-See {ref}/configuring-tls.html#node-certificates[Generating Node Certificates].
-
-[[enable-ssl]]
-==== Enabling TLS in the Node Configuration
-
-See {ref}/configuring-tls.html#enable-ssl[Enabling TLS on {es} Nodes].

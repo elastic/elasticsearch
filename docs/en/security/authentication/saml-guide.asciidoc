@@ -85,7 +85,8 @@ If your {es} cluster is operating in production mode, then you must
 configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
-See <<enable-ssl>> for instructions on how to do this.
+For more information, see
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications]. 
 
 ==== Enable the Token Service
 
@@ -708,7 +709,7 @@ If your {kib} instance is behind a proxy, you may also need to add configuration
 to tell {kib} how to form its public URL. This is needed because all SAML
 messages are exchanged via the user's web browser, so {kib} needs to know what
 URLs are used within the browser. In this case, the following settings should be
-added to your `kibana.yml` configuration file: 
+added to your `kibana.yml` configuration file:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -812,4 +813,3 @@ xpack.security.authc.realms.saml_eng:
 It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
-

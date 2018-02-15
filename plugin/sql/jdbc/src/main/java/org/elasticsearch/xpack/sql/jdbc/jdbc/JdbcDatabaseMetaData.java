@@ -728,16 +728,12 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        Object[][] data = { { defaultCatalog() } };
-        return memorySet(con.cfg, columnInfo("CATALOGS",
-                "TABLE_CAT"), data);
+        return con.createStatement().executeQuery("SYS CATALOGS");
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        Object[][] data = { { "TABLE" } };
-        return memorySet(con.cfg, columnInfo("TABLE_TYPES",
-                "TABLE_TYPE"), data);
+        return con.createStatement().executeQuery("SYS TABLE TYPES");
     }
 
     @Override

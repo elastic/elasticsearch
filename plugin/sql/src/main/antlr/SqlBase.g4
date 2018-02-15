@@ -55,9 +55,11 @@ statement
     | (DESCRIBE | DESC) tableIdentifier                                                                   #showColumns
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
+    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (LIKE? pattern)?                                                                         #sysTables
     | SYS COLUMNS (TABLES LIKE? indexPattern=pattern)? (LIKE? columnPattern=pattern)?                     #sysColumns
-    | SYS TYPES                                                                                           #sysTypes  
+    | SYS TYPES                                                                                           #sysTypes
+    | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
 query
@@ -256,7 +258,7 @@ number
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | COLUMNS 
+    | CATALOGS | COLUMNS 
     | DEBUG 
     | EXECUTABLE | EXPLAIN 
     | FORMAT | FUNCTIONS 
@@ -281,6 +283,7 @@ ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
 CAST: 'CAST';
+CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
@@ -326,6 +329,7 @@ SCHEMAS: 'SCHEMAS';
 SELECT: 'SELECT';
 SHOW: 'SHOW';
 SYS: 'SYS';
+TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
 TRUE: 'TRUE';

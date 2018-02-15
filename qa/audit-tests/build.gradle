@@ -22,6 +22,7 @@ integTestCluster {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.security.audit.outputs', 'index'
+  setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.level', 'DEBUG'
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'

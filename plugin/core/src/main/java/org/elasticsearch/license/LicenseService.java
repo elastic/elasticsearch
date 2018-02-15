@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
 
     public static final Setting<String> SELF_GENERATED_LICENSE_TYPE = new Setting<>("xpack.license.self_generated.type",
-            (s) -> "trial", (s) -> {
+            (s) -> "basic", (s) -> {
         if (validSelfGeneratedType(s)) {
             return s;
         } else {

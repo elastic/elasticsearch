@@ -102,6 +102,7 @@ integTestCluster {
                'bin/x-pack/users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
   setupCommand 'setupPowerlessUser',
                'bin/x-pack/users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+  setting 'xpack.license.self_generated.type', 'trial'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

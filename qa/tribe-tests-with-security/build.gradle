@@ -40,6 +40,7 @@ configOne.clusterName = 'cluster1'
 configOne.setting('node.name', 'cluster1-node1')
 configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
+configOne.setting('xpack.license.self_generated.type', 'trial')
 configOne.plugin(xpackProject('plugin').path)
 configOne.module(project.project(':modules:analysis-common'))
 configOne.setupCommand('setupDummyUser',
@@ -62,6 +63,7 @@ configTwo.clusterName = 'cluster2'
 configTwo.setting('node.name', 'cluster2-node1')
 configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
+configTwo.setting('xpack.license.self_generated.type', 'trial')
 configTwo.plugin(xpackProject('plugin').path)
 configTwo.module(project.project(':modules:analysis-common'))
 configTwo.setupCommand('setupDummyUser',
@@ -86,6 +88,7 @@ integTestCluster {
             'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false
     setting 'xpack.ml.enabled', false
+    setting 'xpack.license.self_generated.type', 'trial'
     setting 'node.name', 'tribe-node'
     setting 'tribe.on_conflict', 'prefer_cluster1'
     setting 'tribe.cluster1.cluster.name', 'cluster1'

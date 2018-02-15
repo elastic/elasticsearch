@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -83,6 +84,14 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        return builder.build();
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         if (cluster2 == null) {
@@ -92,7 +101,8 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                         public Settings nodeSettings(int nodeOrdinal) {
                             Settings.Builder builder = Settings.builder()
                                     .put(super.nodeSettings(nodeOrdinal))
-                                    .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+                                    .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                                    .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
 
                             if (builder.getSecureSettings() == null) {
                                 builder.setSecureSettings(new MockSecureSettings());

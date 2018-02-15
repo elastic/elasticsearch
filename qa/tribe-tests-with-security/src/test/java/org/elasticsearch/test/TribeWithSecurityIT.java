@@ -17,6 +17,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -59,6 +60,14 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
         if (tribeNode == null) {
             tribeNode = buildExternalCluster(System.getProperty("tests.tribe"));
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
+        return builder.build();
     }
 
     /**
@@ -112,6 +121,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.externalClusterClientSettings());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
+        builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return builder.build();
     }
 

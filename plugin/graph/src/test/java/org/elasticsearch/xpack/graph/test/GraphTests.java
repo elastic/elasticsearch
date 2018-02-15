@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -139,6 +140,7 @@ public class GraphTests extends ESSingleNodeTestCase {
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return newSettings.build();
     }
 

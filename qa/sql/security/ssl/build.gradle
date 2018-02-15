@@ -156,6 +156,8 @@ integTestCluster {
   setting 'xpack.ssl.keystore.path', 'test-node.jks'
   keystoreSetting 'xpack.ssl.keystore.secure_password', 'keypass'
 
+  setting 'xpack.license.self_generated.type', 'trial'
+
   // copy keystores into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
   extraConfigFile clientKeyStore.name, clientKeyStore

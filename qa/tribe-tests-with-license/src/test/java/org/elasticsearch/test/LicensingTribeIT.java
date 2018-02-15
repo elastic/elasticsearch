@@ -12,6 +12,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseResponse;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesStatus;
 import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.license.PutLicenseResponse;
@@ -56,6 +57,12 @@ public class LicensingTribeIT extends ESIntegTestCase {
         }
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder builder = Settings.builder();
+        builder.put(super.nodeSettings(nodeOrdinal));
+        return builder.build();
+    }
 
     @AfterClass
     public static void tearDownExternalClusters() throws IOException {
@@ -101,11 +108,11 @@ public class LicensingTribeIT extends ESIntegTestCase {
 
     public void testLicensePropagateToTribeNode() throws Exception {
         assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
-        // test that auto-generated trial license propagates to tribe
+        // test that auto-generated basic license propagates to tribe
         assertBusy(() -> {
             GetLicenseResponse getLicenseResponse = new LicensingClient(tribeNode.client()).prepareGetLicense().get();
             assertNotNull(getLicenseResponse.license());
-            assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.TRIAL));
+            assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.BASIC));
         });
 
         // test that signed license put in one cluster propagates to tribe

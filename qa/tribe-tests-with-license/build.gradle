@@ -90,6 +90,7 @@ integTestCluster {
   setting 'tribe.cluster1.xpack.watcher.enabled', false
   setting 'tribe.cluster1.xpack.graph.enabled', false
   setting 'tribe.cluster1.xpack.ml.enabled', false
+  setting 'tribe.cluster1.xpack.license.self_generated.type', 'trial'
   setting 'tribe.cluster2.cluster.name', 'cluster2'
   setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
   setting 'tribe.cluster2.http.enabled', 'true'
@@ -99,6 +100,7 @@ integTestCluster {
   setting 'tribe.cluster2.xpack.watcher.enabled', false
   setting 'tribe.cluster2.xpack.graph.enabled', false
   setting 'tribe.cluster2.xpack.ml.enabled', false
+  setting 'tribe.cluster2.xpack.license.self_generated.type', 'trial'
   // x-pack
   plugin xpackProject('plugin').path
   setting 'xpack.monitoring.enabled', false
@@ -107,6 +109,7 @@ integTestCluster {
   setting 'xpack.watcher.enabled', false
   setting 'xpack.graph.enabled', false
   setting 'xpack.ml.enabled', false
+  setting 'xpack.license.self_generated.type', 'trial'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)

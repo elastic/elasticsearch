@@ -161,7 +161,7 @@ information, see
 --
 .. <<node-certificates,Generate node certificates for each of your {es} nodes>>.
 
-.. <<enable-ssl, Enable TLS on each {es} node>>.
+.. <<tls-transport, Enable TLS on each {es} node>>.
 
 . Start {es}.
 +

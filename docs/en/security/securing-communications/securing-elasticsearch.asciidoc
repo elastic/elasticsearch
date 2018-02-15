@@ -15,14 +15,13 @@ the cluster:
 
 . <<node-certificates, Generate a private key and X.509 certificate>>.
 
-. <<enable-ssl, Configure each node>> to:
-.. Identify itself using its signed certificate.
-.. Required: Enable SSL on the transport layer.
-.. Recommended: Enable SSL on the HTTP layer.
-. Restart {es}.
+. Configure each node to:
+.. Required: <<tls-transport,Enable TLS on the transport layer>>.
+.. Recommended: <<tls-http,Enable TLS on the HTTP layer>>.
 
 For more information about encrypting communications across the Elastic Stack,
 see {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 
 include::node-certificates.asciidoc[]
-include::node-config.asciidoc[]
+include::tls-transport.asciidoc[]
+include::tls-http.asciidoc[]

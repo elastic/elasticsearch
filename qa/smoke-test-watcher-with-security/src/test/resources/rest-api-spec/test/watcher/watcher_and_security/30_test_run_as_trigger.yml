@@ -295,6 +295,9 @@ teardown:
 
 ---
 "Test watch search transform does not work without permissions":
+  - skip:
+      version:     "all"
+      reason:      "AwaitsFix on https://github.com/elastic/x-pack-elasticsearch/issues/3753"
   - do:
       xpack.watcher.put_watch:
         id: "my_watch"

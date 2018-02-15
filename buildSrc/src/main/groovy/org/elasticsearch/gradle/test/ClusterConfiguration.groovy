@@ -129,7 +129,7 @@ class ClusterConfiguration {
      * condition is executed.
      */
     @Input
-    int nodeStartupWaitSeconds = 120
+    int nodeStartupWaitSeconds = 30
 
     public ClusterConfiguration(Project project) {
         this.project = project

@@ -144,8 +144,8 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-final boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+final boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/28673" /* place a PR link here when commiting bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -203,11 +203,11 @@ subprojects {
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',

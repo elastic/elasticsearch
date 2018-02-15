@@ -701,8 +701,28 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        PreparedStatement ps = con.prepareStatement("SYS TABLES LIKE ?");
-        ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        String statement = "SYS TABLES CATALOG LIKE ? LIKE ?";
+
+        if (types != null && types.length > 0) {
+            statement += " TYPE ?";
+
+            if (types.length > 1) {
+                for (int i = 1; i < types.length; i++) {
+                    statement += ", ?";
+                }
+            }
+        }
+
+        PreparedStatement ps = con.prepareStatement(statement);
+        ps.setString(1, catalog != null ? catalog.trim() : "%");
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
+
+        if (types != null && types.length > 0) {
+            for (int i = 0; i < types.length; i++) {
+                ps.setString(3 + i, types[i]);
+            }
+        }
+
         return ps.executeQuery();
     }
 
@@ -739,7 +759,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        PreparedStatement ps = con.prepareStatement("SYS COLUMNS TABLES LIKE ? LIKE ?");
+        PreparedStatement ps = con.prepareStatement("SYS COLUMNS TABLE LIKE ? LIKE ?");
         ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
         ps.setString(2, columnNamePattern != null ? columnNamePattern.trim() : "%");
         return ps.executeQuery();

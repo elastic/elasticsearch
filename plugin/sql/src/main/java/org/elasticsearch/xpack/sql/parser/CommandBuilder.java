@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
@@ -33,6 +35,9 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.DateTimeZone;
 
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
@@ -134,11 +139,21 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public Object visitSysCatalogs(SysCatalogsContext ctx) {
         return new SysCatalogs(source(ctx));
-    }
-
-    @Override
+    }    @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
-        return new SysTables(source(ctx), visitPattern(ctx.pattern()));
+        List<IndexType> types = new ArrayList<>();
+        for (TerminalNode string : ctx.STRING()) {
+            String value = string(string);
+            if (value != null) {
+                IndexType type = IndexType.from(value);
+                if (type == null) {
+                    throw new ParsingException(source(ctx), "Invalid table type [{}]", value);
+                }
+                types.add(type);
+            }
+        }
+        EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
+        return new SysTables(source(ctx), visitPattern(ctx.clusterPattern), visitPattern(ctx.tablePattern), set);
     }
 
     @Override

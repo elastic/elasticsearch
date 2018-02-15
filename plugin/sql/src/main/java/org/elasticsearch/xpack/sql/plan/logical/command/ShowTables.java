@@ -47,7 +47,7 @@ public class ShowTables extends Command {
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String index = pattern != null ? pattern.asIndexNameWildcard() : "*";
         String regex = pattern != null ? pattern.asJavaRegex() : null;
-        session.indexResolver().resolveNames(index, regex, ActionListener.wrap(result -> {
+        session.indexResolver().resolveNames(index, regex, null, ActionListener.wrap(result -> {
             listener.onResponse(Rows.of(output(), result.stream()
                  .map(t -> asList(t.name(), t.type().toSql()))
                 .collect(toList())));

@@ -1188,6 +1188,22 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/_create", Request.buildEndpoint("a", null, null, "_create"));
     }
 
+    public void testBuildEndPointEncodeParts() {
+        assertEquals("/-%23index1,index%232/type/id", Request.buildEndpoint("-#index1,index#2", "type", "id"));
+        assertEquals("/index/type%232/id", Request.buildEndpoint("index", "type#2", "id"));
+        assertEquals("/index/type/this%2Fis%2Fthe%2Fid", Request.buildEndpoint("index", "type", "this/is/the/id"));
+        assertEquals("/index/type/this%7Cis%7Cthe%7Cid", Request.buildEndpoint("index", "type", "this|is|the|id"));
+        assertEquals("/index/type/id%231", Request.buildEndpoint("index", "type", "id#1"));
+        assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", Request.buildEndpoint("<logstash-{now/M}>", "_search"));
+        assertEquals("/中文", Request.buildEndpoint("中文"));
+        assertEquals("/foo%20bar", Request.buildEndpoint("foo bar"));
+        assertEquals("/foo+bar", Request.buildEndpoint("foo+bar"));
+        assertEquals("/foo%2Fbar", Request.buildEndpoint("foo/bar"));
+        assertEquals("/foo%5Ebar", Request.buildEndpoint("foo^bar"));
+        assertEquals("/cluster1:index1,index2/_search", Request.buildEndpoint("cluster1:index1,index2", "_search"));
+        assertEquals("/*", Request.buildEndpoint("*"));
+    }
+
     public void testEndpoint() {
         assertEquals("/index/type/id", Request.endpoint("index", "type", "id"));
         assertEquals("/index/type/id/_endpoint", Request.endpoint("index", "type", "id", "_endpoint"));

@@ -74,6 +74,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
@@ -580,7 +582,16 @@ public final class Request {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
-                joiner.add(part);
+                try {
+                    //encode each part (e.g. index, type and id) separately before merging them into the path
+                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                    //paths that start with `-` or contain `:`
+                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
+                    //manually encode any slash that each part may contain
+                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
+                }
             }
         }
         return joiner.toString();

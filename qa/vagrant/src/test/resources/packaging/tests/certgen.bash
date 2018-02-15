@@ -91,6 +91,7 @@ install_node_using_archive() {
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
     install_xpack
+    generate_trial_license
     verify_xpack_installation
 }
 
@@ -118,6 +119,7 @@ install_node_using_package() {
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER
     install_xpack
+    generate_trial_license
     verify_xpack_installation
 }
 

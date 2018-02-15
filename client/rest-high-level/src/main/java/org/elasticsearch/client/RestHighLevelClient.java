@@ -186,6 +186,7 @@ public class RestHighLevelClient implements Closeable {
     private final CheckedConsumer<RestClient, IOException> doClose;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
+    private final ClusterClient clusterClient = new ClusterClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -238,6 +239,15 @@ public class RestHighLevelClient implements Closeable {
      */
     public final IndicesClient indices() {
         return indicesClient;
+    }
+
+    /**
+     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
+     */
+    public final ClusterClient cluster() {
+        return clusterClient;
     }
 
     /**

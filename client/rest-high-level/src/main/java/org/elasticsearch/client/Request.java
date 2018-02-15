@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -526,6 +527,17 @@ public final class Request {
                 resizeRequest.getTargetIndexRequest().index());
         HttpEntity entity = createEntity(resizeRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
+    }
+
+    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
+        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
+        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
+
+        String endpoint = buildEndpoint("_cluster/settings");
+        HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

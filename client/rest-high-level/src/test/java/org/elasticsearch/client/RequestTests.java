@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -272,7 +273,7 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest, expectedParams);
+        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -1115,14 +1116,10 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
-            if (randomBoolean()) {
-                setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
-            }
+            setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
             resizeRequest.setTargetIndex(createIndexRequest);
         } else {
-            if (randomBoolean()) {
-                setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
-            }
+            setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         }
 
         Request request = function.apply(resizeRequest);
@@ -1132,6 +1129,19 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(resizeRequest, request.getEntity());
+    }
+    
+    public void testClusterPutSettings() throws IOException {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomFlatSettings(request::flatSettings, expectedParams);
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request expectedRequest = Request.clusterPutSettings(request);
+        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
+        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
@@ -1289,16 +1299,6 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomFlatSettings(GetIndexRequest request, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            request.flatSettings(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
-        }
-    }
-
     private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
@@ -1316,6 +1316,16 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", timeout);
         } else {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
+    private static void setRandomFlatSettings(Consumer<Boolean> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            boolean flatSettings = randomBoolean();
+            setter.accept(flatSettings);
+            if (flatSettings) {
+                expectedParams.put("flat_settings", String.valueOf(flatSettings));
+            }
         }
     }
 

@@ -79,60 +79,6 @@ public class Netty4UtilsTests extends ESTestCase {
         assertArrayEquals(BytesReference.toBytes(ref), BytesReference.toBytes(bytesReference));
     }
 
-    public void testMaybeError() {
-        final Error outOfMemoryError = new OutOfMemoryError();
-        assertError(outOfMemoryError, outOfMemoryError);
-
-        final DecoderException decoderException = new DecoderException(outOfMemoryError);
-        assertError(decoderException, outOfMemoryError);
-
-        final Exception e = new Exception();
-        e.addSuppressed(decoderException);
-        assertError(e, outOfMemoryError);
-
-        final int depth = randomIntBetween(1, 16);
-        Throwable cause = new Exception();
-        boolean fatal = false;
-        Error error = null;
-        for (int i = 0; i < depth; i++) {
-            final int length = randomIntBetween(1, 4);
-            for (int j = 0; j < length; j++) {
-                if (!fatal && rarely()) {
-                    error = new Error();
-                    cause.addSuppressed(error);
-                    fatal = true;
-                } else {
-                    cause.addSuppressed(new Exception());
-                }
-            }
-            if (!fatal && rarely()) {
-                cause = error = new Error(cause);
-                fatal = true;
-            } else {
-                cause = new Exception(cause);
-            }
-        }
-        if (fatal) {
-            assertError(cause, error);
-        } else {
-            assertFalse(Netty4Utils.maybeError(cause).isPresent());
-        }
-
-        assertFalse(Netty4Utils.maybeError(new Exception(new DecoderException())).isPresent());
-
-        Throwable chain = outOfMemoryError;
-        for (int i = 0; i < Netty4Utils.MAX_ITERATIONS; i++) {
-            chain = new Exception(chain);
-        }
-        assertFalse(Netty4Utils.maybeError(chain).isPresent());
-    }
-
-    private void assertError(final Throwable cause, final Error error) {
-        final Optional<Error> maybeError = Netty4Utils.maybeError(cause);
-        assertTrue(maybeError.isPresent());
-        assertThat(maybeError.get(), equalTo(error));
-    }
-
     private BytesReference getRandomizedBytesReference(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);

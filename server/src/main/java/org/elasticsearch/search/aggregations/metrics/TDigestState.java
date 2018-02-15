@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.tdunning.math.stats.AVLTreeDigest;
 import com.tdunning.math.stats.Centroid;
+import com.tdunning.math.stats.MergingDigest;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -29,7 +30,7 @@ import java.util.Iterator;
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
  */
-public class TDigestState extends AVLTreeDigest {
+public class TDigestState extends MergingDigest {
 
     private final double compression;
 
@@ -44,6 +45,8 @@ public class TDigestState extends AVLTreeDigest {
     }
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
+        state.compress(); // This will flush any values in the buffer to the data structure. 
+                          // If there are no values in the buffer this is cheap
         out.writeDouble(state.compression);
         out.writeVInt(state.centroidCount());
         for (Centroid centroid : state.centroids()) {

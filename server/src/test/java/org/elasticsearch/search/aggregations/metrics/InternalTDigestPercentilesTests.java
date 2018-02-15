@@ -43,7 +43,7 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
+        assertEquals(state.size(), values.length);
         return new InternalTDigestPercentiles(name, percents, state, keyed, format, pipelineAggregators, metaData);
     }
 

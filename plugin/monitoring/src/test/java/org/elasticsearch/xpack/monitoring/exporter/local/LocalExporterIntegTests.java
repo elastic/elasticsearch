@@ -75,6 +75,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3954")
     public void testExport() throws Exception {
         try {
             if (randomBoolean()) {

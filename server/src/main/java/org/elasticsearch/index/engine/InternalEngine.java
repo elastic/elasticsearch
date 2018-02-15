@@ -500,26 +500,31 @@ public class InternalEngine extends Engine {
                                   LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final Map<String, String> commitUserData = startingCommit.getUserData();
-            if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY)) {
-                if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
-                    throw new IllegalStateException("commit doesn't contain translog generation id");
-                }
+        final String translogUUID;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID =
+                    Translog.createEmptyTranslog(translogConfig.getTranslogPath(), globalCheckpointSupplier.getAsLong(), shardId);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                final Map<String, String> commitUserData = startingCommit.getUserData();
                 translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
-            }
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
-            // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
-            // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
-                final long minRequiredTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-                translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
-                translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
-            }
+                // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+                if (translogUUID == null) {
+                    throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+                }
+                // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
+                // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
+                if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
+                    final long minRequiredTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+                    translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
+                    translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
+                }
+
+                break;
+            default:
+                throw new AssertionError("Unknown openMode " + openMode);
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }

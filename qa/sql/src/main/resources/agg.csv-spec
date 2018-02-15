@@ -22,7 +22,7 @@ multiplePercentilesOneWithCommaOneWithout
 SELECT gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d                 | p2:d
-M                    | 10090.319            | 10087.68
+M                    | 10090.319            | 10089.320000000002
 F                    | 10095.128            | 10093.52
 ;
 
@@ -30,7 +30,7 @@ multiplePercentilesWithoutComma
 SELECT gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_emp GROUP BY gender;
 
 gender:s             | p1:d                 | p2:d
-M                    | 10087.68             | 10085.18
+M                    | 10089.320000000002   | 10085.18
 F                    | 10093.52             | 10092.08
 ;
 
@@ -63,7 +63,7 @@ SELECT gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCEN
 
 gender:s             | p1:d                 | p2:d                 | rank:d
 M                    | 10095.6112           | 10090.846            | 23.41269841269841
-F                    | 10099.1936           | 10096.351999999999   | 26.351351351351347
+F                    | 10099.1936           | 10098.021            | 26.351351351351347
 ;
 
 // Simple sum used in documentation

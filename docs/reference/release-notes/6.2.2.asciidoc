@@ -1,6 +1,8 @@
 [[release-notes-6.2.2]]
 == 6.2.2 Release Notes
 
+coming[6.2.2]
+
 [[enhancement-6.2.2]]
 [float]
 === Enhancements

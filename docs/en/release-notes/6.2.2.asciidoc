@@ -9,6 +9,7 @@
 [float]
 === Bug fixes
 
+
 Machine Learning::
 * Fixed an exception that occurred when a categorization field contained an
 empty string.
@@ -39,12 +40,13 @@ cluster was re-started at the same time as the audited cluster.
 //Repo: x-pack-elasticsearch
 // Pull: 3931
 ////
-////
 Watcher::
-* Watcher: Fix proxy scheme to default to HTTP
+* Proxies now use HTTP by default, which was the default prior to 6.0. This
+fixes issues with HTTPS requests that tried to access proxies via HTTP.
 // Repo: x-pack-elasticsearch
 // Pull: 3844
-* Watcher: Register HTML sanitizer settings
+* Fixed the HTML sanitizer settings
+(`xpack.notification.email.html.sanitization.*`), which were broken in 6.2. For
+more information, see <<notification-settings>>.
 // Repo: x-pack-elasticsearch
 // Pull: 3904
-////

@@ -385,6 +385,26 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return sizeInBytesByMinGen(-1);
     }
 
+    long earliestLastModifiedAge() {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            return findEarliestLastModifiedAge(System.currentTimeMillis(), readers, current);
+        } catch (IOException e) {
+            throw new TranslogException(shardId, "Unable to get the earliest last modified time for the transaction log");
+        }
+    }
+
+    /**
+     * Returns the age of the oldest entry in the translog files in seconds
+     */
+    static long findEarliestLastModifiedAge(long currentTime, Iterable<TranslogReader> readers, TranslogWriter writer) throws IOException {
+        long earliestTime = currentTime;
+        for (BaseTranslogReader r : readers) {
+            earliestTime = Math.min(r.getLastModifiedTime(), earliestTime);
+        }
+        return Math.max(0, currentTime - Math.min(earliestTime, writer.getLastModifiedTime()));
+    }
+
     /**
      * Returns the number of operations in the transaction files that aren't committed to lucene..
      */
@@ -738,7 +758,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes());
+            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes(), earliestLastModifiedAge());
         }
     }
 

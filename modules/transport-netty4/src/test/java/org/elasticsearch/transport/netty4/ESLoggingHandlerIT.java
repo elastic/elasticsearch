@@ -46,6 +46,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         super.tearDown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/27306")
     public void testLoggingHandler() throws IllegalAccessException {
         final String writePattern =
                 ".*\\[length: \\d+" +

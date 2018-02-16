@@ -113,6 +113,7 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         List<BytesRef> keyList = new ArrayList<>(keySet);
         ConcurrentHashMap<BytesRef, VersionValue> values = new ConcurrentHashMap<>();
+        ConcurrentHashMap<BytesRef, DeleteVersionValue> deletes = new ConcurrentHashMap<>();
         LiveVersionMap map = new LiveVersionMap();
         int numThreads = randomIntBetween(2, 5);
 
@@ -121,6 +122,7 @@ public class LiveVersionMapTests extends ESTestCase {
         CountDownLatch done = new CountDownLatch(numThreads);
         int randomValuesPerThread = randomIntBetween(5000, 20000);
         AtomicLong clock = new AtomicLong(0);
+        AtomicLong lastPrunedTimestamp = new AtomicLong(-1);
         for (int j = 0; j < threads.length; j++) {
             threads[j] = new Thread(() -> {
                 startGun.countDown();
@@ -133,16 +135,19 @@ public class LiveVersionMapTests extends ESTestCase {
                 try {
                     for (int i = 0; i < randomValuesPerThread; ++i) {
                         BytesRef bytesRef = randomFrom(random(), keyList);
+                        final long clockTick = clock.get();
                         try (Releasable r = map.acquireLock(bytesRef)) {
                             VersionValue versionValue = values.computeIfAbsent(bytesRef,
                                 v -> new VersionValue(randomLong(), randomLong(), randomLong()));
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
                                 map.removeTombstoneUnderLock(bytesRef);
+                                deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
                                 versionValue = new DeleteVersionValue(versionValue.version + 1, versionValue.seqNo + 1,
-                                    versionValue.term, clock.incrementAndGet());
+                                    versionValue.term, clock.getAndIncrement());
+                                deletes.put(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
                                 versionValue = new VersionValue(versionValue.version + 1, versionValue.seqNo + 1, versionValue.term);
                             }
@@ -150,7 +155,9 @@ public class LiveVersionMapTests extends ESTestCase {
                             map.putUnderLock(bytesRef, versionValue);
                         }
                         if (rarely()) {
-                            map.pruneTombstones(0, 0);
+                            map.pruneTombstones(clockTick, 0);
+                            // timestamp we pruned the deletes
+                            lastPrunedTimestamp.updateAndGet(prev -> Math.max(clockTick, prev)); // make sure we track the latest
                         }
                     }
                 } finally {
@@ -196,15 +203,31 @@ public class LiveVersionMapTests extends ESTestCase {
             assertNotNull(versionValue);
             assertEquals(v, versionValue);
         });
-
-        map.getAllTombstones().entrySet().forEach(e -> {
-            VersionValue versionValue = values.get(e.getKey());
-            assertNotNull(versionValue);
-            assertEquals(e.getValue(), versionValue);
-            assertTrue(versionValue instanceof DeleteVersionValue);
-        });
+        Runnable assertTombstones = () ->
+            map.getAllTombstones().entrySet().forEach(e -> {
+                VersionValue versionValue = values.get(e.getKey());
+                assertNotNull(versionValue);
+                assertEquals(e.getValue(), versionValue);
+                assertTrue(versionValue instanceof DeleteVersionValue);
+            });
+        assertTombstones.run();
         map.beforeRefresh();
+        assertTombstones.run();
         map.afterRefresh(false);
+        assertTombstones.run();
+
+        deletes.entrySet().forEach(e -> {
+            try (Releasable r = map.acquireLock(e.getKey())) {
+                VersionValue value = map.getUnderLock(e.getKey());
+                // here we keep track of the deletes and ensure that all deletes that are not visible anymore ie. not in the map
+                // have a timestamp that is smaller or equal to the maximum timestamp that we pruned on
+                if (value == null) {
+                    assertTrue(e.getValue().time + " > " + lastPrunedTimestamp.get(), e.getValue().time <= lastPrunedTimestamp.get());
+                } else {
+                    assertEquals(value, e.getValue());
+                }
+            }
+        });
         map.pruneTombstones(clock.incrementAndGet(), 0);
         assertEquals(0, StreamSupport.stream(map.getAllTombstones().entrySet().spliterator(), false).count());
     }

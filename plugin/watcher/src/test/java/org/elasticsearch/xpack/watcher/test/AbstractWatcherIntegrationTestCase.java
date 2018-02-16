@@ -15,15 +15,12 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
@@ -42,7 +39,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
@@ -75,7 +71,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -220,24 +215,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
      */
     private void createWatcherIndicesOrAliases() throws Exception {
         if (internalCluster().size() > 0) {
+            ensureWatcherTemplatesAdded();
             // alias for .watches, setting the index template to the same as well
             String watchIndexName;
             String triggeredWatchIndexName;
             if (rarely()) {
                 watchIndexName = ".watches-alias-index";
-                BytesReference bytesReference = TemplateUtils.load("/watches.json");
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
-                    Map<String, Object> parserMap = parser.map();
-                    Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
-
-                    CreateIndexResponse response = client().admin().indices().prepareCreate(watchIndexName)
-                            .setCause("Index to test aliases with .watches index")
-                            .addAlias(new Alias(Watch.INDEX))
-                            .setSettings((Map<String, Object>) parserMap.get("settings"))
-                            .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
-                            .get();
-                    assertAcked(response);
-                }
+                CreateIndexResponse response = client().admin().indices().prepareCreate(watchIndexName)
+                        .setCause("Index to test aliases with .watches index")
+                        .addAlias(new Alias(Watch.INDEX))
+                        .get();
+                assertAcked(response);
                 logger.info("set alias for .watches index to [{}]", watchIndexName);
             } else {
                 watchIndexName = Watch.INDEX;
@@ -250,21 +238,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             // alias for .triggered-watches, ensuring the index template is set appropriately
             if (rarely()) {
-                triggeredWatchIndexName = ".triggered-watches-alias-index";
-                BytesReference bytesReference = TemplateUtils.load("/triggered-watches.json");
-                try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
-                    Map<String, Object> parserMap = parser.map();
-                    Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
-
-                    CreateIndexResponse response = client().admin().indices().prepareCreate(triggeredWatchIndexName)
-                            .setCause("Index to test aliases with .triggered-watches index")
-                            .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
-                            .setSettings((Map<String, Object>) parserMap.get("settings"))
-                            .addMapping("doc", (Map<String, Object>) allMappings.get("doc"))
-                            .get();
-                    assertAcked(response);
-                    ensureGreen(triggeredWatchIndexName);
-                }
+                triggeredWatchIndexName = ".triggered_watches-alias-index";
+                CreateIndexResponse response = client().admin().indices().prepareCreate(triggeredWatchIndexName)
+                        .setCause("Index to test aliases with .triggered-watches index")
+                        .addAlias(new Alias(TriggeredWatchStoreField.INDEX_NAME))
+                        .get();
+                assertAcked(response);
                 logger.info("set alias for .triggered-watches index to [{}]", triggeredWatchIndexName);
             } else {
                 triggeredWatchIndexName = TriggeredWatchStoreField.INDEX_NAME;
@@ -465,7 +444,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void startWatcher() throws Exception {
-        ensureWatcherTemplatesAdded();
         assertBusy(() -> {
             WatcherStatsResponse watcherStatsResponse = watcherClient().prepareWatcherStats().get();
             assertThat(watcherStatsResponse.hasFailures(), is(false));

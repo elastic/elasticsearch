@@ -7,17 +7,15 @@
 
 To be determined...
 
-////
 [[xes-bug-6.2.2]]
 [float]
 === Bug fixes
-////
-////
+
 Machine Learning::
-* [ML] Fix exception categorising an empty string
+* Fixed an exception that occurred when a categorization field contained an
+empty string.
 //Repo: x-pack-elasticsearch
 //Pull: 3870
-////
 ////
 Monitoring::
 * [Monitoring] Register affixed Header Setting

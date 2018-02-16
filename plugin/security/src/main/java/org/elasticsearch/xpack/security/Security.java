@@ -966,7 +966,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                     Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
             final XContent xContent = XContentFactory.xContent(XContentType.JSON);
 
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, securityTemplate)) {
+            try (XContentParser parser = xContent
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, securityTemplate)) {
                 templates.put(SECURITY_TEMPLATE_NAME, IndexTemplateMetaData.Builder.fromXContent(parser, SECURITY_TEMPLATE_NAME));
             } catch (IOException e) {
                 // TODO: should we handle this with a thrown exception?

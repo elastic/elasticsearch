@@ -1629,8 +1629,8 @@ public class InternalEngine extends Engine {
 
     // testing
     void clearDeletedTombstones() {
-        // clean with current time -1 and interval 0 since we use a greater than relationship here.
-        versionMap.pruneTombstones(-1, 0);
+        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
+        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
     }
 
     @Override

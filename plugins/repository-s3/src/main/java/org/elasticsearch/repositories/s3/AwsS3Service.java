@@ -23,6 +23,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 
 interface AwsS3Service extends LifecycleComponent {
 
@@ -33,7 +34,7 @@ interface AwsS3Service extends LifecycleComponent {
 
     void updateClientSettings(Settings settings);
 
-    static interface AmazonS3Wrapper extends Releasable {
+    static interface AmazonS3Wrapper extends Releasable, RefCounted {
         AmazonS3 client();
     }
 

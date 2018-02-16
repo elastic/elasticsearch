@@ -30,69 +30,54 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import static java.util.Collections.emptyMap;
 
 
 class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
-    private final ReadWriteLock lock;
-    private final ConcurrentHashMap<String, AmazonS3> clientsCache;
-    private volatile Map<String, S3ClientSettings> clientsSettings;
+    private volatile Map<String, AmazonS3Wrapper> clientsCache = Collections.unmodifiableMap(emptyMap());
+    private volatile Map<String, S3ClientSettings> clientsSettings = Collections.unmodifiableMap(emptyMap());
 
     InternalAwsS3Service(Settings settings) {
         super(settings);
-        this.lock = new ReentrantReadWriteLock();
-        this.clientsCache = new ConcurrentHashMap<>();
         updateClientSettings(settings);
     }
 
     @Override
-    public void updateClientSettings(Settings settings) {
-        lock.writeLock().lock();
-        try {
-            // clear previously cached clients
-            assert clientsSettings.containsKey("default") : "always at least have 'default'";
-            for (final AmazonS3 client : clientsCache.values()) {
-                client.shutdown();
-            }
-            clientsCache.clear();
-            // reload secure settings
-            clientsSettings = S3ClientSettings.load(settings);
-        } finally {
-            lock.writeLock().unlock();
+    public synchronized void updateClientSettings(Settings settings) {
+        // the clients will shutdown when they will not be used anymore
+        for (final AmazonS3Wrapper clientWrapper : clientsCache.values()) {
+            clientWrapper.decRef();
         }
+        // clear previously cached clients
+        clientsCache = Collections.unmodifiableMap(emptyMap());
+        // reload secure settings
+        clientsSettings = Collections.unmodifiableMap(S3ClientSettings.load(settings));
+        assert clientsSettings.containsKey("default") : "always at least have 'default'";
     }
 
     @Override
     public AmazonS3Wrapper client(String clientName) {
-        return new AmazonS3Wrapper() {
-            private final AmazonS3 client;
-            {
-                lock.readLock().lock();
-                client = rawClient(clientName);
+        AmazonS3Wrapper clientWrapper = clientsCache.get(clientName);
+        if ((clientWrapper != null) && clientWrapper.tryIncRef()) {
+            return clientWrapper;
+        }
+        synchronized (this) {
+            clientWrapper = clientsCache.get(clientName);
+            if ((clientWrapper != null) && clientWrapper.tryIncRef()) {
+                return clientWrapper;
             }
-
-            @Override
-            public void close() {
-                lock.readLock().unlock();
-            }
-
-            @Override
-            public AmazonS3 client() {
-                return client;
-            }
-        };
-    }
-
-    private AmazonS3 rawClient(String clientName) {
-        // the mapping function is applied at most once
-        return clientsCache.computeIfAbsent(clientName, c -> buildClient(c));
+            clientWrapper = new InternalAmazonS3Wrapper(buildClient(clientName));
+            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientName, clientWrapper).immutableMap();
+            clientWrapper.incRef();
+            return clientWrapper;
+        }
     }
 
     // does not require synchronization because it is called inside computeIfAbsent
@@ -157,8 +142,8 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        for (final AmazonS3 client : clientsCache.values()) {
-            client.shutdown();
+        for (final AmazonS3Wrapper clientWrapper : clientsCache.values()) {
+            clientWrapper.decRef();
         }
         // Ensure that IdleConnectionReaper is shutdown
         IdleConnectionReaper.shutdown();
@@ -180,5 +165,31 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         public void refresh() {
             SocketAccess.doPrivilegedVoid(credentials::refresh);
         }
+    }
+
+    private static class InternalAmazonS3Wrapper extends AbstractRefCounted implements AmazonS3Wrapper {
+
+        private final AmazonS3 client;
+
+        public InternalAmazonS3Wrapper(AmazonS3 client) {
+            super("AWS_S3_CLIENT");
+            this.client = client;
+        }
+
+        @Override
+        public void close() {
+            decRef();
+        }
+
+        @Override
+        public AmazonS3 client() {
+            return client;
+        }
+
+        @Override
+        protected void closeInternal() {
+            client.shutdown();
+        }
+
     }
 }

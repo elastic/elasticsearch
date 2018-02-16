@@ -153,17 +153,6 @@ public interface XContent {
      * Creates a parser over the provided bytes using
      * {@link LoggingDeprecationHandler}.
      * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, byte[], int, int)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, data, offset, length);
-    }
-
-    /**
-     * Creates a parser over the provided bytes using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
      *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference)} instead.
      */
     @Deprecated

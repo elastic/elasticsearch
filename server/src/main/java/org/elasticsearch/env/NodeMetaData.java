@@ -91,7 +91,7 @@ public final class NodeMetaData {
     }
 
 
-    public static final MetaDataStateFormat<NodeMetaData> FORMAT = new MetaDataStateFormat<NodeMetaData>(XContentType.SMILE, "node-") {
+    public static final MetaDataStateFormat<NodeMetaData> FORMAT = new MetaDataStateFormat<NodeMetaData>("node-") {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {

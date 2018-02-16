@@ -70,7 +70,7 @@ import java.util.concurrent.TimeUnit;
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
+ * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -105,7 +105,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testIndicesExistAsync() throws IOException {
+    public void testIndicesExistAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -138,6 +138,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::indices-exists-async
             client.indices().existsAsync(request, listener); // <1>
             // end::indices-exists-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
     public void testDeleteIndex() throws IOException {
@@ -411,19 +413,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.type("tweet"); // <2>
             // end::put-mapping-request
 
-            // tag::put-mapping-request-source
-            request.source(
-                "{\n" +
-                "  \"tweet\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"message\": {\n" +
-                "        \"type\": \"text\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", // <1>
-                XContentType.JSON);
-            // end::put-mapping-request-source
+            {
+                // tag::put-mapping-request-source
+                request.source(
+                    "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                    XContentType.JSON);
+                // end::put-mapping-request-source
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
 
             {
                 //tag::put-mapping-map
@@ -432,9 +436,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
-                Map<String, Object> tweet = new HashMap<>();
-                tweet.put("properties", properties);
-                jsonMap.put("tweet", tweet);
+                jsonMap.put("properties", properties);
                 request.source(jsonMap); // <1>
                 //end::put-mapping-map
                 PutMappingResponse putMappingResponse = client.indices().putMapping(request);
@@ -445,15 +447,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject();
                 {
-                    builder.startObject("tweet");
+                    builder.startObject("properties");
                     {
-                        builder.startObject("properties");
+                        builder.startObject("message");
                         {
-                            builder.startObject("message");
-                            {
-                                builder.field("type", "text");
-                            }
-                            builder.endObject();
+                            builder.field("type", "text");
                         }
                         builder.endObject();
                     }

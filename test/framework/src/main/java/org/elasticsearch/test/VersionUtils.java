@@ -52,10 +52,6 @@ public class VersionUtils {
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         List<Version> versions = Version.getDeclaredVersions(versionClass);
 
-        if (!Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            return Tuple.tuple(versions, Collections.emptyList());
-        }
-
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
@@ -109,6 +105,16 @@ public class VersionUtils {
             }
 
             return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
+        } else if (unreleased.major == current.major) {
+            // need to remove one more of the last major's minor set
+            do {
+                unreleasedIndex--;
+            } while (unreleasedIndex > 0 && versions.get(unreleasedIndex).major == current.major);
+            if (unreleasedIndex > 0) {
+                // some of the test cases return very small lists, so its possible this is just the end of the list, if so, dont include it
+                Version earlierMajorsMinor = versions.remove(unreleasedIndex);
+                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierMajorsMinor, unreleased, current)));
+            }
         }
         return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
     }

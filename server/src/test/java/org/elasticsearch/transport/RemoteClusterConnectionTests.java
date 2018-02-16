@@ -480,7 +480,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                                 new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(5, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();
@@ -557,6 +557,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28695")
     public void testTriggerUpdatesConcurrently() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);

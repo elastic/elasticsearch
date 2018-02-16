@@ -167,7 +167,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index

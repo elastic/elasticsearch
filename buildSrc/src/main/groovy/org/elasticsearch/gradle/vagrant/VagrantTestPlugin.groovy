@@ -114,6 +114,11 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         DISTRIBUTION_ARCHIVES.each {
             // Adds a dependency for the current version
+            if (it == 'tar') {
+                it = 'archives:tar'
+            } else {
+                it = "packages:${it}"
+            }
             project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'archives'))
         }
 

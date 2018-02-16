@@ -21,65 +21,46 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-final class CompositeAggregator extends BucketsAggregator {
+final class CompositeAggregator extends DeferableBucketAggregator {
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
     private final List<String> sourceNames;
     private final List<DocValueFormat> formats;
-    private final boolean canEarlyTerminate;
 
-    private final TreeMap<Integer, Integer> keys;
-    private final CompositeValuesComparator array;
-
-    private final List<LeafContext> contexts = new ArrayList<>();
-    private LeafContext leaf;
-    private RoaringDocIdSet.Builder builder;
+    private final CompositeValuesCollectorQueue queue;
+    private final SortedDocsProducer sortedBucketProducer;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-                            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                            int size, CompositeValuesSourceConfig[] sources, CompositeKey rawAfterKey) throws IOException {
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
+                        int size, CompositeValuesSourceConfig[] sources, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.size = size;
         this.sources = sources;
         this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        // we use slot 0 to fill the current document (size+1).
-        this.array = new CompositeValuesComparator(context.searcher().getIndexReader(), sources, size+1);
+        this.queue = new CompositeValuesCollectorQueue(sources, size);
+        this.sortedBucketProducer = SortedDocsProducer.createProducerOrNull(sources[0], queue);
         if (rawAfterKey != null) {
-            array.setTop(rawAfterKey.values());
+            queue.setAfter(rawAfterKey.values());
         }
-        this.keys = new TreeMap<>(array::compare);
-        this.canEarlyTerminate = Arrays.stream(sources)
-            .allMatch(CompositeValuesSourceConfig::canEarlyTerminate);
-    }
-
-    boolean canEarlyTerminate() {
-        return canEarlyTerminate;
     }
 
     private int[] getReverseMuls() {
@@ -87,53 +68,33 @@ final class CompositeAggregator extends BucketsAggregator {
     }
 
     @Override
+    protected boolean shouldDefer(Aggregator aggregator) {
+        // Always defers the execution of sub-aggregators
+        return true;
+    }
+
+    @Override
+    public DeferringBucketCollector getDeferringCollector() {
+        return new BestCompositeBucketsDeferringCollector(context, queue,
+            sortedBucketProducer == null || sortedBucketProducer.isApplicable(context.query()) == false);
+    }
+
+    @Override
     public InternalAggregation buildAggregation(long zeroBucket) throws IOException {
         assert zeroBucket == 0L;
-        consumeBucketsAndMaybeBreak(keys.size());
+        consumeBucketsAndMaybeBreak(queue.size());
 
         // Replay all documents that contain at least one top bucket (collected during the first pass).
-        grow(keys.size()+1);
-        final boolean needsScores = needsScores();
-        Weight weight = null;
-        if (needsScores) {
-            Query query = context.query();
-            weight = context.searcher().createNormalizedWeight(query, true);
-        }
-        for (LeafContext context : contexts) {
-            DocIdSetIterator docIdSetIterator = context.docIdSet.iterator();
-            if (docIdSetIterator == null) {
-                continue;
-            }
-            final CompositeValuesSource.Collector collector =
-                array.getLeafCollector(context.ctx, getSecondPassCollector(context.subCollector));
-            int docID;
-            DocIdSetIterator scorerIt = null;
-            if (needsScores) {
-                Scorer scorer = weight.scorer(context.ctx);
-                // We don't need to check if the scorer is null
-                // since we are sure that there are documents to replay (docIdSetIterator it not empty).
-                scorerIt = scorer.iterator();
-                context.subCollector.setScorer(scorer);
-            }
-            while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                if (needsScores) {
-                    assert scorerIt.docID() < docID;
-                    scorerIt.advance(docID);
-                    // aggregations should only be replayed on matching documents
-                    assert scorerIt.docID() == docID;
-                }
-                collector.collect(docID);
-            }
-        }
+        runDeferredCollections(new long[0]);
 
-        int num = Math.min(size, keys.size());
+        int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
         final int[] reverseMuls = getReverseMuls();
         int pos = 0;
-        for (int slot : keys.keySet()) {
-            CompositeKey key = array.toCompositeKey(slot);
+        for (int slot : queue.getSortedSlot()) {
+            CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
-            int docCount = bucketDocCount(slot);
+            int docCount = queue.getDocCount(slot);
             buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
@@ -150,118 +111,37 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (leaf != null) {
-            leaf.docIdSet = builder.build();
-            contexts.add(leaf);
+        if (sortedBucketProducer != null && sortedBucketProducer.isApplicable(context.query())) {
+            // we can bypass search, the producer will visit documents sorted by the leading source
+            // of the composite definition and terminates when the leading source value is guaranteed to be
+            // greater than the lowest composite bucket in the queue.
+            sortedBucketProducer.processLeaf(context.query(), ctx, sub);
+            throw new CollectionTerminatedException();
+        } else {
+            final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(sub));
+            return new LeafBucketCollector() {
+                @Override
+                public void collect(int doc, long zeroBucket) throws IOException {
+                    assert zeroBucket == 0L;
+                    inner.collect(doc);
+                }
+            };
         }
-        leaf = new LeafContext(ctx, sub);
-        builder = new RoaringDocIdSet.Builder(ctx.reader().maxDoc());
-        final CompositeValuesSource.Collector inner = array.getLeafCollector(ctx, getFirstPassCollector());
+    }
+
+    /**
+     * The first pass selects the top composite buckets from all matching documents.
+     */
+    private LeafBucketCollector getFirstPassCollector(LeafBucketCollector sub) {
         return new LeafBucketCollector() {
             @Override
-            public void collect(int doc, long zeroBucket) throws IOException {
-                assert zeroBucket == 0L;
-                inner.collect(doc);
-            }
-        };
-    }
-
-    @Override
-    protected void doPostCollection() throws IOException {
-        if (leaf != null) {
-            leaf.docIdSet = builder.build();
-            contexts.add(leaf);
-        }
-    }
-
-    /**
-     * The first pass selects the top N composite buckets from all matching documents.
-     * It also records all doc ids that contain a top N composite bucket in a {@link RoaringDocIdSet} in order to be
-     * able to replay the collection filtered on the best buckets only.
-     */
-    private CompositeValuesSource.Collector getFirstPassCollector() {
-        return new CompositeValuesSource.Collector() {
-            int lastDoc = -1;
-
-            @Override
-            public void collect(int doc) throws IOException {
-
-                // Checks if the candidate key in slot 0 is competitive.
-                if (keys.containsKey(0)) {
-                    // This key is already in the top N, skip it for now.
-                    if (doc != lastDoc) {
-                        builder.add(doc);
-                        lastDoc = doc;
-                    }
-                    return;
-                }
-                if (array.hasTop() && array.compareTop(0) <= 0) {
-                    // This key is greater than the top value collected in the previous round.
-                    if (canEarlyTerminate) {
-                        // The index sort matches the composite sort, we can early terminate this segment.
-                        throw new CollectionTerminatedException();
-                    }
-                    // just skip this key for now
-                    return;
-                }
-                if (keys.size() >= size) {
-                    // The tree map is full, check if the candidate key should be kept.
-                    if (array.compare(0, keys.lastKey()) > 0) {
-                        // The candidate key is not competitive
-                        if (canEarlyTerminate) {
-                            // The index sort matches the composite sort, we can early terminate this segment.
-                            throw new CollectionTerminatedException();
-                        }
-                        // just skip this key
-                        return;
-                    }
-                }
-
-                // The candidate key is competitive
-                final int newSlot;
-                if (keys.size() >= size) {
-                    // the tree map is full, we replace the last key with this candidate.
-                    int slot = keys.pollLastEntry().getKey();
-                    // and we recycle the deleted slot
-                    newSlot = slot;
-                } else {
-                    newSlot = keys.size() + 1;
-                }
-                // move the candidate key to its new slot.
-                array.move(0, newSlot);
-                keys.put(newSlot, newSlot);
-                if (doc != lastDoc) {
-                    builder.add(doc);
-                    lastDoc = doc;
+            public void collect(int doc, long bucket) throws IOException {
+                int slot = queue.addIfCompetitive();
+                if (slot != -1) {
+                    sub.collect(doc, slot);
                 }
             }
         };
-    }
-
-
-    /**
-     * The second pass delegates the collection to sub-aggregations but only if the collected composite bucket is a top bucket (selected
-     *  in the first pass).
-     */
-    private CompositeValuesSource.Collector getSecondPassCollector(LeafBucketCollector subCollector) throws IOException {
-        return doc -> {
-            Integer bucket = keys.get(0);
-            if (bucket != null) {
-                // The candidate key in slot 0 is a top bucket.
-                // We can defer the collection of this document/bucket to the sub collector
-                collectExistingBucket(subCollector, doc, bucket);
-            }
-        };
-    }
-
-    static class LeafContext {
-        final LeafReaderContext ctx;
-        final LeafBucketCollector subCollector;
-        DocIdSet docIdSet;
-
-        LeafContext(LeafReaderContext ctx, LeafBucketCollector subCollector) {
-            this.ctx = ctx;
-            this.subCollector = subCollector;
-        }
     }
 }
+

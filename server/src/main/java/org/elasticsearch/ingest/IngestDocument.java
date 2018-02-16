@@ -73,7 +73,7 @@ public final class IngestDocument {
             sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
         }
         if (versionType != null) {
-            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), versionType);
+            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -464,9 +464,6 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (leafKey == MetaData.VERSION_TYPE.getFieldName()) {
-            value = VersionType.fromString(value.toString());
-        }
         if (context == null) {
             throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
         }
@@ -572,14 +569,7 @@ public final class IngestDocument {
     public Map<MetaData, Object> extractMetadata() {
         Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
-            if (metaData == MetaData.VERSION) {
-                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), Long.class));
-            } else if (metaData == MetaData.VERSION_TYPE) {
-                metadataMap.put(metaData,
-                    cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), VersionType.class));
-            } else {
-                metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
-            }
+            metadataMap.put(metaData, sourceAndMetadata.remove(metaData.getFieldName()));
         }
         return metadataMap;
     }

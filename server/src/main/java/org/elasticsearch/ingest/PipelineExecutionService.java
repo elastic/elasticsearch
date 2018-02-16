@@ -179,8 +179,10 @@ public class PipelineExecutionService implements ClusterStateApplier {
             indexRequest.id((String) metadataMap.get(IngestDocument.MetaData.ID));
             indexRequest.routing((String) metadataMap.get(IngestDocument.MetaData.ROUTING));
             indexRequest.parent((String) metadataMap.get(IngestDocument.MetaData.PARENT));
-            indexRequest.version((Long) metadataMap.get(IngestDocument.MetaData.VERSION));
-            indexRequest.versionType((VersionType) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE));
+            indexRequest.version(((Number) metadataMap.get(IngestDocument.MetaData.VERSION)).longValue());
+            if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
+                indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
+            }
             indexRequest.source(ingestDocument.getSourceAndMetadata());
         } catch (Exception e) {
             totalStats.ingestFailed();

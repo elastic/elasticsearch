@@ -13,7 +13,7 @@ teardown:
 
   - do:
       ingest.put_pipeline:
-        id: "my_pipeline"
+        id: "my_pipeline1"
         body:  >
           {
             "description": "_description",
@@ -21,7 +21,30 @@ teardown:
               {
                 "set" : {
                   "field" : "_version",
-                  "value": 3
+                  "value": 1
+                }
+              },
+              {
+                "set" : {
+                  "field" : "_version_type",
+                  "value": "internal"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "_version",
+                  "value": 1
                 }
               },
               {
@@ -35,29 +58,12 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      index:
-        index: test
-        type: test
-        id: 1
-        pipeline: "my_pipeline"
-        body: {}
-  - match: { _version: 3 }
-
-  - do:
-      get:
-        index: test
-        type: test
-        id: 1
-        version: 3
-  - match: { _id: "1" }
-
-  - do:
       catch: conflict
       index:
         index: test
         type: test
         id: 1
-        version: 3
+        pipeline: "my_pipeline1"
         body: {}
 
   - do:
@@ -65,14 +71,6 @@ teardown:
         index: test
         type: test
         id: 1
-        version: 5
+        pipeline: "my_pipeline2"
         body: {}
-  - match: { _version: 5 }
-
-  - do:
-      get:
-        index: test
-        type: test
-        id: 1
-        version: 5
-  - match: { _id: "1" }
+  - match: { _version: 1 }

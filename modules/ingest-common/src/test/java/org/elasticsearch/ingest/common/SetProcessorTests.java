@@ -110,25 +110,19 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetMetadataVersion() throws Exception {
-        MetaData randomMetaData = randomFrom(MetaData.VERSION, MetaData.VERSION_TYPE);
-        Processor processor;
-        long version = 0L;
-        String versionType = new String();
-        if (randomMetaData == IngestDocument.MetaData.VERSION) {
-            version = randomNonNegativeLong();
-            processor = createSetProcessor(randomMetaData.getFieldName(), version, true);
-        } else {
-            versionType = randomFrom("internal", "external", "external_gte");
-            processor = createSetProcessor(randomMetaData.getFieldName(), versionType, true);
-        }
+        long version = randomNonNegativeLong();
+        Processor processor = createSetProcessor(MetaData.VERSION.getFieldName(), version, true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        if (randomMetaData == IngestDocument.MetaData.VERSION) {
-            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), Long.class), Matchers.equalTo(version));
-        } else {
-            assertThat(ingestDocument.getFieldValue(randomMetaData.getFieldName(), VersionType.class),
-                       Matchers.equalTo(VersionType.fromString(versionType)));
-        }
+        assertThat(ingestDocument.getFieldValue(MetaData.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+    }
+
+    public void testSetMetadataVersionType() throws Exception {
+        String versionType = randomFrom("internal", "external", "external_gte");
+        Processor processor = createSetProcessor(MetaData.VERSION_TYPE.getFieldName(), versionType, true);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(MetaData.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
     }
 
     private static Processor createSetProcessor(String fieldName, Object fieldValue, boolean overrideEnabled) {

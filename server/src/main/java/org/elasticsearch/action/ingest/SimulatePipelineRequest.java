@@ -202,7 +202,8 @@ public class SimulatePipelineRequest extends ActionRequest {
             }
             VersionType versionType = null;
             if (dataMap.containsKey(MetaData.VERSION_TYPE.getFieldName())) {
-                versionType = (VersionType) ConfigurationUtils.readObject(null, null, dataMap, MetaData.VERSION_TYPE.getFieldName());
+                versionType = VersionType.fromString(ConfigurationUtils.readStringProperty(null, null, dataMap,
+                    MetaData.VERSION_TYPE.getFieldName()));
             }
             IngestDocument ingestDocument =
                 new IngestDocument(index, type, id, routing, parent, version, versionType, document);

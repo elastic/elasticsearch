@@ -130,7 +130,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else if (field == VERSION_TYPE) {
-                    VersionType value = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
+                    String value = VersionType.toString(
+                        randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)
+                    );
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else {

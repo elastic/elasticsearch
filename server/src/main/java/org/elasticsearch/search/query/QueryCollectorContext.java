@@ -171,15 +171,8 @@ abstract class QueryCollectorContext {
             @Override
             Collector create(Collector in) throws IOException {
                 assert collector == null;
-                this.collector = new EarlyTerminatingCollector(in, numHits);
+                this.collector = new EarlyTerminatingCollector(in, numHits, true);
                 return collector;
-            }
-
-            @Override
-            void postProcess(QuerySearchResult result) throws IOException {
-                if (collector.terminatedEarly()) {
-                    result.terminatedEarly(true);
-                }
             }
         };
     }

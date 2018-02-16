@@ -31,6 +31,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -90,6 +91,7 @@ public class WildflyIT extends LuceneTestCase {
                     XContentParser parser =
                             JsonXContent.jsonXContent.createParser(
                                     new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                                     response.getEntity().getContent())) {
                 final Map<String, Object> map = parser.map();
                 assertThat(map.get("first_name"), equalTo("John"));

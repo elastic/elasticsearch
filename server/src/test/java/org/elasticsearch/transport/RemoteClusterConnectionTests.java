@@ -557,7 +557,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28695")
     public void testTriggerUpdatesConcurrently() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
@@ -591,17 +590,28 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     CountDownLatch latch = new CountDownLatch(numConnectionAttempts);
                                     for (int i = 0; i < numConnectionAttempts; i++) {
                                         AtomicBoolean executed = new AtomicBoolean(false);
-                                        ActionListener<Void> listener = ActionListener.wrap(x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();}, x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();
-                                            if (x instanceof RejectedExecutionException) {
-                                                // that's fine
-                                            } else {
-                                                throw new AssertionError(x);
-                                            }
-                                        });
+                                        ActionListener<Void> listener = ActionListener.wrap(
+                                                x -> {
+                                                    assertTrue(executed.compareAndSet(false, true));
+                                                    latch.countDown();},
+                                                x -> {
+                                                    /*
+                                                     * This can occur on a thread submitted to the thread pool while we are closing the
+                                                     * remote cluster connection at the end of the test.
+                                                     */
+                                                    if (x instanceof CancellableThreads.ExecutionCancelledException) {
+                                                        // we should already be shutting down
+                                                        assertTrue(executed.get());
+                                                        return;
+                                                    }
+
+                                                    assertTrue(executed.compareAndSet(false, true));
+                                                    latch.countDown();
+
+                                                    if (!(x instanceof RejectedExecutionException)) {
+                                                        throw new AssertionError(x);
+                                                    }
+                                                });
                                         connection.updateSeedNodes(seedNodes, listener);
                                     }
                                     latch.await();

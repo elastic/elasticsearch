@@ -5,8 +5,6 @@
 <titleabbrev>6.2.2 Release Notes</titleabbrev>
 ++++
 
-To be determined...
-
 [[xes-bug-6.2.2]]
 [float]
 === Bug fixes

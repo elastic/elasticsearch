@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -37,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A response for a create index action.
  */
-public class CreateIndexResponse extends AcknowledgedResponse implements ToXContentObject {
+public class CreateIndexResponse extends AcknowledgedResponse {
 
     private static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
     private static final ParseField INDEX = new ParseField("index");
@@ -102,18 +101,10 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
         return index;
     }
 
-    public void addCustomFields(XContentBuilder builder) throws IOException {
+    @Override
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcknowledged());
         builder.field(INDEX.getPreferredName(), index());
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
-        addCustomFields(builder);
-        builder.endObject();
-        return builder;
     }
 
     public static CreateIndexResponse fromXContent(XContentParser parser) {

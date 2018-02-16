@@ -43,7 +43,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -141,9 +140,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(2));
-
-
-        assertThat(response.getConditionStatus().values(), everyItem(hasProperty("value", is(false))));
+        assertThat(response.getConditionStatus().values(), everyItem(is(false)));
         Set<String> conditions = response.getConditionStatus().keySet();
         assertThat(conditions, containsInAnyOrder(
             new MaxSizeCondition(new ByteSizeValue(10, ByteSizeUnit.MB)).toString(),

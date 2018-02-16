@@ -1007,7 +1007,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();// <7>
         // end::rollover-response
         assertFalse(acknowledged);
-        assertTrue(shardsAcked);
+        assertFalse(shardsAcked);
         assertEquals("index-1", oldIndex);
         assertEquals("index-2", newIndex);
         assertFalse(isRolledOver);

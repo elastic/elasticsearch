@@ -9,18 +9,18 @@
 [float]
 === Bug fixes
 
-
 Machine Learning::
 * Fixed an exception that occurred when a categorization field contained an
 empty string.
 //Repo: x-pack-elasticsearch
 //Pull: 3870
-////
+
 Monitoring::
-* [Monitoring] Register affixed Header Setting
+* Properly registered `xpack.monitoring.exporters.*.headers.*` settings, which
+were broken in 6.2.0 and 6.2.1. For more information, see
+<<http-exporter-settings>>.
 // Repo: x-pack-elasticsearch
 // Pull: 3893
-////
 ////
 Security::
 * Move CachingRealm interface to core for custom realm extensions

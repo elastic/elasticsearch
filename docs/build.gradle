@@ -379,3 +379,14 @@ setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
            { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
            ]}
 '''
+setups['role_mapping'] = '''
+  - do:
+        xpack.security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''

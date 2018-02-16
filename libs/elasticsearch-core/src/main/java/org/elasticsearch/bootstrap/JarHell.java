@@ -73,6 +73,7 @@ public class JarHell {
 
     /**
      * Checks the current classpath for duplicate classes
+     * @param output A {@code String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
     public static void checkJarHell(Consumer<String> output) throws IOException, URISyntaxException {
@@ -148,6 +149,8 @@ public class JarHell {
 
     /**
      * Checks the set of URLs for duplicate classes
+     * @param urls A set of URLs from the classpath to be checked for conflicting jars
+     * @param output A {@code String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")

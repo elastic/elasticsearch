@@ -402,7 +402,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         for (BaseTranslogReader r : readers) {
             earliestTime = Math.min(r.getLastModifiedTime(), earliestTime);
         }
-        return currentTime - Math.min(earliestTime, writer.getLastModifiedTime());
+        return Math.max(0, currentTime - Math.min(earliestTime, writer.getLastModifiedTime()));
     }
 
     /**

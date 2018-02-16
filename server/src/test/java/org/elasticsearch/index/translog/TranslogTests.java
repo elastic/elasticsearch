@@ -369,9 +369,16 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testFindEarliestLastModifiedAge() throws IOException {
-        long fixedTime = System.currentTimeMillis();
-        long[] periods = new long[10];
-        for (int i = 0; i < 9; i++) {
+        final int numberOfReaders = scaledRandomIntBetween(1, 10);
+        long fixedTime = randomLongBetween(0, 10000000000000000L);
+        long[] periods = new long[numberOfReaders + 1];
+        long period = randomLongBetween(10000, 1000000);
+        periods[numberOfReaders] = period;
+        TranslogWriter w = mock(TranslogWriter.class);
+        stub(w.getLastModifiedTime()).toReturn(fixedTime - period);
+        assertThat(Translog.findEarliestLastModifiedAge(fixedTime, new ArrayList<>(), w), equalTo(period));
+
+        for (int i = 0; i < numberOfReaders; i++) {
             periods[i] = randomLongBetween(10000, 1000000);
         }
         List<TranslogReader> readers = new ArrayList<>();
@@ -380,11 +387,8 @@ public class TranslogTests extends ESTestCase {
             stub(r.getLastModifiedTime()).toReturn(fixedTime - l);
             readers.add(r);
         }
-        long period = randomLongBetween(10000, 1000000);
-        periods[9] = period;
-        TranslogWriter w = mock(TranslogWriter.class);
-        stub(w.getLastModifiedTime()).toReturn(fixedTime - period);
-        assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo(LongStream.of(periods).max().orElse(0L)));
+        assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo
+            (LongStream.of(periods).max().orElse(0L)));
     }
 
     public void testStats() throws IOException {

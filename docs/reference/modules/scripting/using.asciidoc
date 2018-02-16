@@ -237,7 +237,7 @@ GET _scripts/calculate-score
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `stored` parameters as follows:
+Stored scripts can be used by specifying the `id` of the script and passing values for the _stored_ parameters using `params`, as follows:
 
 [source,js]
 --------------------------------------------------

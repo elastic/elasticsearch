@@ -976,13 +976,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
         request.masterNodeTimeout("1m"); // <2>
         // end::rollover-request-masterTimeout
-        // tag::rollover-request-waitForActiveShards
-        request.setWaitForActiveShards(2); // <1>
-        request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
-        // end::rollover-request-waitForActiveShards
         // tag::rollover-request-dryRun
         request.dryRun(true); // <1>
         // end::rollover-request-dryRun
+        // tag::rollover-request-waitForActiveShards
+        request.getCreateIndexRequest().waitForActiveShards(2); // <1>
+        request.getCreateIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        // end::rollover-request-waitForActiveShards
         // tag::rollover-request-settings
         request.getCreateIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
         // end::rollover-request-settings
@@ -1007,7 +1007,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();// <7>
         // end::rollover-response
         assertFalse(acknowledged);
-        assertFalse(shardsAcked);
+        assertTrue(shardsAcked);
         assertEquals("index-1", oldIndex);
         assertEquals("index-2", newIndex);
         assertFalse(isRolledOver);

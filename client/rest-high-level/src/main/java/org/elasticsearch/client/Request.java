@@ -546,7 +546,7 @@ public final class Request {
         Params params = Params.builder();
         params.withTimeout(rolloverRequest.timeout());
         params.withMasterTimeout(rolloverRequest.masterNodeTimeout());
-        params.withWaitForActiveShards(rolloverRequest.getWaitForActiveShards());
+        params.withWaitForActiveShards(rolloverRequest.getCreateIndexRequest().waitForActiveShards());
         if (rolloverRequest.isDryRun()) {
             params.putParam("dry_run", Boolean.TRUE.toString());
         }

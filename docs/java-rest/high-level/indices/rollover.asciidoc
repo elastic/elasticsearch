@@ -63,7 +63,8 @@ shards to create for it
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-mapping]
 --------------------------------------------------
-<1> Add the mappings to associate the new index with
+<1> Add the mappings to associate the new index with. See <<java-rest-high-create-index-request-mappings>>
+for examples on the different ways to provide mappings
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

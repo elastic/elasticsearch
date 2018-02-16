@@ -202,8 +202,6 @@ public class RolloverRequestTests extends ESTestCase {
     public void testValidation() {
         RolloverRequest rolloverRequest = new RolloverRequest();
         assertNotNull(rolloverRequest.getCreateIndexRequest());
-        expectThrows(NullPointerException.class, () -> rolloverRequest.setCreateIndexRequest(null));
-
         ActionRequestValidationException validationException = rolloverRequest.validate();
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
@@ -220,7 +218,14 @@ public class RolloverRequestTests extends ESTestCase {
     private static RolloverRequest createTestItem() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest();
         if (randomBoolean()) {
-            rolloverRequest.setCreateIndexRequest(RandomCreateIndexGenerator.randomCreateIndexRequest());
+            String type = randomAlphaOfLengthBetween(3, 10);
+            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
+        }
+        if (randomBoolean()) {
+            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
         }
         int numConditions = randomIntBetween(0, 3);
         Set<Consumer<RolloverRequest>> consumers = new HashSet<>();

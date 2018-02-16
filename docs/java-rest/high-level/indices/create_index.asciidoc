@@ -21,6 +21,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-reque
 --------------------------------------------------
 <1> Settings for this index
 
+[[java-rest-high-create-index-request-mappings]]
 ==== Index mappings
 An index may be created with mappings for its document types
 

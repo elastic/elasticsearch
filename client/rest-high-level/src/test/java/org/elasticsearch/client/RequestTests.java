@@ -1160,10 +1160,16 @@ public class RequestTests extends ESTestCase {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            CreateIndexRequest createIndexRequest = RandomCreateIndexGenerator.randomCreateIndexRequest();
-            rolloverRequest.setCreateIndexRequest(createIndexRequest);
+            String type = randomAlphaOfLengthBetween(3, 10);
+            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
         }
-        setRandomWaitForActiveShards(rolloverRequest::setWaitForActiveShards, expectedParams);
+        if (randomBoolean()) {
+            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
+        }
+        setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
 
         Request request = Request.rollover(rolloverRequest);
         if (rolloverRequest.getNewIndexName() == null) {

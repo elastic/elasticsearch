@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -83,6 +81,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String newIndexName;
     private boolean dryRun;
     private Set<Condition> conditions = new HashSet<>(2);
+    //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     RolloverRequest() {}
@@ -92,8 +91,6 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         this.newIndexName = newIndexName;
     }
 
-
-    //TODO at least one condition should be present???
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest.validate();
@@ -189,19 +186,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         }
     }
 
-    /**
-     * Sets rollover index creation request to override index settings when
-     * the rolled over index has to be created
-     */
-    public void setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
-        this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
-    }
 
     public boolean isDryRun() {
         return dryRun;
     }
 
-    Set<Condition> getConditions() {
+    public Set<Condition> getConditions() {
         return conditions;
     }
 
@@ -213,39 +203,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return newIndexName;
     }
 
+    /**
+     * Returns the inner {@link CreateIndexRequest}. Allows to configure mappings, settings and aliases for the new index.
+     */
     public CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
-    }
-
-    /**
-     * Sets the number of shard copies that should be active for creation of the
-     * new rollover index to return. Defaults to {@link ActiveShardCount#DEFAULT}, which will
-     * wait for one shard copy (the primary) to become active. Set this value to
-     * {@link ActiveShardCount#ALL} to wait for all shards (primary and all replicas) to be active
-     * before returning. Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
-     * non-negative integer, up to the number of copies per shard (number of replicas + 1),
-     * to wait for the desired amount of shard copies to become active before returning.
-     * Index creation will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link RolloverResponse#isShardsAcknowledged()} to
-     * determine if the requisite shard copies were all started before returning or timing out.
-     *
-     * @param waitForActiveShards number of active shard copies to wait on
-     */
-    public void setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.createIndexRequest.waitForActiveShards(waitForActiveShards);
-    }
-
-    /**
-     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public void setWaitForActiveShards(final int waitForActiveShards) {
-        setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
-    }
-
-    public ActiveShardCount getWaitForActiveShards() {
-        return createIndexRequest.waitForActiveShards();
     }
 
     @Override

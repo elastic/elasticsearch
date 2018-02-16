@@ -86,7 +86,7 @@ configure the HTTP interface to use SSL/TLS before you can enable SAML
 authentication.
 
 For more information, see
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications]. 
+{ref}/configuring-tls.html#tls-http[Encrypting HTTP Client Communications].
 
 ==== Enable the Token Service
 
@@ -614,13 +614,16 @@ PUT /_xpack/security/role_mapping/saml-kibana
 The attributes that are mapped via the realm configuration are used to process
 role mapping rules, and these rules determine which roles a user is granted.
 
-The <<mapping-roles-rule-field, user fields>> that are provided to the role
+The user fields that are provided to the role
 mapping are derived from the SAML attributes as follows:
 
 - `username`: The `principal` attribute
 - `dn`: The `dn` attribute
 - `groups`: The `groups` attribute
 - `metadata`: See <<saml-user-metadata>>
+
+For more information, see <<mapping-roles>> and
+{ref}/security-api-role-mapping.html[Role Mapping APIs]. 
 
 If your IdP has the ability to provide groups or roles to Service Providers,
 then you should map this SAML attribute to the `attributes.groups` setting in

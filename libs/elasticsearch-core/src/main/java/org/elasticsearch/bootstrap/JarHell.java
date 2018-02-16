@@ -19,10 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -43,6 +41,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -68,7 +67,7 @@ public class JarHell {
     @SuppressForbidden(reason = "command line tool")
     public static void main(String args[]) throws Exception {
         System.out.println("checking for jar hell...");
-        checkJarHell();
+        checkJarHell(System.out::println);
         System.out.println("no jar hell found");
     }
 
@@ -76,17 +75,14 @@ public class JarHell {
      * Checks the current classpath for duplicate classes
      * @throws IllegalStateException if jar hell was found
      */
-    public static void checkJarHell() throws IOException, URISyntaxException {
+    public static void checkJarHell(Consumer<String> output) throws IOException, URISyntaxException {
         ClassLoader loader = JarHell.class.getClassLoader();
-        Logger logger = Loggers.getLogger(JarHell.class);
-        if (logger.isDebugEnabled()) {
-            logger.debug("java.class.path: {}", System.getProperty("java.class.path"));
-            logger.debug("sun.boot.class.path: {}", System.getProperty("sun.boot.class.path"));
-            if (loader instanceof URLClassLoader ) {
-                logger.debug("classloader urls: {}", Arrays.toString(((URLClassLoader)loader).getURLs()));
-             }
+        output.accept("java.class.path: " + System.getProperty("java.class.path"));
+        output.accept("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
+        if (loader instanceof URLClassLoader ) {
+            output.accept("classloader urls: " + Arrays.toString(((URLClassLoader)loader).getURLs()));
         }
-        checkJarHell(parseClassPath());
+        checkJarHell(parseClassPath(), output);
     }
 
     /**
@@ -155,20 +151,19 @@ public class JarHell {
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")
-    public static void checkJarHell(Set<URL> urls) throws URISyntaxException, IOException {
-        Logger logger = Loggers.getLogger(JarHell.class);
+    public static void checkJarHell(Set<URL> urls, Consumer<String> output) throws URISyntaxException, IOException {
         // we don't try to be sneaky and use deprecated/internal/not portable stuff
         // like sun.boot.class.path, and with jigsaw we don't yet have a way to get
         // a "list" at all. So just exclude any elements underneath the java home
         String javaHome = System.getProperty("java.home");
-        logger.debug("java.home: {}", javaHome);
+        output.accept("java.home: " + javaHome);
         final Map<String,Path> clazzes = new HashMap<>(32768);
         Set<Path> seenJars = new HashSet<>();
         for (final URL url : urls) {
             final Path path = PathUtils.get(url.toURI());
             // exclude system resources
             if (path.startsWith(javaHome)) {
-                logger.debug("excluding system resource: {}", path);
+                output.accept("excluding system resource: " + path);
                 continue;
             }
             if (path.toString().endsWith(".jar")) {
@@ -176,7 +171,7 @@ public class JarHell {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                                                     "duplicate jar on classpath: " + path);
                 }
-                logger.debug("examining jar: {}", path);
+                output.accept("examining jar: " + path);
                 try (JarFile file = new JarFile(path.toString())) {
                     Manifest manifest = file.getManifest();
                     if (manifest != null) {
@@ -194,7 +189,7 @@ public class JarHell {
                     }
                 }
             } else {
-                logger.debug("examining directory: {}", path);
+                output.accept("examining directory: " + path);
                 // case for tests: where we have class files in the classpath
                 final Path root = PathUtils.get(url.toURI());
                 final String sep = root.getFileSystem().getSeparator();

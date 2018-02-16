@@ -21,7 +21,6 @@ package org.elasticsearch.test.junit.listeners;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
@@ -107,7 +106,7 @@ public class LoggingListener extends RunListener {
         }
         for (final Map.Entry<String, String> entry : map.entrySet()) {
             final Logger logger = resolveLogger(entry.getKey());
-            ServerLoggers.setLevel(logger, entry.getValue());
+            Loggers.setLevel(logger, entry.getValue());
         }
         return existing;
     }
@@ -146,7 +145,7 @@ public class LoggingListener extends RunListener {
     private Map<String, String> reset(final Map<String, String> map) {
         for (final Map.Entry<String, String> previousLogger : map.entrySet()) {
             final Logger logger = resolveLogger(previousLogger.getKey());
-            ServerLoggers.setLevel(logger, previousLogger.getValue());
+            Loggers.setLevel(logger, previousLogger.getValue());
         }
 
         return Collections.emptyMap();

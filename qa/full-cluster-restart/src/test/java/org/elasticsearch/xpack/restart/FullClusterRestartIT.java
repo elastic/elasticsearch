@@ -115,6 +115,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3975")
     public void testSecurityNativeRealm() throws Exception {
         if (runningAgainstOldCluster) {
             createUser("preupgrade_user");
@@ -188,6 +189,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         waitForClusterStats(expectedVersion);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3975")
     public void testWatcher() throws Exception {
         if (runningAgainstOldCluster) {
             logger.info("Adding a watch on old cluster {}", oldClusterVersion);

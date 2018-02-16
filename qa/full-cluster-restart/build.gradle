@@ -165,6 +165,11 @@ subprojects {
       setting 'xpack.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (version.before('5.1.2')) {
+        // Disable monitoring if version is before 5.1.2 because form 5.1.2 we changed how we get DocStats 
+        // and we can get a negative value which cannot because serialised by <5.1.2 as it writes VLongs
+        setting 'xpack.monitoring.enabled', 'false'
+      }
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0

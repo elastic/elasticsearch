@@ -319,7 +319,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        try (XContentParser parser = XContentHelper
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

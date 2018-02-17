@@ -621,7 +621,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(false, true)) {
+        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 

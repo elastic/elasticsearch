@@ -612,7 +612,7 @@ public class PluginsServiceTests extends ESTestCase {
                         .put("plugin.mandatory", "fake")
                         .build();
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-        assertThat(e, hasToString(containsString("missing madatory plugins [fake]")));
+        assertThat(e, hasToString(containsString("missing mandatory plugins [fake]")));
     }
 
     public void testExistingMandatoryClasspathPlugin() {

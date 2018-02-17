@@ -655,7 +655,6 @@ public class PluginsServiceTests extends ESTestCase {
                         .put("plugin.mandatory", "fake")
                         .build();
         newPluginsService(settings);
-
     }
 
     public void testExistingMandatoryMetaPlugin() throws IOException {

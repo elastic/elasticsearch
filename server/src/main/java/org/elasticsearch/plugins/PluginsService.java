@@ -102,7 +102,7 @@ public class PluginsService extends AbstractComponent {
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
-        List<String> pluginNames = new ArrayList<>();
+        List<String> pluginsNames = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
@@ -113,7 +113,7 @@ public class PluginsService extends AbstractComponent {
             }
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
-            pluginNames.add(pluginInfo.getName());
+            pluginsNames.add(pluginInfo.getName());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
@@ -144,7 +144,7 @@ public class PluginsService extends AbstractComponent {
                             pluginsList.add(bundle.plugin);
                         }
                         seenBundles.addAll(bundles);
-                        pluginNames.add(plugin.name());
+                        pluginsNames.add(plugin.name());
                     }
                 }
             } catch (IOException ex) {
@@ -163,7 +163,7 @@ public class PluginsService extends AbstractComponent {
         if (mandatoryPlugins.isEmpty() == false) {
             Set<String> missingPlugins = new HashSet<>();
             for (String mandatoryPlugin : mandatoryPlugins) {
-                if (!pluginNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
+                if (!pluginsNames.contains(mandatoryPlugin) && !missingPlugins.contains(mandatoryPlugin)) {
                     missingPlugins.add(mandatoryPlugin);
                 }
             }

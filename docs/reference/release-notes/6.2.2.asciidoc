@@ -3,6 +3,8 @@
 
 coming[6.2.2]
 
+Also see <<breaking-changes-6.2>>.
+
 [[enhancement-6.2.2]]
 [float]
 === Enhancements
@@ -17,6 +19,7 @@ Recovery::
 === Bug fixes
 
 Core::
+* Handle throws on tasks submitted to thread pools {pull}28667[#28667]
 * Fix size blocking queue to not lie about its weight {pull}28557[#28557] (issue: {issue}28547[#28547])
 
 Ingest::
@@ -28,8 +31,12 @@ Java High Level REST Client::
 * Move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
 
 Packaging::
+* Fix using relative custom config path {pull}28700[#28700] (issue: {issue}27610[#27610])
 * Disable console logging in the Windows service {pull}28618[#28618] (issue: {issue}20422[#20422])
 
 Percolator::
 * Do not take duplicate query extractions into account for minimum_should_match attribute {pull}28353[#28353] (issue: {issue}28315[#28315])
+
+Recovery::
+* Fsync directory after cleanup {pull}28604[#28604] (issue: {issue}28435[#28435])
 

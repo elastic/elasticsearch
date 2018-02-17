@@ -22,7 +22,6 @@ package org.elasticsearch.plugins;
 import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -612,8 +611,8 @@ public class PluginsServiceTests extends ESTestCase {
                         .put("path.home", createTempDir())
                         .put("plugin.mandatory", "fake")
                         .build();
-        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> newPluginsService(settings));
-        assertThat(e, hasToString(containsString("fake")));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(e, hasToString(containsString("missing madatory plugins [fake]")));
     }
 
     public void testExistingMandatoryClasspathPlugin() {

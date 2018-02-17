@@ -169,7 +169,11 @@ public class PluginsService extends AbstractComponent {
                 }
             }
             if (!missingPlugins.isEmpty()) {
-                throw new ElasticsearchException("Missing mandatory plugins [" + Strings.collectionToDelimitedString(missingPlugins, ", ") + "]");
+                final String message = String.format(
+                        Locale.ROOT,
+                        "missing mandatory plugins [%s]",
+                        Strings.collectionToDelimitedString(missingPlugins, ", "));
+                throw new IllegalStateException(message);
             }
         }
 

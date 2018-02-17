@@ -4349,8 +4349,7 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
-            final boolean inSync = randomBoolean();
-            if (inSync) {
+            if (randomBoolean()) {
                 globalCheckpoint.set(numDocs - 1);
             }
             final boolean flushFirst = randomBoolean();
@@ -4369,7 +4368,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
             // check that we can still read the commit that we captured
             try (IndexReader reader = DirectoryReader.open(snapshot.getIndexCommit())) {
-                assertThat(reader.numDocs(), equalTo(flushFirst && (safeCommit == false || inSync) ? numDocs : 0));
+                assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
             snapshot.close();

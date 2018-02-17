@@ -868,13 +868,17 @@ public abstract class Engine implements Closeable {
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
 
     /**
-     * Snapshots the index and returns a handle to it. If needed will try and "commit" the
+     * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      *
-     * @param safeCommit indicates whether the engine should acquire the most recent safe commit, or the most recent commit.
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException;
+    public abstract IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException;
+
+    /**
+     * Snapshots the most recent safe index commit from the engine.
+     */
+    public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.

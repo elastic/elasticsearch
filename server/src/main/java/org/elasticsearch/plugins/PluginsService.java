@@ -306,7 +306,7 @@ public class PluginsService extends AbstractComponent {
         private final String name;
         private final List<Bundle> bundles;
 
-        public MetaBundle(final String name, final List<Bundle> bundles) {
+        MetaBundle(final String name, final List<Bundle> bundles) {
             this.name = name;
             this.bundles = bundles;
         }

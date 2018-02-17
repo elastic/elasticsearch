@@ -64,7 +64,7 @@ and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
 Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `tweet` documents from the `twitter` index:
+will only update `_doc` documents from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -99,7 +99,7 @@ So far we've only been updating documents without changing their source. That
 is genuinely useful for things like
 <<picking-up-a-new-property,picking up new properties>> but it's only half the
 fun. `_update_by_query` <<modules-scripting-using,supports scripts>> to update
-the document. This will increment the `likes` field on all of kimchy's tweets:
+the document. This will increment the `likes` field on all of kimchy's _docs:
 
 [source,js]
 --------------------------------------------------
@@ -151,7 +151,7 @@ types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_update_by_query
+POST twitter,blog/_doc,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]

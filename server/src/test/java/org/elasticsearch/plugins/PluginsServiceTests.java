@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.apache.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -604,4 +605,86 @@ public class PluginsServiceTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("my_plugin requires Java"));
     }
+
+    public void testMissingMandatoryPlugin() {
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", createTempDir())
+                        .put("plugin.mandatory", "fake")
+                        .build();
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> newPluginsService(settings));
+        assertThat(e, hasToString(containsString("fake")));
+    }
+
+    public void testExistingMandatoryClasspathPlugin() {
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", createTempDir())
+                        .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+                        .build();
+        newPluginsService(settings, FakePlugin.class);
+    }
+
+    public static class FakePlugin extends Plugin {
+
+        public FakePlugin() {
+
+        }
+
+    }
+
+    public void testExistingMandatoryInstalledPlugin() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+                fake,
+                "description", "description",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake.resolve("plugin.jar"));
+        }
+
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", pathHome)
+                        .put("plugin.mandatory", "fake")
+                        .build();
+        newPluginsService(settings);
+
+    }
+
+    public void testExistingMandatoryMetaPlugin() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fakeMeta = plugins.resolve("fake-meta");
+
+        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
+
+        final Path fake = fakeMeta.resolve("fake");
+        PluginTestUtil.writePluginProperties(
+                fake,
+                "description", "description",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake.resolve("plugin.jar"));
+        }
+
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", pathHome)
+                        .put("plugin.mandatory", "fake-meta")
+                        .build();
+        newPluginsService(settings);
+    }
+
 }

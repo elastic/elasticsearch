@@ -62,7 +62,10 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
   Statistics about the discovery
 
 `ingest`::
-    Statistics about ingest preprocessing
+  Statistics about ingest preprocessing
+
+`adaptive_selection`::
+  Statistics about <<search-adaptive-replica,adaptive replica selection>>
 
 [source,js]
 --------------------------------------------------

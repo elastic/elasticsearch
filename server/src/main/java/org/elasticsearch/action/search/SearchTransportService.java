@@ -96,7 +96,8 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     public Map<String, Long> getClientConnections() {
-        return Collections.unmodifiableMap(clientConnections);
+        // create a (weakly consistent) snapshot of the map so that it does not get modified when serializing it for stats reporting
+        return Collections.unmodifiableMap(new HashMap<>(clientConnections));
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {

@@ -120,25 +120,31 @@ public abstract class RestRequest implements ToXContent.Params {
     public abstract String uri();
 
     /**
-     * The non decoded, raw path provided.
+     * @return The non decoded, raw path provided.
      */
     public String rawPath() {
         return rawPath;
     }
 
     /**
-     * The path part of the URI (without the query string), decoded.
+     * @return The path part of the URI (without the query string), decoded.
      */
     public final String path() {
         return RestUtils.decodeComponent(rawPath());
     }
 
+    /**
+     * A boolean to check if the content is present
+     */
     public abstract boolean hasContent();
 
+    /**
+     * The content of the request body
+     */
     public abstract BytesReference content();
 
     /**
-     * @return content of the request body or throw an exception if the body or content type is missing
+     * @return content of the request body or throw an exception if the body or the content type is missing
      */
     public final BytesReference requiredContent() {
         if (hasContent() == false) {
@@ -152,6 +158,8 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
      * sent. Use of {@link #getAllHeaderValues(String)} should be preferred
+     * @param name the name of the header
+     * @return the value of the header of null if not found
      */
     public final String header(String name) {
         List<String> values = headers.get(name);
@@ -163,6 +171,8 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get all values for the header or {@code null} if the header was not found
+     * @param name the name of the header
+     * @return all the values for the header or null if not found
      */
     public final List<String> getAllHeaderValues(String name) {
         List<String> values = headers.get(name);
@@ -174,6 +184,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
+     * @return the map of all headers and their associated values
      */
     public final Map<String, List<String>> getHeaders() {
         return headers;
@@ -182,6 +193,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * The {@link XContentType} that was parsed from the {@code Content-Type} header. This value will be {@code null} in the case of
      * a request without a valid {@code Content-Type} header, a request without content ({@link #hasContent()}, or a plain text request
+     * @return the XContentType that was parsed from the Content-Type header
      */
     @Nullable
     public final XContentType getXContentType() {
@@ -190,6 +202,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Sets the {@link XContentType}
+     * @param xContentType
      */
     final void setXContentType(XContentType xContentType) {
         this.xContentType.set(xContentType);
@@ -205,16 +218,29 @@ public abstract class RestRequest implements ToXContent.Params {
         return null;
     }
 
+    /**
+     * @param key we want to check if this key is present
+     * @return true if the key is present, false otherwise
+     */
     public final boolean hasParam(String key) {
         return params.containsKey(key);
     }
 
+    /**
+     * @param key we want the string corresponding to this key
+     * @return the corresponding string
+     */
     @Override
     public final String param(String key) {
         consumedParams.add(key);
         return params.get(key);
     }
 
+    /**
+     * @param key we want the string corresponding to this key
+     * @param defaultValue value uses if no corresponding is present
+     * @return the corresponding string or the defaultValue if there is no corresponding string
+     */
     @Override
     public final String param(String key, String defaultValue) {
         consumedParams.add(key);
@@ -225,6 +251,9 @@ public abstract class RestRequest implements ToXContent.Params {
         return value;
     }
 
+    /**
+     * @return params
+     */
     public Map<String, String> params() {
         return params;
     }
@@ -253,6 +282,13 @@ public abstract class RestRequest implements ToXContent.Params {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Take a key and extract the float value from the corresponding string.
+     * @param key We want to get the float corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @throws This method can throw IllegalArgumentExcpetion
+     * @return the corresponding float or the defaultValue if there is no corresponding string
+     */
     public float paramAsFloat(String key, float defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
@@ -265,6 +301,13 @@ public abstract class RestRequest implements ToXContent.Params {
         }
     }
 
+    /**
+     * Take a key and extract the int value from the corresponding string.
+     * @param key We want to get the int corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @throws This method can throw IllegalArgumentExcpetion
+     * @return the corresponding int or the defaultValue if there is no corresponding string
+     */
     public int paramAsInt(String key, int defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
@@ -277,6 +320,13 @@ public abstract class RestRequest implements ToXContent.Params {
         }
     }
 
+    /**
+     * Take a key and extract the long value from the corresponding string.
+     * @param key We want to get the long corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @throws This method can throw IllegalArgumentExcpetion
+     * @return the corresponding long or the defaultValue if there is no corresponding string
+     */
     public long paramAsLong(String key, long defaultValue) {
         String sValue = param(key);
         if (sValue == null) {
@@ -288,7 +338,13 @@ public abstract class RestRequest implements ToXContent.Params {
             throw new IllegalArgumentException("Failed to parse long parameter [" + key + "] with value [" + sValue + "]", e);
         }
     }
-
+    
+    /**
+     * Take a key and extract the boolean value from the corresponding string.
+     * @param key We want to get the boolean corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @return the corresponding boolean or the defaultValue if there is no corresponding string
+     */
     @Override
     public boolean paramAsBoolean(String key, boolean defaultValue) {
         String rawParam = param(key);
@@ -299,20 +355,44 @@ public abstract class RestRequest implements ToXContent.Params {
             return Booleans.parseBoolean(rawParam, defaultValue);
         }
     }
-
+    
+    /**
+     * Take a key and extract the boolean value from the corresponding string.
+     * @param key We want to get the boolean corresponding to this key
+     * @param defaultValue value use if there is no corresponding string or if the length of the corresponding string is the empty string
+     * @return the corresponding boolean or the defaultValue if there is no corresponding string or if the length of the corresponding string is 0
+     */
     @Override
     public Boolean paramAsBoolean(String key, Boolean defaultValue) {
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
+    /**
+     * Take a key and extract the TimeValue from the corresponding string.
+     * @param key We want to get the TimeValue corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @return the corresponding TimeValue or the defaultValue if there is no corresponding string
+     */
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue, key);
     }
 
+    /**
+     * Take a key and extract the ByteSizeValue from the corresponding string.
+     * @param key We want to get the ByteSizeValue corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @return the corresponding ByteSizeValue or the defaultValue if there is no corresponding string
+     */
     public ByteSizeValue paramAsSize(String key, ByteSizeValue defaultValue) {
         return parseBytesSizeValue(param(key), defaultValue, key);
     }
 
+    /**
+     * Take a key and return the corresponding string as an array (split the string at commas).
+     * @param key We want to get the string corresponding to this key
+     * @param defaultValue value use if there is no corresponding string
+     * @return the corresponding string as an array or the defaultValue if there is no corresponding string
+     */
     public String[] paramAsStringArray(String key, String[] defaultValue) {
         String value = param(key);
         if (value == null) {
@@ -321,6 +401,11 @@ public abstract class RestRequest implements ToXContent.Params {
         return Strings.splitStringByCommaToArray(value);
     }
 
+    /**
+     * Take a key and return the corresponding string as an array (split the string at commas).
+     * @param key We want to get the string corresponding to this key
+     * @return the corresponding string as an array or an empty array if the array is empty or only consist of one element which is "*" or "_all"
+     */
     public String[] paramAsStringArrayOrEmptyIfAll(String key) {
         String[] params = paramAsStringArray(key, Strings.EMPTY_ARRAY);
         if (Strings.isAllOrWildcard(params)) {
@@ -331,6 +416,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get the {@link NamedXContentRegistry} that should be used to create parsers from this request.
+     * @return the NamedXContentRegistry that should be used to create parsers from this request.
      */
     public NamedXContentRegistry getXContentRegistry() {
         return xContentRegistry;
@@ -340,6 +426,8 @@ public abstract class RestRequest implements ToXContent.Params {
      * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
      * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
+     * @throws this method can throw ElasticsearchParseException
+     * @return an xContentParser for the contents of this request if there is a body
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
@@ -348,6 +436,8 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
+     * @param applyParser 
+     * @throws this method can throw IOException
      */
     public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
         if (hasContent()) {
@@ -360,6 +450,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
      * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
+     * @return true if the request has content or a source parameter, false otherwise
      */
     public final boolean hasContentOrSourceParam() {
         return hasContent() || hasParam("source");
@@ -369,6 +460,8 @@ public abstract class RestRequest implements ToXContent.Params {
      * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
      * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
      * if you need to handle the absence request content gracefully.
+     * @throws this method can throw IOException
+     * @return a XContentParser for the contents of this request if it has contents
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
@@ -379,6 +472,8 @@ public abstract class RestRequest implements ToXContent.Params {
      * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
      * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
      * back to the user when there isn't request content.
+     * @throws this method can throw IOException
+     * @param withParser a consumer with the parser for the contents of this request
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
@@ -397,6 +492,8 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
+     * @throws this method can throw IllegalStateException and ElasticsearchParseException
+     * @return the content of the request or the contents of the source param
      */
     public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
@@ -419,6 +516,9 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Parses the given content type string for the media type. This method currently ignores parameters.
+     * @param header the content to be parsed
+     * @throws this method can throw IllegalArgumentException
+     * @return the corresponding XContentType 
      */
     // TODO stop ignoring parameters such as charset...
     private static XContentType parseContentType(List<String> header) {

@@ -52,7 +52,7 @@ In a single cluster, you can have as many nodes as you want. Furthermore, if the
 
 An index is a collection of documents that have somewhat similar characteristics. For example, you can have an index for customer data, another index for a product catalog, and yet another index for order data. An index is identified by a name (that must be all lowercase) and this name is used to refer to the index when performing indexing, search, update, and delete operations against the documents in it.
 
-In a single cluster, you can define as many indexes as you want.
+In a single cluster, you can define as many indeces as you want.
 
 [float]
 === Type
@@ -267,7 +267,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 
 * Check your cluster, node, and index health, status, and statistics
 * Administer your cluster, node, and index data and metadata
-* Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
+* Perform CRUD (Create, Read, Update, and Delete) and search operations against your indeces
 * Execute advanced search operations such as paging, sorting, filtering, scripting, aggregations, and many others
 
 === Cluster Health
@@ -350,7 +350,7 @@ Which simply means we have no indices yet in the cluster.
 
 === Create an Index
 
-Now let's create an index named "customer" and then list all the indexes again:
+Now let's create an index named "customer" and then list all the indeces again:
 
 [source,js]
 --------------------------------------------------
@@ -440,7 +440,7 @@ Nothing out of the ordinary here other than a field, `found`, stating that we fo
 
 === Delete an Index
 
-Now let's delete the index that we just created and then list all the indexes again:
+Now let's delete the index that we just created and then list all the indeces again:
 
 [source,js]
 --------------------------------------------------
@@ -526,7 +526,7 @@ PUT /customer/_doc/2?pretty
 // CONSOLE
 // TEST[continued]
 
-The above indexes a new document with an ID of 2.
+The above indeces a new document with an ID of 2.
 
 When indexing, the ID part is optional. If not specified, Elasticsearch will generate a random ID and then use it to index the document. The actual ID Elasticsearch generates (or whatever we specified explicitly in the previous examples) is returned as part of the index API call.
 
@@ -546,7 +546,7 @@ Note that in the above case, we are using the `POST` verb instead of PUT since w
 
 === Updating Documents
 
-In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indexes a new document with the update applied to it in one shot.
+In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indeces a new document with the update applied to it in one shot.
 
 This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe":
 
@@ -607,7 +607,7 @@ instead of deleting all documents with the Delete By Query API.
 
 In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the {ref}/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as few network roundtrips as possible.
 
-As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
+As a quick example, the following call indeces two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
 
 [source,js]
 --------------------------------------------------

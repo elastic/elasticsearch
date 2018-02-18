@@ -72,14 +72,32 @@ public class PathTrie<T> {
 
     //TrieNode class used to be here (and was also public)
 
+    /**
+     * Return the value of the node corresponding to the path
+     * @param path we want the value of the node corresponding to this path
+     * @return the value or null if not found
+     */
     public T retrieve(String path) {
         return retrieve(path, null, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
     }
 
+    /**
+     * Return the value of the node corresponding to the path
+     * @param path we want the value of the node corresponding to this path
+     * @param params the map of params
+     * @return the value or null if not found
+     */
     public T retrieve(String path, Map<String, String> params) {
         return retrieve(path, params, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
     }
 
+    /**
+     * Return the value of the node corresponding to the path
+     * @param path we want the value of the node corresponding to this path
+     * @param params the map of params
+     * @param trieMatchingMode the matching mode we want to use
+     * @return the value or null if not found
+     */
     public T retrieve(String path, Map<String, String> params, TrieMatchingMode trieMatchingMode) {
         if (path.length() == 0) {
             return rootValue;
@@ -102,6 +120,9 @@ public class PathTrie<T> {
      * Returns an iterator of the objects stored in the {@code PathTrie}, using
      * all possible {@code TrieMatchingMode} modes. The {@code paramSupplier}
      * is called between each invocation of {@code next()} to supply a new map
+     * of parameters.
+     * @param path we want the value of the node corresponding to this path
+     * @param paramSupplier it is called between each invocation next() to supply a new map
      * of parameters.
      */
     public Iterator<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
@@ -126,11 +147,19 @@ public class PathTrie<T> {
             assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
         }
 
+        /**
+         * @return true if there is a next element, false otherwise
+         */
         @Override
         public boolean hasNext() {
             return modes.isEmpty() == false;
         }
 
+        /**
+         * Return the value of the element corresponding to path using the first mode and remove this mode
+         * @throws this method can throw NoSuchElementException
+         * @return the value of the element corresponding to path using the first mode
+         */
         @Override
         public T next() {
             if (modes.isEmpty()) {

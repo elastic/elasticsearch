@@ -26,7 +26,8 @@ so do not set the `background_persist_interval` value too low.
 --
 
 `create_time`::
-  (string) The time the job was created. For example, `1491007356077`.
+  (string) The time the job was created. For example, `1491007356077`. This
+  property is informational; you cannot change its value.
 
 `custom_settings`::
   (object) Advanced configuration option. Contains custom meta data about the
@@ -47,7 +48,8 @@ so do not set the `background_persist_interval` value too low.
 
 `finished_time`::
   (string) If the job closed or failed, this is the time the job finished,
-  otherwise it is `null`.
+  otherwise it is `null`. This property is informational; you cannot change its
+  value.
 
 `groups`::
   (array of strings) A list of job groups.  A job can belong to no groups or
@@ -56,7 +58,8 @@ so do not set the `background_persist_interval` value too low.
 `job_id`::
   (string) The unique identifier for the job. This identifier can contain
   lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
-  must start and end with alphanumeric characters.
+  must start and end with alphanumeric characters. This property is
+  informational; you cannot change the identifier for existing jobs.
 
 `job_type`::
   (string) Reserved for future use, currently set to `anomaly_detector`.
@@ -70,8 +73,9 @@ so do not set the `background_persist_interval` value too low.
 
 `model_snapshot_id`::
   (string) A numerical character string that uniquely identifies the model
-  snapshot. For example, `1491007364`.
-  For more information about model snapshots, see <<ml-snapshot-resource>>.
+  snapshot. For example, `1491007364`. This property is informational; you
+  cannot change its value. For more information about model snapshots, see
+  <<ml-snapshot-resource>>.
 
 `model_snapshot_retention_days`::
   (long) The time in days that model snapshots are retained for the job.
@@ -109,7 +113,6 @@ An analysis configuration object has the following properties:
   `by_field_name`, `over_field_name`, or `partition_field_name` to the keyword
   `mlcategory`. For more information, see
   {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
-//<<ml-configuring-categories>>.
 
 `categorization_filters`::
   (array of strings) If `categorization_field_name` is specified,
@@ -199,14 +202,8 @@ function.
 
 --
 
-////
-LEAVE UNDOCUMENTED
-`overlapping_buckets`::
- (boolean) If set to `true`, an additional analysis occurs that runs out of phase by half a bucket length.
- This requires more system resources and enhances detection of anomalies that span bucket boundaries.
-`use_per_partition_normalization`::
-  () TBD
-////
+After you create a job, you cannot change the analysis configuration object; all
+the properties are informational.
 
 [float]
 [[ml-detectorconfig]]
@@ -250,7 +247,6 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
   (string) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
   information, see {xpack-ref}/ml-functions.html[Function Reference].
-//<<ml-functions>>.
 
 `over_field_name`::
   (string) The field used to split the data.
@@ -273,11 +269,9 @@ is different from one named 'bytes'.
 
 --
 
-////
-LEAVE UNDOCUMENTED
- `rules`::
-  (array) TBD
-////
+After you create a job, the only property you can change in the detector
+configuration object is the `detector_description`; all other properties are
+informational.
 
 [float]
 [[ml-datadescription]]

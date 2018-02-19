@@ -38,14 +38,15 @@ identified. These are only applicable for jobs that are configured to analyze
 unstructured log data using categorization. These results do not contain a
 timestamp or any calculated scores. For more information, see
 {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
-//<<ml-configuring-categories>>.
-
 
 * <<ml-results-buckets,Buckets>>
 * <<ml-results-influencers,Influencers>>
 * <<ml-results-records,Records>>
 * <<ml-results-categories,Categories>>
 * <<ml-results-overall-buckets,Overall Buckets>>
+
+NOTE: All of these resources and properties are informational; you cannot
+change their values.
 
 [float]
 [[ml-results-buckets]]

@@ -13,7 +13,6 @@ When choosing a new value, consider the following:
 * Persistence enables resilience in the event of a system failure.
 * Persistence enables snapshots to be reverted.
 * The time taken to persist a job is proportional to the size of the model in memory.
-//* The smallest allowed value is 3600 (1 hour).
 
 A model snapshot resource has the following properties:
 
@@ -21,7 +20,8 @@ A model snapshot resource has the following properties:
   (string) An optional description of the job.
 
 `job_id`::
-  (string) A numerical character string that uniquely identifies the job that the snapshot was created for.
+  (string) A numerical character string that uniquely identifies the job that
+  the snapshot was created for.
 
 `latest_record_time_stamp`::
   (date) The timestamp of the latest processed record.
@@ -48,6 +48,9 @@ A model snapshot resource has the following properties:
 
 `timestamp`::
   (date) The creation timestamp for the snapshot.
+
+NOTE: All of these properties are informational with the exception of
+`description` and `retain`.
 
 [float]
 [[ml-snapshot-stats]]
@@ -93,3 +96,5 @@ The `model_size_stats` object has the following properties:
 
 `total_partition_field_count`::
   (long) The number of _partition_ field values analyzed.
+
+NOTE: All of these properties are informational; you cannot change their values.

@@ -9,7 +9,6 @@ A {dfeed} resource has the following properties:
   Support for aggregations is limited and should only be used with
   low cardinality data. For more information, see
   {xpack-ref}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
-//<<ml-configuring-aggregation>>.
 
 `chunking_config`::
   (object) Specifies how data searches are split into time chunks.
@@ -18,6 +17,8 @@ A {dfeed} resource has the following properties:
 
 `datafeed_id`::
  (string) A numerical character string that uniquely identifies the {dfeed}.
+ This property is informational; you cannot change the identifier for existing
+ {dfeeds}.
 
 `frequency`::
   (time units) The interval at which scheduled queries are made while the
@@ -43,7 +44,7 @@ A {dfeed} resource has the following properties:
   example, if data from 10:04 a.m. might not be searchable in {es} until
   10:06 a.m., set this property to 120 seconds. The default value is randomly
   selected between `60s` and `120s`. This randomness improves the query
-  performance when there are multiple jobs running on the same node. 
+  performance when there are multiple jobs running on the same node.
 
 `script_fields`::
   (object) Specifies scripts that evaluate custom expressions and returns
@@ -88,7 +89,8 @@ A chunking configuration object has the following properties:
 ==== {dfeed-cap} Counts
 
 The get {dfeed} statistics API provides information about the operational
-progress of a {dfeed}. For example:
+progress of a {dfeed}. All of these properties are informational; you cannot
+update their values:
 
 `assignment_explanation`::
   (string) For started {dfeeds} only, contains messages relating to the

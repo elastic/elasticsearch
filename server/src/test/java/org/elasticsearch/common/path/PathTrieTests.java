@@ -41,6 +41,8 @@ public class PathTrieTests extends ESTestCase {
     };
 
     public void testPath() {
+    	//contract: check that the PathTrie has the elements inserted at the right position, that
+    	//they can be retrieved and that no other element exist
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("/a/b/c", "walla");
         builder.insert("a/d/g", "kuku");
@@ -70,6 +72,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testEmptyPath() {
+    	//contract: check the case when we create a PathTrie with an element at the empty path
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("/", "walla");
         PathTrie<String> trie = builder.createpathTrie();
@@ -77,6 +80,8 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testDifferentNamesOnDifferentPath() {
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
+    	//when the paths end with a different wildcard
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("/a/{type}", "test1");
         builder.insert("/b/{name}", "test2");
@@ -93,6 +98,8 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testSameNameOnDifferentPath() { 
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
+    	//when the paths end with the same wildcard
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("/a/c/{name}", "test1");
         builder.insert("/b/{name}", "test2");
@@ -109,6 +116,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testPreferNonWildcardExecution() {
+    	//contract: Check that the retrieve method prefers the path where there is the least wildcard 
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("{test}", "test1");
         builder.insert("b", "test2");
@@ -127,7 +135,8 @@ public class PathTrieTests extends ESTestCase {
     }
 
     // https://github.com/elastic/elasticsearch/pull/17916
-    public void testWildcardMatchingModes() {
+    public void testWildcardMatchingModes() {	
+    	//Contract: check that the retrieve and retrieveALL methods work according to the different TrieMatchingMode
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("{testA}", "test1");
         builder.insert("{testA}/{testB}", "test2");
@@ -202,6 +211,8 @@ public class PathTrieTests extends ESTestCase {
 
     // https://github.com/elastic/elasticsearch/pull/17916
     public void testExplicitMatchingMode() {
+    	//contract: check that the retrieve method with EXPLICIT_NODES_ONLY matching mode 
+    	//only returns values for paths that do not use wildcards
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("{testA}", "test1");
         builder.insert("a", "test2");
@@ -226,6 +237,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testSamePathConcreteResolution() {
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("{x}/{y}/{z}", "test1");
         builder.insert("{x}/_y/{k}", "test2");
@@ -244,6 +256,7 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testNamedWildcardAndLookupWithWildcard() {
+    	//contract: test to specify paths with wildcards when retrieving values. 
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("x/{test}", "test1");
         builder.insert("{test}/a", "test2");
@@ -277,6 +290,8 @@ public class PathTrieTests extends ESTestCase {
     //https://github.com/elastic/elasticsearch/issues/14177
     //https://github.com/elastic/elasticsearch/issues/13665
     public void testEscapedSlashWithinUrl() {
+    	//contract: check the case when we insert and retrieve values where the path contains escaped characters. 
+    	//This test uses a special decoder from RestUtils.
         PathTrieBuilder<String> builder = new PathTrieBuilder(RestUtils.REST_DECODER);
         builder.insert("/{index}/{type}/{id}", "test");
         

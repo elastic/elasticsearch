@@ -22,7 +22,6 @@ integTestCluster {
   dependsOn copyWatcherRestTests
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'logger.level', 'DEBUG'
   // settings to test settings filtering on
   setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'
   setting 'xpack.notification.email.account._email.smtp.port', '587'

@@ -1541,4 +1541,9 @@ public abstract class Engine implements Closeable {
     public boolean isRecovering() {
         return false;
     }
+
+    /**
+     * Tries to prune buffered deletes from the version map.
+     */
+    public abstract void maybePruneDeletes();
 }

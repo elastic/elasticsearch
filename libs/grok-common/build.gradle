@@ -26,9 +26,6 @@ dependencies {
     // joni dependencies:
     compile 'org.jruby.jcodings:jcodings:1.0.12'
 
-    testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
     if (isEclipse == false || project.path == ":libs:grok-common-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {
             exclude group: 'org.elasticsearch', module: 'grok-common'

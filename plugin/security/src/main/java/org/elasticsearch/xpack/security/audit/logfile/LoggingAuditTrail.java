@@ -514,7 +514,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     static Optional<String[]> indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
-            return Optional.of(((IndicesRequest) message).indices());
+            return Optional.ofNullable(((IndicesRequest) message).indices());
         }
         return Optional.empty();
     }

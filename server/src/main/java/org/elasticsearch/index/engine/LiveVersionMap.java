@@ -400,14 +400,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     /**
-     * Caller has a lock, so that this uid will not be concurrently added/deleted by another thread.
-     */
-    DeleteVersionValue getTombstoneUnderLock(BytesRef uid) {
-        assert keyedLock.isHeldByCurrentThread(uid);
-        return tombstones.get(uid);
-    }
-
-    /**
      * Called when this index is closed.
      */
     synchronized void clear() {

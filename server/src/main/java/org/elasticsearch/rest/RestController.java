@@ -159,12 +159,21 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     }
 
     /**
+     * @param handler the handler we want to test
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
     public boolean canTripCircuitBreaker(final Optional<RestHandler> handler) {
         return handler.map(h -> h.canTripCircuitBreaker()).orElse(true);
     }
 
+    /**
+     * Dispatches the RestRequest to the relevant request handler 
+     * or responds to the given rest channel directly if the request can't be handled by any request handler.
+     * 
+     * @param request the request to dispatch
+     * @param channel the response channel of this request
+     * @param threadContext the thread context
+     */
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         if (request.rawPath().equals("/favicon.ico")) {
@@ -184,6 +193,14 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         }
     }
 
+    /**
+     *Dispatches a bad request with it cause. 
+     * 
+     * @param request the request to dispatch
+     * @param channel the response channel of this request
+     * @param threadContext the thread context
+     * @param cause the cause of the bad request
+     */
     @Override
     public void dispatchBadRequest(final RestRequest request, final RestChannel channel,
                                    final ThreadContext threadContext, final Throwable cause) {
@@ -208,6 +225,13 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
     /**
      * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
+     * 
+     * @param request the request to dispatch
+     * @param channel the response channel of this request
+     * @param client the client node
+     * @param mHandler the handler
+     * @throws this method can throw exception
+     * @return true if a response was sent, false otherwise
      */
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client,
                             final Optional<RestHandler> mHandler) throws Exception {
@@ -271,6 +295,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     /**
      * If a request contains content, this method will return {@code true} if the {@code Content-Type} header is present, matches an
      * {@link XContentType} or the handler supports a content stream and the content type header is for newline delimited JSON,
+     * 
      */
     private static boolean hasContentType(final RestRequest restRequest, final RestHandler restHandler) {
         if (restRequest.getXContentType() == null) {

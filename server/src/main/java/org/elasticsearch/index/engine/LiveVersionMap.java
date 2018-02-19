@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 /** Maps _uid value to its version information. */
 final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
@@ -379,19 +378,22 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     void pruneTombstones(long currentTime, long pruneInterval) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = acquireLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get
-                // the lock once per set?
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                DeleteVersionValue versionValue = tombstones.get(uid);
-                if (versionValue != null) {
-                    // check if the value is old enough to be removed
-                    final boolean isTooOld = currentTime - versionValue.time > pruneInterval;
-                    if (isTooOld) {
-                        // version value can't be removed it's
-                        // not yet flushed to lucene ie. it's part of this current maps object
-                        final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
-                        if (isNotTrackedByCurrentMaps) {
-                            removeTombstoneUnderLock(uid);
+            Releasable lock = keyedLock.tryAcquire(uid);
+            if (lock != null) {
+                try (Releasable ignored = lock) { // can we do it without this lock on each value? maybe batch to a set and get
+                    // the lock once per set?
+                    // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                    DeleteVersionValue versionValue = tombstones.get(uid);
+                    if (versionValue != null) {
+                        // check if the value is old enough to be removed
+                        final boolean isTooOld = currentTime - versionValue.time > pruneInterval;
+                        if (isTooOld) {
+                            // version value can't be removed it's
+                            // not yet flushed to lucene ie. it's part of this current maps object
+                            final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
+                            if (isNotTrackedByCurrentMaps) {
+                                removeTombstoneUnderLock(uid);
+                            }
                         }
                     }
                 }

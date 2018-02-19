@@ -2500,13 +2500,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                setRefreshPending();
+                final Engine engine = getEngine();
+                engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+                setRefreshPending(engine);
                 return false;
             } else {
                 refresh("schedule");
                 return true;
             }
         }
+        final Engine engine = getEngine();
+        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
         return false;
     }
 
@@ -2524,8 +2528,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
-    private void setRefreshPending() {
-        Engine engine = getEngine();
+    private void setRefreshPending(Engine engine) {
         Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
         Translog.Location location;
         do {

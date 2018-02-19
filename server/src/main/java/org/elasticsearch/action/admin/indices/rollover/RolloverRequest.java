@@ -45,8 +45,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover", null);
-    private static final ObjectParser<Set<Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions", null);
+    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<Set<Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);

@@ -44,7 +44,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -192,7 +191,7 @@ public class RolloverRequestTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
     }
 
-    public void testAddConditions() {
+    public void testSameConditionCanOnlyBeAddedOnce() {
         RolloverRequest rolloverRequest = new RolloverRequest();
         Consumer<RolloverRequest> rolloverRequestConsumer = randomFrom(conditionsGenerator);
         rolloverRequestConsumer.accept(rolloverRequest);
@@ -228,12 +227,8 @@ public class RolloverRequestTests extends ESTestCase {
             rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
         }
         int numConditions = randomIntBetween(0, 3);
-        Set<Consumer<RolloverRequest>> consumers = new HashSet<>();
-        for (int i = 0; i < numConditions; i++) {
-            while (consumers.add(randomFrom(conditionsGenerator)) == false) {
-            }
-        }
-        for (Consumer<RolloverRequest> consumer : consumers) {
+        List<Consumer<RolloverRequest>> conditions = randomSubsetOf(numConditions, conditionsGenerator);
+        for (Consumer<RolloverRequest> consumer : conditions) {
             consumer.accept(rolloverRequest);
         }
         return rolloverRequest;

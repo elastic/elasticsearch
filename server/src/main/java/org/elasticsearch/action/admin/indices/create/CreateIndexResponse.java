@@ -50,7 +50,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse implements T
 
     protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         declareAcknowledgedAndShardsAcknowledgedFields(objectParser);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
     private String index;

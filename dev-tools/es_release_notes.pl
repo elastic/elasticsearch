@@ -28,24 +28,22 @@ my $User_Repo  = 'elastic/elasticsearch/';
 my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = (
-    "breaking", "breaking-java", "deprecation", "feature",
-    "enhancement", "bug", "regression", "upgrade", "non-issue", "build",
-    "docs",        "test"
+    ">breaking",    ">breaking-java", ">deprecation", ">feature",
+    ">enhancement", ">bug",           ">regression",  ">upgrade"
 );
+my %Ignore = map { $_ => 1 }
+    ( ">non-issue", ">refactoring", ">docs", ">test", ":Core/Build" );
+
 my %Group_Labels = (
-    breaking        => 'Breaking changes',
-    'breaking-java' => 'Breaking Java changes',
-    build           => 'Build',
-    deprecation     => 'Deprecations',
-    docs            => 'Docs',
-    feature         => 'New features',
-    enhancement     => 'Enhancements',
-    bug             => 'Bug fixes',
-    regression      => 'Regressions',
-    test            => 'Tests',
-    upgrade         => 'Upgrades',
-    "non-issue"     => 'Non-issue',
-    other           => 'NOT CLASSIFIED',
+    '>breaking'      => 'Breaking changes',
+    '>breaking-java' => 'Breaking Java changes',
+    '>deprecation'   => 'Deprecations',
+    '>feature'       => 'New features',
+    '>enhancement'   => 'Enhancements',
+    '>bug'           => 'Bug fixes',
+    '>regression'    => 'Regressions',
+    '>upgrade'       => 'Upgrades',
+    'other'          => 'NOT CLASSIFIED',
 );
 
 use JSON();
@@ -71,6 +69,9 @@ sub dump_issues {
     my $issues  = shift;
 
     $version =~ s/v//;
+    my $branch = $version;
+    $branch =~ s/\.\d+$//;
+
     my ( $day, $month, $year ) = (gmtime)[ 3 .. 5 ];
     $month++;
     $year += 1900;
@@ -82,11 +83,17 @@ sub dump_issues {
 [[release-notes-$version]]
 == $version Release Notes
 
+coming[$version]
+
+Also see <<breaking-changes-$branch>>.
+
 ASCIIDOC
 
     for my $group ( @Groups, 'other' ) {
         my $group_issues = $issues->{$group} or next;
-        print "[[$group-$version]]\n"
+        my $group_id = $group;
+        $group_id =~ s/^>//;
+        print "[[$group_id-$version]]\n"
             . "[float]\n"
             . "=== $Group_Labels{$group}\n\n";
 
@@ -161,10 +168,15 @@ ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
 
+        for ( @{ $issue->{labels} } ) {
+            next ISSUE if $Ignore{ $_->{name} };
+        }
+
         # uncomment for including/excluding PRs already issued in other versions
         # next if grep {$_->{name}=~/^v2/} @{$issue->{labels}};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my ($header) = map { substr( $_, 1 ) } grep {/^:/} sort keys %labels;
+        my ($header) = map { m{:[^/]+/(.+)} && $1 }
+            grep {/^:/} sort keys %labels;
         $header ||= 'NOT CLASSIFIED';
         for (@Groups) {
             if ( $labels{$_} ) {

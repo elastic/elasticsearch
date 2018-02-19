@@ -1,4 +1,4 @@
-package example;
+package org.elasticsearch.common.path;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRefBuilder;

@@ -1712,13 +1712,21 @@ public class InternalEngine extends Engine {
             logger.trace("finish flush for snapshot");
         }
         final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new Engine.IndexCommitRef(lastCommit, () -> combinedDeletionPolicy.releaseCommit(lastCommit));
+        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
         final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-        return new Engine.IndexCommitRef(safeCommit, () -> combinedDeletionPolicy.releaseCommit(safeCommit));
+        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+    }
+
+    private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
+        // Revisit the deletion policy if we can clean up the snapshotting commit.
+        if (combinedDeletionPolicy.releaseCommit(snapshot)) {
+            ensureOpen();
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

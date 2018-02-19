@@ -463,6 +463,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         highLevelClient().index(new IndexRequest("test", "type", "1").source("field", "value"));
         highLevelClient().index(new IndexRequest("test", "type", "2").source("field", "value")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL));
+        //without the refresh the rollover may not happen as the number of docs seen may be off
 
         {
             rolloverRequest.addMaxIndexAgeCondition(new TimeValue(1));

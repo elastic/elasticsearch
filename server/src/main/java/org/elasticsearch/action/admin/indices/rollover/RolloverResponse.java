@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -175,5 +176,28 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     public static RolloverResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RolloverResponse that = (RolloverResponse) o;
+        return isAcknowledged() == that.isAcknowledged() &&
+                isShardsAcknowledged() == that.isShardsAcknowledged() &&
+                dryRun == that.dryRun &&
+                rolledOver == that.rolledOver &&
+                Objects.equals(oldIndex, that.oldIndex) &&
+                Objects.equals(newIndex, that.newIndex) &&
+                Objects.equals(conditionStatus, that.conditionStatus);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAcknowledged(), isShardsAcknowledged(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

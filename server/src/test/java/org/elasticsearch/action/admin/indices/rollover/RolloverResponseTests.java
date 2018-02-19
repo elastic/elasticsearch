@@ -19,80 +19,52 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
-public class RolloverResponseTests extends ESTestCase {
+public class RolloverResponseTests extends AbstractStreamableXContentTestCase<RolloverResponse> {
 
-    public void testFromAndToXContent() throws IOException {
-        fromAndToXContentTest(false);
-    }
-
-    public void testFromAndToXContentWithRandomFields() throws IOException {
-        fromAndToXContentTest(true);
-    }
-
-    private void fromAndToXContentTest(boolean addRandomFields) throws IOException {
-        RolloverResponse rolloverResponse = createTestItem();
-        boolean humanReadable = randomBoolean();
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(rolloverResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = XContentTestUtils.insertRandomFields(xContentType, originalBytes, field -> field.startsWith("conditions"), random());
-        } else {
-            mutated = originalBytes;
-        }
-
-        RolloverResponse parsedRolloverResponse = RolloverResponse.fromXContent(createParser(xContentType.xContent(), mutated));
-
-        assertEquals(rolloverResponse.getNewIndex(), parsedRolloverResponse.getNewIndex());
-        assertEquals(rolloverResponse.getOldIndex(), parsedRolloverResponse.getOldIndex());
-        assertEquals(rolloverResponse.isRolledOver(), parsedRolloverResponse.isRolledOver());
-        assertEquals(rolloverResponse.isDryRun(), parsedRolloverResponse.isDryRun());
-        assertEquals(rolloverResponse.isAcknowledged(), parsedRolloverResponse.isAcknowledged());
-        assertEquals(rolloverResponse.isShardsAcknowledged(), parsedRolloverResponse.isShardsAcknowledged());
-        assertEquals(rolloverResponse.getConditionStatus(), parsedRolloverResponse.getConditionStatus());
-
-        BytesReference finalBytes = toShuffledXContent(parsedRolloverResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
-    }
-
-    private static Condition<?> randomCondition() {
-        int i = randomIntBetween(0, 2);
-        switch(i) {
-            case 0:
-                return new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-            case 1:
-                return new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-            case 2:
-                return new MaxDocsCondition(randomNonNegativeLong());
-            default:
-                throw new UnsupportedOperationException();
-        }
-
-    }
-
-    private static RolloverResponse createTestItem() {
+    @Override
+    protected RolloverResponse createTestInstance() {
         Set<Condition.Result> results = new HashSet<>();
         int numResults = randomIntBetween(0, 3);
-        for (int i = 0; i < numResults; i++) {
-            while (results.add(new Condition.Result(randomCondition(), randomBoolean())) == false) {
-            }
+        List<Supplier<Condition<?>>> conditions = randomSubsetOf(numResults, conditionSuppliers);
+        for (Supplier<Condition<?>> condition : conditions) {
+            results.add(new Condition.Result(condition.get(), randomBoolean()));
         }
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
         return new RolloverResponse(randomAlphaOfLengthBetween(3, 10),
                 randomAlphaOfLengthBetween(3, 10), results, randomBoolean(), randomBoolean(), acknowledged, shardsAcknowledged);
+    }
+
+    private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
+    static {
+        conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+    }
+
+    @Override
+    protected RolloverResponse createBlankInstance() {
+        return new RolloverResponse();
+    }
+
+    @Override
+    protected RolloverResponse doParseInstance(XContentParser parser) {
+        return RolloverResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.startsWith("conditions");
     }
 }

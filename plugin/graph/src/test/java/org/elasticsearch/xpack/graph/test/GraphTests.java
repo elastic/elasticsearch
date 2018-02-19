@@ -92,7 +92,9 @@ public class GraphTests extends ESSingleNodeTestCase {
         int numDocs = 0;
         for (DocTemplate dt : socialNetTemplate) {
             for (int i = 0; i < dt.numDocs; i++) {
-                client().prepareIndex("test", "type").setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
+                // Supply a doc ID for deterministic routing of docs to shards
+                client().prepareIndex("test", "type", "doc#" + numDocs)
+                        .setSource("decade", dt.decade, "people", dt.people, "description", dt.description)
                         .get();
                 numDocs++;
             }
@@ -129,6 +131,8 @@ public class GraphTests extends ESSingleNodeTestCase {
 
         checkVertexDepth(response, 0, "john", "paul", "george", "ringo");
         checkVertexDepth(response, 1, "stevie", "yoko", "roy");
+        checkVertexIsMoreImportant(response, "John's only collaboration is more relevant than one of Paul's many", "yoko", "stevie");
+        checkVertexIsMoreImportant(response, "John's only collaboration is more relevant than George's with profligate Roy", "yoko", "roy");
         assertNull("Elvis is a 3rd tier connection so should not be returned here", response.getVertex(Vertex.createId("people","elvis")));
     }
     

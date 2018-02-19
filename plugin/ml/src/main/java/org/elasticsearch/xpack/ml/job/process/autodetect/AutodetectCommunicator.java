@@ -187,8 +187,8 @@ public class AutodetectCommunicator implements Closeable {
         try {
             processKilled = true;
             autoDetectResultProcessor.setProcessKilled();
-            autodetectProcess.kill();
             autodetectWorkerExecutor.shutdown();
+            autodetectProcess.kill();
 
             if (awaitCompletion) {
                 try {

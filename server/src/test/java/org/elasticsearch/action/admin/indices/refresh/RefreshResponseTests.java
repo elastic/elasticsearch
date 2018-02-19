@@ -26,6 +26,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -40,26 +42,14 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RefreshResponseTests extends ESTestCase {
 
-    private static List<DefaultShardOperationFailedException> failures;
-
     @BeforeClass
     public static void prepareException() {
-        failures = new ArrayList<>();
-        failures.add(new DefaultShardOperationFailedException(new ElasticsearchException("exception message 1")));
-        failures.add(new DefaultShardOperationFailedException(new ElasticsearchException("exception message 2")));
     }
 
     public void testToXContent() {
-        {
-            RefreshResponse response = new RefreshResponse(10, 10, 0, null);
-            String output = Strings.toString(response);
-            assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
-        }
-        {
-            RefreshResponse responseWithFailures = new RefreshResponse(10, 10, 0, failures);
-            String output = Strings.toString(responseWithFailures);
-            assertThat(output, both(containsString("exception message 1")).and(containsString("exception message 2")));
-        }
+        RefreshResponse response = new RefreshResponse(10, 10, 0, null);
+        String output = Strings.toString(response);
+        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -71,7 +61,7 @@ public class RefreshResponseTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        RefreshResponse response = new RefreshResponse(10, 10, 0, failures);
+        RefreshResponse response = createTestItem(10);
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -99,5 +89,25 @@ public class RefreshResponseTests extends ESTestCase {
             assertThat(original[i].status(), equalTo(parsedback[i].status()));
             assertThat(parsedback[i].getCause().getMessage(), containsString(original[i].getCause().getMessage()));
         }
+    }
+
+    private static RefreshResponse createTestItem(int totalShards) {
+        List<DefaultShardOperationFailedException> failures = null;
+        int successfulShards = randomInt(totalShards);
+        int failedShards = totalShards - successfulShards;
+        if (failedShards > 0) {
+            failures = new ArrayList<>();
+            for (int i = 0; i < failedShards; i++) {
+                ElasticsearchException exception = new ElasticsearchException("exception message " + i);
+                exception.setIndex(new Index("index" + i, "_na_"));
+                exception.setShard(new ShardId("index" + i, "_na_", i));
+                if (randomBoolean()) {
+                    failures.add(new DefaultShardOperationFailedException(exception));
+                } else {
+                    failures.add(new DefaultShardOperationFailedException("index" + i, i, new Exception("exception message " + i)));
+                }
+            }
+        }
+        return new RefreshResponse(totalShards, successfulShards, failedShards, failures);
     }
 }

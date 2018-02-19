@@ -15,6 +15,7 @@ import java.io.ObjectInput;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -99,24 +100,47 @@ public class FSTSkeleton<T> {
 
 	public static void main(String[] args) throws IOException {
 
-		// Create a FST
-		FSTSkeleton<String> skeleton = new FSTSkeleton<String>();
-		String inputValues[] = {"dog", "cat", "dogs"};
-		String[] outputValues = { "1", "2", "3" };
-		FST<BytesRef> fst = skeleton.build(inputValues, outputValues);
+		// Create a FST<String>
+		FSTSkeleton<String> stringSkeleton = new FSTSkeleton<String>();
+		String inputValues[] = { "dog", "cat", "dogs" };
+		String[] outputStringValues = { "1", "2", "3" };
+		FST<BytesRef> fst = stringSkeleton.build(inputValues, outputStringValues);
 
 		// Read values from the FST
 		byte[] bytes = Util.get(fst, new BytesRef("dog")).bytes;
-		String value = skeleton.bytesToValue(bytes);
-		System.out.println(value); // 1
+		String stringValue = stringSkeleton.bytesToValue(bytes);
+		System.out.println(stringValue.equals("1"));
 
 		bytes = Util.get(fst, new BytesRef("cat")).bytes;
-		value = skeleton.bytesToValue(bytes);
-		System.out.println(value); // 2
+		stringValue = stringSkeleton.bytesToValue(bytes);
+		System.out.println(stringValue.equals("2"));
 
 		bytes = Util.get(fst, new BytesRef("dogs")).bytes;
-		value = skeleton.bytesToValue(bytes);
-		System.out.println(value); // 3
+		stringValue = stringSkeleton.bytesToValue(bytes);
+		System.out.println(stringValue.equals("3"));
+
+		// Create a FST<int[]>
+		FSTSkeleton<int[]> intArraySkeleton = new FSTSkeleton<int[]>();
+		inputValues = new String[] { "dog", "cat", "dogs" };
+		int[][] outputIntArrayValues = {
+				new int[] { 1, 2, 3 },
+				new int[] { 2, 3, 1 },
+				new int[] { 3, 1, 2 }
+		};
+		fst = intArraySkeleton.build(inputValues, outputIntArrayValues);
+
+		// Read values from the FST
+		bytes = Util.get(fst, new BytesRef("dog")).bytes;
+		int[] intArrayValue = intArraySkeleton.bytesToValue(bytes);
+		System.out.println(intArrayValue[0] == 1 && intArrayValue[1] == 2 && intArrayValue[2] == 3);
+
+		bytes = Util.get(fst, new BytesRef("cat")).bytes;
+		intArrayValue = intArraySkeleton.bytesToValue(bytes);
+		System.out.println(intArrayValue[0] == 2 && intArrayValue[1] == 3 && intArrayValue[2] == 1);
+
+		bytes = Util.get(fst, new BytesRef("dogs")).bytes;
+		intArrayValue = intArraySkeleton.bytesToValue(bytes);
+		System.out.println(intArrayValue[0] == 3 && intArrayValue[1] == 1 && intArrayValue[2] == 2);
 	}
 
 }

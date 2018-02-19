@@ -50,29 +50,59 @@ class TrieNode<T>{
         }
     }
 
+    /**
+     * Update the key and the nameWildcard
+     * @param key the new key
+     */
     public void updateKeyWithNamedWildcard(String key) {
         this.key = key;
         namedWildcard = key.substring(key.indexOf('{') + 1, key.indexOf('}'));
     }
 
+    /**
+     * Check if this node is a wildcard
+     * @return true if it is a wildcard, false otherwise
+     */
     public boolean isWildcard() {
         return isWildcard;
     }
 
+    /**
+     * Add a child
+     * @param child the new node to be added as a child
+     */
     public synchronized void addChild(TrieNode<T> child) {
         addInnerChild(child.key, child);
     }
-
+    
+    /**
+     * Add a child
+     * @param key the key of the new node
+     * @param child the new node to be added as a child
+     */
     private void addInnerChild(String key, TrieNode<T> child) {
         Map<String, TrieNode<T>> newChildren = new HashMap<>(children);
         newChildren.put(key, child);
         children = unmodifiableMap(newChildren);
     }
 
+    /**
+     * A getter for a child
+     * @param key the key corresponding to the child we want to get
+     * @return the corresponding TrieNode
+     */
     public TrieNode<T> getChild(String key) {
         return children.get(key);
     }
 
+    /**
+     * Insert a new value. If the target node already exists, but is without a value,
+     * then the value should be inserted, if it already has a value, throws an exception
+     * @param path
+     * @param index
+     * @param value
+     * @throws this method can throw IllegalArgumentException
+     */
     public synchronized void insert(String[] path, int index, T value) {
         if (index >= path.length)
             return;
@@ -108,6 +138,14 @@ class TrieNode<T>{
         node.insert(path, index + 1, value);
     }
 
+    /**
+     * Insert a new value. If the target node already exists, but is without a value,
+     * then the value should be inserted, if it already has a value, update it.
+     * @param path
+     * @param index
+     * @param value
+     * @param updater
+     */
     public synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
         if (index >= path.length)
             return;
@@ -142,18 +180,40 @@ class TrieNode<T>{
         node.insertOrUpdate(path, index + 1, value, updater);
     }
 
+    /**
+     * Check if the key is namedWildcard
+     * @param key
+     * @return true if it is, false otherwise
+     */
     private boolean isNamedWildcard(String key) {
         return key.indexOf('{') != -1 && key.indexOf('}') != -1;
     }
 
+    /**
+     * A getter for namedWildcart
+     * @return namedWildcard
+     */
     private String namedWildcard() {
         return namedWildcard;
     }
 
+    /**
+     * Check if it is namedWildcard
+     * @return true if it is, false otherwise
+     */
     private boolean isNamedWildcard() {
         return namedWildcard != null;
     }
 
+    /**
+     * Retrieve the value of the node that we want
+     * @param path
+     * @param index
+     * @param params
+     * @param trieMatchingMode
+     * @param decoder
+     * @return the value of the corresponding node
+     */
     public T retrieve(String[] path, int index, Map<String, String> params, PathTrie.TrieMatchingMode trieMatchingMode, PathTrieBuilder.Decoder decoder) {
         if (index >= path.length)
             return null;
@@ -230,6 +290,13 @@ class TrieNode<T>{
         return nodeValue;
     }
 
+    /**
+     * Put a new entry in params, if the node is not namedWildcard do nothing
+     * @param params
+     * @param node
+     * @param value
+     * @param decoder
+     */
     private void put(Map<String, String> params, TrieNode<T> node, String value, PathTrieBuilder.Decoder decoder) {
         if (params != null && node.isNamedWildcard()) {
             params.put(node.namedWildcard(), decoder.decode(value));

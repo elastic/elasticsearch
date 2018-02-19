@@ -480,13 +480,18 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            translogUUID = loadTranslogUUIDFromLastCommit();
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
+        final String translogUUID;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID =
+                    Translog.createEmptyTranslog(translogConfig.getTranslogPath(), globalCheckpointSupplier.getAsLong(), shardId);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                translogUUID = loadTranslogUUIDFromLastCommit();
+                break;
+            default:
+                throw new AssertionError("Unknown openMode " + openMode);
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }
@@ -1177,7 +1182,7 @@ public class InternalEngine extends Engine {
             }
             throw e;
         }
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         return deleteResult;
     }
 
@@ -1306,7 +1311,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void maybePruneDeletedTombstones() {
+    @Override
+    public void maybePruneDeletes() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
         if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().relativeTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
@@ -1396,7 +1402,7 @@ public class InternalEngine extends Engine {
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         mergeScheduler.refreshConfig();
     }
 
@@ -1616,32 +1622,15 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
-        long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-
-        // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
-
-        // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
-        for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
-            BytesRef uid = entry.getKey();
-            try (Releasable ignored = versionMap.acquireLock(uid)) {
-                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
-                if (versionValue != null) {
-                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
-                        versionMap.removeTombstoneUnderLock(uid);
-                    }
-                }
-            }
-        }
-
+        final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
+        versionMap.pruneTombstones(timeMSec, engineConfig.getIndexSettings().getGcDeletesInMillis());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     // testing
     void clearDeletedTombstones() {
-        versionMap.clearTombstones();
+        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
+        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
     }
 
     @Override
@@ -1714,7 +1703,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireIndexCommit(final boolean safeCommit, final boolean flushFirst) throws EngineException {
+    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -1722,10 +1711,21 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit snapshotCommit = combinedDeletionPolicy.acquireIndexCommit(safeCommit);
-        return new Engine.IndexCommitRef(snapshotCommit, () -> {
+        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+        return new Engine.IndexCommitRef(lastCommit, () -> {
             // Revisit the deletion policy if we can clean up the snapshotting commit.
-            if (combinedDeletionPolicy.releaseCommit(snapshotCommit)) {
+            if (combinedDeletionPolicy.releaseCommit(lastCommit)) {
+                indexWriter.deleteUnusedFiles();
+            }
+        });
+    }
+
+    @Override
+    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        return new Engine.IndexCommitRef(safeCommit, () -> {
+            // Revisit the deletion policy if we can clean up the snapshotting commit.
+            if (combinedDeletionPolicy.releaseCommit(safeCommit)) {
                 indexWriter.deleteUnusedFiles();
             }
         });
@@ -2175,7 +2175,7 @@ public class InternalEngine extends Engine {
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
             // this is an anti-viral settings you can only opt out for the entire index
             // only if a shard starts up again due to relocation or if the index is closed

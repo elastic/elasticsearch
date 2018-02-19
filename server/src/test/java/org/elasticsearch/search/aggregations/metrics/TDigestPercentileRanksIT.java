@@ -69,7 +69,6 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
     }
 
     private static double[] randomPercents(long minValue, long maxValue) {
-
         final int length = randomIntBetween(1, 20);
         final double[] percents = new double[length];
         for (int i = 0; i < percents.length; ++i) {
@@ -97,7 +96,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         return builder;
     }
 
-    private void assertConsistent(double[] pcts, PercentileRanks values, long minValue, long maxValue) {
+    private void assertConsistent(double[] pcts, PercentileRanks values, long minValue) {
         final List<Percentile> percentileList = CollectionUtils.iterableAsArrayList(values);
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
@@ -108,9 +107,6 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
 
             if (percentile.getPercent() == 0) {
                 assertThat(percentile.getValue(), lessThanOrEqualTo((double) minValue));
-            }
-            if (percentile.getPercent() == 100) {
-                assertThat(percentile.getValue(), greaterThanOrEqualTo((double) maxValue));
             }
         }
 
@@ -193,7 +189,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue, maxValue);
+        assertConsistent(pcts, values, minValue);
     }
 
     @Override
@@ -233,7 +229,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue, maxValue);
+        assertConsistent(pcts, values, minValue);
     }
 
     @Override
@@ -248,7 +244,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue, maxValue);
+        assertConsistent(pcts, values, minValue);
     }
 
     @Override
@@ -266,7 +262,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, values, minValue - 1);
     }
 
     @Override
@@ -286,7 +282,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, values, minValue - 1);
     }
 
     @Override
@@ -301,7 +297,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValues, maxValues);
+        assertConsistent(pcts, values, minValues);
     }
 
     @Override
@@ -319,7 +315,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, values, minValues - 1);
     }
 
     public void testMultiValuedFieldWithValueScriptReverse() throws Exception {
@@ -336,7 +332,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, -maxValues, -minValues);
+        assertConsistent(pcts, values, -maxValues);
     }
 
     @Override
@@ -356,7 +352,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, values, minValues - 1);
     }
 
     @Override
@@ -373,7 +369,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue, maxValue);
+        assertConsistent(pcts, values, minValue);
     }
 
     @Override
@@ -394,7 +390,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValue - 1, maxValue - 1);
+        assertConsistent(pcts, values, minValue - 1);
     }
 
     @Override
@@ -412,7 +408,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValues, maxValues);
+        assertConsistent(pcts, values, minValues);
     }
 
     @Override
@@ -431,7 +427,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertHitCount(searchResponse, 10);
 
         final PercentileRanks values = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, values, minValues - 1, maxValues - 1);
+        assertConsistent(pcts, values, minValues - 1);
     }
 
     public void testOrderBySubAggregation() {

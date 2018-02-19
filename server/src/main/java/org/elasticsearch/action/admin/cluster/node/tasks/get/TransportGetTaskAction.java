@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -248,7 +249,8 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
             return;
         }
-        try (XContentParser parser = XContentHelper.createParser(xContentRegistry, response.getSourceAsBytesRef())) {
+        try (XContentParser parser = XContentHelper
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
             TaskResult result = TaskResult.PARSER.apply(parser, null);
             listener.onResponse(new GetTaskResponse(result));
         }

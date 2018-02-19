@@ -70,7 +70,7 @@ import java.util.concurrent.TimeUnit;
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
+ * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -105,7 +105,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testIndicesExistAsync() throws IOException {
+    public void testIndicesExistAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -138,6 +138,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::indices-exists-async
             client.indices().existsAsync(request, listener); // <1>
             // end::indices-exists-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
     public void testDeleteIndex() throws IOException {

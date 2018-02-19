@@ -251,7 +251,7 @@ public final class IndexSettings {
         1024, 1, Property.Dynamic, Property.IndexScope);
 
     /**
-     * The maximum length of regex string allowed in a regex query.
+     * The maximum length of regex string allowed in a regexp query.
      */
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
         1000, 1, Property.Dynamic, Property.IndexScope);

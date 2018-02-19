@@ -27,7 +27,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 class TrieNode<T>{
-    
+
     private transient String key;
     private transient T value;
     private boolean isWildcard;
@@ -74,7 +74,7 @@ class TrieNode<T>{
     public synchronized void addChild(TrieNode<T> child) {
         addInnerChild(child.key, child);
     }
-    
+
     /**
      * Add a child
      * @param key the key of the new node
@@ -115,7 +115,7 @@ class TrieNode<T>{
         TrieNode<T> node = children.get(key);
         if (node == null) {
             T nodeValue = index == path.length - 1 ? value : null;
-            node = new TrieNode(token, nodeValue, wildcard);
+            node = new TrieNode<T>(token, nodeValue, wildcard);
             addInnerChild(key, node);
         } else {
             if (isNamedWildcard(token)) {
@@ -158,7 +158,7 @@ class TrieNode<T>{
         TrieNode<T> node = children.get(key);
         if (node == null) {
             T nodeValue = index == path.length - 1 ? value : null;
-            node = new TrieNode(token, nodeValue, wildcard);
+            node = new TrieNode<T>(token, nodeValue, wildcard);
             addInnerChild(key, node);
         } else {
             if (isNamedWildcard(token)) {

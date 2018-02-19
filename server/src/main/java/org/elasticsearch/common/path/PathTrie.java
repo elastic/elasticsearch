@@ -58,16 +58,20 @@ public class PathTrie<T> {
 
     private final PathTrieBuilder.Decoder decoder;
     private final TrieNode<T> root;
-    private T rootValue;
+    private byte[] rootValue;
+
+
+	private FSTRepresentation<T> representation;
 
     static final String SEPARATOR = "/";
     static final String WILDCARD = "*";
 
     //Changed constructor here, only decoder and it created new root from scratch
-    public PathTrie(PathTrieBuilder.Decoder decoder, TrieNode<T> root, T rootValue) {
+    public PathTrie(PathTrieBuilder.Decoder decoder, TrieNode<T> root, byte[] rootValue2) {
         this.decoder = decoder;
         this.root = root;
-        this.rootValue = rootValue;
+        this.rootValue = rootValue2;
+        this.representation = new FSTRepresentation<T>();
     }
 
     //TrieNode class used to be here (and was also public)
@@ -100,11 +104,11 @@ public class PathTrie<T> {
      */
     public T retrieve(String path, Map<String, String> params, TrieMatchingMode trieMatchingMode) {
         if (path.length() == 0) {
-            return rootValue;
+            return representation.fromBytes(rootValue);
         }
         String[] strings = path.split(SEPARATOR);
         if (strings.length == 0) {
-            return rootValue;
+            return representation.fromBytes(rootValue);
         }
         int index = 0;
 
@@ -112,7 +116,7 @@ public class PathTrie<T> {
         if (strings.length > 0 && strings[0].isEmpty()) {
             index = 1;
         }
-        
+
         return (T) root.retrieve(strings, index, params, trieMatchingMode, decoder);
     }
 
@@ -129,14 +133,15 @@ public class PathTrie<T> {
         return new PathTrieIterator<>(this, path, paramSupplier);
     }
 
-    class PathTrieIterator<T> implements Iterator<T> {
+    @SuppressWarnings("hiding")
+	class PathTrieIterator<T> implements Iterator<T> {
 
         private final List<TrieMatchingMode> modes;
         private final Supplier<Map<String, String>> paramSupplier;
         private final PathTrie<T> trie;
         private final String path;
 
-        PathTrieIterator(PathTrie trie, String path, Supplier<Map<String, String>> paramSupplier) {
+        PathTrieIterator(PathTrie<T> trie, String path, Supplier<Map<String, String>> paramSupplier) {
             this.path = path;
             this.trie = trie;
             this.paramSupplier = paramSupplier;

@@ -26,14 +26,16 @@ public class PathTrieBuilder<T>{
     public interface Decoder {
         String decode(String value);
     }
-    
+
 	private final Decoder decoder;
 	private final TrieNode<T> root;
-	private T rootValue;
+	private byte[] rootValue;
+	private FSTRepresentation<T> representation;
 
 	public PathTrieBuilder(Decoder decoder){
+		this.representation = new FSTRepresentation<T>();
 		this.decoder = decoder;
-		root = new TrieNode(PathTrie.SEPARATOR, null, PathTrie.WILDCARD);
+		root = new TrieNode<T>(PathTrie.SEPARATOR, null, PathTrie.WILDCARD);
 	}
 
 
@@ -43,8 +45,7 @@ public class PathTrieBuilder<T>{
 	 * immutable as well. Therefore, also create a TrieNodeBuilder
 	 * that builds individual TrieNodes inside the PathTrieBuilder.
 	 * NOTE: Might not be necessary if we can access public inner classes.
-	 */ 
-
+	 */
 
 	//Change the PathTrie so that the constructor takes a TrieNode that we will build up
 
@@ -57,7 +58,7 @@ public class PathTrieBuilder<T>{
             if (rootValue != null) {
                 throw new IllegalArgumentException("Path [/] already has a value [" + rootValue + "]");
             }
-            rootValue = value;
+            rootValue = representation.toBytes(value);
             return;
         }
         int index = 0;
@@ -79,9 +80,11 @@ public class PathTrieBuilder<T>{
         String[] strings = path.split(PathTrie.SEPARATOR);
         if (strings.length == 0) {
             if (rootValue != null) {
-                rootValue = updater.apply(rootValue, value);
+            	T currentValue = representation.fromBytes(rootValue);
+            	T updatedValue = updater.apply(currentValue, value);
+                rootValue = representation.toBytes(updatedValue);
             } else {
-                rootValue = value;
+                rootValue = representation.toBytes(value);
             }
             return;
         }
@@ -95,10 +98,10 @@ public class PathTrieBuilder<T>{
 
 
     /**
-     * Creates a PathTrie object based 
-     * 
+     * Creates a PathTrie object based
+     *
     **/
     public PathTrie<T> createpathTrie(){
-    	return new PathTrie(decoder, root, rootValue);
-    } 
+    	return new PathTrie<T>(decoder, root, rootValue);
+    }
 }

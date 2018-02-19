@@ -306,7 +306,7 @@ public class PluginsService extends AbstractComponent {
     /**
      * Represents a meta-plugin and the {@link Bundle}s corresponding to its constituents.
      */
-    static class MetaBundle implements BundleCollection{
+    static class MetaBundle implements BundleCollection {
         private final String name;
         private final List<Bundle> bundles;
 

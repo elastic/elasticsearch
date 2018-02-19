@@ -43,7 +43,8 @@ public class XContentHelper {
      * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)} to avoid content type auto-detection
      */
     @Deprecated
-    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                              BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.streamInput(bytes.streamInput());
@@ -51,9 +52,9 @@ public class XContentHelper {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, compressedInput);
+            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
+            return XContentFactory.xContent(bytes).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 

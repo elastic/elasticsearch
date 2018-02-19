@@ -121,7 +121,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
                 ingest ? ingestService.getPipelineExecutionService().stats() : null,
-                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getClientConnections()) : null
+                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null
         );
     }
 

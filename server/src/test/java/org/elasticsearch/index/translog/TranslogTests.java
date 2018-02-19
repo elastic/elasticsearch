@@ -120,6 +120,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.stub;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
@@ -366,6 +368,29 @@ public class TranslogTests extends ESTestCase {
         return stats;
     }
 
+    public void testFindEarliestLastModifiedAge() throws IOException {
+        final int numberOfReaders = scaledRandomIntBetween(1, 10);
+        long fixedTime = randomLongBetween(0, 10000000000000000L);
+        long[] periods = new long[numberOfReaders + 1];
+        long period = randomLongBetween(10000, 1000000);
+        periods[numberOfReaders] = period;
+        TranslogWriter w = mock(TranslogWriter.class);
+        stub(w.getLastModifiedTime()).toReturn(fixedTime - period);
+        assertThat(Translog.findEarliestLastModifiedAge(fixedTime, new ArrayList<>(), w), equalTo(period));
+
+        for (int i = 0; i < numberOfReaders; i++) {
+            periods[i] = randomLongBetween(10000, 1000000);
+        }
+        List<TranslogReader> readers = new ArrayList<>();
+        for (long l : periods) {
+            TranslogReader r = mock(TranslogReader.class);
+            stub(r.getLastModifiedTime()).toReturn(fixedTime - l);
+            readers.add(r);
+        }
+        assertThat(Translog.findEarliestLastModifiedAge(fixedTime, readers, w), equalTo
+            (LongStream.of(periods).max().orElse(0L)));
+    }
+
     public void testStats() throws IOException {
         // self control cleaning for test
         translog.getDeletionPolicy().setRetentionSizeInBytes(1024 * 1024);
@@ -384,6 +409,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(140L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(140L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
         translog.add(new Translog.Delete("test", "2", 1, newUid("2")));
@@ -393,6 +419,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(189L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(189L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
         translog.add(new Translog.Delete("test", "3", 2, newUid("3")));
@@ -402,6 +429,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(238L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(238L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
@@ -411,6 +439,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(280L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(280L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
         final long expectedSizeInBytes = 323L;
@@ -421,6 +450,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(expectedSizeInBytes));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
         {
@@ -438,7 +468,8 @@ public class TranslogTests extends ESTestCase {
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 assertThat(builder.string(), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes
-                    + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + expectedSizeInBytes + "}}"));
+                    + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + expectedSizeInBytes
+                    + ",\"earliest_last_modified_age\":" + stats.getEarliestLastModifiedAge() + "}}"));
             }
         }
 
@@ -449,6 +480,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
     }
 
@@ -478,12 +510,12 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTotalTests() {
-        final TranslogStats total = new TranslogStats();
+        final TranslogStats total = new TranslogStats(0, 0, 0, 0, 1);
         final int n = randomIntBetween(0, 16);
         final List<TranslogStats> statsList = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20),
-                randomIntBetween(1, 1 << 20), randomIntBetween(1, 4096));
+                randomIntBetween(1, 1 << 20), randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20));
             statsList.add(stats);
             total.add(stats);
         }
@@ -500,20 +532,28 @@ public class TranslogTests extends ESTestCase {
         assertThat(
             total.getUncommittedSizeInBytes(),
             equalTo(statsList.stream().mapToLong(TranslogStats::getUncommittedSizeInBytes).sum()));
+        assertThat(
+            total.getEarliestLastModifiedAge(),
+            equalTo(1L));
     }
 
     public void testNegativeNumberOfOperations() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1, 1));
         assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1));
+        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1, 1));
         assertThat(e, hasToString(containsString("uncommittedOperations must be >= 0")));
     }
 
     public void testNegativeSizeInBytes() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1, 1));
         assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
-        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1));
+        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1, 1));
         assertThat(e, hasToString(containsString("uncommittedSizeInBytes must be >= 0")));
+    }
+
+    public void testOldestEntryInSeconds() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, 1, -1));
+        assertThat(e, hasToString(containsString("earliestLastModifiedAge must be >= 0")));
     }
 
     public void testSnapshot() throws IOException {

@@ -120,9 +120,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         int conditionSize = in.readVInt();
         Map<String, Boolean> conditions = new HashMap<>(conditionSize);
         for (int i = 0; i < conditionSize; i++) {
-            String condition = in.readString();
-            boolean satisfied = in.readBoolean();
-            conditions.put(condition, satisfied);
+            conditions.put(in.readString(), in.readBoolean());
         }
         conditionStatus = conditions;
         dryRun = in.readBoolean();

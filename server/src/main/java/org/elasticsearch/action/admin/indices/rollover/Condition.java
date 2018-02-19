@@ -49,7 +49,7 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     }
 
     @Override
-    public final boolean equals(Object o) {
+    public boolean equals(Object o) {
         if (this == o) {
             return true;
         }
@@ -57,12 +57,13 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             return false;
         }
         Condition<?> condition = (Condition<?>) o;
-        return Objects.equals(name, condition.name);
+        return Objects.equals(value, condition.value) &&
+                Objects.equals(name, condition.name);
     }
 
     @Override
-    public final int hashCode() {
-        return Objects.hash(name);
+    public int hashCode() {
+        return Objects.hash(value, name);
     }
 
     @Override
@@ -95,23 +96,6 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         protected Result(Condition condition, boolean matched) {
             this.condition = condition;
             this.matched = matched;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Result result = (Result) o;
-            return Objects.equals(condition, result.condition);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(condition);
         }
     }
 }

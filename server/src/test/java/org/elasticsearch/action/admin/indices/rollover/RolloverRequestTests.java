@@ -45,9 +45,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,22 +73,14 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
-        Set<Condition> conditions = request.getConditions();
+        Map<String, Condition> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
-        for (Condition condition : conditions) {
-            if (condition instanceof MaxAgeCondition) {
-                MaxAgeCondition maxAgeCondition = (MaxAgeCondition) condition;
-                assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
-            } else if (condition instanceof MaxDocsCondition) {
-                MaxDocsCondition maxDocsCondition = (MaxDocsCondition) condition;
-                assertThat(maxDocsCondition.value, equalTo(100L));
-            } else if (condition instanceof MaxSizeCondition) {
-                MaxSizeCondition maxSizeCondition = (MaxSizeCondition) condition;
-                assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
-            } else {
-                fail("unexpected condition " + condition);
-            }
-        }
+        MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
+        assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
+        MaxDocsCondition maxDocsCondition = (MaxDocsCondition)conditions.get(MaxDocsCondition.NAME);
+        assertThat(maxDocsCondition.value, equalTo(100L));
+        MaxSizeCondition maxSizeCondition = (MaxSizeCondition)conditions.get(MaxSizeCondition.NAME);
+        assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
     }
 
     public void testParsingWithIndexSettings() throws Exception {
@@ -118,7 +109,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
-        Set<Condition> conditions = request.getConditions();
+        Map<String, Condition> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
         assertThat(request.getCreateIndexRequest().aliases().size(), equalTo(1));
@@ -138,18 +129,12 @@ public class RolloverRequestTests extends ESTestCase {
                 cloneRequest.readFrom(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
                 assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
-
-                List<String> originalConditions = originalRequest.getConditions().stream()
-                    .map(Condition::toString)
-                    .sorted()
-                    .collect(Collectors.toList());
-
-                List<String> cloneConditions = cloneRequest.getConditions().stream()
-                    .map(Condition::toString)
-                    .sorted()
-                    .collect(Collectors.toList());
-
-                assertThat(originalConditions, equalTo(cloneConditions));
+                for (Map.Entry<String, Condition> entry : cloneRequest.getConditions().entrySet()) {
+                    Condition condition = originalRequest.getConditions().get(entry.getKey());
+                    //here we compare the string representation as there is some information loss when serializing
+                    //and de-serializing MaxAgeCondition
+                    assertEquals(condition.toString(), entry.getValue().toString());
+                }
             }
         }
     }
@@ -169,7 +154,6 @@ public class RolloverRequestTests extends ESTestCase {
         CreateIndexRequestTests.assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
         CreateIndexRequestTests.assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
         assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
-
         assertEquals(rolloverRequest.getConditions(), parsedRolloverRequest.getConditions());
 
         BytesReference finalBytes = toShuffledXContent(parsedRolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);

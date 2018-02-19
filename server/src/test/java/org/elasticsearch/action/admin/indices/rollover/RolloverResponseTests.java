@@ -24,9 +24,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -34,11 +34,12 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
 
     @Override
     protected RolloverResponse createTestInstance() {
-        Set<Condition.Result> results = new HashSet<>();
+        Map<String, Boolean> results = new HashMap<>();
         int numResults = randomIntBetween(0, 3);
         List<Supplier<Condition<?>>> conditions = randomSubsetOf(numResults, conditionSuppliers);
         for (Supplier<Condition<?>> condition : conditions) {
-            results.add(new Condition.Result(condition.get(), randomBoolean()));
+            Condition<?> cond = condition.get();
+            results.put(cond.name, randomBoolean());
         }
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();

@@ -19,11 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -75,73 +73,21 @@ public class ConditionTests extends ESTestCase {
         assertThat(result.matched, equalTo(true));
     }
 
-    private static ByteSizeValue randomByteSize() {
-        return new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
-    }
-
     public void testEqualsAndHashCode() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value));
-        assertEquals(maxDocsCondition, new MaxDocsCondition(randomLong()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value),
+                condition -> new MaxDocsCondition(randomLong()));
 
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(randomByteSize());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value));
-        assertEquals(maxSizeCondition, new MaxSizeCondition(randomByteSize()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
+                condition -> new MaxSizeCondition(randomByteSize()));
 
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value));
-        assertEquals(maxAgeCondition, new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-
-        Condition<Void> customCondition = createCustomCondition(randomAlphaOfLength(5));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(customCondition, condition -> createCustomCondition(condition.name),
-                condition -> createCustomCondition(randomAlphaOfLength(4)));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),
+                condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
     }
 
-    public void testConditionResultEqualsAndAHashCode() {
-        {
-            Condition.Result result = new Condition.Result(new MaxDocsCondition(randomLong()), randomBoolean());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(result, res -> new Condition.Result(res.condition, res.matched));
-            assertEquals(result, new Condition.Result(new MaxDocsCondition(randomLong()), randomBoolean()));
-        }
-        {
-            Condition.Result result = new Condition.Result(new MaxSizeCondition(randomByteSize()), randomBoolean());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(result, res -> new Condition.Result(res.condition, res.matched));
-            assertEquals(result, new Condition.Result(new MaxSizeCondition(randomByteSize()), randomBoolean()));
-        }
-        {
-            Condition.Result result = new Condition.Result(new MaxAgeCondition(new TimeValue(randomNonNegativeLong())), randomBoolean());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(result, res -> new Condition.Result(res.condition, res.matched));
-            assertEquals(result, new Condition.Result(new MaxAgeCondition(new TimeValue(randomNonNegativeLong())), randomBoolean()));
-        }
-        {
-            Condition.Result result = new Condition.Result(createCustomCondition(randomAlphaOfLength(5)), randomBoolean());
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(result, res -> new Condition.Result(res.condition, res.matched));
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(result, res -> new Condition.Result(res.condition, res.matched),
-                    res -> new Condition.Result(createCustomCondition(randomAlphaOfLength(4)), randomBoolean()));
-        }
-    }
-
-    private static Condition<Void> createCustomCondition(String name) {
-        return new Condition<Void>(name) {
-            @Override
-            public Result evaluate(Stats stats) {
-                return null;
-            }
-
-            @Override
-            public String getWriteableName() {
-                return null;
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) {
-
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-                return null;
-            }
-        };
+    private static ByteSizeValue randomByteSize() {
+        return new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
     }
 }

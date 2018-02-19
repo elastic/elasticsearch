@@ -34,9 +34,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -46,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
     private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
-    private static final ObjectParser<Set<Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
+    private static final ObjectParser<Map<String, Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
@@ -55,12 +54,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     static {
         CONDITION_PARSER.declareString((conditions, s) ->
-                        conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+                conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
                 MAX_AGE_CONDITION);
         CONDITION_PARSER.declareLong((conditions, value) ->
-                conditions.add(new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
+                conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
         CONDITION_PARSER.declareString((conditions, s) ->
-                        conditions.add(new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
+                conditions.put(MaxSizeCondition.NAME, new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
                 MAX_SIZE_CONDITION);
 
         PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
@@ -69,8 +68,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                request.createIndexRequest.mapping(mappingsEntry.getKey(),
-                    (Map<String, Object>) mappingsEntry.getValue());
+                request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
             }
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
@@ -80,7 +78,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String alias;
     private String newIndexName;
     private boolean dryRun;
-    private Set<Condition> conditions = new HashSet<>(2);
+    private Map<String, Condition> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
@@ -108,7 +106,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            this.conditions.add(in.readNamedWriteable(Condition.class));
+            Condition condition = in.readNamedWriteable(Condition.class);
+            this.conditions.put(condition.name, condition);
         }
         createIndexRequest = new CreateIndexRequest();
         createIndexRequest.readFrom(in);
@@ -121,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
-        for (Condition condition : conditions) {
+        for (Condition condition : conditions.values()) {
             if (condition.includedInVersion(out.getVersion())) {
                 out.writeNamedWriteable(condition);
             }
@@ -163,27 +162,33 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds condition to check if the index is at least <code>age</code> old
      */
     public void addMaxIndexAgeCondition(TimeValue age) {
-        if (this.conditions.add(new MaxAgeCondition(age)) == false) {
-            throw new IllegalArgumentException(MaxAgeCondition.NAME + " condition is already set");
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+        if (this.conditions.containsKey(maxAgeCondition.name)) {
+            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
         }
+        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
     }
 
     /**
      * Adds condition to check if the index has at least <code>numDocs</code>
      */
     public void addMaxIndexDocsCondition(long numDocs) {
-        if (this.conditions.add(new MaxDocsCondition(numDocs)) == false) {
-            throw new IllegalArgumentException(MaxDocsCondition.NAME + " condition is already set");
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxDocsCondition.name)) {
+            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
         }
+        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
     }
 
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */
     public void addMaxIndexSizeCondition(ByteSizeValue size) {
-        if (this.conditions.add(new MaxSizeCondition(size)) == false) {
-            throw new IllegalArgumentException(MaxSizeCondition.NAME + " condition is already set");
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
+        if (this.conditions.containsKey(maxSizeCondition.name)) {
+            throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
         }
+        this.conditions.put(maxSizeCondition.name, maxSizeCondition);
     }
 
 
@@ -191,7 +196,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return dryRun;
     }
 
-    public Set<Condition> getConditions() {
+    Map<String, Condition> getConditions() {
         return conditions;
     }
 
@@ -216,7 +221,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest.innerToXContent(builder, params);
 
         builder.startObject(CONDITIONS.getPreferredName());
-        for (Condition condition : conditions) {
+        for (Condition condition : conditions.values()) {
             condition.toXContent(builder, params);
         }
         builder.endObject();

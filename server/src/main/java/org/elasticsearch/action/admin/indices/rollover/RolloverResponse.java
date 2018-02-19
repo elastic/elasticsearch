@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -69,14 +67,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     RolloverResponse() {
     }
 
-    RolloverResponse(String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
-                     boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
-        this(oldIndex, newIndex,
-                conditionResults.stream().collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched)),
-                dryRun, rolledOver, acknowledged, shardsAcknowledged);
-    }
-
-    private RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
+    RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
                              boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;

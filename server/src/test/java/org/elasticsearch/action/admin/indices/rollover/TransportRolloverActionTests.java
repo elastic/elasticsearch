@@ -44,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
@@ -89,24 +90,24 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         final Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Set<Condition.Result> results = evaluateConditions(conditions,
+        Map<String, Boolean> results = evaluateConditions(conditions,
             new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
         assertThat(results.size(), equalTo(3));
-        for (Condition.Result result : results) {
-            assertThat(result.matched, equalTo(true));
+        for (Boolean matched : results.values()) {
+            assertThat(matched, equalTo(true));
         }
 
         results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metaData);
         assertThat(results.size(), equalTo(3));
-        for (Condition.Result result : results) {
-            if (result.condition instanceof MaxAgeCondition) {
-                assertThat(result.matched, equalTo(true));
-            } else if (result.condition instanceof MaxDocsCondition) {
-                assertThat(result.matched, equalTo(false));
-            } else if (result.condition instanceof MaxSizeCondition) {
-                assertThat(result.matched, equalTo(false));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
-                fail("unknown condition result found " + result.condition);
+                fail("unknown condition result found " + entry.getKey());
             }
         }
     }
@@ -128,18 +129,18 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        Set<Condition.Result> results = evaluateConditions(conditions, null, metaData);
+        Map<String, Boolean> results = evaluateConditions(conditions, null, metaData);
         assertThat(results.size(), equalTo(3));
 
-        for (Condition.Result result : results) {
-            if (result.condition instanceof MaxAgeCondition) {
-                assertThat(result.matched, equalTo(true));
-            } else if (result.condition instanceof MaxDocsCondition) {
-                assertThat(result.matched, equalTo(false));
-            } else if (result.condition instanceof MaxSizeCondition) {
-                assertThat(result.matched, equalTo(false));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
-                fail("unknown condition result found " + result.condition);
+                fail("unknown condition result found " + entry.getKey());
             }
         }
     }

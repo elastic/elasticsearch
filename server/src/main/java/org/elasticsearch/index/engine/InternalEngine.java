@@ -1685,7 +1685,7 @@ public class InternalEngine extends Engine {
              * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
              * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
              * we are handling a tragic even exception here */
-            ensureOpen();
+            ensureOpen(ex);
             failOnTragicEvent(ex);
             throw ex;
         } catch (Exception e) {
@@ -1872,12 +1872,12 @@ public class InternalEngine extends Engine {
                     throw new IllegalStateException("unknown scope: " + scope);
             }
             EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
-            releasable = null;// success - hand over the reference to the engine searcher
+            releasable = null; // success - hand over the reference to the engine searcher
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         } finally {

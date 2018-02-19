@@ -521,10 +521,18 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    protected void ensureOpen() {
+    protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
-            throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+            AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+            if (suppressed != null) {
+                ace.addSuppressed(suppressed);
+            }
+            throw ace;
         }
+    }
+
+    protected final void ensureOpen() {
+        ensureOpen(null);
     }
 
     /** get commits stats for the last commit */

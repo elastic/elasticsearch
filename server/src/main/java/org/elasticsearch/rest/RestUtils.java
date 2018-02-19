@@ -20,7 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.path.PathTrieBuilder;
+import org.elasticsearch.common.path.PathTrie;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
 
 public class RestUtils {
 
-    public static final PathTrieBuilder.Decoder REST_DECODER = new PathTrieBuilder.Decoder() {
+    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
         public String decode(String value) {
             return RestUtils.decodeComponent(value);

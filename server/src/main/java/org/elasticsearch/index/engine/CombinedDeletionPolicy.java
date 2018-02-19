@@ -168,8 +168,10 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+     *
+     * @return true if the snapshotting commit can be clean up.
      */
-    synchronized void releaseCommit(final IndexCommit snapshotCommit) {
+    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
             "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
@@ -178,6 +180,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
         }
+        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

@@ -165,7 +165,7 @@ cd elasticsearch/
 For package managers like dpkg and rpm you will find the newly built packages under:
 `./distribution/packages/(deb|rpm)/build/distributions/`
 
-Regular compressed archives like tar and zip is found under:
+Regular compressed archives like tar and zip are found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
 
 

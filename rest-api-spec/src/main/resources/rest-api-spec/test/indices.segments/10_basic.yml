@@ -66,7 +66,7 @@
         index: index1
 
   - do:
-      catch: request
+      catch: bad_request
       indices.segments:
           index: index1
 

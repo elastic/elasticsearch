@@ -73,10 +73,6 @@ The modules in this section are:
     Configure the transport networking layer, used internally by Elasticsearch
     to communicate between nodes.
 
-<<modules-tribe,Tribe nodes>>::
-
-    A tribe node joins one or more clusters and acts as a federated
-    client across them.
 
 <<modules-cross-cluster-search, Cross cluster Search>>::
 
@@ -99,6 +95,7 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
+:edit_url:
 include::modules/plugins.asciidoc[]
 
 include::modules/scripting.asciidoc[]
@@ -109,7 +106,4 @@ include::modules/threadpool.asciidoc[]
 
 include::modules/transport.asciidoc[]
 
-include::modules/tribe.asciidoc[]
-
 include::modules/cross-cluster-search.asciidoc[]
-

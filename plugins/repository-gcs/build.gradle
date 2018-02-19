@@ -23,11 +23,11 @@ esplugin {
 }
 
 versions << [
-        'google': '1.21.0',
+        'google': '1.23.0',
 ]
 
 dependencies {
-  compile "com.google.apis:google-api-services-storage:v1-rev66-${versions.google}"
+  compile "com.google.apis:google-api-services-storage:v1-rev115-${versions.google}"
   compile "com.google.api-client:google-api-client:${versions.google}"
   compile "com.google.oauth-client:google-oauth-client:${versions.google}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"

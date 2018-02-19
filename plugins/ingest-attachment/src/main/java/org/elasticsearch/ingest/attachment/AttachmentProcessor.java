@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -131,80 +132,84 @@ public final class AttachmentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
         }
 
+        Metadata metadata = new Metadata();
+        String parsedContent = "";
         try {
-            Metadata metadata = new Metadata();
-            String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
-
-            if (reservedProperties.contains(asReservedProperty(CONTENT)) && Strings.hasLength(parsedContent)) {
-                // somehow tika seems to append a newline at the end automatically, lets remove that again
-                additionalFields.put(CONTENT, parsedContent.trim());
-            }
-
-            if (reservedProperties.contains(asReservedProperty(LANGUAGE)) && Strings.hasLength(parsedContent)) {
-                LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-                String language = identifier.getLanguage();
-                additionalFields.put(LANGUAGE, language);
-            }
-
-            if (reservedProperties.contains(asReservedProperty(DATE))) {
-                String createdDate = metadata.get(TikaCoreProperties.CREATED);
-                if (createdDate != null) {
-                    additionalFields.put(DATE, createdDate);
-                }
-            }
-
-            if (reservedProperties.contains(asReservedProperty(TITLE))) {
-                String title = metadata.get(TikaCoreProperties.TITLE);
-                if (Strings.hasLength(title)) {
-                    additionalFields.put(TITLE, title);
-                }
-            }
-
-            if (reservedProperties.contains(asReservedProperty(AUTHOR))) {
-                String author = metadata.get("Author");
-                if (Strings.hasLength(author)) {
-                    additionalFields.put(AUTHOR, author);
-                }
-            }
-
-            if (reservedProperties.contains(asReservedProperty(KEYWORDS))) {
-                String keywords = metadata.get("Keywords");
-                if (Strings.hasLength(keywords)) {
-                    additionalFields.put(KEYWORDS, keywords);
-                }
-            }
-
-            if (reservedProperties.contains(asReservedProperty(CONTENT_TYPE))) {
-                String contentType = metadata.get(Metadata.CONTENT_TYPE);
-                if (Strings.hasLength(contentType)) {
-                    additionalFields.put(CONTENT_TYPE, contentType);
-                }
-            }
-
-            if (reservedProperties.contains(asReservedProperty(CONTENT_LENGTH))) {
-                String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
-                long length;
-                if (Strings.hasLength(contentLength)) {
-                    length = Long.parseLong(contentLength);
-                } else {
-                    length = parsedContent.length();
-                }
-                additionalFields.put(CONTENT_LENGTH, length);
-            }
-
-            // If we asked for other raw metadata
-            if (runAutomaton != null) {
-                for (String metadataName : metadata.names()) {
-                    String value = metadata.get(metadataName);
-                    logger.trace("found metadata [{}:{}]", metadataName, value);
-                    if (runAutomaton.run(metadataName)) {
-                        logger.trace("metadata [{}] matched one of the properties", metadataName);
-                        additionalFields.put(metadataName, value);
-                    }
-                }
-            }
+            parsedContent = TikaImpl.parse(input, metadata, indexedChars);
+        } catch (ZeroByteFileException e) {
+            // tika 1.17 throws an exception when the InputStream has 0 bytes.
+            // previously, it did not mind. This is here to preserve that behavior.
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
+        }
+
+        if (reservedProperties.contains(asReservedProperty(CONTENT)) && Strings.hasLength(parsedContent)) {
+            // somehow tika seems to append a newline at the end automatically, lets remove that again
+            additionalFields.put(CONTENT, parsedContent.trim());
+        }
+
+        if (reservedProperties.contains(asReservedProperty(LANGUAGE)) && Strings.hasLength(parsedContent)) {
+            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
+            String language = identifier.getLanguage();
+            additionalFields.put(LANGUAGE, language);
+        }
+
+        if (reservedProperties.contains(asReservedProperty(DATE))) {
+            String createdDate = metadata.get(TikaCoreProperties.CREATED);
+            if (createdDate != null) {
+                additionalFields.put(DATE, createdDate);
+            }
+        }
+
+        if (reservedProperties.contains(asReservedProperty(TITLE))) {
+            String title = metadata.get(TikaCoreProperties.TITLE);
+            if (Strings.hasLength(title)) {
+                additionalFields.put(TITLE, title);
+            }
+        }
+
+        if (reservedProperties.contains(asReservedProperty(AUTHOR))) {
+            String author = metadata.get("Author");
+            if (Strings.hasLength(author)) {
+                additionalFields.put(AUTHOR, author);
+            }
+        }
+
+        if (reservedProperties.contains(asReservedProperty(KEYWORDS))) {
+            String keywords = metadata.get("Keywords");
+            if (Strings.hasLength(keywords)) {
+                additionalFields.put(KEYWORDS, keywords);
+            }
+        }
+
+        if (reservedProperties.contains(asReservedProperty(CONTENT_TYPE))) {
+            String contentType = metadata.get(Metadata.CONTENT_TYPE);
+            if (Strings.hasLength(contentType)) {
+                additionalFields.put(CONTENT_TYPE, contentType);
+            }
+        }
+
+        if (reservedProperties.contains(asReservedProperty(CONTENT_LENGTH))) {
+            String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
+            long length;
+            if (Strings.hasLength(contentLength)) {
+                length = Long.parseLong(contentLength);
+            } else {
+                length = parsedContent.length();
+            }
+            additionalFields.put(CONTENT_LENGTH, length);
+        }
+
+        // If we asked for other raw metadata
+        if (runAutomaton != null) {
+            for (String metadataName : metadata.names()) {
+                String value = metadata.get(metadataName);
+                logger.trace("found metadata [{}:{}]", metadataName, value);
+                if (runAutomaton.run(metadataName)) {
+                    logger.trace("metadata [{}] matched one of the properties", metadataName);
+                    additionalFields.put(metadataName, value);
+                }
+            }
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);

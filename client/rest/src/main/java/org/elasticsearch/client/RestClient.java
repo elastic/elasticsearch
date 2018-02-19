@@ -18,38 +18,39 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.client.commons.logging.Log;
-import org.elasticsearch.client.commons.logging.LogFactory;
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.HttpRequest;
-import org.elasticsearch.client.http.HttpResponse;
-import org.elasticsearch.client.http.client.AuthCache;
-import org.elasticsearch.client.http.client.ClientProtocolException;
-import org.elasticsearch.client.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.elasticsearch.client.http.client.methods.HttpHead;
-import org.elasticsearch.client.http.client.methods.HttpOptions;
-import org.elasticsearch.client.http.client.methods.HttpPatch;
-import org.elasticsearch.client.http.client.methods.HttpPost;
-import org.elasticsearch.client.http.client.methods.HttpPut;
-import org.elasticsearch.client.http.client.methods.HttpRequestBase;
-import org.elasticsearch.client.http.client.methods.HttpTrace;
-import org.elasticsearch.client.http.client.protocol.HttpClientContext;
-import org.elasticsearch.client.http.client.utils.URIBuilder;
-import org.elasticsearch.client.http.concurrent.FutureCallback;
-import org.elasticsearch.client.http.impl.auth.BasicScheme;
-import org.elasticsearch.client.http.impl.client.BasicAuthCache;
-import org.elasticsearch.client.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.http.nio.client.methods.HttpAsyncMethods;
-import org.elasticsearch.client.http.nio.protocol.HttpAsyncRequestProducer;
-import org.elasticsearch.client.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpOptions;
+import org.apache.http.client.methods.HttpPatch;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.client.methods.HttpAsyncMethods;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -91,8 +92,9 @@ public class RestClient implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     private final CloseableHttpAsyncClient client;
-    //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced
-    private final Header[] defaultHeaders;
+    // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
+    // These are package private for tests.
+    final List<Header> defaultHeaders;
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
@@ -104,7 +106,7 @@ public class RestClient implements Closeable {
                HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
-        this.defaultHeaders = defaultHeaders;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         setHosts(hosts);
@@ -112,6 +114,7 @@ public class RestClient implements Closeable {
 
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the hosts that the client will send requests to.
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
         return new RestClientBuilder(hosts);
@@ -706,8 +709,8 @@ public class RestClient implements Closeable {
      * safe, volatile way.
      */
     private static class HostTuple<T> {
-        public final T hosts;
-        public final AuthCache authCache;
+        final T hosts;
+        final AuthCache authCache;
 
         HostTuple(final T hosts, final AuthCache authCache) {
             this.hosts = hosts;

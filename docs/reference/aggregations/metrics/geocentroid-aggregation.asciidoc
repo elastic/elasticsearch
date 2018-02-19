@@ -60,8 +60,8 @@ The response for the above aggregation:
     "aggregations": {
         "centroid": {
             "location": {
-                "lat": 51.00982963107526,
-                "lon": 3.9662130922079086
+                "lat": 51.00982963806018,
+                "lon": 3.9662131061777472
             },
             "count": 6
         }

@@ -27,3 +27,13 @@
     - match:  { detail.analyzer.tokens.1.start_offset: 4 }
     - match:  { detail.analyzer.tokens.1.end_offset: 8 }
     - match:  { detail.analyzer.tokens.1.position: 1 }
+
+---
+"bengali":
+    - do:
+        indices.analyze:
+          body:
+            text:     বাড়ী
+            analyzer: bengali
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: বার }

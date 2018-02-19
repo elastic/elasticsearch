@@ -17,7 +17,7 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;

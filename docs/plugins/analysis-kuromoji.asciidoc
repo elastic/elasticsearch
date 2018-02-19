@@ -160,7 +160,6 @@ The above `analyze` request returns the following:
 
 [source,js]
 --------------------------------------------------
-# Result
 {
   "tokens" : [ {
     "token" : "東京",

@@ -8,6 +8,7 @@
       "parts": {
         "task_id": {
           "type": "string",
+          "required" : true,
           "description": "Return the task with specified id (node_id:task_number)"
         }
       },

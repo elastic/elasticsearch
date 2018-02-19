@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -128,7 +129,8 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body);
+                                XContentParser bodyParser = JsonXContent.jsonXContent
+                                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());
@@ -263,7 +265,7 @@ public class DoSection implements ExecutableSection {
         final List<String> missing = new ArrayList<>();
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         final Set<String> expected =
-                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escape).collect(Collectors.toList()));
+                new LinkedHashSet<>(expectedWarningHeaders.stream().map(DeprecationLogger::escapeAndEncode).collect(Collectors.toList()));
         for (final String header : warningHeaders) {
             final Matcher matcher = WARNING_HEADER_PATTERN.matcher(header);
             final boolean matches = matcher.matches();
@@ -320,6 +322,7 @@ public class DoSection implements ExecutableSection {
     private static Map<String, Tuple<String, org.hamcrest.Matcher<Integer>>> catches = new HashMap<>();
 
     static {
+        catches.put("bad_request", tuple("400", equalTo(400)));
         catches.put("unauthorized", tuple("401", equalTo(401)));
         catches.put("forbidden", tuple("403", equalTo(403)));
         catches.put("missing", tuple("404", equalTo(404)));
@@ -327,6 +330,7 @@ public class DoSection implements ExecutableSection {
         catches.put("conflict", tuple("409", equalTo(409)));
         catches.put("unavailable", tuple("503", equalTo(503)));
         catches.put("request", tuple("4xx|5xx", allOf(greaterThanOrEqualTo(400),
+                not(equalTo(400)),
                 not(equalTo(401)),
                 not(equalTo(403)),
                 not(equalTo(404)),

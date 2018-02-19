@@ -97,7 +97,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
@@ -107,7 +107,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -322,7 +322,8 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
             hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .apply(similarity, Settings.EMPTY, Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .create(similarity, Settings.EMPTY,
+                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), null)
             .get();
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }

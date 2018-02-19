@@ -116,15 +116,16 @@ public class InternalTestClusterTests extends ESTestCase {
     }
 
     public static void assertSettings(Settings left, Settings right, boolean checkClusterUniqueSettings) {
-        Set<Map.Entry<String, String>> entries0 = left.getAsMap().entrySet();
-        Map<String, String> entries1 = right.getAsMap();
+        Set<String> keys0 = left.keySet();
+        Set<String> keys1 = right.keySet();
         assertThat("--> left:\n" + left.toDelimitedString('\n') +  "\n-->right:\n" + right.toDelimitedString('\n'),
-            entries0.size(), equalTo(entries1.size()));
-        for (Map.Entry<String, String> entry : entries0) {
-            if (clusterUniqueSettings.contains(entry.getKey()) && checkClusterUniqueSettings == false) {
+            keys0.size(), equalTo(keys1.size()));
+        for (String key : keys0) {
+            if (clusterUniqueSettings.contains(key) && checkClusterUniqueSettings == false) {
                 continue;
             }
-            assertThat(entries1, hasEntry(entry.getKey(), entry.getValue()));
+            assertTrue("key [" + key + "] is missing in " + keys1, keys1.contains(key));
+            assertEquals(right.get(key), left.get(key));
         }
     }
 
@@ -137,10 +138,9 @@ public class InternalTestClusterTests extends ESTestCase {
     private void assertMMNinNodeSetting(String node, InternalTestCluster cluster, int masterNodes) {
         final int minMasterNodes = masterNodes / 2 + 1;
         Settings nodeSettings = cluster.client(node).admin().cluster().prepareNodesInfo(node).get().getNodes().get(0).getSettings();
-        assertThat("node setting of node [" + node + "] has the wrong min_master_node setting: ["
+        assertEquals("node setting of node [" + node + "] has the wrong min_master_node setting: ["
             + nodeSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-            nodeSettings.getAsMap(),
-            hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)));
+            DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(nodeSettings).intValue(), minMasterNodes);
     }
 
     private void assertMMNinClusterSetting(InternalTestCluster cluster, int masterNodes) {
@@ -149,10 +149,9 @@ public class InternalTestClusterTests extends ESTestCase {
             Settings stateSettings = cluster.client(node).admin().cluster().prepareState().setLocal(true)
                 .get().getState().getMetaData().settings();
 
-            assertThat("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
+            assertEquals("dynamic setting for node [" + node + "] has the wrong min_master_node setting : ["
                     + stateSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) + "]",
-                stateSettings.getAsMap(),
-                hasEntry(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)));
+                DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(stateSettings).intValue(), minMasterNodes);
         }
     }
 

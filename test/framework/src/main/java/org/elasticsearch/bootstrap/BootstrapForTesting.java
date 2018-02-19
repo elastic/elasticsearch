@@ -21,7 +21,6 @@ package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -29,9 +28,9 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
-import java.io.FilePermission;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
@@ -102,19 +101,19 @@ public class BootstrapForTesting {
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
                 // java.io.tmpdir
-                Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
+                FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
                 if (Strings.hasLength(System.getProperty("tests.config"))) {
-                    perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
+                    FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
                 }
                 // jacoco coverage output file
                 final boolean testsCoverage =
                         Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
                 if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
-                    perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
+                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco.exec"), "read,write");
                     // in case we get fancy and use the -integration goals later:
-                    perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
+                    FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco-it.exec"), "read,write");
                 }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
@@ -131,8 +130,15 @@ public class BootstrapForTesting {
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
 
                 // read test-framework permissions
-                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
-                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);
+                Map<String, URL> codebases = Security.getCodebaseJarMap(JarHell.parseClassPath());
+                if (System.getProperty("tests.gradle") == null) {
+                    // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
+                    addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
+                    addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
+                }
+                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
+                final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
@@ -158,6 +164,19 @@ public class BootstrapForTesting {
             } catch (Exception e) {
                 throw new RuntimeException("unable to install test security manager", e);
             }
+        }
+    }
+
+    /** Add the codebase url of the given classname to the codebases map, if the class exists. */
+    private static void addClassCodebase(Map<String, URL> codebases, String name, String classname) {
+        try {
+            Class clazz = BootstrapForTesting.class.getClassLoader().loadClass(classname);
+            if (codebases.put(name, clazz.getProtectionDomain().getCodeSource().getLocation()) != null) {
+                throw new IllegalStateException("Already added " + name + " codebase for testing");
+            }
+        } catch (ClassNotFoundException e) {
+            // no class, fall through to not add. this can happen for any tests that do not include
+            // the given class. eg only core tests include plugin-classloader
         }
     }
 
@@ -191,7 +210,7 @@ public class BootstrapForTesting {
         // parse each policy file, with codebase substitution from the classpath
         final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, codebases));
+            policies.add(Security.readPolicy(policyFile, Security.getCodebaseJarMap(codebases)));
         }
 
         // consult each policy file for those codebases

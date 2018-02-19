@@ -92,7 +92,7 @@ GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
 
 which looks like:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70

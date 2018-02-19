@@ -19,11 +19,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,12 +42,12 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public abstract static class Modifier {
         /** The name of the property that is being modified. Used in test failure messages. */
         public final String property;
-        /** true if this modifier only makes types incompatible in strict mode, false otherwise */
-        public final boolean strictOnly;
+        /** True if this property is updateable, false otherwise. */
+        public final boolean updateable;
 
-        public Modifier(String property, boolean strictOnly) {
+        public Modifier(String property, boolean updateable) {
             this.property = property;
-            this.strictOnly = strictOnly;
+            this.updateable = updateable;
         }
 
         /** Modifies the property */
@@ -187,16 +189,16 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         }
     }
 
-    protected void assertCompatible(String msg, MappedFieldType ft1, MappedFieldType ft2, boolean strict) {
+    protected void assertCompatible(String msg, MappedFieldType ft1, MappedFieldType ft2) {
         List<String> conflicts = new ArrayList<>();
-        ft1.checkCompatibility(ft2, conflicts, strict);
+        ft1.checkCompatibility(ft2, conflicts);
         assertTrue("Found conflicts for " + msg + ": " + conflicts, conflicts.isEmpty());
     }
 
-    protected void assertNotCompatible(String msg, MappedFieldType ft1, MappedFieldType ft2, boolean strict, String... messages) {
+    protected void assertNotCompatible(String msg, MappedFieldType ft1, MappedFieldType ft2, String... messages) {
         assert messages.length != 0;
         List<String> conflicts = new ArrayList<>();
-        ft1.checkCompatibility(ft2, conflicts, strict);
+        ft1.checkCompatibility(ft2, conflicts);
         for (String message : messages) {
             boolean found = false;
             for (String conflict : conflicts) {
@@ -277,7 +279,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public void testCheckTypeName() {
         final MappedFieldType fieldType = createNamedDefaultFieldType();
         List<String> conflicts = new ArrayList<>();
-        fieldType.checkCompatibility(fieldType, conflicts, random().nextBoolean()); // no exception
+        fieldType.checkCompatibility(fieldType, conflicts); // no exception
         assertTrue(conflicts.toString(), conflicts.isEmpty());
 
         MappedFieldType bogus = new TermBasedFieldType() {
@@ -285,9 +287,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             public MappedFieldType clone() {return null;}
             @Override
             public String typeName() { return fieldType.typeName();}
+            @Override
+            public Query existsQuery(QueryShardContext context) { return null; }
         };
         try {
-            fieldType.checkCompatibility(bogus, conflicts, random().nextBoolean());
+            fieldType.checkCompatibility(bogus, conflicts);
             fail("expected bad types exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("Type names equal"));
@@ -299,9 +303,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             public MappedFieldType clone() {return null;}
             @Override
             public String typeName() { return "othertype";}
+            @Override
+            public Query existsQuery(QueryShardContext context) { return null; }
         };
         try {
-            fieldType.checkCompatibility(other, conflicts, random().nextBoolean());
+            fieldType.checkCompatibility(other, conflicts);
             fail();
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("cannot be changed from type"));
@@ -312,32 +318,22 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public void testCheckCompatibility() {
         MappedFieldType ft1 = createNamedDefaultFieldType();
         MappedFieldType ft2 = createNamedDefaultFieldType();
-        assertCompatible("default", ft1, ft2, true);
-        assertCompatible("default", ft1, ft2, false);
-        assertCompatible("default", ft2, ft1, true);
-        assertCompatible("default", ft2, ft1, false);
+        assertCompatible("default", ft1, ft2);
+        assertCompatible("default", ft2, ft1);
 
         for (Modifier modifier : modifiers) {
             ft1 = createNamedDefaultFieldType();
             ft2 = createNamedDefaultFieldType();
             modifier.normalizeOther(ft1);
             modifier.modify(ft2);
-            if (modifier.strictOnly) {
-                String[] conflicts = {
-                    "mapper [foo] is used by multiple types",
-                    "update [" + modifier.property + "]"
-                };
-                assertCompatible(modifier.property, ft1, ft2, false);
-                assertNotCompatible(modifier.property, ft1, ft2, true, conflicts);
-                assertCompatible(modifier.property, ft2, ft1, false); // always symmetric when not strict
-                assertNotCompatible(modifier.property, ft2, ft1, true, conflicts);
+            if (modifier.updateable) {
+                assertCompatible(modifier.property, ft1, ft2);
+                assertCompatible(modifier.property, ft2, ft1); // always symmetric when not strict
             } else {
                 // not compatible whether strict or not
                 String conflict = "different [" + modifier.property + "]";
-                assertNotCompatible(modifier.property, ft1, ft2, true, conflict);
-                assertNotCompatible(modifier.property, ft1, ft2, false, conflict);
-                assertNotCompatible(modifier.property, ft2, ft1, true, conflict);
-                assertNotCompatible(modifier.property, ft2, ft1, false, conflict);
+                assertNotCompatible(modifier.property, ft1, ft2, conflict);
+                assertNotCompatible(modifier.property, ft2, ft1, conflict);
             }
         }
     }

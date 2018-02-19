@@ -93,6 +93,27 @@
   - gte:       { number_of_pending_tasks: 0 }
 
 ---
+"cluster health basic test, one index with wait for no initializing shards":
+  - skip:
+      version: " - 6.1.99"
+      reason: "wait_for_no_initializing_shards is introduced in 6.2.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        wait_for_active_shards: 0
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+
+  - match: { initializing_shards: 0 }
+
+---
 "cluster health levels":
   - do:
       indices.create:

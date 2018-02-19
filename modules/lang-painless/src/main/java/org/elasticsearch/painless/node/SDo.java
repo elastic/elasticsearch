@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -73,7 +72,7 @@ public final class SDo extends AStatement {
             throw createError(new IllegalArgumentException("Extraneous do while loop."));
         }
 
-        condition.expected = Definition.BOOLEAN_TYPE;
+        condition.expected = boolean.class;
         condition.analyze(locals);
         condition = condition.cast(locals);
 

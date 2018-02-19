@@ -26,7 +26,7 @@ For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
-NOTE: The mustache language is implemented in elasticsearch as a sandboxed
+NOTE: The mustache language is implemented in Elasticsearch as a sandboxed
 scripting language, hence it obeys settings that may be used to enable or
 disable scripts per type and context as described in the
 <<allowed-script-types-setting, scripting docs>>

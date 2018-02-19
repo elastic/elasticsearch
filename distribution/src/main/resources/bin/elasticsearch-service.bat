@@ -1,11 +1,12 @@
 @echo off
 
 setlocal enabledelayedexpansion
+setlocal enableextensions
 
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-set SERVICE_ID=elasticsearch-service-x64
+if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
 
 if EXIST "%EXECUTABLE%" goto okExe
@@ -97,15 +98,23 @@ if exist "%JAVA_HOME%\bin\server\jvm.dll" (
 )
 
 :foundJVM
-set ES_JVM_OPTIONS=%CONF_DIR%\jvm.options
+set ES_JVM_OPTIONS=%ES_PATH_CONF%\jvm.options
 
 if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 @setlocal
-for /F "usebackq delims=" %%a in (`findstr /b \- "%ES_JVM_OPTIONS%" ^| findstr /b /v "\-server \-client"`) do set JVM_OPTIONS=!JVM_OPTIONS!%%a;
-@endlocal & set ES_JAVA_OPTS=%JVM_OPTIONS%%ES_JAVA_OPTS%
+for /F "usebackq delims=" %%a in (`"%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JvmOptionsParser" "%ES_JVM_OPTIONS%" || echo jvm_options_parser_failed"`) do set JVM_OPTIONS=%%a
+@endlocal & set "MAYBE_JVM_OPTIONS_PARSER_FAILED=%JVM_OPTIONS%" & set ES_JAVA_OPTS=%JVM_OPTIONS:${ES_TMPDIR}=!ES_TMPDIR!% %ES_JAVA_OPTS%
+
+if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
+  exit /b 1
+)
+
+if not "%ES_JAVA_OPTS%" == "" set ES_JAVA_OPTS=%ES_JAVA_OPTS: =;%
 
 if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
+
+echo %ES_JAVA_OPTS%
 
 @setlocal EnableDelayedExpansion
 for %%a in ("%ES_JAVA_OPTS:;=","%") do (
@@ -162,19 +171,19 @@ for %%a in ("%ES_JAVA_OPTS:;=","%") do (
 @endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS%
 
 if "%JVM_MS%" == "" (
-  echo minimum heap size not set; configure using -Xms via %ES_JVM_OPTIONS% or ES_JAVA_OPTS
+  echo minimum heap size not set; configure using -Xms via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_MX%" == "" (
-  echo maximum heap size not set; configure using -Xmx via %ES_JVM_OPTIONS% or ES_JAVA_OPTS
+  echo maximum heap size not set; configure using -Xmx via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
   goto:eof
 )
 if "%JVM_SS%" == "" (
-  echo thread stack size not set; configure using -Xss via %ES_JVM_OPTIONS% or ES_JAVA_OPTS
+  echo thread stack size not set; configure using -Xss via "%ES_JVM_OPTIONS%" or ES_JAVA_OPTS
   goto:eof
 )
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.path.conf="%ES_PATH_CONF%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
@@ -188,7 +197,7 @@ if not "%SERVICE_USERNAME%" == "" (
 	)
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS%
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main ++StartParams --quiet --StopClass org.elasticsearch.bootstrap.Elasticsearch --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS%
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service
@@ -265,4 +274,5 @@ set /a conv=%conv% * 1024 * 1024
 set "%~2=%conv%"
 goto:eof
 
+endlocal
 endlocal

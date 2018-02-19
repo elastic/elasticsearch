@@ -58,7 +58,7 @@ PUT my_index
     }
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "my_text": {
           "type": "text",

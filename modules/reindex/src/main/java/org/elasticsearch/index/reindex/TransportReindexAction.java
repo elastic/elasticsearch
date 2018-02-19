@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.client.http.Header;
-import org.elasticsearch.client.http.HttpHost;
-import org.elasticsearch.client.http.auth.AuthScope;
-import org.elasticsearch.client.http.auth.UsernamePasswordCredentials;
-import org.elasticsearch.client.http.client.CredentialsProvider;
-import org.elasticsearch.client.http.impl.client.BasicCredentialsProvider;
-import org.elasticsearch.client.http.impl.nio.reactor.IOReactorConfig;
-import org.elasticsearch.client.http.message.BasicHeader;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
@@ -37,6 +37,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -109,18 +111,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        if (request.getSlices() > 1) {
-            BulkByScrollParallelizationHelper.startSlices(client, taskManager, ReindexAction.INSTANCE, clusterService.localNode().getId(),
-                    (ParentBulkByScrollTask) task, request, listener);
-        } else {
-            checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
-            ClusterState state = clusterService.state();
-            validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-                    indexNameExpressionResolver, autoCreateIndex, state);
-            ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-            new AsyncIndexBySearchAction((WorkingBulkByScrollTask) task, logger, client, threadPool, request, scriptService, state,
+        checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
+        ClusterState state = clusterService.state();
+        validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
+            indexNameExpressionResolver, autoCreateIndex, state);
+
+        BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
+
+        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, ReindexAction.INSTANCE, listener, client,
+            clusterService.localNode(),
+            () -> {
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
+                    bulkByScrollTask);
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, state,
                     listener).start();
-        }
+            }
+        );
     }
 
     @Override
@@ -197,7 +203,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
         int i = 0;
         for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
-            clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
+            clientHeaders[i++] = new BasicHeader(header.getKey(), header.getValue());
         }
         return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
                 .setDefaultHeaders(clientHeaders)
@@ -244,13 +250,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
          */
         private List<Thread> createdThreads = emptyList();
 
-        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
                                  ActionListener<BulkByScrollResponse> listener) {
             this(task, logger, client, threadPool, request, scriptService, clusterState, listener, client.settings());
         }
 
-        AsyncIndexBySearchAction(WorkingBulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
+        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                 ThreadPool threadPool, ReindexRequest request, ScriptService scriptService, ClusterState clusterState,
                 ActionListener<BulkByScrollResponse> listener, Settings settings) {
             super(task, logger, client, threadPool, request, scriptService, clusterState, listener, settings);
@@ -271,8 +277,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 RestClient restClient = buildRestClient(remoteInfo, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, restClient,
-                        remoteInfo.getQuery(), mainRequest.getSearchRequest());
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry, this::finishHim,
+                    restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
         }
@@ -293,7 +299,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new ReindexScriptApplier(task, scriptService, script, script.getParams());
+                return new ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
@@ -332,7 +338,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
             if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
-                try (XContentParser parser = sourceXContentType.xContent().createParser(NamedXContentRegistry.EMPTY, doc.getSource());
+                try (XContentParser parser = sourceXContentType.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, doc.getSource());
                      XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
@@ -385,9 +392,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
         class ReindexScriptApplier extends ScriptApplier {
 
-            ReindexScriptApplier(WorkingBulkByScrollTask task, ScriptService scriptService, Script script,
+            ReindexScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
-                super(task, scriptService, script, params);
+                super(taskWorker, scriptService, script, params);
             }
 
             /*

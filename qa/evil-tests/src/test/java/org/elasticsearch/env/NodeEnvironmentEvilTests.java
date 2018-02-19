@@ -50,9 +50,9 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith(path.toString()));
         }
@@ -70,9 +70,9 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
@@ -95,9 +95,9 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
                 PosixFilePermission.OWNER_READ)));
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
             IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, new Environment(build));
+                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }

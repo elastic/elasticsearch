@@ -65,7 +65,7 @@ public interface GceInstancesService {
 
     /**
      * cloud.gce.max_wait: How long exponential backoff should retry before definitely failing.
-     * It's a total time since the the initial call is made.
+     * It's a total time since the initial call is made.
      * A negative value will retry indefinitely. Defaults to `-1s` (retry indefinitely).
      */
     Setting<TimeValue> MAX_WAIT_SETTING =

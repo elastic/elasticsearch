@@ -11,9 +11,6 @@ Highlighting requires the actual content of a field. If the field is not
 stored (the mapping does not set `store` to `true`), the actual `_source` is
 loaded and the relevant field is extracted from `_source`.
 
-NOTE: The `_all` field cannot be extracted from `_source`, so it can only
-be used for highlighting if it is explicitly stored.
-
 For example, to get highlights for the `content` field in each search hit
 using the default highlighter, include a `highlight` object in
 the request body that specifies the `content` field:
@@ -27,7 +24,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "comment" : {}
+            "content" : {}
         }
     }
 }
@@ -104,6 +101,12 @@ Lucene's query execution planner to get access to low-level match information on
 the current document. This is repeated for every field and every document that
 needs highlighting. The `plain` highlighter always uses plain highlighting.
 
+[WARNING]
+Plain highlighting for large texts may require substantial amount of time and memory.
+To protect against this, the maximum number of text characters that will be analyzed has been
+limited to 10000. This default limit can be changed
+for a particular index with the index setting `index.highlight.max_analyzed_offset`.
+
 [[highlighting-settings]]
 ==== Highlighting Settings
 
@@ -139,8 +142,9 @@ You can specify the locale to use with `boundary_scanner_locale`.
 boundary_scanner_locale:: Controls which locale is used to search for sentence
 and word boundaries.
 
-encoder:: Indicates if the highlighted text should be HTML encoded:
-`default` (no encoding) or `html` (escapes HTML highlighting tags).
+encoder:: Indicates if the snippet should be HTML encoded:
+`default` (no encoding) or `html` (HTML-escape the snippet text and then
+insert the highlighting tags)
 
 fields:: Specifies the fields to retrieve highlights for. You can use wildcards
 to specify fields. For example, you could specify `comment_*` to
@@ -267,7 +271,7 @@ GET /_search
         "number_of_fragments" : 3,
         "fragment_size" : 150,
         "fields" : {
-            "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
+            "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
             "blog.title" : { "number_of_fragments" : 0 },
             "blog.author" : { "number_of_fragments" : 0 },
             "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
@@ -392,7 +396,7 @@ GET /_search
         "pre_tags" : ["<tag1>"],
         "post_tags" : ["</tag1>"],
         "fields" : {
-            "_all" : {}
+            "body" : {}
         }
     }
 }
@@ -414,7 +418,7 @@ GET /_search
         "pre_tags" : ["<tag1>", "<tag2>"],
         "post_tags" : ["</tag1>", "</tag2>"],
         "fields" : {
-            "_all" : {}
+            "body" : {}
         }
     }
 }
@@ -484,7 +488,7 @@ GET /_search
     "highlight" : {
         "require_field_match": false,
         "fields": {
-                "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
+                "body" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] }
         }
     }
 }
@@ -719,7 +723,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "_all" : {},
+            "body" : {},
             "blog.title" : {"number_of_fragments" : 0}
         }
     }
@@ -813,7 +817,7 @@ When using the `plain` highlighter, you can choose between the `simple` and
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -845,7 +849,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -869,7 +873,7 @@ Response:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_search
+GET twitter/_search
 {
     "query" : {
         "match_phrase": { "message": "number 1" }
@@ -901,7 +905,7 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "tweet",
+                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -912,7 +916,7 @@ Response:
                 },
                 "highlight": {
                     "message": [
-                        "some message with the <em>number</em> <em>1</em>"
+                        " with the <em>number</em> <em>1</em>"
                     ]
                 }
             }

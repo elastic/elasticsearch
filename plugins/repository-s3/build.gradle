@@ -23,7 +23,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.10.69'
+  'aws': '1.11.223'
 ]
 
 dependencies {
@@ -34,8 +34,8 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile "com.fasterxml.jackson.core:jackson-databind:2.5.3"
-  compile "com.fasterxml.jackson.core:jackson-annotations:2.5.0"
+  compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
+  compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -76,6 +76,15 @@ thirdPartyAudit.excludes = [
   'org.apache.avalon.framework.logger.Logger', 
   'org.apache.log.Hierarchy', 
   'org.apache.log.Logger',
+  'software.amazon.ion.IonReader',
+  'software.amazon.ion.IonSystem',
+  'software.amazon.ion.IonType',
+  'software.amazon.ion.IonWriter',
+  'software.amazon.ion.Timestamp',
+  'software.amazon.ion.system.IonBinaryWriterBuilder',
+  'software.amazon.ion.system.IonSystemBuilder',
+  'software.amazon.ion.system.IonTextWriterBuilder',
+  'software.amazon.ion.system.IonWriterBuilder',
 ]
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)

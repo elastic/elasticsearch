@@ -132,7 +132,7 @@ setup() {
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
     cp $ESENVFILE "$temp/elasticsearch"
-    echo "CONF_DIR=\"$temp\"" >> $ESENVFILE
+    echo "ES_PATH_CONF=\"$temp\"" >> $ESENVFILE
     echo "ES_JAVA_OPTS=\"-XX:-UseCompressedOops\"" >> $ESENVFILE
     service elasticsearch start
     wait_for_elasticsearch_status
@@ -156,4 +156,10 @@ setup() {
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 
     service elasticsearch stop
+}
+
+@test "[INIT.D] GC logs exist" {
+    start_elasticsearch_service
+    assert_file_exist /var/log/elasticsearch/gc.log.0.current
+    stop_elasticsearch_service
 }

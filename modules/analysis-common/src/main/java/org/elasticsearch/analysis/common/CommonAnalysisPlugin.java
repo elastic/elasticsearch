@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
+import org.apache.lucene.analysis.bn.BengaliNormalizationFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
@@ -92,20 +93,28 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("apostrophe", ApostropheFilterFactory::new);
         filters.put("arabic_normalization", ArabicNormalizationFilterFactory::new);
+        filters.put("arabic_stem", ArabicStemTokenFilterFactory::new);
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        filters.put("bengali_normalization", BengaliNormalizationFilterFactory::new);
+        filters.put("brazilian_stem", BrazilianStemTokenFilterFactory::new);
         filters.put("cjk_bigram", CJKBigramFilterFactory::new);
         filters.put("cjk_width", CJKWidthFilterFactory::new);
         filters.put("classic", ClassicFilterFactory::new);
+        filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
+        filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
         filters.put("elision", ElisionTokenFilterFactory::new);
         filters.put("fingerprint", FingerprintTokenFilterFactory::new);
         filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
+        filters.put("french_stem", FrenchStemTokenFilterFactory::new);
         filters.put("german_normalization", GermanNormalizationFilterFactory::new);
+        filters.put("german_stem", GermanStemTokenFilterFactory::new);
         filters.put("hindi_normalization", HindiNormalizationFilterFactory::new);
         filters.put("hyphenation_decompounder", requriesAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
         filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
@@ -124,6 +133,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("persian_normalization", PersianNormalizationFilterFactory::new);
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
         filters.put("reverse", ReverseTokenFilterFactory::new);
+        filters.put("russian_stem", RussianStemTokenFilterFactory::new);
         filters.put("scandinavian_folding", ScandinavianFoldingFilterFactory::new);
         filters.put("scandinavian_normalization", ScandinavianNormalizationFilterFactory::new);
         filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
@@ -173,6 +183,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("arabic_normalization", true, ArabicNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("arabic_stem", false, ArabicStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("asciifolding", true, ASCIIFoldingFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("bengali_normalization", true, BengaliNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("brazilian_stem", false, BrazilianStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_bigram", false, CJKBigramFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("cjk_width", true, CJKWidthFilter::new));
@@ -182,6 +193,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("czech_stem", false, CzechStemFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("decimal_digit", true, DecimalDigitFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("delimited_payload_filter", false, input ->
+                new DelimitedPayloadTokenFilter(input,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
@@ -231,7 +246,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
-        filters.add(PreConfiguredTokenFilter.singleton("trim", false, TrimFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));

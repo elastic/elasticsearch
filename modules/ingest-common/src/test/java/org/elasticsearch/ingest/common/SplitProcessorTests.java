@@ -120,7 +120,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitWithTargetField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = fieldName + randomAlphaOfLength(5);
         Processor processor = new SplitProcessor(randomAlphaOfLength(10), fieldName, "\\.", false, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));

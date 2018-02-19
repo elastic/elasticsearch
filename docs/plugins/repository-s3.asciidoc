@@ -111,7 +111,7 @@ are marked as `Secure`.
 
 `use_throttle_retries`::
 
-    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `false`.
+    Whether retries should be throttled (ie use backoff). Must be `true` or `false`. Defaults to `true`.
 
 [[repository-s3-repository]]
 ==== Repository Settings
@@ -175,9 +175,10 @@ The following settings are supported:
     http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
-    size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to the minimum
-    between `100mb` and `5%` of the heap size.
+    size lower than `5mb` is not allowed since it will prevent the use of the
+    Multipart API and may result in upload errors. It is also not possible to
+    set a buffer size greater than `5gb` as it is the maximum upload size
+    allowed by S3. Defaults to the minimum between `100mb` and `5%` of the heap size.
 
 `canned_acl`::
 
@@ -283,7 +284,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
 // NOTCONSOLE
 
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
-registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a
+registration will fail. If you want Elasticsearch to create the bucket instead, you can add the permission to create a
 specific bucket like this:
 
 [source,js]
@@ -304,6 +305,6 @@ specific bucket like this:
 [float]
 ==== AWS VPC Bandwidth Settings
 
-AWS instances resolve S3 endpoints to a public IP. If the elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
+AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch instances reside in a private subnet in an AWS VPC then all traffic to S3 will go through that VPC's NAT instance. If your VPC's NAT instance is a smaller instance size (e.g. a t1.micro) or is handling a high volume of network traffic your bandwidth to S3 may be limited by that NAT instance's networking bandwidth limitations.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.

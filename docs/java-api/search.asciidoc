@@ -116,7 +116,7 @@ SearchResponse sr = client.prepareSearch()
 
 // Get your facet results
 Terms agg1 = sr.getAggregations().get("agg1");
-DateHistogram agg2 = sr.getAggregations().get("agg2");
+Histogram agg2 = sr.getAggregations().get("agg2");
 --------------------------------------------------
 
 See <<java-aggs,Aggregations Java API>>

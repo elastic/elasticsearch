@@ -53,8 +53,14 @@ final class GrokMatchGroup {
         switch(type) {
             case "int":
                 return Integer.parseInt(groupValue);
+            case "long":
+                return Long.parseLong(groupValue);
+            case "double":
+                return Double.parseDouble(groupValue);
             case "float":
                 return Float.parseFloat(groupValue);
+            case "boolean":
+                return Boolean.parseBoolean(groupValue);
             default:
                 return groupValue;
         }

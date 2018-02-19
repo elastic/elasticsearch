@@ -26,7 +26,7 @@ import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
@@ -133,7 +133,8 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
+    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher,
+                                              ReferenceManager<IndexSearcher> manager) throws EngineException {
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;
         assert reader != null;
@@ -182,7 +183,8 @@ public final class MockEngineSupport {
 
     }
 
-    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher, SearcherManager manager) {
+    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher,
+                                        ReferenceManager<IndexSearcher> manager) {
         final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
         assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will

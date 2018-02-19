@@ -15,7 +15,7 @@ Full query example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/0/_explain
+GET /twitter/_doc/0/_explain
 {
       "query" : {
         "match" : { "message" : "elasticsearch" }
@@ -31,7 +31,7 @@ This will yield the following result:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "0",
    "matched": true,
    "explanation": {
@@ -104,7 +104,7 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/0/_explain?q=message:search
+GET /twitter/_doc/0/_explain?q=message:search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -143,11 +143,11 @@ This will yield the same result as the previous request.
 
 `df`::
     The default field to use when no field prefix is defined within
-    the query. Defaults to _all field.
+    the query.
 
 `analyzer`::
     The analyzer name to be used when analyzing the query
-    string. Defaults to the analyzer of the _all field.
+    string. Defaults to the default search analyzer.
 
 `analyze_wildcard`::
     Should wildcard and prefix queries be analyzed or

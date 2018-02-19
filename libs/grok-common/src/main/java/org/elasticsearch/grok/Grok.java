@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.grok;
 
 import org.jcodings.specific.UTF8Encoding;
 import org.joni.Matcher;
@@ -28,13 +28,18 @@ import org.joni.Region;
 import org.joni.Syntax;
 import org.joni.exception.ValueException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Collections;
 
-final class Grok {
+public final class Grok {
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -60,7 +65,7 @@ final class Grok {
     private final String expression;
 
 
-    Grok(Map<String, String> patternBank, String grokPattern) {
+    public Grok(Map<String, String> patternBank, String grokPattern) {
         this(patternBank, grokPattern, true);
     }
 
@@ -176,5 +181,39 @@ final class Grok {
         }
         return null;
     }
+
+    // Code for loading built-in grok patterns packaged with the jar file:
+    private static final String[] PATTERN_NAMES = new String[] {
+        "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+        "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
+        "postgresql", "rails", "redis", "ruby"
+    };
+
+    public static Map<String, String> loadBuiltinPatterns() throws IOException {
+        Map<String, String> builtinPatterns = new HashMap<>();
+        for (String pattern : PATTERN_NAMES) {
+            try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                loadPatterns(builtinPatterns, is);
+            }
+        }
+        return Collections.unmodifiableMap(builtinPatterns);
+    }
+
+    private static void loadPatterns(Map<String, String> patternBank, InputStream inputStream) throws IOException {
+        String line;
+        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+        while ((line = br.readLine()) != null) {
+            String trimmedLine = line.replaceAll("^\\s+", "");
+            if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
+                continue;
+            }
+
+            String[] parts = trimmedLine.split("\\s+", 2);
+            if (parts.length == 2) {
+                patternBank.put(parts[0], parts[1]);
+            }
+        }
+    }
+
 }
 

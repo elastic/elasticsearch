@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -49,22 +50,16 @@ import org.elasticsearch.rest.RestHandler;
 
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    // Code for loading built-in grok patterns packaged with the jar file:
-    private static final String[] PATTERN_NAMES = new String[] {
-        "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-        "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
-        "postgresql", "rails", "redis", "ruby"
-    };
     static final Map<String, String> GROK_PATTERNS;
     static {
         try {
-            GROK_PATTERNS = loadBuiltinPatterns();
+            GROK_PATTERNS = Grok.loadBuiltinPatterns();
         } catch (IOException e) {
             throw new UncheckedIOException("unable to load built-in grok patterns", e);
         }
     }
 
-    public IngestCommonPlugin() throws IOException {
+    public IngestCommonPlugin() {
     }
 
     @Override
@@ -108,30 +103,4 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
     }
 
-
-    public static Map<String, String> loadBuiltinPatterns() throws IOException {
-        Map<String, String> builtinPatterns = new HashMap<>();
-        for (String pattern : PATTERN_NAMES) {
-            try(InputStream is = IngestCommonPlugin.class.getResourceAsStream("/patterns/" + pattern)) {
-                loadPatterns(builtinPatterns, is);
-            }
-        }
-        return Collections.unmodifiableMap(builtinPatterns);
-    }
-
-    private static void loadPatterns(Map<String, String> patternBank, InputStream inputStream) throws IOException {
-        String line;
-        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-        while ((line = br.readLine()) != null) {
-            String trimmedLine = line.replaceAll("^\\s+", "");
-            if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
-                continue;
-            }
-
-            String[] parts = trimmedLine.split("\\s+", 2);
-            if (parts.length == 2) {
-                patternBank.put(parts[0], parts[1]);
-            }
-        }
-    }
 }

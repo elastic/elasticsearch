@@ -339,7 +339,8 @@ public class PluginsService extends AbstractComponent {
         final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(rootPath);
         return Stream.concat(
                 groupedPluginDirs.v1().stream(),
-                groupedPluginDirs.v2().values().stream().flatMap(Collection::stream)).collect(Collectors.toList());
+                groupedPluginDirs.v2().values().stream().flatMap(Collection::stream))
+                .collect(Collectors.toList());
     }
 
     /**

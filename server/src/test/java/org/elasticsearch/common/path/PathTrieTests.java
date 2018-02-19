@@ -41,15 +41,19 @@ public class PathTrieTests extends ESTestCase {
     };
 
     public void testPath() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("/a/b/c", "walla");
-        trie.insert("a/d/g", "kuku");
-        trie.insert("x/b/c", "lala");
-        trie.insert("a/x/*", "one");
-        trie.insert("a/b/*", "two");
-        trie.insert("*/*/x", "three");
-        trie.insert("{index}/insert/{docId}", "bingo");
+    	//contract: check that the PathTrie has the elements inserted at the right position, that
+    	//they can be retrieved and that no other element exist
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("/a/b/c", "walla");
+        builder.insert("a/d/g", "kuku");
+        builder.insert("x/b/c", "lala");
+        builder.insert("a/x/*", "one");
+        builder.insert("a/b/*", "two");
+        builder.insert("*/*/x", "three");
+        builder.insert("{index}/insert/{docId}", "bingo");
 
+        PathTrie<String> trie = builder.createpathTrie();
+                
         assertThat(trie.retrieve("a/b/c"), equalTo("walla"));
         assertThat(trie.retrieve("a/d/g"), equalTo("kuku"));
         assertThat(trie.retrieve("x/b/c"), equalTo("lala"));
@@ -68,16 +72,22 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testEmptyPath() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("/", "walla");
+    	//contract: check the case when we create a PathTrie with an element at the empty path
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("/", "walla");
+        PathTrie<String> trie = builder.createpathTrie();
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
 
     public void testDifferentNamesOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("/a/{type}", "test1");
-        trie.insert("/b/{name}", "test2");
-
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
+    	//when the paths end with a different wildcard
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("/a/{type}", "test1");
+        builder.insert("/b/{name}", "test2");
+        
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/test", params), equalTo("test1"));
         assertThat(params.get("type"), equalTo("test"));
@@ -87,11 +97,15 @@ public class PathTrieTests extends ESTestCase {
         assertThat(params.get("name"), equalTo("testX"));
     }
 
-    public void testSameNameOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("/a/c/{name}", "test1");
-        trie.insert("/b/{name}", "test2");
+    public void testSameNameOnDifferentPath() { 
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
+    	//when the paths end with the same wildcard
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("/a/c/{name}", "test1");
+        builder.insert("/b/{name}", "test2");
 
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/c/test", params), equalTo("test1"));
         assertThat(params.get("name"), equalTo("test"));
@@ -102,14 +116,17 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testPreferNonWildcardExecution() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{test}", "test1");
-        trie.insert("b", "test2");
-        trie.insert("{test}/a", "test3");
-        trie.insert("b/a", "test4");
-        trie.insert("{test}/{testB}", "test5");
-        trie.insert("{test}/x/{testC}", "test6");
+    	//contract: Check that the retrieve method prefers the path where there is the least wildcard 
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("{test}", "test1");
+        builder.insert("b", "test2");
+        builder.insert("{test}/a", "test3");
+        builder.insert("b/a", "test4");
+        builder.insert("{test}/{testB}", "test5");
+        builder.insert("{test}/x/{testC}", "test6");
 
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/b", params), equalTo("test2"));
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
@@ -118,19 +135,22 @@ public class PathTrieTests extends ESTestCase {
     }
 
     // https://github.com/elastic/elasticsearch/pull/17916
-    public void testWildcardMatchingModes() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{testA}", "test1");
-        trie.insert("{testA}/{testB}", "test2");
-        trie.insert("a/{testA}", "test3");
-        trie.insert("{testA}/b", "test4");
-        trie.insert("{testA}/b/c", "test5");
-        trie.insert("a/{testB}/c", "test6");
-        trie.insert("a/b/{testC}", "test7");
-        trie.insert("{testA}/b/{testB}", "test8");
-        trie.insert("x/{testA}/z", "test9");
-        trie.insert("{testA}/{testB}/{testC}", "test10");
+    public void testWildcardMatchingModes() {	
+    	//Contract: check that the retrieve and retrieveALL methods work according to the different TrieMatchingMode
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("{testA}", "test1");
+        builder.insert("{testA}/{testB}", "test2");
+        builder.insert("a/{testA}", "test3");
+        builder.insert("{testA}/b", "test4");
+        builder.insert("{testA}/b/c", "test5");
+        builder.insert("a/{testB}/c", "test6");
+        builder.insert("a/b/{testC}", "test7");
+        builder.insert("{testA}/b/{testB}", "test8");
+        builder.insert("x/{testA}/z", "test9");
+        builder.insert("{testA}/{testB}/{testC}", "test10");
 
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
 
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), nullValue());
@@ -191,18 +211,21 @@ public class PathTrieTests extends ESTestCase {
 
     // https://github.com/elastic/elasticsearch/pull/17916
     public void testExplicitMatchingMode() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{testA}", "test1");
-        trie.insert("a", "test2");
-        trie.insert("{testA}/{testB}", "test3");
-        trie.insert("a/{testB}", "test4");
-        trie.insert("{testB}/b", "test5");
-        trie.insert("a/b", "test6");
-        trie.insert("{testA}/b/{testB}", "test7");
-        trie.insert("x/{testA}/z", "test8");
-        trie.insert("{testA}/{testB}/{testC}", "test9");
-        trie.insert("a/b/c", "test10");
+    	//contract: check that the retrieve method with EXPLICIT_NODES_ONLY matching mode 
+    	//only returns values for paths that do not use wildcards
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("{testA}", "test1");
+        builder.insert("a", "test2");
+        builder.insert("{testA}/{testB}", "test3");
+        builder.insert("a/{testB}", "test4");
+        builder.insert("{testB}/b", "test5");
+        builder.insert("a/b", "test6");
+        builder.insert("{testA}/b/{testB}", "test7");
+        builder.insert("x/{testA}/z", "test8");
+        builder.insert("{testA}/{testB}/{testC}", "test9");
+        builder.insert("a/b/c", "test10");
 
+        PathTrie<String> trie = builder.createpathTrie();
         Map<String, String> params = new HashMap<>();
 
         assertThat(trie.retrieve("/a", params, TrieMatchingMode.EXPLICIT_NODES_ONLY), equalTo("test2"));
@@ -214,10 +237,13 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testSamePathConcreteResolution() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("{x}/{y}/{z}", "test1");
-        trie.insert("{x}/_y/{k}", "test2");
+    	//contract: check that the correct values have been retrieved and that the parameters are correctly set 
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("{x}/{y}/{z}", "test1");
+        builder.insert("{x}/_y/{k}", "test2");
 
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/a/b/c", params), equalTo("test1"));
         assertThat(params.get("x"), equalTo("a"));
@@ -230,13 +256,16 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testNamedWildcardAndLookupWithWildcard() {
-        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
-        trie.insert("x/{test}", "test1");
-        trie.insert("{test}/a", "test2");
-        trie.insert("/{test}", "test3");
-        trie.insert("/{test}/_endpoint", "test4");
-        trie.insert("/*/{test}/_endpoint", "test5");
+    	//contract: test to specify paths with wildcards when retrieving values. 
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(NO_DECODER);
+        builder.insert("x/{test}", "test1");
+        builder.insert("{test}/a", "test2");
+        builder.insert("/{test}", "test3");
+        builder.insert("/{test}/_endpoint", "test4");
+        builder.insert("/*/{test}/_endpoint", "test5");
 
+        PathTrie<String> trie = builder.createpathTrie();
+        
         Map<String, String> params = new HashMap<>();
         assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
         assertThat(params.get("test"), equalTo("*"));
@@ -261,8 +290,13 @@ public class PathTrieTests extends ESTestCase {
     //https://github.com/elastic/elasticsearch/issues/14177
     //https://github.com/elastic/elasticsearch/issues/13665
     public void testEscapedSlashWithinUrl() {
-        PathTrie<String> pathTrie = new PathTrie<>(RestUtils.REST_DECODER);
-        pathTrie.insert("/{index}/{type}/{id}", "test");
+    	//contract: check the case when we insert and retrieve values where the path contains escaped characters. 
+    	//This test uses a special decoder from RestUtils.
+        PathTrie.PathTrieBuilder<String> builder = new PathTrie.PathTrieBuilder<>(RestUtils.REST_DECODER);
+        builder.insert("/{index}/{type}/{id}", "test");
+        
+        PathTrie<String> pathTrie = builder.createpathTrie();
+        
         HashMap<String, String> params = new HashMap<>();
         assertThat(pathTrie.retrieve("/index/type/a%2Fe", params), equalTo("test"));
         assertThat(params.get("index"), equalTo("index"));

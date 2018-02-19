@@ -497,18 +497,41 @@ public enum RestStatus {
         this.status = (short) status;
     }
 
+    /**
+     * A getter for status
+     * @return status
+     */
     public int getStatus() {
         return status;
     }
-
+    
+    /**
+     * Read the status from the StreamInput
+     * @param in the StreamInput from which we want to read the RestStatus
+     * @throws this method can throw IOException
+     * @return the RestStatus
+     */
     public static RestStatus readFrom(StreamInput in) throws IOException {
         return RestStatus.valueOf(in.readString());
     }
 
+    /**
+     * Write the RestStatus in the StreamOuptut
+     * @param out the StreamOutup where we want to write
+     * @param status the RestStatus we want to write
+     * @throws the method can throw IOException
+     */
     public static void writeTo(StreamOutput out, RestStatus status) throws IOException {
         out.writeString(status.name());
     }
 
+    /**
+     * Return a status according to the given parameters
+     * @param sucessfulShards the number of shard that are successful
+     * @param totalShards the total number of shard
+     * @param ShardOperationFailedException the shards that have failed
+     * @return a RestStatus (OK, SERVICE_UNAVAILABLE, or the status of the failures)
+     */
     public static RestStatus status(int successfulShards, int totalShards, ShardOperationFailedException... failures) {
         if (failures.length == 0) {
             if (successfulShards == 0 && totalShards > 0) {
@@ -531,6 +554,8 @@ public enum RestStatus {
 
     /**
      * Turn a status code into a {@link RestStatus}, returning null if we don't know that status.
+     * @param code the code of the status we want
+     * @return the RestStatus
      */
     public static RestStatus fromCode(int code) {
         return CODE_TO_STATUS.get(code);

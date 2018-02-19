@@ -37,6 +37,12 @@ public class RestUtils {
         }
     };
 
+    /**
+     * Extract the params of the string from a index and put them in a given map
+     * @param s the string from which the params are extracted
+     * @param fromIndex the index from which the string is considered
+     * @param params the map of parameters
+     */
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {
             return;
@@ -83,6 +89,12 @@ public class RestUtils {
         }
     }
 
+    /**
+     * Add a new entry to a given map of params
+     * @param params the map
+     * @param name the name of the new entry
+     * @param value the value of the new entry
+     */
     private static void addParam(Map<String, String> params, String name, String value) {
         params.put(name, value);
     }
@@ -140,6 +152,12 @@ public class RestUtils {
         return new String(buf, 0, pos, charset);
     }
 
+    /**
+     * Check if we need to decode the given string
+     * @param s the string
+     * @param size the size of the string we want to check
+     * @return true if it need to be decoded, else otherwise
+     */
     @SuppressWarnings("fallthrough")
     private static boolean decodingNeeded(String s, int size) {
         boolean decodingNeeded = false;
@@ -156,7 +174,14 @@ public class RestUtils {
         }
         return decodingNeeded;
     }
-
+    
+    /**
+     * @param s the string we want to decode
+     * @param size the size we want to decode
+     * @param buf the buffer that contain the decoded string
+     * @throws this method can throw IllegalArgumentException
+     * @return the length of the buffer
+     */
     @SuppressWarnings("fallthrough")
     private static int decode(String s, int size, byte[] buf) {
         int pos = 0;  // position in `buf'.
@@ -217,7 +242,7 @@ public class RestUtils {
 
     /**
      * Determine if CORS setting is a regex
-     *
+     * @param corsSetting the CORS setting we want to check
      * @return a corresponding {@link Pattern} if so and o.w. null.
      */
     public static Pattern checkCorsSettingForRegex(String corsSetting) {

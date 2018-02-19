@@ -171,7 +171,7 @@ public class VersionUtilsTests extends ESTestCase {
             TestStableBranchBehindStableBranch.V_5_5_0)));
     }
 
-    public static class TestUnstableBranch {
+    /*public static class TestUnstableBranch {
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
@@ -197,7 +197,7 @@ public class VersionUtilsTests extends ESTestCase {
             TestUnstableBranch.V_5_3_2,
             TestUnstableBranch.V_5_4_0,
             TestUnstableBranch.V_6_0_0_beta1)));
-    }
+    }*/
 
     public static class TestNewMajorRelease {
         public static final Version V_5_6_0 = Version.fromString("5.6.0");

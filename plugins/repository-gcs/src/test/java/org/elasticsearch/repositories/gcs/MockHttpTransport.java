@@ -30,6 +30,7 @@ import com.google.api.services.storage.Storage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.path.PathTrie;
+import org.elasticsearch.common.path.PathTrieBuilder;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -59,7 +60,7 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
     private final Map<String, String> objectsNames = ConcurrentCollections.newConcurrentMap();
     private final Map<String, byte[]> objectsContent = ConcurrentCollections.newConcurrentMap();
 
-    private final PathTrie<Handler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrieBuilder<Handler> handlers = new PathTrieBuilder<>(RestUtils.REST_DECODER);
 
     public MockHttpTransport(String bucket) {
 
@@ -295,8 +296,8 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
                     if (indexOfHttp > 0) {
                         line = line.substring(0, indexOfHttp);
                     }
-
-                    Handler handler = handlers.retrieve(line, params);
+                    PathTrie<Handler> trie = handlers.createpathTrie();
+                    Handler handler = trie.retrieve(line, params);
                     if (handler != null) {
                         try {
                             responses.add(handler.execute(line, params, req));
@@ -340,8 +341,8 @@ public class MockHttpTransport extends com.google.api.client.testing.http.MockHt
                     rawPath = url.substring(0, pathEndPos);
                     RestUtils.decodeQueryString(url, pathEndPos + 1, params);
                 }
-
-                Handler handler = handlers.retrieve(method + " " + rawPath, params);
+                PathTrie<Handler> trie = handlers.createpathTrie();
+                Handler handler = trie.retrieve(method + " " + rawPath, params);
                 if (handler != null) {
                     return handler.execute(rawPath, params, this);
                 }

@@ -33,7 +33,6 @@ setup:
 # non empty generation with one op may be smaller or larger than that.
 #  - gt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
-  - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }
 
   - do:
       indices.flush:
@@ -47,7 +46,6 @@ setup:
   ## creation translog size has some overhead due to an initial empty generation that will be trimmed later
   - lt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
-  - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }
 
   - do:
       indices.put_settings:
@@ -69,4 +67,20 @@ setup:
   - match: { indices.test.primaries.translog.operations: 0 }
   - lte: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
+
+---
+"Translog last modified age stats":
+  - skip:
+      version: " - 6.2.99"
+      reason: translog last modified age stats was added in 6.3.0
+  - do:
+      index:
+        index: test
+        type:  bar
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
   - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }

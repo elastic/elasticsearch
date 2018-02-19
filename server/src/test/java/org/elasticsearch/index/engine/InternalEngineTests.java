@@ -2079,9 +2079,9 @@ public class InternalEngineTests extends EngineTestCase {
     // this test writes documents to the engine while concurrently flushing/commit
     // and ensuring that the commit points contain the correct sequence number data
     public void testConcurrentWritesAndCommits() throws Exception {
-        List<Engine.IndexCommitRef> commits = new ArrayList<>();
         try (Store store = createStore();
              InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(), null))) {
+            final List<Engine.IndexCommitRef> commits = new ArrayList<>();
 
             final int numIndexingThreads = scaledRandomIntBetween(2, 4);
             final int numDocsPerThread = randomIntBetween(500, 1000);
@@ -2121,7 +2121,7 @@ public class InternalEngineTests extends EngineTestCase {
             boolean doneIndexing;
             do {
                 doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
-                commits.add(engine.acquireIndexCommit(false, true));
+                commits.add(engine.acquireLastIndexCommit(true));
                 if (commits.size() > commitLimit) { // don't keep on piling up too many commits
                     IOUtils.close(commits.remove(randomIntBetween(0, commits.size()-1)));
                     // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
@@ -2166,8 +2166,6 @@ public class InternalEngineTests extends EngineTestCase {
                 prevLocalCheckpoint = localCheckpoint;
                 prevMaxSeqNo = maxSeqNo;
             }
-        } finally {
-            IOUtils.close(commits);
         }
     }
 
@@ -4349,13 +4347,17 @@ public class InternalEngineTests extends EngineTestCase {
             for (int i = 0; i < numDocs; i++) {
                 index(engine, i);
             }
-            final boolean inSync = randomBoolean();
-            if (inSync) {
+            if (randomBoolean()) {
                 globalCheckpoint.set(numDocs - 1);
             }
             final boolean flushFirst = randomBoolean();
             final boolean safeCommit = randomBoolean();
-            Engine.IndexCommitRef commit = engine.acquireIndexCommit(safeCommit, flushFirst);
+            final Engine.IndexCommitRef snapshot;
+            if (safeCommit) {
+                snapshot = engine.acquireSafeIndexCommit();
+            } else {
+                snapshot = engine.acquireLastIndexCommit(flushFirst);
+            }
             int moreDocs = between(1, 20);
             for (int i = 0; i < moreDocs; i++) {
                 index(engine, numDocs + i);
@@ -4363,11 +4365,11 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(numDocs + moreDocs - 1);
             engine.flush();
             // check that we can still read the commit that we captured
-            try (IndexReader reader = DirectoryReader.open(commit.getIndexCommit())) {
-                assertThat(reader.numDocs(), equalTo(flushFirst && (safeCommit == false || inSync) ? numDocs : 0));
+            try (IndexReader reader = DirectoryReader.open(snapshot.getIndexCommit())) {
+                assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
-            commit.close();
+            snapshot.close();
             // check it's clean up
             engine.flush(true, true);
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
@@ -4449,6 +4451,37 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(engine.getLocalCheckpointTracker().getCheckpoint(), Long.MAX_VALUE));
             engine.syncTranslog();
             assertThat(DirectoryReader.listCommits(store.directory()), contains(commits.get(commits.size() - 1)));
+        }
+    }
+
+    public void testCleanupCommitsWhenReleaseSnapshot() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
+            final int numDocs = scaledRandomIntBetween(10, 100);
+            for (int docId = 0; docId < numDocs; docId++) {
+                index(engine, docId);
+                if (frequently()) {
+                    engine.flush(randomBoolean(), randomBoolean());
+                }
+            }
+            engine.flush(false, randomBoolean());
+            int numSnapshots = between(1, 10);
+            final List<Engine.IndexCommitRef> snapshots = new ArrayList<>();
+            for (int i = 0; i < numSnapshots; i++) {
+                snapshots.add(engine.acquireSafeIndexCommit()); // taking snapshots from the safe commit.
+            }
+            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
+            engine.syncTranslog();
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            for (int i = 0; i < numSnapshots - 1; i++) {
+                snapshots.get(i).close();
+                // pending snapshots - should not release any commit.
+                assertThat(DirectoryReader.listCommits(store.directory()), equalTo(commits));
+            }
+            snapshots.get(numSnapshots - 1).close(); // release the last snapshot - delete all except the last commit
+            assertThat(DirectoryReader.listCommits(store.directory()), hasSize(1));
         }
     }
 

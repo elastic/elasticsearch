@@ -63,8 +63,7 @@ conflicting document was updated between the start of the `_update_by_query`
 and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
-Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `_doc` documents from the `twitter` index:
+Back to the API format, this will update tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -99,7 +98,7 @@ So far we've only been updating documents without changing their source. That
 is genuinely useful for things like
 <<picking-up-a-new-property,picking up new properties>> but it's only half the
 fun. `_update_by_query` <<modules-scripting-using,supports scripts>> to update
-the document. This will increment the `likes` field on all of kimchy's _docs:
+the document. This will increment the `likes` field on all of kimchy's tweets:
 
 [source,js]
 --------------------------------------------------

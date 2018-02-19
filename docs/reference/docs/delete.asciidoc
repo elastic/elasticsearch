@@ -74,7 +74,7 @@ DELETE /twitter/_doc/1?routing=kimchy
 // CONSOLE
 // TEST[continued]
 
-The above will delete a `_doc` with id `1`, but will be routed based on the
+The above will delete a tweet with id `1`, but will be routed based on the
 user. Note, issuing a delete without the correct routing, will cause the
 document to not be deleted.
 

@@ -65,6 +65,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -336,7 +337,9 @@ public class PluginsService extends AbstractComponent {
      */
     public static List<Path> findPluginDirs(final Path rootPath) throws IOException {
         final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(rootPath);
-        return groupedPluginDirs.v2().values().stream().flatMap(Collection::stream).collect(Collectors.toList());
+        return Stream.concat(
+                groupedPluginDirs.v1().stream(),
+                groupedPluginDirs.v2().values().stream().flatMap(Collection::stream)).collect(Collectors.toList());
     }
 
     /**

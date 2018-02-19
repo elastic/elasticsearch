@@ -166,7 +166,7 @@ For package managers like dpkg and rpm you will find the newly built packages un
 `./distribution/packages/(deb|rpm)/build/distributions/`
 
 Regular compressed archives like tar and zip is found under:
-`./distribution/packages/(tar|zip)/build/distributions/`
+`./distribution/archives/(tar|zip)/build/distributions/`
 
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:

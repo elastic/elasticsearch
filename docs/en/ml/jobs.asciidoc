@@ -1,24 +1,33 @@
-[float]
 [[ml-jobs]]
-=== Jobs
+=== Machine Learning Jobs
+++++
+<titleabbrev>Jobs</titleabbrev>
+++++
 
 Machine learning jobs contain the configuration information and metadata
-necessary to perform an analytics task. For a list of the properties associated
-with a job, see {ref}/ml-job-resource.html[Job Resources].
+necessary to perform an analytics task.
 
-[float]
-[[ml-detectors]]
-=== Detectors
+Each job has one or more _detectors_. A detector applies an analytical function
+to specific fields in your data. For more information about the types of
+analysis you can perform, see <<ml-functions>>.
 
-As part of the configuration information that is associated with a job,
-detectors define the type of analysis that needs to be done. They also specify
-which fields to analyze. You can have more than one detector in a job, which
-is more efficient than running multiple jobs against the same data. For a list
-of the properties associated with detectors, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+A job can also contain properties that affect which types of entities or events
+are considered anomalous. For example, you can specify whether entities are
+analyzed relative to their own previous behavior or relative to other entities
+in a population. There are also multiple options for splitting the data into
+categories and partitions. Some of these more advanced job configurations
+are described in the following section: <<ml-configuring>>.
 
-[float]
-[[ml-function-overview]]
-=== Analytical functions
+For a description of all the job properties, see
+{ref}/ml-job-resource.html[Job Resources].
 
-See <<ml-functions>>.
+In {kib}, there are wizards that help you create specific types of jobs, such
+as _single metric_, _multi-metric_, and _population_ jobs. A single metric job
+is just a job with a single detector and limited job properties. To have access
+to all of the job properties in {kib}, you must choose the _advanced_ job wizard.
+If you want to try creating single and multi-metrics jobs in {kib} with sample
+data, see <<ml-getting-started>>.
+
+You can also optionally assign jobs to one or more _job groups_. You can use
+job groups to view the results from multiple jobs more easily and to expedite
+administrative tasks by opening or closing multiple jobs at once.

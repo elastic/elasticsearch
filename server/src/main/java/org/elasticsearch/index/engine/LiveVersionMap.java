@@ -375,7 +375,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    void pruneTombstones(long currentTime, long pruneInterval) {
+    /**
+     * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
+     */
+    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             final BytesRef uid = entry.getKey();
             try (Releasable lock = keyedLock.tryAcquire(uid)) {
@@ -387,9 +390,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                     // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                     final DeleteVersionValue versionValue = tombstones.get(uid);
                     if (versionValue != null) {
-                        // check if the value is old enough to be removed
-                        final boolean isTooOld = currentTime - versionValue.time > pruneInterval;
-                        if (isTooOld) {
+                        // check if the value is old enough and safe to be removed
+                        if (versionValue.time < maxTimestampToPrune && versionValue.seqNo <= maxSeqNoToPrune) {
                             // version value can't be removed it's
                             // not yet flushed to lucene ie. it's part of this current maps object
                             final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();

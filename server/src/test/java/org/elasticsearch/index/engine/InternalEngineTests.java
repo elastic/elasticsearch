@@ -77,6 +77,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -91,6 +92,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -165,6 +167,7 @@ import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTr
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -4571,5 +4574,46 @@ public class InternalEngineTests extends EngineTestCase {
                 thread.join();
             }
         }
+    }
+
+    public void testPruneOnlyDeletesAtMostLocalCheckpoint() throws Exception {
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "-1")).build();
+        indexSettings.updateIndexMetaData(indexMetaData);
+        engine.onSettingsChanged();
+        engine.engineConfig.setEnableGcDeletes(true);
+        int addedDocs = scaledRandomIntBetween(0, 10);
+        for (int i = 0; i < addedDocs; i++) {
+            index(engine, i);
+        }
+        final AtomicLong clock = new AtomicLong();
+        final Set<Long> trimmedDeletes = new HashSet<>();
+        final int trimmedBatch = between(10, 20);
+        for (int i = 0; i < trimmedBatch; i++) {
+            final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, clock.incrementAndGet()));
+            trimmedDeletes.add(seqno);
+        }
+        final long gapSeqNo = engine.getLocalCheckpointTracker().generateSeqNo(); // Gap here.
+        final Set<Long> rememberedDeletes = new HashSet<>();
+        final int rememberedBatch = between(10, 20);
+        for (int i = 0; i < rememberedBatch; i++) {
+            final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, clock.incrementAndGet()));
+            rememberedDeletes.add(seqno);
+        }
+        assertThat(engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
+            equalTo(Sets.union(trimmedDeletes, rememberedDeletes)));
+        engine.refresh("test");
+        // Only prune deletes below the local checkpoint.
+        engine.maybePruneDeletes();
+        assertThat(engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
+            equalTo(rememberedDeletes));
+        // Fill the gap - should be able to prune all deletes.
+        engine.index(replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false));
+        engine.maybePruneDeletes();
+        assertThat(engine.getDeletedTombstones().entrySet(), empty());
     }
 }

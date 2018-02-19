@@ -244,7 +244,6 @@ public class PathTrieTests extends ESTestCase {
     }
 
     public void testNamedWildcardAndLookupWithWildcard() {
-        //PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         PathTrieBuilder<String> builder = new PathTrieBuilder(NO_DECODER);
         builder.insert("x/{test}", "test1");
         builder.insert("{test}/a", "test2");
@@ -278,7 +277,6 @@ public class PathTrieTests extends ESTestCase {
     //https://github.com/elastic/elasticsearch/issues/14177
     //https://github.com/elastic/elasticsearch/issues/13665
     public void testEscapedSlashWithinUrl() {
-        //PathTrie<String> pathTrie = new PathTrie<>(RestUtils.REST_DECODER);
         PathTrieBuilder<String> builder = new PathTrieBuilder(RestUtils.REST_DECODER);
         builder.insert("/{index}/{type}/{id}", "test");
         

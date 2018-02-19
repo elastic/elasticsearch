@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.path.PathTrieBuilder;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -64,7 +65,7 @@ import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 
 public class RestController extends AbstractComponent implements HttpServerTransport.Dispatcher {
 
-    private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrieBuilder<MethodHandlers> handlers = new PathTrieBuilder<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
@@ -348,8 +349,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     Iterator<MethodHandlers> getAllHandlers(final RestRequest request) {
         // Between retrieving the correct path, we need to reset the parameters,
         // otherwise parameters are parsed out of the URI that aren't actually handled.
+        PathTrie<MethodHandlers> trie = handlers.createpathTrie();
         final Map<String, String> originalParams = new HashMap<>(request.params());
-        return handlers.retrieveAll(getPath(request), () -> {
+        return trie.retrieveAll(getPath(request), () -> {
             // PathTrie modifies the request, so reset the params between each iteration
             request.params().clear();
             request.params().putAll(originalParams);

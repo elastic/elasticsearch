@@ -61,7 +61,6 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NAME, value.getStringRep());
-        return builder;
+        return builder.field(NAME, value.getStringRep());
     }
 }

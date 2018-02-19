@@ -67,7 +67,6 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NAME, value.getStringRep());
-        return builder;
+        return builder.field(NAME, value.getStringRep());
     }
 }

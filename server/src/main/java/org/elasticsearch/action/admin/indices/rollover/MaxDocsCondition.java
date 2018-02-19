@@ -59,7 +59,6 @@ public class MaxDocsCondition extends Condition<Long> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NAME, value);
-        return builder;
+        return builder.field(NAME, value);
     }
 }

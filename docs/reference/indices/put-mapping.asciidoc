@@ -9,7 +9,7 @@ fields to an existing type:
 PUT twitter <1>
 {}
 
-PUT twitter/_mapping/_doc <2>
+PUT twitter/user/_mapping/_doc <2>
 {
   "properties": {
     "name": {
@@ -18,7 +18,7 @@ PUT twitter/_mapping/_doc <2>
   }
 }
 
-PUT twitter/_mapping/_doc <3>
+PUT twitter/user/_mapping/_doc <3>
 {
   "properties": {
     "email": {

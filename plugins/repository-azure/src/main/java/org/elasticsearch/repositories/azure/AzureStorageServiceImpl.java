@@ -42,7 +42,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -258,22 +257,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
         BlobInputStream is = SocketAccess.doPrivilegedException(() ->
             blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
-        return new InputStream() {
-            @Override
-            public int read() throws IOException {
-                return SocketAccess.doPrivilegedIOException(is::read);
-            }
-
-            @Override
-            public int read(byte[] b) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> is.read(b));
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> is.read(b, off, len));
-            }
-        };
+        return AzureStorageService.giveSocketPermissionsToStream(is);
     }
 
     @Override

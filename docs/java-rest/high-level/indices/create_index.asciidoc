@@ -21,6 +21,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-reque
 --------------------------------------------------
 <1> Settings for this index
 
+[[java-rest-high-create-index-request-mappings]]
 ==== Index mappings
 An index may be created with mappings for its document types
 
@@ -98,9 +99,9 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-reque
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[create-index-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before the create index API returns a
-response, as an `int`.
+response, as an `int`
 <2> The number of active shard copies to wait for before the create index API returns a
-response, as an `ActiveShardCount`.
+response, as an `ActiveShardCount`
 
 [[java-rest-high-create-index-sync]]
 ==== Synchronous Execution

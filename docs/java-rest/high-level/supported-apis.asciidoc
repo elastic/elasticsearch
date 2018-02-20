@@ -52,6 +52,7 @@ Index Management::
 * <<java-rest-high-close-index>>
 * <<java-rest-high-shrink-index>>
 * <<java-rest-high-split-index>>
+* <<java-rest-high-rollover-index>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
@@ -67,6 +68,7 @@ include::indices/open_index.asciidoc[]
 include::indices/close_index.asciidoc[]
 include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
+include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]

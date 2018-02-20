@@ -39,11 +39,18 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -434,5 +441,58 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("0", indexSettings.get("number_of_replicas"));
         Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
+    }
+
+    public void testRollover() throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")));
+        RolloverRequest rolloverRequest = new RolloverRequest("alias", "test_new");
+        rolloverRequest.addMaxIndexDocsCondition(1);
+
+        {
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertFalse(rolloverResponse.isRolledOver());
+            assertFalse(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(1, conditionStatus.size());
+            assertFalse(conditionStatus.get("[max_docs: 1]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+
+        highLevelClient().index(new IndexRequest("test", "type", "1").source("field", "value"));
+        highLevelClient().index(new IndexRequest("test", "type", "2").source("field", "value")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL));
+        //without the refresh the rollover may not happen as the number of docs seen may be off
+
+        {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(1));
+            rolloverRequest.dryRun(true);
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertFalse(rolloverResponse.isRolledOver());
+            assertTrue(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(2, conditionStatus.size());
+            assertTrue(conditionStatus.get("[max_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+        {
+            rolloverRequest.dryRun(false);
+            rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertTrue(rolloverResponse.isRolledOver());
+            assertFalse(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(3, conditionStatus.size());
+            assertTrue(conditionStatus.get("[max_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertFalse(conditionStatus.get("[max_size: 1mb]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
     }
 }

@@ -51,9 +51,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -122,7 +123,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
-                    final Set<Condition.Result> conditionResults = evaluateConditions(rolloverRequest.getConditions(),
+                    final Map<String, Boolean> conditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
                         metaData.index(sourceIndexName), statsResponse);
 
                     if (rolloverRequest.isDryRun()) {
@@ -130,7 +131,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
                         return;
                     }
-                    if (conditionResults.size() == 0 || conditionResults.stream().anyMatch(result -> result.matched)) {
+                    if (conditionResults.size() == 0 || conditionResults.values().stream().anyMatch(result -> result)) {
                         CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
                             rolloverRequest);
                         createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
@@ -197,17 +198,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
-    static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions,
-                                                    final DocsStats docsStats, final IndexMetaData metaData) {
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions,
+                                                   final DocsStats docsStats, final IndexMetaData metaData) {
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
         final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
-            .collect(Collectors.toSet());
+            .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Set<Condition.Result> evaluateConditions(final Set<Condition> conditions, final IndexMetaData metaData,
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition> conditions, final IndexMetaData metaData,
                                                     final IndicesStatsResponse statsResponse) {
         return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
     }

@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
@@ -34,7 +34,7 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
     protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        this.logger = ServerLoggers.getLogger(getClass(), this.indexSettings.getSettings(), shardId);
+        this.logger = Loggers.getLogger(getClass(), this.indexSettings.getSettings(), shardId);
         this.deprecationLogger = new DeprecationLogger(logger);
     }
 

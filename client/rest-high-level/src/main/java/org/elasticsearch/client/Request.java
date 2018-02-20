@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -38,6 +39,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -74,6 +76,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
@@ -215,7 +219,11 @@ public final class Request {
 
     static Request refresh(RefreshRequest refreshRequest) {
         String endpoint = endpoint(refreshRequest.indices(), "_refresh");
-        return new Request(HttpPost.METHOD_NAME, endpoint, Collections.emptyMap(), null);
+
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(refreshRequest.indicesOptions());
+
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request info() {
@@ -501,11 +509,10 @@ public final class Request {
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        // TODO maybe indices should be propery of RankEvalRequest and not of the spec
+        // TODO maybe indices should be property of RankEvalRequest and not of the spec
         List<String> indices = rankEvalRequest.getRankEvalSpec().getIndices();
         String endpoint = endpoint(indices.toArray(new String[indices.size()]), Strings.EMPTY_ARRAY, "_rank_eval");
-        HttpEntity entity = null;
-        entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
+        HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
     }
 
@@ -532,6 +539,30 @@ public final class Request {
                 resizeRequest.getTargetIndexRequest().index());
         HttpEntity entity = createEntity(resizeRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
+    }
+
+    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
+        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
+        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
+
+        String endpoint = buildEndpoint("_cluster", "settings");
+        HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request rollover(RolloverRequest rolloverRequest) throws IOException {
+        Params params = Params.builder();
+        params.withTimeout(rolloverRequest.timeout());
+        params.withMasterTimeout(rolloverRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(rolloverRequest.getCreateIndexRequest().waitForActiveShards());
+        if (rolloverRequest.isDryRun()) {
+            params.putParam("dry_run", Boolean.TRUE.toString());
+        }
+        String endpoint = buildEndpoint(rolloverRequest.getAlias(), "_rollover", rolloverRequest.getNewIndexName());
+        HttpEntity entity = createEntity(rolloverRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -574,7 +605,16 @@ public final class Request {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
-                joiner.add(part);
+                try {
+                    //encode each part (e.g. index, type and id) separately before merging them into the path
+                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                    //paths that start with `-` or contain `:`
+                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
+                    //manually encode any slash that each part may contain
+                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
+                }
             }
         }
         return joiner.toString();

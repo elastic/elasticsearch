@@ -1,0 +1,86 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.ConcatFilesTask
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.precommit.UpdateShasTask
+import org.elasticsearch.gradle.test.RunTask
+
+subprojects {
+  // CopySpec does not make it easy to create an empty director so we create the directory that we want, and then point CopySpec to its
+  // parent to copy to the root of the distribution
+  File logs = new File(buildDir, 'logs-hack/logs')
+  task createLogDir(type: EmptyDirTask) {
+    dir "${logs}"
+    dirMode 0755
+  }
+  File plugins = new File(buildDir, 'plugins-hack/plugins')
+  task createPluginsDir(type: EmptyDirTask) {
+    dir "${plugins}"
+    dirMode 0755
+  }
+  project.ext.archivesFiles = copySpec {
+    into("elasticsearch-${version}") {
+      with libFiles
+      into('config') {
+        dirMode 0750
+        fileMode 0660
+        with configFiles
+      }
+      into('bin') {
+        with copySpec {
+          with binFiles
+          from('../../src/main/resources/bin') {
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansions)
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          logs.getParent()
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          plugins.getParent()
+        }
+      }
+      with commonFiles
+      with noticeFile
+      from('../../src/main/resources') {
+        include 'bin/*.exe'
+      }
+      if (project.name != 'integ-test-zip') {
+        with modulesFiles
+      } else {
+        with transportModulesFiles
+      }
+    }
+  }
+}

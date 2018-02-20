@@ -37,7 +37,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestRefreshAction extends BaseRestHandler {
     public RestRefreshAction(Settings settings, RestController controller) {

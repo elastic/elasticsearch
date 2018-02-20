@@ -20,9 +20,19 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
 
@@ -46,7 +56,65 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
         }
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
+        {
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(new ElasticsearchException("foo"));
+            assertExceptionAsJson(exception, "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\"," +
+                "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}");
+        }
+        {
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
+                new ElasticsearchException("foo", new IllegalArgumentException("bar")));
+            assertExceptionAsJson(exception, "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\"," +
+                "\"reason\":{\"type\":\"exception\"," +
+                "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}");
+        }
+        {
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException(
+                new BroadcastShardOperationFailedException(new ShardId("test", "_uuid", 2), "foo", new IllegalStateException("bar")));
+            assertExceptionAsJson(exception, "{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\"," +
+                "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}");
+        }
+        {
+            DefaultShardOperationFailedException exception = new DefaultShardOperationFailedException("test", 1,
+                new IllegalArgumentException("foo"));
+            assertExceptionAsJson(exception, "{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\"," +
+                "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}");
+        }
+    }
 
+    public void testFromXContent() throws IOException {
+        XContent xContent = randomFrom(XContentType.values()).xContent();
+        XContentBuilder builder = XContentBuilder.builder(xContent)
+            .startObject()
+            .field("shard", 1)
+            .field("index", "test")
+            .field("status", "INTERNAL_SERVER_ERROR")
+            .startObject("reason")
+                .field("type", "exception")
+                .field("reason", "foo")
+            .endObject()
+            .endObject();
+        builder = shuffleXContent(builder);
+        DefaultShardOperationFailedException parsed;
+        try(XContentParser parser = createParser(xContent, builder.bytes())) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = DefaultShardOperationFailedException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsed);
+        assertEquals(parsed.shardId(), 1);
+        assertEquals(parsed.index(), "test");
+        assertEquals(parsed.status(), RestStatus.INTERNAL_SERVER_ERROR);
+        assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+    }
+
+    private static void assertExceptionAsJson(DefaultShardOperationFailedException exception, String expectedJson) throws IOException {
+        BytesReference exceptionBytes = XContentHelper.toXContent(
+            (builder, params) -> exception.toXContent(builder, params), XContentType.JSON, randomBoolean());
+        String exceptionJson = XContentHelper.convertToJson(exceptionBytes, false, XContentType.JSON);
+        assertEquals(exceptionJson, expectedJson);
     }
 }

@@ -42,10 +42,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RefreshResponseTests extends ESTestCase {
 
-    @BeforeClass
-    public static void prepareException() {
-    }
-
     public void testToXContent() {
         RefreshResponse response = new RefreshResponse(10, 10, 0, null);
         String output = Strings.toString(response);

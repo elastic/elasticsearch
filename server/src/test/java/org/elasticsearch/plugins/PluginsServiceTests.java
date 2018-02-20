@@ -590,4 +590,137 @@ public class PluginsServiceTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
+
+    public void testIncompatibleElasticsearchVersion() throws Exception {
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.V_5_0_0,
+            "1.8", "FakePlugin", Collections.emptyList(), false, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for Elasticsearch version 5.0.0"));
+    }
+
+    public void testIncompatibleJavaVersion() throws Exception {
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", Version.CURRENT,
+            "1000000.0", "FakePlugin", Collections.emptyList(), false, false);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("my_plugin requires Java"));
+    }
+
+    public void testFindPluginDirs() throws IOException {
+        final Path plugins = createTempDir();
+
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+                fake,
+                "description", "description",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake.resolve("plugin.jar"));
+        }
+
+        final Path fakeMeta = plugins.resolve("fake-meta");
+
+        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
+
+        final Path fakeMetaCore = fakeMeta.resolve("fake-meta-core");
+        PluginTestUtil.writePluginProperties(
+                fakeMetaCore,
+                "description", "description",
+                "name", "fake-meta-core",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fakeMetaCore.resolve("plugin.jar"));
+        }
+
+        assertThat(PluginsService.findPluginDirs(plugins), containsInAnyOrder(fake, fakeMetaCore));
+    }
+
+    public void testMissingMandatoryPlugin() {
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", createTempDir())
+                        .put("plugin.mandatory", "fake")
+                        .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(e, hasToString(containsString("missing mandatory plugins [fake]")));
+    }
+
+    public void testExistingMandatoryClasspathPlugin() {
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", createTempDir())
+                        .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+                        .build();
+        newPluginsService(settings, FakePlugin.class);
+    }
+
+    public static class FakePlugin extends Plugin {
+
+        public FakePlugin() {
+
+        }
+
+    }
+
+    public void testExistingMandatoryInstalledPlugin() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake = plugins.resolve("fake");
+
+        PluginTestUtil.writePluginProperties(
+                fake,
+                "description", "description",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake.resolve("plugin.jar"));
+        }
+
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", pathHome)
+                        .put("plugin.mandatory", "fake")
+                        .build();
+        newPluginsService(settings);
+    }
+
+    public void testExistingMandatoryMetaPlugin() throws IOException {
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fakeMeta = plugins.resolve("fake-meta");
+
+        PluginTestUtil.writeMetaPluginProperties(fakeMeta, "description", "description", "name", "fake-meta");
+
+        final Path fake = fakeMeta.resolve("fake");
+        PluginTestUtil.writePluginProperties(
+                fake,
+                "description", "description",
+                "name", "fake",
+                "version", "1.0.0",
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "java.version", System.getProperty("java.specification.version"),
+                "classname", "test.DummyPlugin");
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake.resolve("plugin.jar"));
+        }
+
+        final Settings settings =
+                Settings.builder()
+                        .put("path.home", pathHome)
+                        .put("plugin.mandatory", "fake-meta")
+                        .build();
+        newPluginsService(settings);
+    }
+
 }

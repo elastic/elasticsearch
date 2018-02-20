@@ -32,7 +32,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -44,7 +43,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogConfig;
 
 import java.util.HashMap;
 import java.util.List;
@@ -52,7 +50,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -186,7 +183,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.indexDocs(nonFlushedDocs);
 
             IndexShard replica = shards.getReplicas().get(0);
-            final String translogUUID = replica.getTranslog().getTranslogUUID();
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = replica.getTranslog().getGeneration();
             shards.removeReplica(replica);
@@ -204,13 +200,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
-                final TranslogConfig translogConfig =
-                    new TranslogConfig(replica.shardId(), replica.shardPath().resolveTranslog(), replica.indexSettings(),
-                        BigArrays.NON_RECYCLING_INSTANCE);
-                try (Translog translog = new Translog(translogConfig, null, createTranslogDeletionPolicy(), () -> flushedDocs)) {
-                    translogUUIDtoUse = translog.getTranslogUUID();
-                    translogGenToUse = translog.currentFileGeneration();
-                }
+                translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs, replica.shardId());
+                translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
                 translogGenToUse = translogGeneration.translogFileGeneration;

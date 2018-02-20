@@ -19,20 +19,19 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
@@ -150,20 +149,8 @@ public class BroadcastResponse extends ActionResponse implements ToXContentFragm
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(_SHARDS_FIELD.getPreferredName());
-        builder.field(TOTAL_FIELD.getPreferredName(), totalShards);
-        builder.field(SUCCESSFUL_FIELD.getPreferredName(), successfulShards);
-        builder.field(FAILED_FIELD.getPreferredName(), failedShards);
-        if (shardFailures != EMPTY) {
-            builder.startArray(FAILURES_FIELD.getPreferredName());
-            for (DefaultShardOperationFailedException failure : shardFailures) {
-                builder.startObject();
-                failure.toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-        builder.endObject();
+        // TODO: move BroadcastResponse building codes from RestActions to itself here
+        RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, -1, failedShards, shardFailures);
         return builder;
     }
 }

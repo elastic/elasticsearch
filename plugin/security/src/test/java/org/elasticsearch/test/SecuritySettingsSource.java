@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystemNotFoundException;
@@ -116,19 +117,20 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         final Path home = nodePath(parentFolder, subfolderPrefix, nodeOrdinal);
-        SecurityTestUtils.createFolder(home);
         final Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
-        SecurityTestUtils.createFolder(xpackConf);
+        try {
+            Files.createDirectories(xpackConf);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        writeFile(xpackConf, "roles.yml", configRoles());
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
-        writeFile(xpackConf, "roles.yml", configRoles());
 
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
-//                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-//                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())

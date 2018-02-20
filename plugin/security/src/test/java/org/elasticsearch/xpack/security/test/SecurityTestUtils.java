@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.test;
 
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -27,42 +26,46 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.UUID;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.junit.Assert.assertEquals;
 
 public class SecurityTestUtils {
 
-    public static void createFolder(Path path) {
-        //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-        if (Files.exists(path)) {
-            try {
-                FileSystemUtils.deleteSubDirectories(path);
-            } catch (IOException e) {
-                throw new RuntimeException("could not delete existing temporary folder: " + path.toAbsolutePath(), e);
-            }
-        } else {
-            try {
-                Files.createDirectories(path);
-            } catch (IOException e) {
-                throw new RuntimeException("could not create temporary folder: " + path.toAbsolutePath());
-            }
-        }
-    }
-
     public static String writeFile(Path folder, String name, byte[] content) {
-        Path file = folder.resolve(name);
-        try (OutputStream os = Files.newOutputStream(file)) {
-            Streams.copy(content, os);
-        } catch (IOException e) {
-            throw new ElasticsearchException("error writing file in test", e);
+        final Path path = folder.resolve(name);
+        Path tempFile = null;
+        try {
+            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
+            try (OutputStream os = Files.newOutputStream(tempFile, CREATE, TRUNCATE_EXISTING, WRITE)) {
+                Streams.copy(content, os);
+            }
+
+            try {
+                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(tempFile, path, REPLACE_EXISTING);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(String.format(Locale.ROOT, "could not write file [%s]", path.toAbsolutePath()), e);
+        } finally {
+            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
+            IOUtils.deleteFilesIgnoringExceptions(tempFile);
         }
-        return file.toAbsolutePath().toString();
+        return path.toAbsolutePath().toString();
     }
 
     public static String writeFile(Path folder, String name, String content) {

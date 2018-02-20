@@ -73,14 +73,14 @@ public class JarHell {
 
     /**
      * Checks the current classpath for duplicate classes
-     * @param output A {@code String} {@link Consumer} to which debug output will be sent
+     * @param output A {@link String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
     public static void checkJarHell(Consumer<String> output) throws IOException, URISyntaxException {
         ClassLoader loader = JarHell.class.getClassLoader();
         output.accept("java.class.path: " + System.getProperty("java.class.path"));
         output.accept("sun.boot.class.path: " + System.getProperty("sun.boot.class.path"));
-        if (loader instanceof URLClassLoader ) {
+        if (loader instanceof URLClassLoader) {
             output.accept("classloader urls: " + Arrays.toString(((URLClassLoader)loader).getURLs()));
         }
         checkJarHell(parseClassPath(), output);
@@ -150,7 +150,7 @@ public class JarHell {
     /**
      * Checks the set of URLs for duplicate classes
      * @param urls A set of URLs from the classpath to be checked for conflicting jars
-     * @param output A {@code String} {@link Consumer} to which debug output will be sent
+     * @param output A {@link String} {@link Consumer} to which debug output will be sent
      * @throws IllegalStateException if jar hell was found
      */
     @SuppressForbidden(reason = "needs JarFile for speed, just reading entries")

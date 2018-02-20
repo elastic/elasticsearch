@@ -39,12 +39,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     static final String TYPE = "terms";
 
     private static final ObjectParser<TermsValuesSourceBuilder, Void> PARSER;
-
     static {
         PARSER = new ObjectParser<>(TermsValuesSourceBuilder.TYPE);
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, null);
     }
-
     static TermsValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new TermsValuesSourceBuilder(name), null);
     }
@@ -58,12 +56,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void innerWriteTo(StreamOutput out) throws IOException {}
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-    }
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {}
 
     @Override
     protected int innerHashCode() {

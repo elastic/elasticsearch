@@ -114,10 +114,11 @@ abstract class SortedDocsProducer {
      */
     static SortedDocsProducer createProducerOrNull(CompositeValuesSourceConfig config, CompositeValuesCollectorQueue queue) {
         if (config.fieldContext() == null ||
-                // the field sort does not match the terms/points sort
-                config.reverseMul() == -1 ||
+                config.fieldContext().fieldType() == null ||
                 // the field is not indexed
-                config.fieldContext().fieldType().indexOptions() == IndexOptions.NONE) {
+                config.fieldContext().fieldType().indexOptions() == IndexOptions.NONE ||
+                // the field sort does not match the terms/numerics sort
+                config.reverseMul() == -1) {
             return null;
         }
 

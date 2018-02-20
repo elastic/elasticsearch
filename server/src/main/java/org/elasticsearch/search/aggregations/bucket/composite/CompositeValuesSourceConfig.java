@@ -46,6 +46,9 @@ class CompositeValuesSourceConfig {
         return name;
     }
 
+    /**
+     * Returns the {@link FieldContext} for this config.
+     */
     FieldContext fieldContext() {
         return fieldContext;
     }

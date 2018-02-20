@@ -38,11 +38,10 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 /**
  * A wrapper for {@link ValuesSource} that can record and compare values produced during a collection.
  */
-abstract class CompositeValuesSource<VS extends ValuesSource, T> {
+abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparable<T>> {
     protected final VS vs;
     protected final int size;
     protected final int reverseMul;
-
     protected T afterValue;
 
     /**
@@ -88,12 +87,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T> {
      */
     abstract void setAfter(Comparable<?> value);
 
-    abstract Comparable<T> getAfter();
+    abstract T getAfter();
 
     /**
      * Transforms the value in <code>slot</code> to a {@link Comparable} object.
      */
-    abstract Comparable<T> toComparable(int slot) throws IOException;
+    abstract T toComparable(int slot) throws IOException;
 
     /**
      * Gets the {@link LeafCollector} that will record the values of the visited documents.
@@ -177,12 +176,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T> {
         }
 
         @Override
-        Comparable<BytesRef> getAfter() {
+        BytesRef getAfter() {
             return afterValue;
         }
 
         @Override
-        Comparable<BytesRef> toComparable(int slot) {
+        BytesRef toComparable(int slot) {
             return values[slot];
         }
 
@@ -278,12 +277,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T> {
         }
 
         @Override
-        Comparable<Long> getAfter() {
+        Long getAfter() {
             return afterValue;
         }
 
         @Override
-        Comparable<Long> toComparable(int slot) {
+        Long toComparable(int slot) {
             return values[slot];
         }
 
@@ -371,12 +370,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T> {
         }
 
         @Override
-        Comparable<Double> getAfter() {
+        Double getAfter() {
             return afterValue;
         }
 
         @Override
-        Comparable<Double> toComparable(int slot) {
+        Double toComparable(int slot) {
             return values[slot];
         }
 

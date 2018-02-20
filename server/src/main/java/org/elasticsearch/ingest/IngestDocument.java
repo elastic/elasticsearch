@@ -617,7 +617,7 @@ public final class IngestDocument {
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean ||
-            value instanceof ZonedDateTime || value instanceof VersionType) {
+            value instanceof ZonedDateTime) {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();
@@ -658,7 +658,7 @@ public final class IngestDocument {
         ROUTING(RoutingFieldMapper.NAME),
         PARENT(ParentFieldMapper.NAME),
         VERSION(VersionFieldMapper.NAME),
-        VERSION_TYPE(VersionFieldMapper.VersionFieldType.NAME);
+        VERSION_TYPE("_version_type");
 
         private final String fieldName;
 

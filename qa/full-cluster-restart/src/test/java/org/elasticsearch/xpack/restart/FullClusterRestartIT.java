@@ -45,7 +45,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -360,10 +359,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals("example.com", request.get("host"));
         assertEquals("{{ctx.metadata.report_url}}", request.get("path"));
         assertEquals(8443, request.get("port"));
-        Map<String, String> basic = ObjectPath.eval("auth.basic", request);
+        Map<?, ?> basic = ObjectPath.eval("auth.basic", request);
         assertThat(basic, hasEntry("username", "Aladdin"));
         // password doesn't come back because it is hidden
-        assertThat(basic, hasEntry(is("password"), anyOf(startsWith("::es_encrypted::"), is("::es_redacted::"))));
+        assertThat(basic, not(hasKey("password")));
 
         Map<String, Object> history = toMap(client().performRequest("GET", ".watcher-history*/_search"));
         Map<String, Object> hits = (Map<String, Object>) history.get("hits");

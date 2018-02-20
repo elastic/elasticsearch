@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -253,6 +252,6 @@ public class TickerScheduleEngineTests extends ESTestCase {
     private Watch createWatch(String name, Schedule schedule) {
         return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(logger),
                 InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, null, Versions.MATCH_ANY);
+                Collections.emptyList(), null, null);
     }
 }

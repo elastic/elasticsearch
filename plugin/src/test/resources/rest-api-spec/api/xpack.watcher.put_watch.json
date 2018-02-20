@@ -20,10 +20,6 @@
         "active": {
           "type": "boolean",
           "description": "Specify whether the watch is in/active by default"
-        },
-        "version" : {
-          "type" : "number",
-          "description" : "Explicit version number for concurrency control"
         }
       }
     },

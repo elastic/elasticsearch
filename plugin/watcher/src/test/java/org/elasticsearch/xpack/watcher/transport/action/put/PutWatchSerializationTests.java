@@ -9,7 +9,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +39,6 @@ public class PutWatchSerializationTests extends ESTestCase {
         assertThat(readRequest.getId(), is(request.getId()));
         assertThat(readRequest.getSource(), is(request.getSource()));
         assertThat(readRequest.xContentType(), is(request.xContentType()));
-        assertThat(readRequest.getVersion(), is(request.getVersion()));
     }
 
     public void testPutWatchSerializationXContent() throws Exception {
@@ -62,7 +60,6 @@ public class PutWatchSerializationTests extends ESTestCase {
         assertThat(readRequest.getId(), is(request.getId()));
         assertThat(readRequest.getSource(), is(request.getSource()));
         assertThat(readRequest.xContentType(), is(XContentType.JSON));
-        assertThat(readRequest.getVersion(), is(Versions.MATCH_ANY));
     }
 
     public void testPutWatchSerializationXContentBwc() throws IOException {

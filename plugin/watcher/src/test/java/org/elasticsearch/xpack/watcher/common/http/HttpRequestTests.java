@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
@@ -125,7 +124,7 @@ public class HttpRequestTests extends ESTestCase {
         assertNotNull(httpRequest);
 
         try (XContentBuilder xContentBuilder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
-            httpRequest.toXContent(xContentBuilder, WatcherParams.builder().hideSecrets(false).build());
+            httpRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
 
             HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
             HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);

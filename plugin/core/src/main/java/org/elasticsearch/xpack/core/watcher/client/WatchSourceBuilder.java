@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.support.Exceptions;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
@@ -176,8 +175,7 @@ public class WatchSourceBuilder implements ToXContentObject {
      */
     public final BytesReference buildAsBytes(XContentType contentType) {
         try {
-            WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
-            return XContentHelper.toXContent(this, contentType,  params,false);
+            return XContentHelper.toXContent(this, contentType, false);
         } catch (Exception e) {
             throw new ElasticsearchException("Failed to build ToXContent", e);
         }

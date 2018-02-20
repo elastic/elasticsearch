@@ -971,7 +971,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testUpdateWatchStatusDoesNotUpdateState() throws Exception {
         WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
         Watch watch = new Watch("_id", new ManualTrigger(), new ExecutableNoneInput(logger), InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, status, 1L);
+                Collections.emptyList(), null, status);
 
         final AtomicBoolean assertionsTriggered = new AtomicBoolean(false);
         doAnswer(invocation -> {

@@ -40,7 +40,6 @@ GET _xpack/watcher/watch/my_watch
 {
   "found": true,
   "_id": "my_watch",
-  "_version": 1,
   "status": {
     "state" : {
       "active" : true,

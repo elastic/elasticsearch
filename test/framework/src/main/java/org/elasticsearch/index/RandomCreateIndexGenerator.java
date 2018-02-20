@@ -76,7 +76,7 @@ public final class RandomCreateIndexGenerator {
         return builder.build();
     }
 
-    private static XContentBuilder randomMapping(String type) throws IOException {
+    public static XContentBuilder randomMapping(String type) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().startObject(type);
 

@@ -41,7 +41,7 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[exists-alias-reque
 --------------------------------------------------
 <1> The `local` flag (defaults to `false`) controls whether the aliases need
 to be looked up in the local cluster state or in the cluster state held by
-the elected master node.
+the elected master node
 
 [[java-rest-high-exists-alias-sync]]
 ==== Synchronous Execution

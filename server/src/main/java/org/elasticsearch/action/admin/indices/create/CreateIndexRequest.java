@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -57,9 +56,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -72,7 +71,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final ParseField MAPPINGS = new ParseField("mappings");
+    public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
     public static final ParseField ALIASES = new ParseField("aliases");
 
@@ -525,7 +524,12 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
 
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SETTINGS.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
@@ -545,8 +549,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             builder.field(entry.getKey(), entry.getValue(), params);
         }
-
-        builder.endObject();
         return builder;
     }
 }

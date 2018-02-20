@@ -20,7 +20,7 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,9 +37,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * A response for a create index action.
  */
-public class CreateIndexResponse extends AcknowledgedResponse implements ToXContentObject {
+public class CreateIndexResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
 
-    private static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
     private static final ParseField INDEX = new ParseField("index");
 
     private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
@@ -50,22 +49,17 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     }
 
     protected static <T extends CreateIndexResponse> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
-        declareAcknowledgedField(objectParser);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SHARDS_ACKNOWLEDGED,
-                ObjectParser.ValueType.BOOLEAN);
-        objectParser.declareField(constructorArg(), (parser, context) -> parser.text(), INDEX, ObjectParser.ValueType.STRING);
+        declareAcknowledgedAndShardsAcknowledgedFields(objectParser);
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.textOrNull(), INDEX, ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    private boolean shardsAcknowledged;
     private String index;
 
     protected CreateIndexResponse() {
     }
 
     protected CreateIndexResponse(boolean acknowledged, boolean shardsAcknowledged, String index) {
-        super(acknowledged);
-        assert acknowledged || shardsAcknowledged == false; // if its not acknowledged, then shardsAcknowledged should be false too
-        this.shardsAcknowledged = shardsAcknowledged;
+        super(acknowledged, shardsAcknowledged);
         this.index = index;
     }
 
@@ -73,7 +67,7 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
-        shardsAcknowledged = in.readBoolean();
+        readShardsAcknowledged(in);
         if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
             index = in.readString();
         }
@@ -83,35 +77,22 @@ public class CreateIndexResponse extends AcknowledgedResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
-        out.writeBoolean(shardsAcknowledged);
+        writeShardsAcknowledged(out);
         if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
             out.writeString(index);
         }
-    }
-
-    /**
-     * Returns true if the requisite number of shards were started before
-     * returning from the index creation operation. If {@link #isAcknowledged()}
-     * is false, then this also returns false.
-     */
-    public boolean isShardsAcknowledged() {
-        return shardsAcknowledged;
     }
 
     public String index() {
         return index;
     }
 
-    public void addCustomFields(XContentBuilder builder) throws IOException {
-        builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcknowledged());
-        builder.field(INDEX.getPreferredName(), index());
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         addAcknowledgedField(builder);
-        addCustomFields(builder);
+        addShardsAcknowledgedField(builder);
+        builder.field(INDEX.getPreferredName(), index());
         builder.endObject();
         return builder;
     }

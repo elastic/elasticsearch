@@ -149,7 +149,7 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
         private final int tcpReceiveBufferSize;
 
         public RawChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, boolean tcpReusedAddress, int tcpSendBufferSize,
-                                    int tcpReceiveBufferSize) {
+                                 int tcpReceiveBufferSize) {
             this.tcpNoDelay = tcpNoDelay;
             this.tcpKeepAlive = tcpKeepAlive;
             this.tcpReusedAddress = tcpReusedAddress;

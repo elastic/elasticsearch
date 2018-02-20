@@ -27,6 +27,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+/**
+ * Implements the logic related to interacting with a java.nio channel. For example: registering with a
+ * selector, managing the selection key, closing, etc is implemented by this class or its subclasses.
+ *
+ * @param <S> the type of channel
+ */
 public abstract class ChannelContext<S extends SelectableChannel & NetworkChannel> {
 
     protected final S rawChannel;
@@ -39,11 +45,11 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
         this.exceptionHandler = exceptionHandler;
     }
 
-    public void register() throws IOException {
+    void register() throws IOException {
         setSelectionKey(rawChannel.register(getSelector().rawSelector(), 0));
     }
 
-    public SelectionKey getSelectionKey() {
+    SelectionKey getSelectionKey() {
         return selectionKey;
     }
 
@@ -63,13 +69,18 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
             try {
                 rawChannel.close();
                 closeContext.complete(null);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 closeContext.completeExceptionally(e);
                 throw e;
             }
         }
     }
 
+    /**
+     * Add a listener that will be called when the channel is closed.
+     *
+     * @param listener to be called
+     */
     public void addCloseListener(BiConsumer<Void, Throwable> listener) {
         closeContext.whenComplete(listener);
     }
@@ -78,7 +89,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
         return closeContext.isDone() == false;
     }
 
-    public void handleException(Exception e) {
+    void handleException(Exception e) {
         exceptionHandler.accept(e);
     }
 

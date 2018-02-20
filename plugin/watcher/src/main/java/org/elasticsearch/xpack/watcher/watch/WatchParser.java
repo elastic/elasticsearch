@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -72,12 +73,12 @@ public class WatchParser extends AbstractComponent {
     }
 
     public Watch parse(String name, boolean includeStatus, BytesReference source, XContentType xContentType) throws IOException {
-        return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), xContentType);
+        return parse(name, includeStatus, false, source, new DateTime(clock.millis(), UTC), xContentType, false);
     }
 
     public Watch parse(String name, boolean includeStatus, BytesReference source, DateTime now,
                        XContentType xContentType) throws IOException {
-        return parse(name, includeStatus, false, source, now, xContentType);
+        return parse(name, includeStatus, false, source, now, xContentType, false);
     }
 
     /**
@@ -91,20 +92,24 @@ public class WatchParser extends AbstractComponent {
      * of the watch in the system will be use secrets for sensitive data.
      *
      */
-    public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now, XContentType xContentType)
-            throws IOException {
-        return parse(id, includeStatus, true, source, now, xContentType);
+    public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now,
+                                                  XContentType xContentType, boolean allowRedactedPasswords) throws IOException {
+        return parse(id, includeStatus, true, source, now, xContentType, allowRedactedPasswords);
+    }
+
+    public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now,
+                                  XContentType xContentType) throws IOException {
+        return parse(id, includeStatus, true, source, now, xContentType, false);
     }
 
     private Watch parse(String id, boolean includeStatus, boolean withSecrets, BytesReference source, DateTime now,
-                        XContentType xContentType) throws IOException {
+                        XContentType xContentType, boolean allowRedactedPasswords) throws IOException {
         if (logger.isTraceEnabled()) {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }
         // EMPTY is safe here because we never use namedObject
-        try (WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source),
-                now, withSecrets ? cryptoService : null)) {
+        try (WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, source), now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {
@@ -121,6 +126,7 @@ public class WatchParser extends AbstractComponent {
         TimeValue throttlePeriod = null;
         Map<String, Object> metatdata = null;
         WatchStatus status = null;
+        long version = Versions.MATCH_ANY;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -153,6 +159,8 @@ public class WatchParser extends AbstractComponent {
                 actions = actionRegistry.parseActions(id, parser);
             } else if (WatchField.METADATA.match(currentFieldName, parser.getDeprecationHandler())) {
                 metatdata = parser.map();
+            } else if (WatchField.VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                version = parser.longValue();
             } else if (WatchField.STATUS.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (includeStatus) {
                     status = WatchStatus.parse(id, parser);
@@ -185,6 +193,7 @@ public class WatchParser extends AbstractComponent {
             status = new WatchStatus(parser.getParseDateTime(), unmodifiableMap(actionsStatuses));
         }
 
-        return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions, metatdata, status);
+
+        return new Watch(id, trigger, input, condition, transform, throttlePeriod, actions,  metatdata, status, version);
     }
 }

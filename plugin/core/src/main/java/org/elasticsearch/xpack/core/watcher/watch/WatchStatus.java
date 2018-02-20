@@ -265,7 +265,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
         if (executionState != null) {
             builder.field(Field.EXECUTION_STATE.getPreferredName(), executionState.id());
         }
-        if (headers != null && headers.isEmpty() == false && params.paramAsBoolean(WatcherParams.HIDE_HEADERS, true) == false) {
+        if (headers != null && headers.isEmpty() == false && WatcherParams.hideHeaders(params) == false) {
             builder.field(Field.HEADERS.getPreferredName(), headers);
         }
         builder.field(Field.VERSION.getPreferredName(), version);

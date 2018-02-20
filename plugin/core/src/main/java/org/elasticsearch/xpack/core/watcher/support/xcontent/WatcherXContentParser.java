@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -33,41 +34,47 @@ import java.util.Map;
  */
 public class WatcherXContentParser implements XContentParser {
 
-    public static Secret secret(XContentParser parser) throws IOException {
-        char[] chars = parser.text().toCharArray();
-        if (parser instanceof WatcherXContentParser) {
-            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
-            if (watcherParser.cryptoService != null) {
-                chars = watcherParser.cryptoService.encrypt(chars);
-            }
-        }
-        return new Secret(chars);
-    }
+    public static final String REDACTED_PASSWORD = "::es_redacted::";
 
     public static Secret secretOrNull(XContentParser parser) throws IOException {
         String text = parser.textOrNull();
         if (text == null) {
             return null;
         }
-        char[] chars = parser.text().toCharArray();
-        if (parser instanceof WatcherXContentParser) {
-            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
-            if (watcherParser.cryptoService != null) {
-                chars = watcherParser.cryptoService.encrypt(text.toCharArray());
-            }
+
+        char[] chars = text.toCharArray();
+        boolean isEncryptedAlready = text.startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX);
+        if (isEncryptedAlready) {
             return new Secret(chars);
         }
+
+        if (parser instanceof WatcherXContentParser) {
+            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
+            if (REDACTED_PASSWORD.equals(text)) {
+                if (watcherParser.allowRedactedPasswords) {
+                    return null;
+                } else {
+                    throw new ElasticsearchParseException("found redacted password in field [{}]", parser.currentName());
+                }
+            } else if (watcherParser.cryptoService != null) {
+                return new Secret(watcherParser.cryptoService.encrypt(chars));
+            }
+        }
+
         return new Secret(chars);
     }
 
     private final DateTime parseTime;
     private final XContentParser parser;
     @Nullable private final CryptoService cryptoService;
+    private final boolean allowRedactedPasswords;
 
-    public WatcherXContentParser(XContentParser parser, DateTime parseTime, @Nullable CryptoService cryptoService) {
+    public WatcherXContentParser(XContentParser parser, DateTime parseTime, @Nullable CryptoService cryptoService,
+                                 boolean allowRedactedPasswords) {
         this.parseTime = parseTime;
         this.parser = parser;
         this.cryptoService = cryptoService;
+        this.allowRedactedPasswords = allowRedactedPasswords;
     }
 
     public DateTime getParseDateTime() { return parseTime; }

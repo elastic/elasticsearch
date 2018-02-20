@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -392,7 +393,8 @@ public class EmailActionTests extends ESTestCase {
             }
             if (auth != null) {
                 assertThat(parsed.action().getAuth().user(), is(executable.action().getAuth().user()));
-                assertThat(parsed.action().getAuth().password(), nullValue());
+                assertThat(parsed.action().getAuth().password(), notNullValue());
+                assertThat(parsed.action().getAuth().password().value(), startsWith("::es_redacted::"));
                 assertThat(executable.action().getAuth().password(), notNullValue());
             }
         }

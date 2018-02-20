@@ -70,11 +70,12 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                                     XContentType.JSON);
                             watch.toXContent(builder, WatcherParams.builder()
                                     .hideSecrets(true)
-                                    .put(Watch.INCLUDE_STATUS_KEY, false)
+                                    .includeStatus(false)
                                     .build());
                             watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
-                            listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
+                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(), builder.bytes(),
+                                    XContentType.JSON));
                         }
                     } else {
                         listener.onResponse(new GetWatchResponse(request.getId()));

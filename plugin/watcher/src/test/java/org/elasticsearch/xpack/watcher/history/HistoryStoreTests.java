@@ -32,23 +32,21 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
-import org.hamcrest.TypeSafeMatcher;
 import org.joda.time.DateTime;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.watcher.history.HistoryStoreField.getHistoryIndexNameForTime;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -127,7 +125,7 @@ public class HistoryStoreTests extends ESTestCase {
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR));
 
         final String username = randomFrom("admin", "elastic", "test");
-        final String password = randomFrom("secret", "password", "123456");
+        final String password = randomFrom("secret", "supersecret", "123456");
         final String url = "https://" + randomFrom("localhost", "internal-jira.elastic.co") + ":" + randomFrom(80, 8080, 449, 9443);
 
         Settings settings = Settings.builder().put("url", url).put("user", username).put("password", password).build();
@@ -161,49 +159,17 @@ public class HistoryStoreTests extends ESTestCase {
 
         PlainActionFuture<IndexResponse> indexResponseFuture = PlainActionFuture.newFuture();
         indexResponseFuture.onResponse(mock(IndexResponse.class));
-        when(client.index(any())).thenReturn(indexResponseFuture);
+        ArgumentCaptor<IndexRequest> requestCaptor = ArgumentCaptor.forClass(IndexRequest.class);
+        when(client.index(requestCaptor.capture())).thenReturn(indexResponseFuture);
         if (randomBoolean()) {
             historyStore.put(watchRecord);
         } else {
             historyStore.forcePut(watchRecord);
         }
-        verify(client).index(argThat(indexRequestDoesNotContainPassword(username, password)));
-    }
 
-    private static Matcher<IndexRequest> indexRequestDoesNotContainPassword(String username, String password) {
-        return new IndexRequestNoPasswordMatcher(username, password);
-    }
-
-    private static class IndexRequestNoPasswordMatcher extends TypeSafeMatcher<IndexRequest> {
-
-        private String username;
-        private String password;
-
-        IndexRequestNoPasswordMatcher(String username, String password) {
-            this.username = username;
-            this.password = password;
-        }
-
-        @Override
-        protected boolean matchesSafely(IndexRequest indexRequest) {
-            String source  = indexRequest.source().utf8ToString();
-            assertThat(source, containsString(username));
-            assertThat(source, not(containsString(password)));
-            return true;
-        }
-
-        @Override
-        public void describeMismatchSafely(final IndexRequest indexRequest, final Description mismatchDescription) {
-            mismatchDescription.appendText(" was ").appendValue(indexRequest.sourceAsMap());
-        }
-
-        @Override
-        public void describeTo(final Description description) {
-            description.appendText("IndexRequest id should contain username [")
-                    .appendValue(username)
-                    .appendText("] and should not contain [")
-                    .appendValue(password)
-                    .appendText("]");
-        }
+        assertThat(requestCaptor.getAllValues(), hasSize(1));
+        String indexedJson = requestCaptor.getValue().source().utf8ToString();
+        assertThat(indexedJson, containsString(username));
+        assertThat(indexedJson, not(containsString(password)));
     }
 }

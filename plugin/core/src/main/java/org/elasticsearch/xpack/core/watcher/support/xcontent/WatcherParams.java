@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,9 +18,9 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     public static final WatcherParams HIDE_SECRETS = WatcherParams.builder().hideSecrets(true).build();
 
-    static final String HIDE_SECRETS_KEY = "hide_secrets";
-    public static final String HIDE_HEADERS = "hide_headers";
-    static final String DEBUG_KEY = "debug";
+    private static final String HIDE_SECRETS_KEY = "hide_secrets";
+    private static final String HIDE_HEADERS = "hide_headers";
+    private static final String DEBUG_KEY = "debug";
 
     public static boolean hideSecrets(ToXContent.Params params) {
         return wrap(params).hideSecrets();
@@ -29,19 +30,23 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         return wrap(params).debug();
     }
 
+    public static boolean hideHeaders(ToXContent.Params params) {
+        return wrap(params).hideHeaders();
+    }
+
     private WatcherParams(Map<String, String> params, ToXContent.Params delegate) {
         super(params, delegate);
     }
 
-    public boolean hideSecrets() {
-        return paramAsBoolean(HIDE_SECRETS_KEY, false);
+    private boolean hideSecrets() {
+        return paramAsBoolean(HIDE_SECRETS_KEY, true);
     }
 
-    public boolean debug() {
+    private boolean debug() {
         return paramAsBoolean(DEBUG_KEY, false);
     }
 
-    public boolean hideHeaders() {
+    private boolean hideHeaders() {
         return paramAsBoolean(HIDE_HEADERS, true);
     }
 
@@ -80,6 +85,11 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
         public Builder debug(boolean debug) {
             params.put(DEBUG_KEY, String.valueOf(debug));
+            return this;
+        }
+
+        public Builder includeStatus(boolean includeStatus) {
+            params.put(Watch.INCLUDE_STATUS_KEY, String.valueOf(includeStatus));
             return this;
         }
 

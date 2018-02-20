@@ -37,7 +37,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) {
         final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("id"));
         return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
@@ -46,6 +46,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
                         .field("found", response.isFound())
                         .field("_id", response.getId());
                         if (response.isFound()) {
+                            builder.field("_version", response.getVersion());
                             ToXContent.MapParams xContentParams = new ToXContent.MapParams(request.params());
                             builder.field("status", response.getStatus(), xContentParams);
                             builder.field("watch", response.getSource(), xContentParams);

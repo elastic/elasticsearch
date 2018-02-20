@@ -10,11 +10,13 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class BasicAuth implements HttpAuth {
 
@@ -46,25 +48,28 @@ public class BasicAuth implements HttpAuth {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        BasicAuth basicAuth = (BasicAuth) o;
+        BasicAuth other = (BasicAuth) o;
 
-        if (!username.equals(basicAuth.username)) return false;
-        return password.equals(basicAuth.password);
+        return Objects.equals(username, other.username) && Objects.equals(password, other.password);
     }
 
     @Override
     public int hashCode() {
-        int result = username.hashCode();
-        result = 31 * result + password.hashCode();
-        return result;
+        return Objects.hash(username, password);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.USERNAME.getPreferredName(), username);
-        if (!WatcherParams.hideSecrets(params)) {
-            builder.field(Field.PASSWORD.getPreferredName(), password.value());
+        // if the password is null, do not render it out, so we have the possibility to call toXContent when we want to update a watch
+        // if the password is not null, ensure we never return the original password value, unless it is encrypted with the CryptoService
+        if (password != null) {
+            if (WatcherParams.hideSecrets(params) && password.value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX) == false) {
+                builder.field(Field.PASSWORD.getPreferredName(), WatcherXContentParser.REDACTED_PASSWORD);
+            } else {
+                builder.field(Field.PASSWORD.getPreferredName(), password.value());
+            }
         }
         return builder.endObject();
     }
@@ -82,7 +87,7 @@ public class BasicAuth implements HttpAuth {
                 if (Field.USERNAME.getPreferredName().equals(fieldName)) {
                     username = parser.text();
                 } else if (Field.PASSWORD.getPreferredName().equals(fieldName)) {
-                    password = WatcherXContentParser.secret(parser);
+                    password = WatcherXContentParser.secretOrNull(parser);
                 } else {
                     throw new ElasticsearchParseException("unsupported field [" + fieldName + "]");
                 }
@@ -93,9 +98,6 @@ public class BasicAuth implements HttpAuth {
 
         if (username == null) {
             throw new ElasticsearchParseException("username is a required option");
-        }
-        if (password == null) {
-            throw new ElasticsearchParseException("password is a required option");
         }
 
         return new BasicAuth(username, password);

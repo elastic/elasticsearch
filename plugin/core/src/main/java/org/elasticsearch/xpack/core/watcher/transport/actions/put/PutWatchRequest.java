@@ -12,6 +12,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
@@ -28,12 +29,9 @@ public class PutWatchRequest extends ActionRequest {
     private BytesReference source;
     private boolean active = true;
     private XContentType xContentType = XContentType.JSON;
+    private long version = Versions.MATCH_ANY;
 
     public PutWatchRequest() {
-    }
-
-    public PutWatchRequest(String id, WatchSourceBuilder source) {
-        this(id, source.buildAsBytes(XContentType.JSON), XContentType.JSON);
     }
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
@@ -48,6 +46,7 @@ public class PutWatchRequest extends ActionRequest {
         source = in.readBytesReference();
         active = in.readBoolean();
         xContentType = XContentType.readFrom(in);
+        version = in.readZLong();
     }
 
     @Override
@@ -57,6 +56,7 @@ public class PutWatchRequest extends ActionRequest {
         out.writeBytesReference(source);
         out.writeBoolean(active);
         xContentType.writeTo(out);
+        out.writeZLong(version);
     }
 
     /**
@@ -114,6 +114,14 @@ public class PutWatchRequest extends ActionRequest {
      */
     public XContentType xContentType() {
         return xContentType;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
     }
 
     @Override

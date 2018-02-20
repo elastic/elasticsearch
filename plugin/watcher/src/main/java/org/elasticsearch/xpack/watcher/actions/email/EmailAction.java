@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
+import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
@@ -104,7 +105,9 @@ public class EmailAction implements Action {
         }
         if (auth != null) {
             builder.field(Field.USER.getPreferredName(), auth.user());
-            if (WatcherParams.hideSecrets(params) == false) {
+            if (WatcherParams.hideSecrets(params) && auth.password().value().startsWith(CryptoService.ENCRYPTED_TEXT_PREFIX) == false) {
+                builder.field(Field.PASSWORD.getPreferredName(), WatcherXContentParser.REDACTED_PASSWORD);
+            } else {
                 builder.field(Field.PASSWORD.getPreferredName(), auth.password().value());
             }
         }

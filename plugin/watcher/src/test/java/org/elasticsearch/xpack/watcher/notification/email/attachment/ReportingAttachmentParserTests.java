@@ -11,12 +11,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
@@ -114,10 +114,11 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
         HttpAuth auth = null;
         boolean withAuth = randomBoolean();
+        boolean isPasswordEncrypted = randomBoolean();
         if (withAuth) {
             builder.startObject("auth").startObject("basic")
                     .field("username", "foo")
-                    .field("password", "secret")
+                    .field("password", isPasswordEncrypted ? "::es_redacted::" :"secret")
                     .endObject().endObject();
             auth = new BasicAuth("foo", "secret".toCharArray());
         }
@@ -140,13 +141,14 @@ public class ReportingAttachmentParserTests extends ESTestCase {
 
         XContentBuilder toXcontentBuilder = jsonBuilder().startObject();
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
-        attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
+        WatcherParams watcherParams = WatcherParams.builder().hideSecrets(isPasswordEncrypted).build();
+        attachments.get(0).toXContent(toXcontentBuilder, watcherParams);
         toXcontentBuilder.endObject();
         assertThat(toXcontentBuilder.string(), is(builder.string()));
 
         XContentBuilder attachmentXContentBuilder = jsonBuilder().startObject();
         ReportingAttachment attachment = new ReportingAttachment(id, dashboardUrl, isInline, interval, retries, auth, proxy);
-        attachment.toXContent(attachmentXContentBuilder, ToXContent.EMPTY_PARAMS);
+        attachment.toXContent(attachmentXContentBuilder, watcherParams);
         attachmentXContentBuilder.endObject();
         assertThat(attachmentXContentBuilder.string(), is(builder.string()));
 

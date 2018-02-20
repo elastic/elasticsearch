@@ -212,7 +212,7 @@ public class WatchTests extends ESTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 
-        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
+        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus, 1L);
 
         BytesReference bytes = jsonBuilder().value(watch).bytes();
         logger.info("{}", bytes.utf8ToString());

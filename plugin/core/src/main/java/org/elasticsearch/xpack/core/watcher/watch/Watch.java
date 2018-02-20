@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.watcher.watch;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,11 +37,11 @@ public class Watch implements ToXContentObject {
     @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
 
-    private transient long version = Versions.MATCH_ANY;
+    private transient long version;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
                  @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
-                 WatchStatus status) {
+                 WatchStatus status, long version) {
         this.id = id;
         this.trigger = trigger;
         this.input = input;
@@ -52,6 +51,7 @@ public class Watch implements ToXContentObject {
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
         this.status = status;
+        this.version = version;
     }
 
     public String id() {

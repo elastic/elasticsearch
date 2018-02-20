@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpContentType;
@@ -63,6 +65,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class HttpInputTests extends ESTestCase {
+
     private HttpClient httpClient;
     private HttpInputFactory httpParser;
     private TextTemplateEngine templateEngine;
@@ -181,7 +184,8 @@ public class HttpInputTests extends ESTestCase {
         }
 
         inputBuilder.expectedResponseXContentType(expectedResponseXContentType);
-        XContentBuilder source = jsonBuilder().value(inputBuilder.build());
+        XContentBuilder source = jsonBuilder();
+        inputBuilder.build().toXContent(source, WatcherParams.builder().hideSecrets(false).build());
         XContentParser parser = createParser(source);
         parser.nextToken();
         HttpInput result = httpParser.parseInput("_id", parser);

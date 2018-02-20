@@ -71,8 +71,8 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                         listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
                     } else {
                         DateTime now = new DateTime(clock.millis(), UTC);
-                        Watch watch =
-                                parser.parseWithSecrets(request.getWatchId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
+                        Watch watch = parser.parseWithSecrets(request.getWatchId(), true, response.getSourceAsBytesRef(),
+                                now, XContentType.JSON);
                         watch.version(response.getVersion());
                         watch.status().version(response.getVersion());
                         String[] actionIds = request.getActionIds();

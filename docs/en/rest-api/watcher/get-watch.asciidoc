@@ -41,6 +41,7 @@ Response:
 {
   "found": true,
   "_id": "my_watch",
+  "_version": 1,
   "status": { <1>
     "version": 1,
     "state": {

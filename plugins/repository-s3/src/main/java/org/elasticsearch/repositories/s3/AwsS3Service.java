@@ -19,23 +19,16 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.RefCounted;
 
 interface AwsS3Service extends LifecycleComponent {
 
     /**
      * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
      */
-    AmazonS3Wrapper client(String clientName);
+    AmazonS3Reference client(String clientName);
 
     void updateClientSettings(Settings settings);
-
-    static interface AmazonS3Wrapper extends Releasable, RefCounted {
-        AmazonS3 client();
-    }
 
 }

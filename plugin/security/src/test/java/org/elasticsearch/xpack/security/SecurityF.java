@@ -47,9 +47,8 @@ public class SecurityF {
             throw new IllegalStateException("es.path.home must be set and exist");
         }
         final Path config = PathUtils.get(homeDir).resolve("config");
-        SecurityTestUtils.createFolder(config);
         final Path folder = config.resolve("x-pack");
-        SecurityTestUtils.createFolder(folder);
+        Files.createDirectories(folder);
         writeFile(folder, "users", SecuritySettingsSource.CONFIG_STANDARD_USER);
         writeFile(folder, "users_roles", SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES);
         writeFile(folder, "roles.yml", SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL);

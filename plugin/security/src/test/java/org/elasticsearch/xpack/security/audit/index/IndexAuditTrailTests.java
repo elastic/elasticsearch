@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -338,7 +337,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         ClusterState state = mock(ClusterState.class);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(clusterService.localNode()).thenReturn(localNode);
-        when(clusterService.state()).thenReturn(state);
+        when(clusterService.state()).thenReturn(client().admin().cluster().prepareState().get().getState());
         when(state.getNodes()).thenReturn(nodes);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
         threadPool = new TestThreadPool("index audit trail tests");

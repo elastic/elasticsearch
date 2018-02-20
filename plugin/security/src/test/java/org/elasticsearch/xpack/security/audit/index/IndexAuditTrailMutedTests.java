@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -297,9 +298,9 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         Settings settings = IndexAuditTrailTests.levelSettings(null, excludes);
         auditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService) {
             @Override
-            void putTemplate(Settings settings, ActionListener<Void> listener) {
-                // make this a no-op so we don't have to stub out unnecessary client activities
-                listener.onResponse(null);
+            void updateCurrentIndexMappingsIfNecessary(ClusterState state) {
+                // skip stuff so we don't have to stub out unnecessary client activities and cluster state
+                innerStart();
             }
 
             @Override

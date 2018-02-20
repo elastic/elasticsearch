@@ -14,13 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,68 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
-public class TokenBackwardsCompatibilityIT extends ESRestTestCase {
-
-    private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
-    private enum CLUSTER_TYPE {
-        OLD,
-        MIXED,
-        UPGRADED;
-
-        public static CLUSTER_TYPE parse(String value) {
-            switch (value) {
-                case "old_cluster":
-                    return OLD;
-                case "mixed_cluster":
-                    return MIXED;
-                case "upgraded_cluster":
-                    return UPGRADED;
-                default:
-                    throw new AssertionError("unknown cluster type: " + value);
-            }
-        }
-    }
-
-    private final CLUSTER_TYPE clusterType = CLUSTER_TYPE.parse(System.getProperty("tests.rest.suite"));
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-                .build();
-    }
-
-    @Before
-    public void setupForTests() throws Exception {
-        final String template = SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
-        awaitBusy(() -> {
-            try {
-                return adminClient().performRequest("HEAD", "_template/" + template).getStatusLine().getStatusCode() == 200;
-            } catch (IOException e) {
-                logger.warn("error calling template api", e);
-            }
-            return false;
-        });
-    }
+public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", clusterType == CLUSTER_TYPE.OLD);

@@ -98,7 +98,8 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     abstract LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException;
 
-    abstract LeafBucketCollector getLeafCollector(Comparable<?> value, LeafReaderContext context, LeafBucketCollector next) throws IOException;
+    abstract LeafBucketCollector getLeafCollector(Comparable<?> value,
+                                                  LeafReaderContext context, LeafBucketCollector next) throws IOException;
 
     /**
      * Creates a {@link CompositeValuesSource} that generates long values.

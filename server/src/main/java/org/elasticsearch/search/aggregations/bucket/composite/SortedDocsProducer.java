@@ -199,7 +199,8 @@ abstract class SortedDocsProducer {
         }
 
         @Override
-        void processLeaf(Query query,  CompositeValuesCollectorQueue queue, LeafReaderContext context, LeafBucketCollector sub) throws IOException {
+        void processLeaf(Query query,  CompositeValuesCollectorQueue queue,
+                         LeafReaderContext context, LeafBucketCollector sub) throws IOException {
             assert isApplicable(query);
             final Terms terms = context.reader().terms(field);
             if (terms == null) {

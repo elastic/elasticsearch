@@ -76,7 +76,6 @@ import org.opensaml.xmlsec.keyinfo.impl.provider.InlineX509DataProvider;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509KeyManager;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -108,7 +107,9 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.MAIL_ATTRIBUTE;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAMEID_ALLOW_CREATE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAMEID_FORMAT;
+import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAMEID_SP_QUALIFIER;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAME_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.POPULATE_USER_METADATA;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.PRINCIPAL_ATTRIBUTE;
@@ -149,7 +150,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private final Supplier<EntityDescriptor> idpDescriptor;
 
     private final SpConfiguration serviceProvider;
-    private final String nameIdFormat;
+    private final SamlAuthnRequestBuilder.NameIDPolicySettings nameIdPolicy;
     private final Boolean forceAuthn;
     private final boolean useSingleLogout;
     private final Boolean populateUserMetadata;
@@ -210,7 +211,8 @@ public final class SamlRealm extends Realm implements Releasable {
         this.idpDescriptor = idpDescriptor;
         this.serviceProvider = spConfiguration;
 
-        this.nameIdFormat = require(config, NAMEID_FORMAT);
+        this.nameIdPolicy = new SamlAuthnRequestBuilder.NameIDPolicySettings(require(config, NAMEID_FORMAT),
+                    NAMEID_ALLOW_CREATE.get(config.settings()), NAMEID_SP_QUALIFIER.get(config.settings()));
         this.forceAuthn = FORCE_AUTHN.exists(config.settings()) ? FORCE_AUTHN.get(config.settings()) : null;
         this.useSingleLogout = IDP_SINGLE_LOGOUT.get(config.settings());
         this.populateUserMetadata = POPULATE_USER_METADATA.get(config.settings());
@@ -570,8 +572,8 @@ public final class SamlRealm extends Realm implements Releasable {
                 idpDescriptor.get(),
                 SAMLConstants.SAML2_REDIRECT_BINDING_URI,
                 Clock.systemUTC())
-                .nameIdFormat(nameIdFormat)
-                .forceAuthn(this.forceAuthn)
+                .nameIDPolicy(nameIdPolicy)
+                .forceAuthn(forceAuthn)
                 .build();
         if (logger.isTraceEnabled()) {
             logger.trace("Constructed SAML Authentication Request: {}", SamlUtils.samlObjectToString(authnRequest));

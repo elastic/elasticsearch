@@ -117,7 +117,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                 .encryptionCredential(spConfig.getEncryptionCredential())
                 .signingCredential(spConfig.getSigningConfiguration().getCredential())
                 .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
-                .nameIdFormat(require(realm, SamlRealmSettings.NAMEID_FORMAT))
+                .nameIdFormat(SamlRealmSettings.NAMEID_FORMAT.get(realm.settings()))
                 .serviceName(option(serviceNameSpec, options, env.settings().get("cluster.name")));
 
         Map<String, String> attributes = getAttributeNames(options, realm);

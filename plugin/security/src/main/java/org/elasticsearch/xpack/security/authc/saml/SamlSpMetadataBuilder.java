@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -59,6 +49,16 @@ import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
 import org.opensaml.xmlsec.signature.KeyInfo;
 import org.opensaml.xmlsec.signature.impl.KeyInfoBuilder;
+
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Constructs SAML Metadata to describe a <em>Service Provider</em>.
@@ -217,7 +217,9 @@ public class SamlSpMetadataBuilder {
         spRoleDescriptor.setWantAssertionsSigned(true);
         spRoleDescriptor.setAuthnRequestsSigned(this.authnRequestsSigned);
 
-        spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
+        if (Strings.hasLength(nameIdFormat)) {
+            spRoleDescriptor.getNameIDFormats().add(buildNameIdFormat());
+        }
         spRoleDescriptor.getAssertionConsumerServices().add(buildAssertionConsumerService());
         if (attributeNames.size() > 0) {
             spRoleDescriptor.getAttributeConsumingServices().add(buildAttributeConsumerService());

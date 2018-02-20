@@ -79,16 +79,15 @@ want to re-run this job with an increased `model_memory_limit`.
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Examples
 
-The following example updates the `it_ops_new_logs` job:
+The following example updates the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/it_ops_new_logs/_update
+POST _xpack/ml/anomaly_detectors/total-requests/_update
 {
   "description":"An updated job",
   "groups": ["group1","group2"],
@@ -111,7 +110,7 @@ POST _xpack/ml/anomaly_detectors/it_ops_new_logs/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_job]
 
 When the job is updated, you receive a summary of the job configuration
 information, including the updated property values. For example:
@@ -119,7 +118,7 @@ information, including the updated property values. For example:
 [source,js]
 ----
 {
-  "job_id": "it_ops_new_logs",
+  "job_id": "total-requests",
   "job_type": "anomaly_detector",
   "job_version": "7.0.0-alpha1",
   "groups": [
@@ -127,15 +126,14 @@ information, including the updated property values. For example:
     "group2"
   ],
   "description": "An updated job",
-  "create_time": 1502904685360,
+  "create_time": 1518808660505,
   "analysis_config": {
-    "bucket_span": "1800s",
-    "categorization_field_name": "message",
+    "bucket_span": "10m",
     "detectors": [
       {
-        "detector_description": "Unusual message counts",
-        "function": "count",
-        "by_field_name": "mlcategory",
+        "detector_description": "Sum of total",
+        "function": "sum",
+        "field_name": "total",
         "rules": [],
         "detector_index": 0
       }
@@ -146,7 +144,7 @@ information, including the updated property values. For example:
     "model_memory_limit": "1024mb"
   },
   "data_description": {
-    "time_field": "time",
+    "time_field": "timestamp",
     "time_format": "epoch_ms"
   },
   "model_plot_config": {
@@ -164,7 +162,8 @@ information, including the updated property values. For example:
       }
     ]
   },
-  "model_snapshot_id": "1493678315",
   "results_index_name": "shared"
 }
 ----
+// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
+// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

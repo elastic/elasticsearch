@@ -21,17 +21,16 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 
 import java.io.IOException;
-import java.util.function.Consumer;
 
-public final class MockInternalEngine extends InternalEngine {
+final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
     private Class<? extends FilterDirectoryReader> wrapperClass;
-    private volatile Consumer<Index> preIndexingInterceptor;
 
     MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config);
@@ -83,21 +82,5 @@ public final class MockInternalEngine extends InternalEngine {
     protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) throws EngineException {
         final Searcher engineSearcher = super.newSearcher(source, searcher, manager);
         return support().wrapSearcher(source, engineSearcher, searcher, manager);
-    }
-
-    /**
-     * Installs a preIndexing interceptor which is called before an operation gets executed.
-     */
-    public void setPreIndexingInterceptor(Consumer<Index> preIndexingInterceptor) {
-        this.preIndexingInterceptor = preIndexingInterceptor;
-    }
-
-    @Override
-    public IndexResult index(Index index) throws IOException {
-        final Consumer<Index> interceptor = this.preIndexingInterceptor;
-        if (interceptor != null) {
-            interceptor.accept(index);
-        }
-        return super.index(index);
     }
 }

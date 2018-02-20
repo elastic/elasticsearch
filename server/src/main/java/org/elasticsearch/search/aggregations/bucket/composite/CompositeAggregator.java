@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.MultiCollector;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -46,7 +47,6 @@ final class CompositeAggregator extends DeferableBucketAggregator {
     private final List<DocValueFormat> formats;
 
     private final CompositeValuesCollectorQueue queue;
-    private final SortedDocsProducer sortedBucketProducer;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
@@ -56,9 +56,7 @@ final class CompositeAggregator extends DeferableBucketAggregator {
         this.sources = sources;
         this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.sortedBucketProducer = SortedDocsProducer.createProducerOrNull(sources[0]);
-        this.queue = new CompositeValuesCollectorQueue(context.searcher().getIndexReader(), sources, size,
-            sortedBucketProducer != null && sortedBucketProducer.isApplicable(context.query()));
+        this.queue = new CompositeValuesCollectorQueue(context, sources, size);
         if (rawAfterKey != null) {
             queue.setAfter(rawAfterKey.values());
         }
@@ -77,7 +75,7 @@ final class CompositeAggregator extends DeferableBucketAggregator {
     @Override
     public DeferringBucketCollector getDeferringCollector() {
         return new BestCompositeBucketsDeferringCollector(context, queue,
-            sortedBucketProducer == null || sortedBucketProducer.isApplicable(context.query()) == false);
+            queue.getDocsProducer() == null || queue.getDocsProducer().isApplicable(context.query()) == false);
     }
 
     @Override
@@ -112,11 +110,19 @@ final class CompositeAggregator extends DeferableBucketAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (sortedBucketProducer != null && sortedBucketProducer.isApplicable(context.query())) {
-            // we can bypass search, the producer will visit documents sorted by the leading source
-            // of the composite definition and terminates when the leading source value is guaranteed to be
-            // greater than the lowest composite bucket in the queue.
-            sortedBucketProducer.processLeaf(context.query(), queue, ctx, sub);
+        if (queue.getDocsProducer() != null && queue.getDocsProducer().isApplicable(context.query())) {
+            /**
+             * The producer will visit documents sorted by the leading source of the composite definition
+             * and terminates when the leading source value is guaranteed to be greater than the lowest
+             * composite bucket in the queue.
+             */
+             queue.getDocsProducer().processLeaf(context.query(), queue, ctx, sub);
+
+            /**
+             * We can bypass search entirely for this segment, all the processing has been done in the previous call.
+             * Throwing this exception will terminate the execution of the search for this root aggregation,
+             * see {@link MultiCollector} for more details on how we handle early termination in aggregations.
+             */
             throw new CollectionTerminatedException();
         } else {
             final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(sub));

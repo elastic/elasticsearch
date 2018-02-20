@@ -20,9 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Set;
@@ -42,23 +42,28 @@ final class CompositeValuesCollectorQueue {
     private final TreeMap<Integer, Integer> keys;
     private final CompositeValuesSource<?, ?>[] arrays;
     private final int[] docCounts;
+    private final SortedDocsProducer docsProducer;
     private boolean afterValueSet = false;
 
     /**
      * Ctr
-     * @param reader The index reader
+     * @param context The search context
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
      */
-    CompositeValuesCollectorQueue(IndexReader reader, CompositeValuesSourceConfig[] sources, int size, boolean canOptimize) {
+    CompositeValuesCollectorQueue(SearchContext context, CompositeValuesSourceConfig[] sources, int size) {
         this.maxSize = size;
         this.arrays = new CompositeValuesSource<?, ?>[sources.length];
         this.docCounts = new int[size];
+        this.docsProducer = SortedDocsProducer.createProducerOrNull(sources[0]);
         for (int i = 0; i < sources.length; i++) {
             final int reverseMul = sources[i].reverseMul();
-            if (sources[i].valuesSource() instanceof Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+            if (sources[i].valuesSource() instanceof Bytes.WithOrdinals &&
+                    context.searcher().getIndexReader() instanceof DirectoryReader) {
                 Bytes.WithOrdinals vs = (Bytes.WithOrdinals) sources[i].valuesSource();
-                if (canOptimize) {
+                if (docsProducer != null && docsProducer.isApplicable(context.query())) {
+                    // switch to a simple binary source because the number of visited documents
+                    // should be low and global ordinals need one lookup per visited term.
                     arrays[i] = CompositeValuesSource.createBinary(vs, size, reverseMul);
                 } else {
                     arrays[i] = CompositeValuesSource.createGlobalOrdinals(vs, size, reverseMul);
@@ -92,6 +97,13 @@ final class CompositeValuesCollectorQueue {
         return keys.size() == maxSize;
     }
 
+    /**
+     * Return the {@link SortedDocsProducer} associated with this queue or null
+     * if there is no producer for this source.
+     */
+    SortedDocsProducer getDocsProducer() {
+        return docsProducer;
+    }
 
     /**
      * Returns a sorted {@link Set} view of the slots contained in this queue.

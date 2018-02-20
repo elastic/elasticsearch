@@ -162,10 +162,10 @@ cd elasticsearch/
 ./gradlew assemble
 ```
 
-For package managers like dpkg and rpm you will find the newly built packages under:
+The package distributions (Debian and RPM) can be found under:
 `./distribution/packages/(deb|rpm)/build/distributions/`
 
-Regular compressed archives like tar and zip are found under:
+The archive distributions (tar and zip) can be found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
 
 

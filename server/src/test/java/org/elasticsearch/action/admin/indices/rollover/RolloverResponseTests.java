@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,17 +35,21 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
 
     @Override
     protected RolloverResponse createTestInstance() {
+        boolean acknowledged = randomBoolean();
+        boolean shardsAcknowledged = acknowledged && randomBoolean();
+        return new RolloverResponse(randomAlphaOfLengthBetween(3, 10),
+                randomAlphaOfLengthBetween(3, 10), randomResults(true), randomBoolean(), randomBoolean(), acknowledged, shardsAcknowledged);
+    }
+
+    private static Map<String, Boolean> randomResults(boolean allowNoItems) {
         Map<String, Boolean> results = new HashMap<>();
-        int numResults = randomIntBetween(0, 3);
+        int numResults = randomIntBetween(allowNoItems ? 0 : 1, 3);
         List<Supplier<Condition<?>>> conditions = randomSubsetOf(numResults, conditionSuppliers);
         for (Supplier<Condition<?>> condition : conditions) {
             Condition<?> cond = condition.get();
             results.put(cond.name, randomBoolean());
         }
-        boolean acknowledged = randomBoolean();
-        boolean shardsAcknowledged = acknowledged && randomBoolean();
-        return new RolloverResponse(randomAlphaOfLengthBetween(3, 10),
-                randomAlphaOfLengthBetween(3, 10), results, randomBoolean(), randomBoolean(), acknowledged, shardsAcknowledged);
+        return results;
     }
 
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
@@ -67,5 +72,60 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.startsWith("conditions");
+    }
+
+    @Override
+    protected EqualsHashCodeTestUtils.MutateFunction<RolloverResponse> getMutateFunction() {
+        return response -> {
+            int i = randomIntBetween(0, 5);
+            switch(i) {
+                case 0:
+                    return new RolloverResponse(response.getOldIndex() + randomAlphaOfLengthBetween(2, 5),
+                            response.getNewIndex(), response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
+                            response.isAcknowledged(), response.isShardsAcknowledged());
+                case 1:
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex() + randomAlphaOfLengthBetween(2, 5),
+                            response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
+                            response.isAcknowledged(), response.isShardsAcknowledged());
+                case 2:
+                    Map<String, Boolean> results;
+                    if (response.getConditionStatus().isEmpty()) {
+                        results = randomResults(false);
+                    } else {
+                        results = new HashMap<>(response.getConditionStatus().size());
+                        List<String> keys = randomSubsetOf(randomIntBetween(1, response.getConditionStatus().size()),
+                                response.getConditionStatus().keySet());
+                        for (Map.Entry<String, Boolean> entry : response.getConditionStatus().entrySet()) {
+                            boolean value = keys.contains(entry.getKey()) ? entry.getValue() == false : entry.getValue();
+                            results.put(entry.getKey(), value);
+                        }
+                    }
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex(), results, response.isDryRun(),
+                            response.isRolledOver(), response.isAcknowledged(), response.isShardsAcknowledged());
+                case 3:
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
+                            response.getConditionStatus(), response.isDryRun() == false, response.isRolledOver(),
+                            response.isAcknowledged(), response.isShardsAcknowledged());
+                case 4:
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
+                            response.getConditionStatus(), response.isDryRun(), response.isRolledOver() == false,
+                            response.isAcknowledged(), response.isShardsAcknowledged());
+                case 5:
+                    boolean acknowledged = response.isAcknowledged() == false;
+                    boolean shardsAcknowledged = response.isShardsAcknowledged();
+                    if (acknowledged == false) {
+                        shardsAcknowledged = false;
+                    }
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
+                            response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
+                            acknowledged, shardsAcknowledged);
+                case 6:
+                    return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
+                            response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
+                            response.isAcknowledged(), response.isShardsAcknowledged() == false);
+                default:
+                    throw new UnsupportedOperationException();
+            }
+        };
     }
 }

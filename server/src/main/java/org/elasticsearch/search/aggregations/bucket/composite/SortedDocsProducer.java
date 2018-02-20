@@ -204,6 +204,7 @@ abstract class SortedDocsProducer {
             assert isApplicable(query);
             final Terms terms = context.reader().terms(field);
             if (terms == null) {
+                // no value for the field
                 return;
             }
             BytesRef lowerValue = (BytesRef) queue.getLowerValueLeadSource();
@@ -258,6 +259,11 @@ abstract class SortedDocsProducer {
         @Override
         void processLeaf(Query query, LeafReaderContext context, LeafBucketCollector sub) throws IOException {
             assert isApplicable(query);
+            final PointValues values = context.reader().getPointValues(field);
+            if (values == null) {
+                // no value for the field
+                return;
+            }
             final byte[] lowerPoint;
             final byte[] upperPoint;
             if (query instanceof PointRangeQuery) {
@@ -287,7 +293,6 @@ abstract class SortedDocsProducer {
                 upperBucket = (Long) upperValue;
             }
 
-            PointValues values = context.reader().getPointValues(field);
             Visitor visitor =
                 new Visitor(context, queue, sub, values.getBytesPerDimension(), lowerPoint, upperPoint, lowerBucket, upperBucket);
             try {

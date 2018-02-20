@@ -82,18 +82,21 @@ public final class KeyedLock<T> {
      * Tries to acquire the lock for the given key and returns it. If the lock can't be acquired null is returned.
      */
     public Releasable tryAcquire(T key) {
-        KeyLock perNodeLock = map.get(key);
+        final KeyLock perNodeLock = map.get(key);
         if (perNodeLock == null) {
             return tryCreateNewLock(key);
         }
         if (perNodeLock.tryLock()) { // ok we got it - make sure we increment it accordingly otherwise release it again
             int i;
             while ((i = perNodeLock.count.get()) > 0) {
+                // we have to do this in a loop here since even if the count is > 0
+                // there could be a concurrent blocking acquire that changes the count and then this CAS fails. Since we already got
+                // the lock we should retry and see if we can still get it or if the count is 0. If that is the case and we give up.
                 if (perNodeLock.count.compareAndSet(i, i + 1)) {
                     return new ReleasableLock(key, perNodeLock);
                 }
             }
-            perNodeLock.unlock();
+            perNodeLock.unlock(); // make sure we unlock and don't leave the lock in a locked state
         }
         return null;
     }

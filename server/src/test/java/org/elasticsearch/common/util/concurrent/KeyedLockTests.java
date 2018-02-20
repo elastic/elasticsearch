@@ -153,7 +153,6 @@ public class KeyedLockTests extends ESTestCase {
             this.names = names;
             this.counter = counter;
             this.safeCounter = safeCounter;
-
         }
 
         @Override

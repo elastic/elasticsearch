@@ -81,16 +81,20 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
         }
 
         Map<String, Pipeline> pipelines = new HashMap<>();
+        ArrayList<ElasticsearchParseException> exceptions = new ArrayList<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
                 pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
             } catch (ElasticsearchParseException e) {
-                throw e;
+                pipelines.put(pipeline.getId(), Pipeline.EMPTY);
+                exceptions.add(e);
             } catch (Exception e) {
-                throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
+                pipelines.put(pipeline.getId(), Pipeline.EMPTY);
+                exceptions.add(new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e));
             }
         }
         this.pipelines = Collections.unmodifiableMap(pipelines);
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     /**

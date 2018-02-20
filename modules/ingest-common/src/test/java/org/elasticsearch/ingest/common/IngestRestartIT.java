@@ -33,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -62,6 +63,57 @@ public class IngestRestartIT extends ESIntegTestCase {
                 return null;
             });
         }
+    }
+
+    public void testScriptDisabled() throws Exception {
+        String pipelineIdWithoutScript = randomAlphaOfLengthBetween(5, 10);
+        String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
+        internalCluster().startNode();
+
+        BytesReference pipelineWithScript = new BytesArray("{\n" +
+            "  \"processors\" : [\n" +
+            "      {\"script\" : {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"}}\n" +
+            "  ]\n" +
+            "}");
+        BytesReference pipelineWithoutScript = new BytesArray("{\n" +
+            "  \"processors\" : [\n" +
+            "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" +
+            "  ]\n" +
+            "}");
+
+        Consumer<String> checkPipelineExists = (id) -> assertThat(client().admin().cluster().prepareGetPipeline(id)
+                .get().pipelines().get(0).getId(), equalTo(id));
+
+        client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
+        client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+
+        checkPipelineExists.accept(pipelineIdWithScript);
+        checkPipelineExists.accept(pipelineIdWithoutScript);
+
+        internalCluster().stopCurrentMasterNode();
+        internalCluster().startNode(Settings.builder().put("script.allowed_types", "none"));
+
+        checkPipelineExists.accept(pipelineIdWithoutScript);
+        checkPipelineExists.accept(pipelineIdWithScript);
+
+        client().prepareIndex("index", "doc", "1")
+            .setSource("x", 0)
+            .setPipeline(pipelineIdWithoutScript)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareIndex("index", "doc", "2")
+                .setSource("x", 0)
+                .setPipeline(pipelineIdWithScript)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get());
+        assertThat(exception.getMessage(),
+            equalTo("pipeline with id [" + pipelineIdWithScript + "] was not parsed successfully, check logs at start-up for exceptions"));
+
+        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        assertThat(source.get("x"), equalTo(0));
+        assertThat(source.get("y"), equalTo(0));
     }
 
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {

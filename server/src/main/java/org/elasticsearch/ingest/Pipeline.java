@@ -32,6 +32,7 @@ import java.util.Map;
  */
 public final class Pipeline {
 
+    static final Pipeline EMPTY = new Pipeline("_empty", null, null, new CompoundProcessor());
     static final String DESCRIPTION_KEY = "description";
     static final String PROCESSORS_KEY = "processors";
     static final String VERSION_KEY = "version";

@@ -91,6 +91,24 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(completionHandler, never()).accept(anyBoolean());
     }
 
+    public void testExecuteIndexPipelineExistsButFailedParsing() {
+        when(store.get("_id")).thenReturn(Pipeline.EMPTY);
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
+        @SuppressWarnings("unchecked")
+        Consumer<Exception> failureHandler = mock(Consumer.class);
+        @SuppressWarnings("unchecked")
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        try {
+            executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+            fail("IllegalArgumentException expected");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(),
+                equalTo("pipeline with id [_id] was not parsed successfully, check logs at start-up for exceptions"));
+        }
+        verify(failureHandler, never()).accept(any(Exception.class));
+        verify(completionHandler, never()).accept(anyBoolean());
+    }
+
     public void testExecuteBulkPipelineDoesNotExist() {
         CompoundProcessor processor = mock(CompoundProcessor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, processor));

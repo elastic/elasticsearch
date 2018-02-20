@@ -69,7 +69,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     private static final Logger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     // stashed when created in order to properly close
-    private final SetOnce<GceInstancesServiceImpl> gceInstancesService = new SetOnce<>();
+    private final SetOnce<GceInstancesService> gceInstancesService = new SetOnce<>();
 
     static {
         /*
@@ -107,11 +107,16 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
             new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, clusterService, hostsProvider));
     }
 
+    // overrideable for tests
+    protected GceInstancesService createGceInstancesService() {
+        return new GceInstancesServiceImpl(settings);
+    }
+
     @Override
     public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
                                                                             NetworkService networkService) {
         return Collections.singletonMap(GCE, () -> {
-            gceInstancesService.set(new GceInstancesServiceImpl(settings));
+            gceInstancesService.set(createGceInstancesService());
             return new GceUnicastHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
         });
     }

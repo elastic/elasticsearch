@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -73,6 +74,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
@@ -528,6 +531,17 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
+    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
+        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
+        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
+
+        String endpoint = buildEndpoint("_cluster", "settings");
+        HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -568,7 +582,16 @@ public final class Request {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
-                joiner.add(part);
+                try {
+                    //encode each part (e.g. index, type and id) separately before merging them into the path
+                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                    //paths that start with `-` or contain `:`
+                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
+                    //manually encode any slash that each part may contain
+                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
+                }
             }
         }
         return joiner.toString();

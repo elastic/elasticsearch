@@ -27,39 +27,55 @@ import org.apache.lucene.search.FilterLeafCollector;
 import org.apache.lucene.search.LeafCollector;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Collector} that early terminates collection after <code>maxCountHits</code> docs have been collected.
  */
 public class EarlyTerminatingCollector extends FilterCollector {
+    static final class EarlyTerminationException extends RuntimeException {
+        EarlyTerminationException(String msg) {
+            super(msg);
+        }
+    }
+
     private final int maxCountHits;
     private int numCollected;
-    private boolean terminatedEarly = false;
+    private boolean forceTermination;
 
-    EarlyTerminatingCollector(final Collector delegate, int maxCountHits) {
+    /**
+     * Ctr
+     * @param delegate The delegated collector.
+     * @param maxCountHits The number of documents to collect before termination.
+     * @param forceTermination Whether the collection should be terminated with an exception ({@link EarlyTerminationException})
+     *                         that is not caught by other {@link Collector} or with a {@link CollectionTerminatedException} otherwise.
+     */
+    EarlyTerminatingCollector(final Collector delegate, int maxCountHits, boolean forceTermination) {
         super(delegate);
         this.maxCountHits = maxCountHits;
+        this.forceTermination = forceTermination;
     }
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
         if (numCollected >= maxCountHits) {
-            throw new CollectionTerminatedException();
+            if (forceTermination) {
+                throw new EarlyTerminationException("early termination [CountBased]");
+            } else {
+                throw new CollectionTerminatedException();
+            }
         }
         return new FilterLeafCollector(super.getLeafCollector(context)) {
             @Override
             public void collect(int doc) throws IOException {
-                super.collect(doc);
-                if (++numCollected >= maxCountHits) {
-                    terminatedEarly = true;
-                    throw new CollectionTerminatedException();
+                if (++numCollected > maxCountHits) {
+                    if (forceTermination) {
+                        throw new EarlyTerminationException("early termination [CountBased]");
+                    } else {
+                        throw new CollectionTerminatedException();
+                    }
                 }
+                super.collect(doc);
             };
         };
-    }
-
-    public boolean terminatedEarly() {
-        return terminatedEarly;
     }
 }

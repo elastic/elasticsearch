@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
@@ -161,7 +162,7 @@ final class Security {
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
         // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginInfo.extractAllPlugins(environment.pluginsFile()));
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
 
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {

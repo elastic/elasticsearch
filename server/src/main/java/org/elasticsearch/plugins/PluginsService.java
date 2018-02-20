@@ -35,6 +35,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -56,6 +57,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -278,6 +280,58 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
+    /**
+     * Extracts all installed plugin directories from the provided {@code rootPath} expanding meta plugins if needed.
+     * @param rootPath the path where the plugins are installed
+     * @return A list of all plugin paths installed in the {@code rootPath}
+     * @throws IOException if an I/O exception occurred reading the directories
+     */
+    public static List<Path> findPluginDirs(final Path rootPath) throws IOException {
+        final List<Path> plugins = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+        if (Files.exists(rootPath)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
+                for (Path plugin : stream) {
+                    if (FileSystemUtils.isDesktopServicesStore(plugin) ||
+                        plugin.getFileName().toString().startsWith(".removing-")) {
+                        continue;
+                    }
+                    if (seen.add(plugin.getFileName().toString()) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
+                    if (MetaPluginInfo.isMetaPlugin(plugin)) {
+                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
+                            for (Path subPlugin : subStream) {
+                                if (MetaPluginInfo.isPropertiesFile(subPlugin) ||
+                                    FileSystemUtils.isDesktopServicesStore(subPlugin)) {
+                                    continue;
+                                }
+                                if (seen.add(subPlugin.getFileName().toString()) == false) {
+                                    throw new IllegalStateException("duplicate plugin: " + subPlugin);
+                                }
+                                plugins.add(subPlugin);
+                            }
+                        }
+                    } else {
+                        plugins.add(plugin);
+                    }
+                }
+            }
+        }
+        return plugins;
+    }
+
+    /**
+     * Verify the given plugin is compatible with the current Elasticsearch installation.
+     */
+    static void verifyCompatibility(PluginInfo info) {
+        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+            throw new IllegalArgumentException("Plugin [" + info.getName() + "] was built for Elasticsearch version "
+                + info.getElasticsearchVersion() + " but version " + Version.CURRENT + " is running");
+        }
+        JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
+    }
+
     // similar in impl to getPluginBundles, but DO NOT try to make them share code.
     // we don't need to inherit all the leniency, and things are different enough.
     static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
@@ -326,28 +380,15 @@ public class PluginsService extends AbstractComponent {
      * @throws IOException if an I/O exception occurs reading the plugin bundles
      */
     static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
-        return getPluginBundles(pluginsDirectory, true);
-    }
-
-    /**
-     * Get the plugin bundles from the specified directory. If {@code enforceVersion} is true, then the version in each plugin descriptor
-     * must match the current version.
-     *
-     * @param pluginsDirectory the directory
-     * @param enforceVersion   whether or not to enforce the version when reading plugin descriptors
-     * @return the set of plugin bundles in the specified directory
-     * @throws IOException if an I/O exception occurs reading the plugin bundles
-     */
-    static Set<Bundle> getPluginBundles(final Path pluginsDirectory, final boolean enforceVersion) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
         Set<Bundle> bundles = new LinkedHashSet<>();
 
-        List<Path> infos = PluginInfo.extractAllPlugins(pluginsDirectory);
+        List<Path> infos = findPluginDirs(pluginsDirectory);
         for (Path plugin : infos) {
             logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
             final PluginInfo info;
             try {
-                info = PluginInfo.readFromProperties(plugin, enforceVersion);
+                info = PluginInfo.readFromProperties(plugin);
             } catch (IOException e) {
                 throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
@@ -479,6 +520,8 @@ public class PluginsService extends AbstractComponent {
 
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
+
+        verifyCompatibility(bundle.plugin);
 
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();

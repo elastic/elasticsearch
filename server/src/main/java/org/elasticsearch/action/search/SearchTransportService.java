@@ -95,10 +95,6 @@ public class SearchTransportService extends AbstractComponent {
         this.responseWrapper = responseWrapper;
     }
 
-    public Map<String, Long> getClientConnections() {
-        return Collections.unmodifiableMap(clientConnections);
-    }
-
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
         transportService.sendRequest(connection, FREE_CONTEXT_ACTION_NAME, new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {

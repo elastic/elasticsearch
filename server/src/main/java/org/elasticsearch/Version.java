@@ -402,6 +402,15 @@ public class Version implements Comparable<Version> {
         return Integer.compare(this.id, other.id);
     }
 
+    /*
+     * We need the declared versions when computing the minimum compatibility version. As computing the declared versions uses reflection it
+     * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions
+     * lazily once.
+     */
+    private static class DeclaredVersionsHolder {
+        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+    }
+
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -412,10 +421,10 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         if (major >= 6) {
             // all major versions from 6 onwards are compatible with last minor series of the previous major
-            final List<Version> declaredVersions = getDeclaredVersions(getClass());
             Version bwcVersion = null;
-            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
-                final Version candidateVersion = declaredVersions.get(i);
+
+            for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
                 if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;

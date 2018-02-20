@@ -30,8 +30,11 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -44,6 +47,9 @@ import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
@@ -59,9 +65,14 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -74,6 +85,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -998,6 +1010,81 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+
+    public void testWithNestedAggregations() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 10; i++) {
+                    int[] nestedValues = new int[i];
+                    for (int j = 0; j < i; j++) {
+                        nestedValues[j] = j;
+                    }
+                    indexWriter.addDocuments(generateDocsWithNested(Integer.toString(i), i, nestedValues));
+                }
+                indexWriter.commit();
+                for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
+                    for (boolean withScore : new boolean[]{true, false}) {
+                        NestedAggregationBuilder nested = new NestedAggregationBuilder("nested", "nested_object")
+                            .subAggregation(new TermsAggregationBuilder("terms", ValueType.LONG)
+                                .field("nested_value")
+                                // force the breadth_first mode
+                                .collectMode(mode)
+                                .order(BucketOrder.key(true))
+                                .subAggregation(
+                                    new TopHitsAggregationBuilder("top_hits")
+                                        .sort(withScore ? new ScoreSortBuilder() : new FieldSortBuilder("_doc"))
+                                        .storedField("_none_")
+                                )
+                            );
+                        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+                        fieldType.setHasDocValues(true);
+                        fieldType.setName("nested_value");
+                        try (IndexReader indexReader = wrap(DirectoryReader.open(directory))) {
+                            InternalNested result = search(newSearcher(indexReader, false, true),
+                                // match root document only
+                                new DocValuesFieldExistsQuery(PRIMARY_TERM_NAME), nested, fieldType);
+                            InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
+                            assertThat(terms.getBuckets().size(), equalTo(9));
+                            int ptr = 9;
+                            for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
+                                InternalTopHits topHits = bucket.getAggregations().get("top_hits");
+                                assertThat(topHits.getHits().totalHits, equalTo((long) ptr));
+                                if (withScore) {
+                                    assertThat(topHits.getHits().getMaxScore(), equalTo(1f));
+                                } else {
+                                    assertThat(topHits.getHits().getMaxScore(), equalTo(Float.NaN));
+                                }
+                                --ptr;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private final SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+    private List<Document> generateDocsWithNested(String id, int value, int[] nestedValues) {
+        List<Document> documents = new ArrayList<>();
+
+        for (int nestedValue : nestedValues) {
+            Document document = new Document();
+            document.add(new Field(UidFieldMapper.NAME, "docs#" + id, UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            document.add(new Field(TypeFieldMapper.NAME, "__nested_object", TypeFieldMapper.Defaults.FIELD_TYPE));
+            document.add(new SortedNumericDocValuesField("nested_value", nestedValue));
+            documents.add(document);
+        }
+
+        Document document = new Document();
+        document.add(new Field(UidFieldMapper.NAME, "docs#" + id, UidFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new Field(TypeFieldMapper.NAME, "docs", TypeFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new SortedNumericDocValuesField("value", value));
+        document.add(sequenceIDFields.primaryTerm);
+        documents.add(document);
+
+        return documents;
+    }
+
 
     private IndexReader createIndexWithLongs() throws IOException {
         Directory directory = newDirectory();

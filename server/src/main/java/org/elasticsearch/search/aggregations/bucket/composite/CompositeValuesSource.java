@@ -163,7 +163,7 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
 
         @Override
         int compareCurrent(int slot) {
-            return Long.compare(currentValue, values[slot]);
+            return Long.compare(currentValue, values[slot]) * reverseMul;
         }
 
         @Override

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -19,7 +19,7 @@ public final class UserSettings {
     private final ThreadContext threadContext;
 
     UserSettings(Settings settings, ThreadContext threadContext) {
-        this.logger = ServerLoggers.getLogger(getClass(), settings);
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.threadContext = threadContext;
     }
 

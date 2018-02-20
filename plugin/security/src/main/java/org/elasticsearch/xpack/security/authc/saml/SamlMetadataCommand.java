@@ -31,7 +31,6 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -90,7 +89,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
-        ServerLoggers.setLevel(Loggers.getLogger("org.opensaml"), Level.WARN);
+        Loggers.setLevel(Loggers.getLogger("org.opensaml"), Level.WARN);
 
         final Logger logger = Loggers.getLogger(getClass());
         SamlUtils.initialize(logger);

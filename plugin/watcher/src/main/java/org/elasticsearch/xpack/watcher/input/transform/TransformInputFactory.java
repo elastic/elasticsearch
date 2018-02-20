@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -32,7 +32,7 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
     private final TransformRegistry transformRegistry;
 
     public TransformInputFactory(Settings settings, TransformRegistry transformRegistry) {
-        super(ServerLoggers.getLogger(ExecutableTransformInput.class, settings));
+        super(Loggers.getLogger(ExecutableTransformInput.class, settings));
         this.transformRegistry = transformRegistry;
     }
 

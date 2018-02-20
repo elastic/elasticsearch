@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.simple;
 
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
@@ -15,7 +15,7 @@ import java.io.IOException;
 public class SimpleInputFactory extends InputFactory<SimpleInput, SimpleInput.Result, ExecutableSimpleInput> {
 
     public SimpleInputFactory(Settings settings) {
-        super(ServerLoggers.getLogger(ExecutableSimpleInput.class, settings));
+        super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
     }
 
     @Override

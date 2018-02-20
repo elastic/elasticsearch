@@ -66,18 +66,19 @@ the original roles. For more information, see
 has not started yet.
 //Repo: machine-learning-cpp
 //Pull: 506
-////
+
 Monitoring::
-* [Monitoring] Use index.auto_expand_replicas: 0-1
+* {monitoring} indices (`.monitoring`) created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, monitoring indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
 //Repo: x-pack-elasticsearch
-//Pull: 3282
-* [Monitoring] Add Cluster Alert for Nodes Changed
+//Pull: 3282, 3373
+* Added a cluster alert that triggers whenever a node is added, removed, or
+restarted.
 //Repo: x-pack-elasticsearch
 //Pull: 3504
-* [Logstash] Index Management should use auto_expand_replicas
-//Repo: x-pack-elasticsearch
-//Pull: 3373
-////
+
 Security::
 * Added the ability to refresh tokens that were created by the token API. The
 API provides information about a refresh token, which you can use within 24
@@ -153,18 +154,6 @@ for model plots. This inconsistency resulted in problems plotting these buckets
 in {kib}.
 //Repo: machine-learning-cpp
 //Pull: 518
-////
-Monitoring::
-* [Monitoring] Add additional metric fields to Beats template (Backport #3337 for 6.x/6.2.0)
-//Repo: x-pack-elasticsearch
-//Pull: 3560
-* fix timeout usage in _bulk to `timeout` from `master_timeout`
-//Repo: x-pack-elasticsearch
-//Pull: 3796
-* [Monitoring] Add additional metric fields to Beats template
-//Repo: x-pack-elasticsearch
-//Pull: 3337
-////
 
 Security::
 * Updated the `setup-passwords` command to generate passwords with characters

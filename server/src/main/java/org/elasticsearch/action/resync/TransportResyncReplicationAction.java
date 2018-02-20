@@ -85,8 +85,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        // We treat the resync as best-effort for now and don't mark unavailable and failed shard copies as stale.
-        return new RsyncActionReplicasProxy(primaryTerm);
+        // Ensure primary-replica resync mandatory but avoid marking shards as stale during cluster restart.
+        return new ResyncActionReplicasProxy(primaryTerm);
     }
 
     @Override
@@ -188,12 +188,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     /**
      * A proxy for primary-replica resync operations which are performed on replicas when a new primary is promoted.
-     * Replica shards which fail to execute these resync operation will be failed but won't be marked as stale
-     * (eg. keep in the in sync set). This is a best-effort to avoid marking shards as stale during cluster restart.
+     * Replica shards fail to execute resync operations will be failed but won't be marked as stale.
      */
-    class RsyncActionReplicasProxy extends ReplicasProxy {
+    class ResyncActionReplicasProxy extends ReplicasProxy {
 
-        RsyncActionReplicasProxy(long primaryTerm) {
+        ResyncActionReplicasProxy(long primaryTerm) {
             super(primaryTerm);
         }
 

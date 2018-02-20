@@ -20,7 +20,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -72,13 +74,16 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.clientWithOrigin;
@@ -99,6 +104,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.SECURITY_VERSION_STRING;
 
 /**
  * Audit trail implementation that writes events into an index.
@@ -178,7 +184,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.nodeName = settings.get("name");
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int maxQueueSize = QUEUE_SIZE_SETTING.get(settings);
         this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"), createQueue(maxQueueSize));
         this.rollover = ROLLOVER_SETTING.get(settings);
@@ -234,7 +240,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
             return false;
         }
 
-        if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME, IndexLifecycleManager.SECURITY_VERSION_STRING,
+        if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME, SECURITY_VERSION_STRING,
                 clusterState, logger, Version.CURRENT::onOrAfter) == false) {
             logger.debug("security audit index template [{}] is not up to date", INDEX_TEMPLATE_NAME);
             return false;
@@ -256,7 +262,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     private String getIndexName() {
-        return resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+        final Message first = peek();
+        final String index;
+        if (first == null) {
+            index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+        } else {
+            index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, first.timestamp, rollover);
+        }
+        return index;
     }
 
     /**
@@ -276,15 +289,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                         logger.trace("remote cluster state is [{}] [{}]",
                                 clusterStateResponse.getClusterName(), clusterStateResponse.getState());
                         if (canStart(clusterStateResponse.getState())) {
-                            innerStart();
+                            updateCurrentIndexMappingsIfNecessary(clusterStateResponse.getState());
                         } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
-                                IndexLifecycleManager.SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
+                                SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
                                 Version.CURRENT::onOrAfter) == false) {
-                            putTemplate(customAuditIndexSettings(settings, logger), ActionListener.wrap((v) -> innerStart(),
-                                    (e) -> {
+                            putTemplate(customAuditIndexSettings(settings, logger),
+                                    e -> {
                                         logger.error("failed to put audit trail template", e);
                                         transitionStartingToInitialized();
-                                    }));
+                                    });
                         } else {
                             // for some reason we can't start up since the remote cluster is not fully setup. in this case
                             // we try to wait for yellow status (all primaries started up) this will also wait for
@@ -312,9 +325,69 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
                     }
                 });
             } else {
-                innerStart();
+                updateCurrentIndexMappingsIfNecessary(clusterService.state());
             }
         }
+    }
+
+    // pkg private for tests
+    void updateCurrentIndexMappingsIfNecessary(ClusterState state) {
+        final String index = getIndexName();
+
+        AliasOrIndex aliasOrIndex = state.getMetaData().getAliasAndIndexLookup().get(index);
+        if (aliasOrIndex != null) {
+            // check mappings
+            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
+            if (aliasOrIndex.isAlias() && indices.size() > 1) {
+                throw new IllegalStateException("Alias [" + index + "] points to more than one index: " +
+                        indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
+            }
+            IndexMetaData indexMetaData = indices.get(0);
+            MappingMetaData docMapping = indexMetaData.mapping("doc");
+            if (docMapping == null) {
+                if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
+                    putAuditIndexMappingsAndStart(index);
+                } else {
+                    logger.trace("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
+                    transitionStartingToInitialized();
+                }
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) docMapping.sourceAsMap().get("_meta");
+                if (meta == null) {
+                    logger.info("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
+                    throw new IllegalStateException("Cannot read security-version string in index " + index);
+                }
+
+                final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
+                if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
+                    innerStart();
+                } else {
+                    if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
+                        putAuditIndexMappingsAndStart(index);
+                    } else if (versionString == null) {
+                        logger.trace("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
+                        transitionStartingToInitialized();
+                    } else {
+                        logger.trace("audit index [{}] has the incorrect version [{}]", index, versionString);
+                        transitionStartingToInitialized();
+                    }
+                }
+            }
+        } else {
+            innerStart();
+        }
+    }
+
+    private void putAuditIndexMappingsAndStart(String index) {
+        putAuditIndexMappings(index, getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE),
+                ActionListener.wrap(ignore -> {
+                    logger.trace("updated mappings on audit index [{}]", index);
+                    innerStart();
+                }, e -> {
+                    logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
+                    transitionStartingToInitialized(); // reset to initialized so we can retry
+                }));
     }
 
     private void transitionStartingToInitialized() {
@@ -325,11 +398,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         }
     }
 
-    private void innerStart() {
+    void innerStart() {
         initializeBulkProcessor();
         queueConsumer.start();
         if (state.compareAndSet(State.STARTING, State.STARTED) == false) {
-            final String message = "state transition from starting to start ed failed, current value: " + state.get();
+            final String message = "state transition from starting to started failed, current value: " + state.get();
             assert false : message;
             logger.error(message);
         } else {
@@ -874,55 +947,41 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         return builder.build();
     }
 
-    void putTemplate(Settings customSettings, ActionListener<Void> listener) {
+    private void putTemplate(Settings customSettings, Consumer<Exception> consumer) {
         try {
-            final byte[] template = TemplateUtils.loadTemplate("/" + INDEX_TEMPLATE_NAME + ".json",
-                    Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
-            final PutIndexTemplateRequest request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME).source(template, XContentType.JSON);
-            if (customSettings != null && customSettings.names().size() > 0) {
-                Settings updatedSettings = Settings.builder()
-                        .put(request.settings())
-                        .put(customSettings)
-                        .build();
-                request.settings(updatedSettings);
-            }
+            final PutIndexTemplateRequest request = getPutIndexTemplateRequest(customSettings);
 
             client.admin().indices().putTemplate(request, ActionListener.wrap((response) -> {
                         if (response.isAcknowledged()) {
                             // now we may need to update the mappings of the current index
-                            final DateTime dateTime;
-                            final Message message = queueConsumer.peek();
-                            if (message != null) {
-                                dateTime = message.timestamp;
-                            } else {
-                                dateTime = DateTime.now(DateTimeZone.UTC);
-                            }
-                            final String index = resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, dateTime, rollover);
-                            checkIfCurrentIndexExists(index, request, listener);
+                            client.admin().cluster().prepareState().execute(ActionListener.wrap(
+                                    stateResponse -> updateCurrentIndexMappingsIfNecessary(stateResponse.getState()),
+                                    consumer));
                         } else {
-                            listener.onFailure(new IllegalStateException("failed to put index template for audit logging"));
+                            consumer.accept(new IllegalStateException("failed to put index template for audit logging"));
                         }
-                    }, listener::onFailure));
+                    }, consumer));
         } catch (Exception e) {
             logger.debug("unexpected exception while putting index template", e);
-            listener.onFailure(e);
+            consumer.accept(e);
         }
     }
 
-    private void checkIfCurrentIndexExists(String index, PutIndexTemplateRequest indexTemplateRequest, ActionListener<Void> listener) {
-        client.admin().indices().prepareExists(index).execute(ActionListener.wrap((response) -> {
-            if (response.isExists()) {
-                logger.debug("index [{}] exists so we need to update mappings", index);
-                putAuditIndexMappings(index, indexTemplateRequest, listener);
-            } else {
-                logger.debug("index [{}] does not exist so we do not need to update mappings", index);
-                listener.onResponse(null);
-            }
-        }, listener::onFailure));
+    private PutIndexTemplateRequest getPutIndexTemplateRequest(Settings customSettings) {
+        final byte[] template = TemplateUtils.loadTemplate("/" + INDEX_TEMPLATE_NAME + ".json",
+                Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+        final PutIndexTemplateRequest request = new PutIndexTemplateRequest(INDEX_TEMPLATE_NAME).source(template, XContentType.JSON);
+        if (customSettings != null && customSettings.names().size() > 0) {
+            Settings updatedSettings = Settings.builder()
+                    .put(request.settings())
+                    .put(customSettings)
+                    .build();
+            request.settings(updatedSettings);
+        }
+        return request;
     }
 
-    private void putAuditIndexMappings(String index, PutIndexTemplateRequest request, ActionListener<Void> listener) {
-        String mappings = request.mappings().get(DOC_TYPE);
+    private void putAuditIndexMappings(String index, String mappings, ActionListener<Void> listener) {
         client.admin().indices().preparePutMapping(index)
                 .setType(DOC_TYPE)
                 .setSource(mappings, XContentType.JSON)

@@ -348,4 +348,27 @@ public class LiveVersionMapTests extends ESTestCase {
             }
         }
     }
+
+    public void testPruneTombstonesWhileLocked() throws InterruptedException, IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        BytesRef uid = uid("1");
+        ;
+        try (Releasable ignore = map.acquireLock(uid)) {
+            map.putUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
+            map.beforeRefresh(); // refresh otherwise we won't prune since it's tracked by the current map
+            map.afterRefresh(false);
+            Thread thread = new Thread(() -> {
+                map.pruneTombstones(Long.MAX_VALUE, 0);
+            });
+            thread.start();
+            thread.join();
+            assertEquals(1, map.getAllTombstones().size());
+        }
+        Thread thread = new Thread(() -> {
+            map.pruneTombstones(Long.MAX_VALUE, 0);
+        });
+        thread.start();
+        thread.join();
+        assertEquals(0, map.getAllTombstones().size());
+    }
 }

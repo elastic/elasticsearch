@@ -752,17 +752,31 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::update-aliases-request
             IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
-            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1"); // <2>
+            AliasActions aliasAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias1"); // <2>
             request.addAliasAction(aliasAction); // <3>
             // end::update-aliases-request
 
             // tag::update-aliases-request2
-            AliasActions addIndexAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1")
-                .filter("{\"term\":{\"year\":2016}}"); // <1>
-            AliasActions addIndicesAction = new AliasActions(AliasActions.Type.ADD).indices("index1", "index2").alias("alias2")
-                .routing("1"); // <2>
-            AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index("index3").alias("alias3"); // <3>
-            AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index("index4"); // <4>
+            AliasActions addIndexAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias1")
+                    .filter("{\"term\":{\"year\":2016}}"); // <1>
+            AliasActions addIndicesAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .indices("index1", "index2")
+                    .alias("alias2")
+                    .routing("1"); // <2>
+            AliasActions removeAction =
+                    new AliasActions(AliasActions.Type.REMOVE)
+                    .index("index3")
+                    .alias("alias3"); // <3>
+            AliasActions removeIndexAction =
+                    new AliasActions(AliasActions.Type.REMOVE_INDEX)
+                    .index("index4"); // <4>
             // end::update-aliases-request2
 
             // tag::update-aliases-request-timeout
@@ -775,7 +789,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-request-masterTimeout
 
             // tag::update-aliases-execute
-            IndicesAliasesResponse indicesAliasesResponse = client.indices().updateAliases(request);
+            IndicesAliasesResponse indicesAliasesResponse =
+                    client.indices().updateAliases(request);
             // end::update-aliases-execute
 
             // tag::update-aliases-response
@@ -783,13 +798,15 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-response
             assertTrue(acknowledged);
         }
+
         {
-            IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
-            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("async"); // <2>
+            IndicesAliasesRequest request = new IndicesAliasesRequest();
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("async");
             request.addAliasAction(aliasAction);
 
             // tag::update-aliases-execute-listener
-            ActionListener<IndicesAliasesResponse> listener = new ActionListener<IndicesAliasesResponse>() {
+            ActionListener<IndicesAliasesResponse> listener =
+                    new ActionListener<IndicesAliasesResponse>() {
                 @Override
                 public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
                     // <1>

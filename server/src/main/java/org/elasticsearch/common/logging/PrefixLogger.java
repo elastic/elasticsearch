@@ -32,7 +32,7 @@ import java.util.WeakHashMap;
  * A logger that prefixes all messages with a fixed prefix specified during construction. The prefix mechanism uses the marker construct, so
  * for the prefixes to appear, the logging layout pattern must include the marker in its pattern.
  */
-public class PrefixLogger extends ExtendedLoggerWrapper {
+class PrefixLogger extends ExtendedLoggerWrapper {
 
     /*
      * We can not use the built-in Marker tracking (MarkerManager) because the MarkerManager holds a permanent reference to the marker;

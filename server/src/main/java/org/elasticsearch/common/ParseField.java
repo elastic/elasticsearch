@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.HashSet;

@@ -430,4 +430,16 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
     }
+
+
+    /**
+     * Tries to acquires a releaseable lock for the given uId. If the lock can not be acquired this method returns <code>null</code>
+     *
+     * All *UnderLock methods require this lock to be hold by the caller otherwise the visibility guarantees of this version
+     * map are broken. We assert on this lock to be hold when calling these methods.
+     * @see KeyedLock
+     */
+    Releasable tryAcquireLock(BytesRef uid) {
+        return keyedLock.tryAcquire(uid);
+    }
 }

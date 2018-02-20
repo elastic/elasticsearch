@@ -1658,14 +1658,15 @@ public class InternalEngine extends Engine {
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
-            try (Releasable ignored = versionMap.acquireLock(uid)) {
-                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
-                if (versionValue != null) {
-                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
-                        versionMap.removeTombstoneUnderLock(uid);
+            try (Releasable lock = versionMap.tryAcquireLock(uid)) {
+                if (lock != null) {
+                    // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
+                    // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                    DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
+                    if (versionValue != null) {
+                        if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
+                            versionMap.removeTombstoneUnderLock(uid);
+                        }
                     }
                 }
             }

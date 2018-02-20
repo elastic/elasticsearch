@@ -56,8 +56,9 @@ final class CompositeAggregator extends DeferableBucketAggregator {
         this.sources = sources;
         this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.queue = new CompositeValuesCollectorQueue(sources, size);
-        this.sortedBucketProducer = SortedDocsProducer.createProducerOrNull(sources[0], queue);
+        this.sortedBucketProducer = SortedDocsProducer.createProducerOrNull(sources[0]);
+        this.queue = new CompositeValuesCollectorQueue(context.searcher().getIndexReader(), sources, size,
+            sortedBucketProducer != null && sortedBucketProducer.isApplicable(context.query()));
         if (rawAfterKey != null) {
             queue.setAfter(rawAfterKey.values());
         }
@@ -115,7 +116,7 @@ final class CompositeAggregator extends DeferableBucketAggregator {
             // we can bypass search, the producer will visit documents sorted by the leading source
             // of the composite definition and terminates when the leading source value is guaranteed to be
             // greater than the lowest composite bucket in the queue.
-            sortedBucketProducer.processLeaf(context.query(), ctx, sub);
+            sortedBucketProducer.processLeaf(context.query(), queue, ctx, sub);
             throw new CollectionTerminatedException();
         } else {
             final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(sub));

@@ -55,11 +55,9 @@ import java.util.function.ToLongFunction;
  */
 abstract class SortedDocsProducer {
     protected final String field;
-    protected final CompositeValuesCollectorQueue queue;
 
-    private SortedDocsProducer(String field, CompositeValuesCollectorQueue queue) {
+    private SortedDocsProducer(String field) {
         this.field = field;
-        this.queue = queue;
     }
 
     /**
@@ -68,8 +66,8 @@ abstract class SortedDocsProducer {
      * Returns true if the queue is full and the current <code>leadSourceBucket</code> did not produce any competitive
      * composite buckets.
      */
-    protected boolean processBucket(LeafReaderContext context, LeafBucketCollector sub,
-                                    DocIdSetIterator iterator, Comparable<?> leadSourceBucket) throws IOException {
+    protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context,
+                                    LeafBucketCollector sub, DocIdSetIterator iterator, Comparable<?> leadSourceBucket) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
@@ -84,7 +82,7 @@ abstract class SortedDocsProducer {
             }
         };
         final Bits liveDocs = context.reader().getLiveDocs();
-        final LeafBucketCollector collector = queue.getLeafCollector(context, queueCollector, leadSourceBucket);
+        final LeafBucketCollector collector = queue.getLeafCollector(leadSourceBucket, context, queueCollector);
         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
             if (liveDocs == null || liveDocs.get(iterator.docID())) {
                 collector.collect(iterator.docID());
@@ -106,13 +104,14 @@ abstract class SortedDocsProducer {
     /**
      * Populates the queue with the composite buckets present in the <code>context</code>.
      */
-    abstract void processLeaf(Query query, LeafReaderContext context, LeafBucketCollector sub) throws IOException;
+    abstract void processLeaf(Query query, CompositeValuesCollectorQueue queue,
+                              LeafReaderContext context, LeafBucketCollector sub) throws IOException;
 
     /**
      * Creates a {@link SortedDocsProducer} from the provided <code>config</code> or returns null if there is
      * no implementation of producer that can handle the config.
      */
-    static SortedDocsProducer createProducerOrNull(CompositeValuesSourceConfig config, CompositeValuesCollectorQueue queue) {
+    static SortedDocsProducer createProducerOrNull(CompositeValuesSourceConfig config) {
         if (config.fieldContext() == null ||
                 config.fieldContext().fieldType() == null ||
                 // the field is not indexed
@@ -130,10 +129,10 @@ abstract class SortedDocsProducer {
             }
             switch (ft.typeName()) {
                 case "integer":
-                    return createInteger(ft.name(), queue);
+                    return createInteger(ft.name());
 
                 case "long":
-                    return createLong(ft.name(), queue);
+                    return createLong(ft.name());
 
                 default:
                     return null;
@@ -141,12 +140,12 @@ abstract class SortedDocsProducer {
         } else if (ft instanceof DateFieldMapper.DateFieldType) {
             if (config.valuesSource().getClass() == RoundingValuesSource.class) {
                 final RoundingValuesSource source = (RoundingValuesSource) config.valuesSource();
-                return createLongWithRounding(ft.name(),  queue, source::round);
+                return createLongWithRounding(ft.name(), source::round);
             } else {
-                return createLong(ft.name(), queue);
+                return createLong(ft.name());
             }
         } else if (ft instanceof KeywordFieldMapper.KeywordFieldType) {
-            return createTerms(ft.name(), queue);
+            return createTerms(ft.name());
         } else {
             return null;
         }
@@ -155,29 +154,29 @@ abstract class SortedDocsProducer {
     /**
      * Creates a {@link SortedDocsProducer} based on indexed terms.
      */
-    static SortedDocsProducer createTerms(String field, CompositeValuesCollectorQueue queue) {
-        return new TermsSortedDocsProducer(field, queue);
+    static SortedDocsProducer createTerms(String field) {
+        return new TermsSortedDocsProducer(field);
     }
 
     /**
      * Creates a {@link SortedDocsProducer} based on indexed integers.
      */
-    static SortedDocsProducer createInteger(String field, CompositeValuesCollectorQueue queue) {
-        return new LongSortedDocsProducer(field, queue, b -> IntPoint.decodeDimension(b, 0));
+    static SortedDocsProducer createInteger(String field) {
+        return new LongSortedDocsProducer(field, b -> IntPoint.decodeDimension(b, 0));
     }
 
     /**
      * Creates a {@link SortedDocsProducer} based on indexed longs.
      */
-    static SortedDocsProducer createLong(String field, CompositeValuesCollectorQueue queue) {
-        return new LongSortedDocsProducer(field, queue, b -> LongPoint.decodeDimension(b, 0));
+    static SortedDocsProducer createLong(String field) {
+        return new LongSortedDocsProducer(field, b -> LongPoint.decodeDimension(b, 0));
     }
 
     /**
      * Creates a {@link SortedDocsProducer} based on indexed longs rounded with the provided <code>rounding</code>.
      */
-    static SortedDocsProducer createLongWithRounding(String field, CompositeValuesCollectorQueue queue, LongUnaryOperator rounding) {
-        return new LongSortedDocsProducer(field, queue,
+    static SortedDocsProducer createLongWithRounding(String field, LongUnaryOperator rounding) {
+        return new LongSortedDocsProducer(field,
             (b) -> {
                 long value = LongPoint.decodeDimension(b, 0);
                 return rounding.applyAsLong(value);
@@ -189,8 +188,8 @@ abstract class SortedDocsProducer {
      * provided field.
      */
     private static class TermsSortedDocsProducer extends SortedDocsProducer {
-        private TermsSortedDocsProducer(String field, CompositeValuesCollectorQueue queue) {
-            super(field, queue);
+        private TermsSortedDocsProducer(String field) {
+            super(field);
         }
 
         @Override
@@ -200,7 +199,7 @@ abstract class SortedDocsProducer {
         }
 
         @Override
-        void processLeaf(Query query, LeafReaderContext context, LeafBucketCollector sub) throws IOException {
+        void processLeaf(Query query,  CompositeValuesCollectorQueue queue, LeafReaderContext context, LeafBucketCollector sub) throws IOException {
             assert isApplicable(query);
             final Terms terms = context.reader().terms(field);
             if (terms == null) {
@@ -226,7 +225,7 @@ abstract class SortedDocsProducer {
                     break;
                 }
                 reuse = te.postings(reuse, PostingsEnum.NONE);
-                if (processBucket(context, sub, reuse, te.term()) && !first) {
+                if (processBucket(queue, context, sub, reuse, te.term()) && !first) {
                     // this bucket does not have any competitive composite buckets,
                     // we can early terminate the collection because the remaining buckets are guaranteed
                     // to be greater than this bucket.
@@ -244,8 +243,8 @@ abstract class SortedDocsProducer {
     private static class LongSortedDocsProducer extends SortedDocsProducer {
         private final ToLongFunction<byte[]> bucketFunction;
 
-        private LongSortedDocsProducer(String field, CompositeValuesCollectorQueue queue, ToLongFunction<byte[]> bucketFunction) {
-            super(field, queue);
+        private LongSortedDocsProducer(String field, ToLongFunction<byte[]> bucketFunction) {
+            super(field);
             this.bucketFunction = bucketFunction;
         }
 
@@ -257,7 +256,8 @@ abstract class SortedDocsProducer {
         }
 
         @Override
-        void processLeaf(Query query, LeafReaderContext context, LeafBucketCollector sub) throws IOException {
+        void processLeaf(Query query, CompositeValuesCollectorQueue queue,
+                         LeafReaderContext context, LeafBucketCollector sub) throws IOException {
             assert isApplicable(query);
             final PointValues values = context.reader().getPointValues(field);
             if (values == null) {
@@ -345,7 +345,7 @@ abstract class SortedDocsProducer {
                 long bucket = bucketFunction.applyAsLong(packedValue);
                 if (first == false && bucket != lastBucket) {
                     final DocIdSet docIdSet = builder.build();
-                    if (processBucket(context, sub, docIdSet.iterator(), lastBucket) &&
+                    if (processBucket(queue, context, sub, docIdSet.iterator(), lastBucket) &&
                             // lower bucket is inclusive
                             lowerBucket != lastBucket) {
                         // this bucket does not have any competitive composite buckets,
@@ -388,7 +388,7 @@ abstract class SortedDocsProducer {
             public void flush() throws IOException {
                 if (first == false && builder != null) {
                     final DocIdSet docIdSet = builder.build();
-                    processBucket(context, sub, docIdSet.iterator(), lastBucket);
+                    processBucket(queue, context, sub, docIdSet.iterator(), lastBucket);
                     builder = null;
                 }
             }

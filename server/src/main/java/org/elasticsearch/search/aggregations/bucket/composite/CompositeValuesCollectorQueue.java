@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -44,16 +46,24 @@ final class CompositeValuesCollectorQueue {
 
     /**
      * Ctr
+     * @param reader The index reader
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
      */
-    CompositeValuesCollectorQueue(CompositeValuesSourceConfig[] sources, int size) {
+    CompositeValuesCollectorQueue(IndexReader reader, CompositeValuesSourceConfig[] sources, int size, boolean canOptimize) {
         this.maxSize = size;
         this.arrays = new CompositeValuesSource<?, ?>[sources.length];
         this.docCounts = new int[size];
         for (int i = 0; i < sources.length; i++) {
             final int reverseMul = sources[i].reverseMul();
-            if (sources[i].valuesSource() instanceof Bytes) {
+            if (sources[i].valuesSource() instanceof Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+                Bytes.WithOrdinals vs = (Bytes.WithOrdinals) sources[i].valuesSource();
+                if (canOptimize) {
+                    arrays[i] = CompositeValuesSource.createBinary(vs, size, reverseMul);
+                } else {
+                    arrays[i] = CompositeValuesSource.createGlobalOrdinals(vs, size, reverseMul);
+                }
+            } else if (sources[i].valuesSource() instanceof Bytes) {
                 Bytes vs = (Bytes) sources[i].valuesSource();
                 arrays[i] = CompositeValuesSource.createBinary(vs, size, reverseMul);
             } else if (sources[i].valuesSource() instanceof Numeric) {
@@ -183,7 +193,7 @@ final class CompositeValuesCollectorQueue {
      * The provided collector <code>in</code> is called on each composite bucket.
      */
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector in) throws IOException {
-        return getLeafCollector(context, in, null);
+        return getLeafCollector(null, context, in);
     }
     /**
      * Creates the collector that will visit the composite buckets of the matching documents.
@@ -191,16 +201,15 @@ final class CompositeValuesCollectorQueue {
      * for each document.
      * The provided collector <code>in</code> is called on each composite bucket.
      */
-    LeafBucketCollector getLeafCollector(LeafReaderContext context,
-                                         LeafBucketCollector in,
-                                         Comparable<?> forceLeadSourceValue) throws IOException {
+    LeafBucketCollector getLeafCollector(Comparable<?> forceLeadSourceValue,
+                                         LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
         while (last > 0) {
             collector = arrays[last--].getLeafCollector(context, collector);
         }
         if (forceLeadSourceValue != null) {
-            collector = arrays[last].getLeafCollector(forceLeadSourceValue, collector);
+            collector = arrays[last].getLeafCollector(forceLeadSourceValue, context, collector);
         } else {
             collector = arrays[last].getLeafCollector(context, collector);
         }

@@ -77,9 +77,7 @@ final class BestCompositeBucketsDeferringCollector extends DeferringBucketCollec
 
     @Override
     public boolean needsScores() {
-        if (collector == null) {
-            throw new IllegalStateException();
-        }
+        assert collector != null;
         return collector.needsScores();
     }
 

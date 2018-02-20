@@ -39,6 +39,10 @@ public class SamlRealmSettings {
 
     public static final Setting<String> NAMEID_FORMAT = new Setting<>("nameid_format", s -> TRANSIENT_NAMEID_FORMAT, Function.identity(),
             Setting.Property.NodeScope);
+    public static final Setting<Boolean> NAMEID_ALLOW_CREATE = Setting.boolSetting("nameid.allow_create", false,
+            Setting.Property.NodeScope);
+    public static final Setting<String> NAMEID_SP_QUALIFIER = Setting.simpleString("nameid.sp_qualifier", Setting.Property.NodeScope);
+
     public static final Setting<Boolean> FORCE_AUTHN = Setting.boolSetting("force_authn", false, Setting.Property.NodeScope);
     public static final Setting<Boolean> POPULATE_USER_METADATA = Setting.boolSetting("populate_user_metadata", true,
             Setting.Property.NodeScope);
@@ -73,7 +77,7 @@ public class SamlRealmSettings {
     public static Set<Setting<?>> getSettings() {
         final Set<Setting<?>> set = Sets.newHashSet(IDP_ENTITY_ID, IDP_METADATA_PATH,
                 SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
-                NAMEID_FORMAT, FORCE_AUTHN,
+                NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
                 CLOCK_SKEW,
                 ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES);
         set.addAll(ENCRYPTION_SETTINGS.getAllSettings());

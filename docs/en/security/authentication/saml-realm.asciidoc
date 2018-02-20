@@ -93,6 +93,12 @@ for SAML realms.
                                            to authenticate the current user.
                                            Defaults to requesting _transient_ names
                                            (`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`)
+| `nameid.allow_create`       | no       | The value of the `AllowCreate` attribute of the `NameIdPolicy`
+                                           element in an authentication request.
+                                           Defaults to `false`
+| `nameid.sp_qualifier`       | no       | The value of the `SPNameQualifier` attribute of the `NameIdPolicy`
+                                           element in an authentication request.
+                                           The default is to not include the `SPNameQualifier` attribute.
 | `force_authn`               | no       | Whether to set the `ForceAuthn` attribute when requesting that the
                                            IdP authenticate the current user. If this is set to `true`, the
                                            IdP will be required to freshly establish the user's identity,

@@ -19,6 +19,7 @@ import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SamlAuthnRequestBuilderTests extends SamlTestCase {
 
@@ -51,7 +52,7 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
                 sp, SAMLConstants.SAML2_POST_BINDING_URI,
                 idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
                 Clock.systemUTC());
-        builder.nameIdFormat(NameID.PERSISTENT);
+        builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.PERSISTENT, false, SP_ENTITY_ID));
         builder.forceAuthn(null);
 
         final AuthnRequest request = buildAndValidateAuthnRequest(builder);
@@ -75,7 +76,9 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
                 sp, SAMLConstants.SAML2_POST_BINDING_URI,
                 idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI,
                 Clock.systemUTC());
-        builder.nameIdFormat(NameID.TRANSIENT);
+        
+        final String noSpNameQualifier = randomBoolean() ? "" : null;
+        builder.nameIDPolicy(new SamlAuthnRequestBuilder.NameIDPolicySettings(NameID.TRANSIENT, true, noSpNameQualifier));
         builder.forceAuthn(Boolean.TRUE);
 
         final AuthnRequest request = buildAndValidateAuthnRequest(builder);
@@ -87,8 +90,8 @@ public class SamlAuthnRequestBuilderTests extends SamlTestCase {
 
         assertThat(request.getNameIDPolicy(), notNullValue());
         assertThat(request.getNameIDPolicy().getFormat(), equalTo(NameID.TRANSIENT));
-        assertThat(request.getNameIDPolicy().getSPNameQualifier(), equalTo(SP_ENTITY_ID));
-        assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.FALSE));
+        assertThat(request.getNameIDPolicy().getSPNameQualifier(), nullValue());
+        assertThat(request.getNameIDPolicy().getAllowCreate(), equalTo(Boolean.TRUE));
 
         assertThat(request.isForceAuthn(), equalTo(Boolean.TRUE));
     }

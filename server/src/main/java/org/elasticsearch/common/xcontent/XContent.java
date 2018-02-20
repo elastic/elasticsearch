@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -52,7 +51,15 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
+        String dupProp = System.getProperty("es.xcontent.strict_duplicate_detection", "true");
+        switch (dupProp) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IllegalArgumentException("Failed to parse value [" + dupProp + "] as only [true] or [false] are allowed.");
+        }
     }
 
     /**
@@ -106,7 +113,10 @@ public interface XContent {
 
     /**
      * Creates a parser over the provided bytes.
+     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, InputStream)}
+     * instead, the BytesReference will be removed it a future commit
      */
+    @Deprecated
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException;
 

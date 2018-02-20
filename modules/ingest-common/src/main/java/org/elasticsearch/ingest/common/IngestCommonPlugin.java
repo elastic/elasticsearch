@@ -50,14 +50,7 @@ import org.elasticsearch.rest.RestHandler;
 
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    static final Map<String, String> GROK_PATTERNS;
-    static {
-        try {
-            GROK_PATTERNS = Grok.loadBuiltinPatterns();
-        } catch (IOException e) {
-            throw new UncheckedIOException("unable to load built-in grok patterns", e);
-        }
-    }
+    static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
 
     public IngestCommonPlugin() {
     }

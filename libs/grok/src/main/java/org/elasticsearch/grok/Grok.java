@@ -28,10 +28,7 @@ import org.joni.Region;
 import org.joni.Syntax;
 import org.joni.exception.ValueException;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -59,6 +56,17 @@ public final class Grok {
             ")?" + "\\}";
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
+
+    private static final Map<String, String> builtinPatterns;
+
+    static {
+        try {
+            builtinPatterns = loadBuiltinPatterns();
+        } catch (IOException e) {
+            throw new UncheckedIOException("unable to load built-in grok patterns", e);
+        }
+    }
+
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
@@ -182,14 +190,17 @@ public final class Grok {
         return null;
     }
 
-    // Code for loading built-in grok patterns packaged with the jar file:
-    private static final String[] PATTERN_NAMES = new String[] {
-        "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-        "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
-        "postgresql", "rails", "redis", "ruby"
-    };
+    public static Map<String, String> getBuiltinPatterns() {
+        return builtinPatterns;
+    }
 
-    public static Map<String, String> loadBuiltinPatterns() throws IOException {
+    private static Map<String, String> loadBuiltinPatterns() throws IOException {
+        // Code for loading built-in grok patterns packaged with the jar file:
+        String[] PATTERN_NAMES = new String[] {
+            "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby"
+        };
         Map<String, String> builtinPatterns = new HashMap<>();
         for (String pattern : PATTERN_NAMES) {
             try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {

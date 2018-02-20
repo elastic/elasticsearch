@@ -38,8 +38,8 @@ public class GrokTests extends ESTestCase {
     private Map<String, String> basePatterns;
 
     @Before
-    public void setup() throws IOException {
-        basePatterns = Grok.loadBuiltinPatterns();
+    public void setup() {
+        basePatterns = Grok.getBuiltinPatterns();
     }
 
     public void testMatchWithoutCaptures() {

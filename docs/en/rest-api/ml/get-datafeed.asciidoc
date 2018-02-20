@@ -53,14 +53,14 @@ privileges to use this API. For more information, see
 ==== Examples
 
 The following example gets configuration information for the
-`datafeed-it-ops-kpi` {dfeed}:
+`datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-it-ops-kpi
+GET _xpack/ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_datafeed]
 
 The API returns the following results:
 [source,js]
@@ -69,21 +69,18 @@ The API returns the following results:
   "count": 1,
   "datafeeds": [
     {
-      "datafeed_id": "datafeed-it-ops-kpi",
-      "job_id": "it-ops-kpi",
-      "query_delay": "60s",
-      "frequency": "150s",
+      "datafeed_id": "datafeed-total-requests",
+      "job_id": "total-requests",
+      "query_delay": "83474ms",
       "indices": [
-        "it_ops_metrics"
+        "server-metrics"
       ],
       "types": [
-        "kpi",
-        "network",
-        "sql"
+        "metric"
       ],
       "query": {
         "match_all": {
-          "boost": 1
+          "boost": 1.0
         }
       },
       "scroll_size": 1000,
@@ -94,3 +91,4 @@ The API returns the following results:
   ]
 }
 ----
+// TESTRESPONSE[s/"query.boost": "1.0"/"query.boost": $body.query.boost/]

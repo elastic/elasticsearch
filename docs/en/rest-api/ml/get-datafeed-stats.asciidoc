@@ -59,14 +59,14 @@ privileges to use this API. For more information, see
 ==== Examples
 
 The following example gets usage information for the
-`datafeed-farequote` {dfeed}:
+`datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/datafeeds/datafeed-farequote/_stats
+GET _xpack/ml/datafeeds/datafeed-total-requests/_stats
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST[setup:server_metrics_startdf]
 
 The API returns the following results:
 [source,js]
@@ -75,14 +75,16 @@ The API returns the following results:
   "count": 1,
   "datafeeds": [
     {
-      "datafeed_id": "datafeed-farequote",
+      "datafeed_id": "datafeed-total-requests",
       "state": "started",
       "node": {
-        "id": "IO_gxe2_S8mrzu7OpmK5Jw",
-        "name": "IO_gxe2",
-        "ephemeral_id": "KHMWPZoMToOzSsZY9lDDgQ",
+        "id": "2spCyo1pRi2Ajo-j-_dnPX",
+        "name": "node-0",
+        "ephemeral_id": "hoXMLZB0RWKfR9UPPUCxXX",
         "transport_address": "127.0.0.1:9300",
         "attributes": {
+          "ml.machine_memory": "17179869184",
+          "ml.max_open_jobs": "20",
           "ml.enabled": "true"
         }
       },
@@ -91,3 +93,7 @@ The API returns the following results:
   ]
 }
 ----
+// TESTRESPONSE[s/"2spCyo1pRi2Ajo-j-_dnPX"/$body.$_path/]
+// TESTRESPONSE[s/"node-0"/$body.$_path/]
+// TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
+// TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]

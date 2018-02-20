@@ -23,8 +23,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/security/users.asciidoc',
         'en/rest-api/security/tokens.asciidoc',
         'en/rest-api/watcher/put-watch.asciidoc',
-        'en/rest-api/ml/delete-calendar-event.asciidoc',
-        'en/rest-api/ml/post-data.asciidoc',
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/field-and-document-access-control.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
@@ -64,23 +62,21 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/watcher/trigger/schedule/yearly.asciidoc',
         'en/watcher/troubleshooting.asciidoc',
         'en/ml/api-quickref.asciidoc',
+        'en/rest-api/ml/delete-calendar-event.asciidoc',
         'en/rest-api/ml/delete-snapshot.asciidoc',
         'en/rest-api/ml/forecast.asciidoc',
         'en/rest-api/ml/get-bucket.asciidoc',
+        'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-overall-buckets.asciidoc',
         'en/rest-api/ml/get-category.asciidoc',
-        'en/rest-api/ml/get-datafeed-stats.asciidoc',
-        'en/rest-api/ml/get-job-stats.asciidoc',
         'en/rest-api/ml/get-record.asciidoc',
-        'en/rest-api/ml/preview-datafeed.asciidoc',
-        'en/rest-api/ml/update-datafeed.asciidoc',
-        'en/rest-api/ml/update-job.asciidoc',
-        'en/rest-api/ml/update-snapshot.asciidoc',
-        'en/rest-api/ml/validate-detector.asciidoc',
-        'en/rest-api/ml/get-datafeed.asciidoc',
         'en/rest-api/ml/get-influencer.asciidoc',
         'en/rest-api/ml/get-snapshot.asciidoc',
+        'en/rest-api/ml/post-data.asciidoc',        
+        'en/rest-api/ml/preview-datafeed.asciidoc',
         'en/rest-api/ml/revert-snapshot.asciidoc',
+        'en/rest-api/ml/update-snapshot.asciidoc',
+        'en/rest-api/ml/validate-detector.asciidoc',
         'en/rest-api/ml/validate-job.asciidoc',
         'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
@@ -296,7 +292,45 @@ setups['server_metrics_index'] = '''
                   total:
                     type: long
 '''
-setups['server_metrics_job'] = setups['server_metrics_index'] + '''
+setups['server_metrics_data'] = setups['server_metrics_index'] + '''
+  - do:
+        bulk:
+          index: server-metrics
+          type: metric
+          refresh: true
+          body: |
+            {"index": {"_id":"1177"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40476}
+            {"index": {"_id":"1178"}}
+            {"timestamp":"2017-03-23T13:00:00","total":15287}
+            {"index": {"_id":"1179"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-776}
+            {"index": {"_id":"1180"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11366}
+            {"index": {"_id":"1181"}}
+            {"timestamp":"2017-03-23T13:00:00","total":3606}
+            {"index": {"_id":"1182"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19006}
+            {"index": {"_id":"1183"}}
+            {"timestamp":"2017-03-23T13:00:00","total":38613}
+            {"index": {"_id":"1184"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19516}
+            {"index": {"_id":"1185"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-258}
+            {"index": {"_id":"1186"}}
+            {"timestamp":"2017-03-23T13:00:00","total":9551}
+            {"index": {"_id":"1187"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11217}
+            {"index": {"_id":"1188"}}
+            {"timestamp":"2017-03-23T13:00:00","total":22557}
+            {"index": {"_id":"1189"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40508}
+            {"index": {"_id":"1190"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11887}
+            {"index": {"_id":"1191"}}
+            {"timestamp":"2017-03-23T13:00:00","total":31659}
+'''
+setups['server_metrics_job'] = setups['server_metrics_data'] + '''
   - do:
       xpack.ml.put_job:
         job_id: "total-requests"

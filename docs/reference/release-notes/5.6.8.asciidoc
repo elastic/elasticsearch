@@ -1,0 +1,38 @@
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull:  https://github.com/elastic/elasticsearch/pull/
+
+[[release-notes-5.6.8]]
+== 5.6.8 Release Notes
+
+coming[5.6.8]
+
+Also see <<breaking-changes-5.6>>.
+
+[[enhancement-5.6.8]]
+[float]
+=== Enhancements
+
+Recovery::
+* Synced-flush should not seal index of out of sync replicas {pull}28464[#28464] (issue: {issue}10032[#10032])
+
+[[bug-5.6.8]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* StringTerms.Bucket.getKeyAsNumber detection type {pull}28118[#28118] (issue: {issue}28012[#28012])
+* Always include the _index and _id for nested search hits. {pull}27201[#27201] (issue: {issue}27053[#27053])
+
+Core::
+* Handle throws on tasks submitted to thread pools {pull}28667[#28667]
+* Fix size blocking queue to not lie about its weight {pull}28557[#28557] (issue: {issue}28547[#28547])
+
+Ingest::
+* Fix for bug that prevents pipelines to load that use stored scripts after a restart {pull}28588[#28588]
+
+Java High Level REST Client::
+* Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
+* Move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
+
+Packaging::
+* Disable console logging in the Windows service {pull}28618[#28618] (issue: {issue}20422[#20422])

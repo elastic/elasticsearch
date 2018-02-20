@@ -52,7 +52,7 @@
               {
                 "attachment" : {
                   "field" : "field1",
-                  "properties" : ["_language_"]
+                  "properties" : ["language"]
                 }
               }
             ]
@@ -75,6 +75,49 @@
   - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
   - length: { _source.attachment: 1 }
   - match: { _source.attachment.language: "en" }
+
+---
+"Test attachment processor with raw metadata fields":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "attachment" : {
+                  "field" : "field1",
+                  "properties" : ["*", "language"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
+  - length: { _source.attachment: 4 }
+  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.X-Parsed-By: "org.apache.tika.parser.txt.TXTParser" }
+  - match: { _source.attachment.Content-Encoding: "ISO-8859-1" }
+  - match: { _source.attachment.Content-Type: "text/plain; charset=ISO-8859-1" }
 
 ---
 "Test indexed chars are configurable":

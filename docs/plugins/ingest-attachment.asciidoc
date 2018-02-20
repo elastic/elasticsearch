@@ -25,7 +25,7 @@ include::install_remove.asciidoc[]
 | `field`                | yes       | -                | The field to get the base64 encoded field from
 | `target_field`         | no        | attachment       | The field that will hold the attachment information
 | `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
-| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `_content_`, `_title_`, `_author_`, `_keywords_`, `_date_`, `_content_type_`, `_content_length_`, `_language_` or any specific name you want to extract.
+| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` or any specific name you want to extract.
 | `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -87,7 +87,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "_content_", "_title_" ]
+        "properties": [ "content", "title" ]
       }
     }
   ]
@@ -232,14 +232,14 @@ If you want to get back more raw metadata or all of them, you can provide the me
 
 The standard properties key names are available as:
 
-* `_content_`
-* `_content_type_`
-* `_title_`
-* `_author_`
-* `_keywords_`
-* `_date_`
-* `_content_length_`
-* `_language_`
+* `content`
+* `content_type`
+* `title`
+* `author`
+* `keywords`
+* `date`
+* `content_length`
+* `language`
 
 For example if you want to extract the content of a document and also metadata which names contain
 `Parsed` or start with `Content`, you can define the following `properties`:
@@ -253,7 +253,7 @@ PUT _ingest/pipeline/attachment
     {
       "attachment" : {
         "field" : "data",
-        "properties": [ "*Parsed*", "Content*", "_content_" ]
+        "properties": [ "*Parsed*", "Content*", "content" ]
       }
     }
   ]

@@ -39,7 +39,7 @@ public class CryptoService extends AbstractComponent {
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
 
-    static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
+    public static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
 
     // the encryption used in this class was picked when Java 7 was still the min. supported
     // version. The use of counter mode was chosen to simplify the need to deal with padding

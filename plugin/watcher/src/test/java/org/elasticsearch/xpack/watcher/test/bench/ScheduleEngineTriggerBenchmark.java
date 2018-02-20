@@ -62,7 +62,7 @@ public class ScheduleEngineTriggerBenchmark {
         List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
             watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(logger),
-                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null));
+                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
 

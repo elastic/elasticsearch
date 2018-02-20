@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -21,6 +23,7 @@ public class GetWatchResponse extends ActionResponse {
     private WatchStatus status;
     private boolean found = false;
     private XContentSource source;
+    private long version;
 
     public GetWatchResponse() {
     }
@@ -32,16 +35,18 @@ public class GetWatchResponse extends ActionResponse {
         this.id = id;
         this.found = false;
         this.source = null;
+        version = Versions.NOT_FOUND;
     }
 
     /**
      * ctor for found watch
      */
-    public GetWatchResponse(String id, WatchStatus status, BytesReference source, XContentType contentType) {
+    public GetWatchResponse(String id, long version, WatchStatus status, BytesReference source, XContentType contentType) {
         this.id = id;
         this.status = status;
         this.found = true;
         this.source = new XContentSource(source, contentType);
+        this.version = version;
     }
 
     public String getId() {
@@ -60,6 +65,10 @@ public class GetWatchResponse extends ActionResponse {
         return source;
     }
 
+    public long getVersion() {
+        return version;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -68,6 +77,7 @@ public class GetWatchResponse extends ActionResponse {
         if (found) {
             status = WatchStatus.read(in);
             source = XContentSource.readFrom(in);
+            version = in.readZLong();
         }
     }
 
@@ -79,6 +89,7 @@ public class GetWatchResponse extends ActionResponse {
         if (found) {
             status.writeTo(out);
             XContentSource.writeTo(source, out);
+            out.writeZLong(version);
         }
     }
 }

@@ -77,7 +77,7 @@ public class HistoryStore extends AbstractComponent {
         putUpdateLock.lock();
         try (XContentBuilder builder = XContentFactory.jsonBuilder();
              ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+            watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
             IndexRequest request = new IndexRequest(index, HistoryStoreField.DOC_TYPE, watchRecord.id().value())
                     .source(builder)
@@ -104,7 +104,7 @@ public class HistoryStore extends AbstractComponent {
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-                watchRecord.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
+                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
                 IndexRequest request = new IndexRequest(index, HistoryStoreField.DOC_TYPE, watchRecord.id().value())
                         .source(builder)

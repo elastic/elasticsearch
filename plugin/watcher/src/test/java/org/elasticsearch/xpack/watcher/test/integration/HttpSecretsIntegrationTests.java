@@ -46,17 +46,17 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    static final String USERNAME = "_user";
-    static final String PASSWORD = "_passwd";
+    private static final String USERNAME = "_user";
+    private static final String PASSWORD = "_passwd";
 
     private MockWebServer webServer = new MockWebServer();
-    private static Boolean encryptSensitiveData;
-    private static byte[] encryptionKey;
+    private static Boolean encryptSensitiveData = null;
+    private static byte[] encryptionKey = CryptoServiceTests.generateKey();
 
     @Before
     public void init() throws Exception {
@@ -64,7 +64,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     @After
-    public void cleanup() throws Exception {
+    public void cleanup() {
         webServer.close();
     }
 
@@ -72,9 +72,6 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     protected Settings nodeSettings(int nodeOrdinal) {
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
-            if (encryptSensitiveData) {
-                encryptionKey = CryptoServiceTests.generateKey();
-            }
         }
         if (encryptSensitiveData) {
             MockSecureSettings secureSettings = new MockSecureSettings();
@@ -109,14 +106,14 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         Object value = XContentMapValues.extractValue("input.http.request.auth.basic.password", source);
         assertThat(value, notNullValue());
         if (encryptSensitiveData) {
-            assertThat(value, not(is((Object) PASSWORD)));
+            assertThat(value.toString(), startsWith("::es_encrypted::"));
             MockSecureSettings mockSecureSettings = new MockSecureSettings();
             mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
             CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
-            assertThat(value, is((Object) PASSWORD));
+            assertThat(value, is(PASSWORD));
         }
 
         // verifying the password is not returned by the GET watch API
@@ -127,7 +124,11 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         value = contentSource.getValue("input.http.request.auth.basic");
         assertThat(value, notNullValue()); // making sure we have the basic auth
         value = contentSource.getValue("input.http.request.auth.basic.password");
-        assertThat(value, nullValue()); // and yet we don't have the password
+        if (encryptSensitiveData) {
+            assertThat(value.toString(), startsWith("::es_encrypted::"));
+        } else {
+            assertThat(value, is("::es_redacted::"));
+        }
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
         stopWatcher();
@@ -195,7 +196,11 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         value = contentSource.getValue("actions._webhook.webhook.auth.basic");
         assertThat(value, notNullValue()); // making sure we have the basic auth
         value = contentSource.getValue("actions._webhook.webhook.auth.basic.password");
-        assertThat(value, nullValue()); // and yet we don't have the password
+        if (encryptSensitiveData) {
+            assertThat(value.toString(), startsWith("::es_encrypted::"));
+        } else {
+            assertThat(value, is("::es_redacted::"));
+        }
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
         stopWatcher();
@@ -229,7 +234,11 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, is(USERNAME)); // the auth username exists
 
         value = contentSource.getValue("result.actions.0.webhook.request.auth.basic.password");
-        assertThat(value, nullValue()); // but the auth password was filtered out
+        if (encryptSensitiveData) {
+            assertThat(value.toString(), startsWith("::es_encrypted::"));
+        } else {
+            assertThat(value.toString(), is("::es_redacted::"));
+        }
 
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getHeader("Authorization"),

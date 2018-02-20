@@ -59,7 +59,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         Action.Builder action = availableAction.action();
         watchSourceBuilder.addAction("test_id", action);
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder.buildAsBytes(XContentType.JSON),
+                XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
         ExecuteWatchRequestBuilder executeWatchRequestBuilder = watcherClient().prepareExecuteWatch("_id")
@@ -103,7 +104,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             }
         }
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id",
+                watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
         executeWatch("_id");
 
@@ -140,7 +142,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         watchSourceBuilder.addAction("fifteen_sec_throttle", new TimeValue(15, TimeUnit.SECONDS),
                 randomFrom(AvailableAction.values()).action());
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id",
+                watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
         timeWarp().clock().fastForwardSeconds(1);
@@ -177,7 +180,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id",
+                watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
         timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
@@ -229,7 +233,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
 
-        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        watcherClient().putWatch(new PutWatchRequest("_id",
+                watchSourceBuilder.buildAsBytes(XContentType.JSON), XContentType.JSON)).actionGet();
         refresh(Watch.INDEX);
 
         timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));

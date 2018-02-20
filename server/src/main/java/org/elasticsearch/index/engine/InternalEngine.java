@@ -20,9 +20,10 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -1683,7 +1685,7 @@ public class InternalEngine extends Engine {
              * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
              * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
              * we are handling a tragic even exception here */
-            ensureOpen();
+            ensureOpen(ex);
             failOnTragicEvent(ex);
             throw ex;
         } catch (Exception e) {
@@ -1859,14 +1861,35 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope) {
-        switch (scope) {
-            case INTERNAL:
-                return internalSearcherManager;
-            case EXTERNAL:
-                return externalSearcherManager;
-            default:
-                throw new IllegalStateException("unknown scope: " + scope);
+    public Searcher acquireSearcher(String source, SearcherScope scope) {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        store.incRef();
+        Releasable releasable = store::decRef;
+        try {
+            final ReferenceManager<IndexSearcher> referenceManager;
+            switch (scope) {
+                case INTERNAL:
+                    referenceManager = internalSearcherManager;
+                    break;
+                case EXTERNAL:
+                    referenceManager = externalSearcherManager;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown scope: " + scope);
+            }
+            EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
         }
     }
 

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -25,7 +25,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     public SearchInputFactory(Settings settings, Client client, NamedXContentRegistry xContentRegistry,
                               ScriptService scriptService) {
-        super(ServerLoggers.getLogger(ExecutableSearchInput.class, settings));
+        super(Loggers.getLogger(ExecutableSearchInput.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", TimeValue.timeValueMinutes(1));
         this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);

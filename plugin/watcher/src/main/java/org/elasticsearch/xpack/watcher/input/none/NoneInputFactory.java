@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.none;
 
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
@@ -16,7 +16,7 @@ import java.io.IOException;
 public class NoneInputFactory extends InputFactory<NoneInput, NoneInput.Result, ExecutableNoneInput> {
 
     public NoneInputFactory(Settings settings) {
-        super(ServerLoggers.getLogger(ExecutableNoneInput.class, settings));
+        super(Loggers.getLogger(ExecutableNoneInput.class, settings));
     }
 
     @Override

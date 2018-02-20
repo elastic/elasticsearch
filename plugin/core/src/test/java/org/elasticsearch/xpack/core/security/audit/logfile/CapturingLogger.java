@@ -15,7 +15,7 @@ import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,10 +26,10 @@ public class CapturingLogger {
         final StackTraceElement caller = Thread.currentThread().getStackTrace()[2];
         final String name = caller.getClassName() + "." + caller.getMethodName() + "." + level.toString();
         final Logger logger = ESLoggerFactory.getLogger(name);
-        ServerLoggers.setLevel(logger, level);
+        Loggers.setLevel(logger, level);
         final MockAppender appender = new MockAppender(name);
         appender.start();
-        ServerLoggers.addAppender(logger, appender);
+        Loggers.addAppender(logger, appender);
         return logger;
     }
 

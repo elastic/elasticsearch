@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.RestorableContextClassLoader;
@@ -84,7 +84,7 @@ public class SamlRequestHandler {
     private final UnmarshallerFactory unmarshallerFactory;
 
     public SamlRequestHandler(RealmConfig realmConfig, Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
-        this.logger = ServerLoggers.getLogger(getClass(), realmConfig.globalSettings());
+        this.logger = Loggers.getLogger(getClass(), realmConfig.globalSettings());
         this.clock = clock;
         this.idp = idp;
         this.sp = sp;

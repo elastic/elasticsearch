@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -207,15 +206,15 @@ public class CppLogMessageHandlerTests extends ESTestCase {
     private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) 
             throws IOException {
         Logger cppMessageLogger = Loggers.getLogger(CppLogMessageHandler.class);
-        ServerLoggers.addAppender(cppMessageLogger, mockAppender);
+        Loggers.addAppender(cppMessageLogger, mockAppender);
 
         Level oldLevel = cppMessageLogger.getLevel();
-        ServerLoggers.setLevel(cppMessageLogger, level);
+        Loggers.setLevel(cppMessageLogger, level);
         try (CppLogMessageHandler handler = new CppLogMessageHandler(jobId, is)) {
             handler.tailStream();
         } finally {
-            ServerLoggers.removeAppender(cppMessageLogger, mockAppender);
-            ServerLoggers.setLevel(cppMessageLogger, oldLevel);
+            Loggers.removeAppender(cppMessageLogger, mockAppender);
+            Loggers.setLevel(cppMessageLogger, oldLevel);
             mockAppender.stop();
         }
 

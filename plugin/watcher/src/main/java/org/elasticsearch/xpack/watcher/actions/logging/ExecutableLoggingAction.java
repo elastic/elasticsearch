@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -24,7 +24,7 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     public ExecutableLoggingAction(LoggingAction action, Logger logger, Settings settings, TextTemplateEngine templateEngine) {
         super(action, logger);
-        this.textLogger = action.category != null ? ServerLoggers.getLogger(action.category, settings) : logger;
+        this.textLogger = action.category != null ? Loggers.getLogger(action.category, settings) : logger;
         this.templateEngine = templateEngine;
     }
 

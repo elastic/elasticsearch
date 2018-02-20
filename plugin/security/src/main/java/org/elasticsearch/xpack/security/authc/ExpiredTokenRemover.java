@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -44,7 +44,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
 
     ExpiredTokenRemover(Settings settings, Client client) {
         this.client = client;
-        this.logger = ServerLoggers.getLogger(getClass(), settings);
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
     }
 

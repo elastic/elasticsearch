@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +36,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(settings, scheduleRegistry, clock);
-        this.logger = ServerLoggers.getLogger(ScheduleTriggerEngineMock.class, settings);
+        this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
     }
 
     @Override

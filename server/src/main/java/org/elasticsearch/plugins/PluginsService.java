@@ -36,6 +36,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -562,6 +563,7 @@ public class PluginsService extends AbstractComponent {
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
         try {
+            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
@@ -582,11 +584,11 @@ public class PluginsService extends AbstractComponent {
                 }
 
                 urls.addAll(pluginUrls);
-                JarHell.checkJarHell(urls); // check jarhell as we add each extended plugin's urls
+                JarHell.checkJarHell(urls, logger::debug); // check jarhell as we add each extended plugin's urls
             }
 
             urls.addAll(bundle.urls);
-            JarHell.checkJarHell(urls); // check jarhell of each extended plugin against this plugin
+            JarHell.checkJarHell(urls, logger::debug); // check jarhell of each extended plugin against this plugin
             transitiveUrls.put(bundle.plugin.getName(), urls);
 
             Set<URL> classpath = JarHell.parseClassPath();
@@ -599,7 +601,7 @@ public class PluginsService extends AbstractComponent {
             // check we don't have conflicting classes
             Set<URL> union = new HashSet<>(classpath);
             union.addAll(bundle.urls);
-            JarHell.checkJarHell(union);
+            JarHell.checkJarHell(union, logger::debug);
         } catch (Exception e) {
             throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
         }

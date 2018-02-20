@@ -37,7 +37,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -195,7 +194,8 @@ final class Bootstrap {
 
         try {
             // look for jar hell
-            JarHell.checkJarHell();
+            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            JarHell.checkJarHell(logger::debug);
         } catch (IOException | URISyntaxException e) {
             throw new BootstrapException(e);
         }
@@ -304,9 +304,9 @@ final class Bootstrap {
         try {
             if (closeStandardStreams) {
                 final Logger rootLogger = ESLoggerFactory.getRootLogger();
-                final Appender maybeConsoleAppender = ServerLoggers.findAppender(rootLogger, ConsoleAppender.class);
+                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
-                    ServerLoggers.removeAppender(rootLogger, maybeConsoleAppender);
+                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
                 }
                 closeSystOut();
             }
@@ -337,9 +337,9 @@ final class Bootstrap {
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             final Logger rootLogger = ESLoggerFactory.getRootLogger();
-            final Appender maybeConsoleAppender = ServerLoggers.findAppender(rootLogger, ConsoleAppender.class);
+            final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
             if (foreground && maybeConsoleAppender != null) {
-                ServerLoggers.removeAppender(rootLogger, maybeConsoleAppender);
+                Loggers.removeAppender(rootLogger, maybeConsoleAppender);
             }
             Logger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
@@ -372,7 +372,7 @@ final class Bootstrap {
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
             if (foreground && maybeConsoleAppender != null) {
-                ServerLoggers.addAppender(rootLogger, maybeConsoleAppender);
+                Loggers.addAppender(rootLogger, maybeConsoleAppender);
             }
 
             throw e;

@@ -66,7 +66,7 @@ public class JarHellTests extends ESTestCase {
         Set<URL> jars = asSet(makeJar(dir, "foo.jar", null, "DuplicateClass.class"),
                               makeJar(dir, "bar.jar", null, "DuplicateClass.class"));
         try {
-            JarHell.checkJarHell(jars);
+            JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
@@ -82,7 +82,7 @@ public class JarHellTests extends ESTestCase {
         Set<URL> dirs = asSet(makeFile(dir1, "DuplicateClass.class"),
                               makeFile(dir2, "DuplicateClass.class"));
         try {
-            JarHell.checkJarHell(dirs);
+            JarHell.checkJarHell(dirs, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
@@ -98,7 +98,7 @@ public class JarHellTests extends ESTestCase {
         Set<URL> dirs = asSet(makeJar(dir1, "foo.jar", null, "DuplicateClass.class"),
                               makeFile(dir2, "DuplicateClass.class"));
         try {
-            JarHell.checkJarHell(dirs);
+            JarHell.checkJarHell(dirs, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
@@ -113,7 +113,7 @@ public class JarHellTests extends ESTestCase {
         // this bogus jar had to be with https://github.com/jasontedor/duplicate-classes
         Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-classes.jar"));
         try {
-            JarHell.checkJarHell(jars);
+            JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("jar hell!"));
@@ -125,7 +125,7 @@ public class JarHellTests extends ESTestCase {
 
     public void testXmlBeansLeniency() throws Exception {
         Set<URL> jars = Collections.singleton(JarHellTests.class.getResource("duplicate-xmlbeans-classes.jar"));
-        JarHell.checkJarHell(jars);
+        JarHell.checkJarHell(jars, logger::debug);
     }
 
     public void testRequiredJDKVersionTooOld() throws Exception {
@@ -144,7 +144,7 @@ public class JarHellTests extends ESTestCase {
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), targetVersion.toString());
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
-            JarHell.checkJarHell(jars);
+            JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
@@ -160,7 +160,7 @@ public class JarHellTests extends ESTestCase {
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
         try {
-            JarHell.checkJarHell(jars);
+            JarHell.checkJarHell(jars, logger::debug);
             fail("did not get expected exception");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage().equals("version string must be a sequence of nonnegative decimal integers separated " +
@@ -175,7 +175,7 @@ public class JarHellTests extends ESTestCase {
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "1.7");
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        JarHell.checkJarHell(jars);
+        JarHell.checkJarHell(jars, logger::debug);
     }
 
     public void testValidVersions() {

@@ -186,7 +186,9 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
 
                     builder.startObject("attributes");
                     for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
-                        builder.field(entry.getKey(), entry.getValue());
+                        if (entry.getKey().startsWith("ml.")) {
+                            builder.field(entry.getKey(), entry.getValue());
+                        }
                     }
                     builder.endObject();
                     builder.endObject();

@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-    compile project(':libs:grok-common')
+    compile project(':libs:grok')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-unchecked,-rawtypes"

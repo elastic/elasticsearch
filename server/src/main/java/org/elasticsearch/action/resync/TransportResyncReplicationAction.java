@@ -85,7 +85,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        // Ensure primary-replica resync mandatory but avoid marking shards as stale during cluster restart.
         return new ResyncActionReplicasProxy(primaryTerm);
     }
 
@@ -189,6 +188,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     /**
      * A proxy for primary-replica resync operations which are performed on replicas when a new primary is promoted.
      * Replica shards fail to execute resync operations will be failed but won't be marked as stale.
+     * This avoids marking shards as stale during cluster restart but enforces primary-replica resync mandatory.
      */
     class ResyncActionReplicasProxy extends ReplicasProxy {
 

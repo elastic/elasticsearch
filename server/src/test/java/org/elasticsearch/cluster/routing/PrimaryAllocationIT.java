@@ -324,7 +324,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     /**
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
-    public void testFailResyncFailedReplicasButNotMarkAsStale() throws Exception {
+    public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
         assertAcked(
@@ -362,6 +362,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         partition.startDisrupting();
         ensureStableCluster(connectedNodes.size(), master);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimary));
+        // Fails replicas but not mark them as stale.
         assertBusy(() -> {
             ClusterState state = client(master).admin().cluster().prepareState().get().getState();
             assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(connectedReplicas.size()));

@@ -120,7 +120,7 @@ information, including the updated property values. For example:
 {
   "job_id": "total-requests",
   "job_type": "anomaly_detector",
-  "job_version": "7.0.0-alpha1",
+  "job_version": "6.3.0",
   "groups": [
     "group1",
     "group2"
@@ -165,5 +165,5 @@ information, including the updated property values. For example:
   "results_index_name": "shared"
 }
 ----
-// TESTRESPONSE[s/"job_version": "7.0.0-alpha1"/"job_version": $body.job_version/]
+// TESTRESPONSE[s/"job_version": "6.3.0"/"job_version": $body.job_version/]
 // TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

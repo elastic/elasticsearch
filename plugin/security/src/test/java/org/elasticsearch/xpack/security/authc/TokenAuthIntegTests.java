@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 
+@TestLogging("org.elasticsearch.xpack.security.authz.store.FileRolesStore:DEBUG")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override

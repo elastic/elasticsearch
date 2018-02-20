@@ -77,7 +77,7 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
     @Override
     protected EqualsHashCodeTestUtils.MutateFunction<RolloverResponse> getMutateFunction() {
         return response -> {
-            int i = randomIntBetween(0, 5);
+            int i = randomIntBetween(0, 6);
             switch(i) {
                 case 0:
                     return new RolloverResponse(response.getOldIndex() + randomAlphaOfLengthBetween(2, 5),
@@ -110,19 +110,20 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
                     return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
                             response.getConditionStatus(), response.isDryRun(), response.isRolledOver() == false,
                             response.isAcknowledged(), response.isShardsAcknowledged());
-                case 5:
+                case 5: {
                     boolean acknowledged = response.isAcknowledged() == false;
-                    boolean shardsAcknowledged = response.isShardsAcknowledged();
-                    if (acknowledged == false) {
-                        shardsAcknowledged = false;
-                    }
+                    boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
                     return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
                             response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
                             acknowledged, shardsAcknowledged);
-                case 6:
+                }
+                case 6: {
+                    boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                    boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
                     return new RolloverResponse(response.getOldIndex(), response.getNewIndex(),
                             response.getConditionStatus(), response.isDryRun(), response.isRolledOver(),
-                            response.isAcknowledged(), response.isShardsAcknowledged() == false);
+                            acknowledged, shardsAcknowledged);
+                }
                 default:
                     throw new UnsupportedOperationException();
             }

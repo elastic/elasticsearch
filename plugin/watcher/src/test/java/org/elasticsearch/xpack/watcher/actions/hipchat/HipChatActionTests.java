@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.watcher.actions.hipchat;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -30,6 +33,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -103,9 +107,9 @@ public class HipChatActionTests extends ESTestCase {
         HipChatMessage message = new HipChatMessage(body.getTemplate(), rooms, null, null, null, null, null);
         HipChatAccount account = mock(HipChatAccount.class);
         when(account.render(wid.watchId(), "_id", templateEngine, messageTemplate, expectedModel)).thenReturn(message);
-        HttpResponse response = mock(HttpResponse.class);
-        when(response.status()).thenReturn(200);
-        HttpRequest request = mock(HttpRequest.class);
+        boolean responseFailure = randomBoolean();
+        HttpResponse response = new HttpResponse(responseFailure ? 404 : 200);
+        HttpRequest request = HttpRequest.builder("localhost", 12345).path("/").build();
         SentMessages sentMessages = new SentMessages(accountName, Arrays.asList(
                 SentMessages.SentMessage.responded("_r1", SentMessages.SentMessage.TargetType.ROOM, message, request, response)
         ));
@@ -116,8 +120,13 @@ public class HipChatActionTests extends ESTestCase {
 
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(HipChatAction.Result.Executed.class));
-        assertThat(result.status(), equalTo(Action.Result.Status.SUCCESS));
+        if (responseFailure) {
+            assertThat(result.status(), equalTo(Action.Result.Status.FAILURE));
+        } else {
+            assertThat(result.status(), equalTo(Action.Result.Status.SUCCESS));
+        }
         assertThat(((HipChatAction.Result.Executed) result).sentMessages(), sameInstance(sentMessages));
+        assertValidToXContent(result);
     }
 
     public void testParser() throws Exception {
@@ -265,6 +274,20 @@ public class HipChatActionTests extends ESTestCase {
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), is("failed to parse [hipchat] action [_watch/_action]. unexpected token [VALUE_STRING]"));
+        }
+    }
+
+    // ensure that toXContent can be serialized and read again
+    private void assertValidToXContent(Action.Result result) throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            builder.string();
+            try (XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, builder.string())) {
+                parser.map();
+            }
         }
     }
 }

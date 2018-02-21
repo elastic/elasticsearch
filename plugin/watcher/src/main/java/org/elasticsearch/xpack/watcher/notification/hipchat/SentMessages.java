@@ -119,9 +119,9 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(STATUS.getPreferredName(), isSuccess() ? "success" : "failure");
-            if (isSuccess() == false) {
-                builder.field(STATUS.getPreferredName(), "failure");
+            boolean success = isSuccess();
+            builder.field(STATUS.getPreferredName(), success ? "success" : "failure");
+            if (success == false) {
                 if (request != null) {
                     builder.field(REQUEST.getPreferredName());
                     request.toXContent(builder, params);

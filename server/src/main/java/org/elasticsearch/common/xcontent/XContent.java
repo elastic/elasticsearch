@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
@@ -51,15 +52,7 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        String dupProp = System.getProperty("es.xcontent.strict_duplicate_detection", "true");
-        switch (dupProp) {
-            case "true":
-                return true;
-            case "false":
-                return false;
-            default:
-                throw new IllegalArgumentException("Failed to parse value [" + dupProp + "] as only [true] or [false] are allowed.");
-        }
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
     }
 
     /**

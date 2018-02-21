@@ -69,7 +69,7 @@ public class PutMappingResponse extends AcknowledgedResponse implements ToXConte
         return builder;
     }
 
-    public static PutMappingResponse fromXContent(XContentParser parser) throws IOException {
+    public static PutMappingResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

@@ -58,7 +58,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     }
 
     /**
-     * Returns a {@link MutateFunction} that can be used to make create a copy
+     * Returns a {@link MutateFunction} that can be used to create a copy
      * of the given instance that is different to this instance. This defaults
      * to null.
      */
@@ -71,7 +71,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
      * Tests that the equals and hashcode methods are consistent and copied
      * versions of the instance have are equal.
      */
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), getCopyFunction(), getMutateFunction());
         }

@@ -81,6 +81,7 @@ if (isEclipse) {
   projects << 'libs:elasticsearch-core-tests'
   projects << 'libs:elasticsearch-nio-tests'
   projects << 'libs:secure-sm-tests'
+  projects << 'libs:grok-tests'
 }
 
 include projects.toArray(new String[0])
@@ -104,6 +105,10 @@ if (isEclipse) {
   project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
   project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
   project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch

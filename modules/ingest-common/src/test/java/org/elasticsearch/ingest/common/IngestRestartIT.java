@@ -109,7 +109,8 @@ public class IngestRestartIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get());
         assertThat(exception.getMessage(),
-            equalTo("pipeline with id [" + pipelineIdWithScript + "] was not parsed successfully, check logs at start-up for exceptions"));
+            equalTo("pipeline with id [" + pipelineIdWithScript + "] was not parsed successfully." +
+                " java.lang.IllegalArgumentException: cannot execute [inline] scripts"));
 
         Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));

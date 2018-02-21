@@ -86,10 +86,12 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
             try {
                 pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
             } catch (ElasticsearchParseException e) {
-                pipelines.put(pipeline.getId(), Pipeline.EMPTY);
+                pipelines.put(pipeline.getId(), new Pipeline("invalid_" + pipeline.getId(), e.getMessage(),
+                    null, new CompoundProcessor()));
                 exceptions.add(e);
             } catch (Exception e) {
-                pipelines.put(pipeline.getId(), Pipeline.EMPTY);
+                pipelines.put(pipeline.getId(), new Pipeline("invalid_" + pipeline.getId(), e.getMessage(),
+                    null, new CompoundProcessor()));
                 exceptions.add(new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e));
             }
         }

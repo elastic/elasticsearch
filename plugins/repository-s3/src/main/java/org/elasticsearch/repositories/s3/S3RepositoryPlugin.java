@@ -66,6 +66,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReIn
         this.awsS3Service.updateClientsSettings(S3ClientSettings.load(settings, S3ClientSettings::loadCredentials));
     }
 
+    protected S3RepositoryPlugin(AwsS3Service awsS3Service) {
+        this.awsS3Service = awsS3Service;
+    }
+
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(S3Repository.TYPE,

@@ -23,17 +23,12 @@ import java.util.IdentityHashMap;
 
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
     public static class TestPlugin extends S3RepositoryPlugin {
         public TestPlugin(Settings settings) {
-            super(settings);
-        }
-        @Override
-        protected AwsS3Service createStorageService(Settings settings) {
-            return new TestAwsS3Service(settings);
+            super(new TestAwsS3Service(settings));
         }
     }
 
@@ -45,7 +40,7 @@ public class TestAwsS3Service extends InternalAwsS3Service {
 
     @Override
     public synchronized AmazonS3Reference client(String clientName) {
-        return AmazonS3Reference(cachedWrapper(super.client(clientName)));
+        return new AmazonS3Reference(cachedWrapper(super.client(clientName)));
     }
 
     private AmazonS3 cachedWrapper(AmazonS3Reference clientReference) {

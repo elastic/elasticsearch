@@ -620,7 +620,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             createIndex("index1", Settings.EMPTY);
-            createIndex("index2", Settings.EMPTY);
         }
 
         {
@@ -629,6 +628,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             RefreshRequest requestMultiple = new RefreshRequest("index1", "index2"); // <2>
             RefreshRequest requestAll = new RefreshRequest(); // <3>
             // end::refresh-request
+
+            // tag::refresh-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::refresh-request-indicesOptions
 
             // tag::refresh-execute
             RefreshResponse refreshResponse = client.indices().refresh(request);

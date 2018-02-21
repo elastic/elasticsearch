@@ -14,6 +14,15 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-request]
 <2> Refresh multiple indices
 <3> Refresh all the indices
 
+==== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
 [[java-rest-high-refresh-sync]]
 ==== Synchronous Execution
 
@@ -61,12 +70,12 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-response]
 --------------------------------------------------
-<1> total shards number of requested indices
-<2> successfully refreshed shards number
-<3> failed to refresh shards number
-<4> an array of `DefaultShardOperationFailedException` if exist, otherwise it will be an empty array
+<1> total number of shards hit by the refresh request
+<2> number of shards where the refresh has succeeded
+<3> number of shards where the refresh has failed
+<4> a list of failures if the operation failed on one or more shards
 
-If the indices were not found, an `ElasticsearchException` will be thrown:
+By default, if the indices were not found, an `ElasticsearchException` will be thrown:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

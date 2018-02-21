@@ -28,15 +28,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.CoreMatchers.both;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -56,6 +57,67 @@ public class RefreshResponseTests extends ESTestCase {
         doFromXContentTestWithRandomFields(true);
     }
 
+    public void testFailuresDeduplication() throws IOException {
+        List<DefaultShardOperationFailedException> failures = new ArrayList<>();
+        Index index = new Index("test", "_na_");
+        ElasticsearchException exception1 = new ElasticsearchException("foo", new IllegalArgumentException("bar"));
+        exception1.setIndex(index);
+        exception1.setShard(new ShardId(index, 0));
+        ElasticsearchException exception2 = new ElasticsearchException("foo", new IllegalArgumentException("bar"));
+        exception2.setIndex(index);
+        exception2.setShard(new ShardId(index, 1));
+        ElasticsearchException exception3 = new ElasticsearchException("fizz", new IllegalStateException("buzz"));
+        exception3.setIndex(index);
+        exception3.setShard(new ShardId(index, 2));
+        failures.add(new DefaultShardOperationFailedException(exception1));
+        failures.add(new DefaultShardOperationFailedException(exception2));
+        failures.add(new DefaultShardOperationFailedException(exception3));
+
+        RefreshResponse response = new RefreshResponse(10, 7, 3, failures);
+        boolean humanReadable = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference bytesReference = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        RefreshResponse parsedResponse;
+        try(XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
+            parsedResponse = RefreshResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertThat(parsedResponse.getShardFailures().length, equalTo(2));
+        DefaultShardOperationFailedException[] parsedFailures = parsedResponse.getShardFailures();
+        assertThat(parsedFailures[0].index(), equalTo("test"));
+        assertThat(parsedFailures[0].shardId(), anyOf(equalTo(0), equalTo(1)));
+        assertThat(parsedFailures[0].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(parsedFailures[0].getCause().getMessage(), containsString("foo"));
+        assertThat(parsedFailures[1].index(), equalTo("test"));
+        assertThat(parsedFailures[1].shardId(), equalTo(2));
+        assertThat(parsedFailures[1].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(parsedFailures[1].getCause().getMessage(), containsString("fizz"));
+
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("group_shard_failures", "false"));
+        BytesReference bytesReferenceWithoutDedup = toShuffledXContent(response, xContentType, params, humanReadable);
+        try(XContentParser parser = createParser(xContentType.xContent(), bytesReferenceWithoutDedup)) {
+            parsedResponse = RefreshResponse.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertThat(parsedResponse.getShardFailures().length, equalTo(3));
+        parsedFailures = parsedResponse.getShardFailures();
+        for (int i = 0; i < 3; i++) {
+            if (i < 2) {
+                assertThat(parsedFailures[i].index(), equalTo("test"));
+                assertThat(parsedFailures[i].shardId(), equalTo(i));
+                assertThat(parsedFailures[i].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                assertThat(parsedFailures[i].getCause().getMessage(), containsString("foo"));
+            } else {
+                assertThat(parsedFailures[i].index(), equalTo("test"));
+                assertThat(parsedFailures[i].shardId(), equalTo(i));
+                assertThat(parsedFailures[i].status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+                assertThat(parsedFailures[i].getCause().getMessage(), containsString("fizz"));
+            }
+        }
+    }
+
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         RefreshResponse response = createTestItem(10);
         boolean humanReadable = randomBoolean();
@@ -73,11 +135,11 @@ public class RefreshResponseTests extends ESTestCase {
         assertThat(response.getTotalShards(), equalTo(parsedResponse.getTotalShards()));
         assertThat(response.getSuccessfulShards(), equalTo(parsedResponse.getSuccessfulShards()));
         assertThat(response.getFailedShards(), equalTo(parsedResponse.getFailedShards()));
-        compareFailures(response.getShardFailures(), parsedResponse.getShardFailures());
+        assertFailureEquals(response.getShardFailures(), parsedResponse.getShardFailures());
     }
 
-    private static void compareFailures(DefaultShardOperationFailedException[] original,
-                                        DefaultShardOperationFailedException[] parsedback) {
+    private static void assertFailureEquals(DefaultShardOperationFailedException[] original,
+                                            DefaultShardOperationFailedException[] parsedback) {
         assertThat(original.length, equalTo(parsedback.length));
         for (int i = 0; i < original.length; i++) {
             assertThat(original[i].index(), equalTo(parsedback[i].index()));

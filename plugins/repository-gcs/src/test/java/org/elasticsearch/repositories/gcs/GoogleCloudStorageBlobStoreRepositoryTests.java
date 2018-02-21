@@ -65,7 +65,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     @BeforeClass
     public static void setUpStorage() {
-        storage.set(MockHttpTransport.newStorage(BUCKET, GoogleCloudStorageBlobStoreRepositoryTests.class.getName()));
+        storage.set(MockStorage.newStorageClient(BUCKET, GoogleCloudStorageBlobStoreRepositoryTests.class.getName()));
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {

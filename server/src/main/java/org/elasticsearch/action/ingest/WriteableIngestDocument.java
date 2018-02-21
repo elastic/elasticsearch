@@ -68,10 +68,10 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("doc");
-        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
-        for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
+        Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
+        for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
             if (metadata.getValue() != null) {
-                builder.field(metadata.getKey().getFieldName(), metadata.getValue());
+                builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
             }
         }
         builder.field("_source", ingestDocument.getSourceAndMetadata());

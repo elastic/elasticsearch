@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -74,6 +75,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -1116,11 +1118,9 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
-            setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
             resizeRequest.setTargetIndex(createIndexRequest);
-        } else {
-            setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         }
+        setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
 
         Request request = function.apply(resizeRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
@@ -1142,6 +1142,44 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testRollover() throws IOException {
+        RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
+        setRandomMasterTimeout(rolloverRequest, expectedParams);
+        if (randomBoolean()) {
+            rolloverRequest.dryRun(randomBoolean());
+            if (rolloverRequest.isDryRun()) {
+                expectedParams.put("dry_run", "true");
+            }
+        }
+        if (randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            String type = randomAlphaOfLengthBetween(3, 10);
+            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
+        }
+        if (randomBoolean()) {
+            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
+        }
+        setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
+
+        Request request = Request.rollover(rolloverRequest);
+        if (rolloverRequest.getNewIndexName() == null) {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+        } else {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(), request.getEndpoint());
+        }
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

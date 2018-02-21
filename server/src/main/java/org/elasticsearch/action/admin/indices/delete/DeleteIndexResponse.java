@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -58,7 +59,7 @@ public class DeleteIndexResponse extends AcknowledgedResponse {
         writeAcknowledged(out);
     }
 
-    public static DeleteIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static DeleteIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

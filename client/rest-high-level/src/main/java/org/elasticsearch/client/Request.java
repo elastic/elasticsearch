@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -498,11 +499,10 @@ public final class Request {
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        // TODO maybe indices should be propery of RankEvalRequest and not of the spec
+        // TODO maybe indices should be property of RankEvalRequest and not of the spec
         List<String> indices = rankEvalRequest.getRankEvalSpec().getIndices();
         String endpoint = endpoint(indices.toArray(new String[indices.size()]), Strings.EMPTY_ARRAY, "_rank_eval");
-        HttpEntity entity = null;
-        entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
+        HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
     }
 
@@ -540,6 +540,19 @@ public final class Request {
         String endpoint = buildEndpoint("_cluster", "settings");
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request rollover(RolloverRequest rolloverRequest) throws IOException {
+        Params params = Params.builder();
+        params.withTimeout(rolloverRequest.timeout());
+        params.withMasterTimeout(rolloverRequest.masterNodeTimeout());
+        params.withWaitForActiveShards(rolloverRequest.getCreateIndexRequest().waitForActiveShards());
+        if (rolloverRequest.isDryRun()) {
+            params.putParam("dry_run", Boolean.TRUE.toString());
+        }
+        String endpoint = buildEndpoint(rolloverRequest.getAlias(), "_rollover", rolloverRequest.getNewIndexName());
+        HttpEntity entity = createEntity(rolloverRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {

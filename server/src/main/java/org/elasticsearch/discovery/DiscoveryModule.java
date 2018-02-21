@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -109,7 +109,7 @@ public class DiscoveryModule {
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
-        ServerLoggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
+        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 

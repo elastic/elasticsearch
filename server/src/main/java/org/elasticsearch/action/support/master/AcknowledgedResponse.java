@@ -63,14 +63,14 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
     }
 
     /**
-     * Reads the timeout value
+     * Reads the acknowledged value
      */
     protected void readAcknowledged(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }
 
     /**
-     * Writes the timeout value
+     * Writes the acknowledged value
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);

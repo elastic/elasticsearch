@@ -45,12 +45,6 @@ public class RestShrinkIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.param("target") == null) {
-            throw new IllegalArgumentException("no target index");
-        }
-        if (request.param("index") == null) {
-            throw new IllegalArgumentException("no source index");
-        }
         ResizeRequest shrinkIndexRequest = new ResizeRequest(request.param("target"), request.param("index"));
         shrinkIndexRequest.setResizeType(ResizeType.SHRINK);
         request.applyContentParser(shrinkIndexRequest::fromXContent);

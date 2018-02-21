@@ -307,7 +307,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             // EMPTY is safe here because we never call namedObject
             try (XContentParser parser = xContent
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                        data.slice(from, nextMarker - from))) {
+                        data.slice(from, nextMarker - from).streamInput())) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -432,7 +432,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 .parent(parent);
                         // EMPTY is safe here because we never call namedObject
                         try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType))) {
+                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput())) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {

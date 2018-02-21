@@ -17,31 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.close;
+package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-public class CloseIndexResponseTests extends AbstractStreamableXContentTestCase<CloseIndexResponse> {
+public class IndicesAliasesResponseTests extends AbstractStreamableXContentTestCase<IndicesAliasesResponse> {
 
     @Override
-    protected CloseIndexResponse doParseInstance(XContentParser parser) {
-        return CloseIndexResponse.fromXContent(parser);
+    protected IndicesAliasesResponse doParseInstance(XContentParser parser) {
+        return IndicesAliasesResponse.fromXContent(parser);
     }
 
     @Override
-    protected CloseIndexResponse createTestInstance() {
-        return new CloseIndexResponse(randomBoolean());
+    protected IndicesAliasesResponse createTestInstance() {
+        return new IndicesAliasesResponse(randomBoolean());
     }
 
     @Override
-    protected CloseIndexResponse createBlankInstance() {
-        return new CloseIndexResponse();
+    protected IndicesAliasesResponse createBlankInstance() {
+        return new IndicesAliasesResponse();
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<CloseIndexResponse> getMutateFunction() {
-        return response -> new CloseIndexResponse(response.isAcknowledged() == false);
+    protected EqualsHashCodeTestUtils.MutateFunction<IndicesAliasesResponse> getMutateFunction() {
+        return response -> new IndicesAliasesResponse(response.isAcknowledged() == false);
     }
 }

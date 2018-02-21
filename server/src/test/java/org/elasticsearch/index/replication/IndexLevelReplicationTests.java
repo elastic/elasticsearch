@@ -26,8 +26,10 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -58,7 +60,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -365,6 +366,27 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // - replica1 has {doc1}
             // - replica2 has {doc1, doc2}
             // - replica3 can have either {doc2} only if operation-based recovery or {doc1, doc2} if file-based recovery
+        }
+    }
+
+    /**
+     * This test ensures the consistency between primary and replica when non-append-only (eg. index request with id or delete) operation
+     * of the same document is processed before the original append-only request on replicas. The append-only document can be exposed and
+     * deleted on the primary before it is added to replica. Replicas should treat a late append-only request as a regular index request.
+     */
+    public void testOutOfOrderDeliveryForAppendOnlyOperations() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            // Append-only request - without id
+            final BulkShardRequest indexRequest = indexOnPrimary(
+                new IndexRequest(index.getName(), "type", null).source("{}", XContentType.JSON), primary);
+            final String docId = Iterables.get(getShardDocUIDs(primary), 0);
+            final BulkShardRequest deleteRequest = deleteOnPrimary(new DeleteRequest(index.getName(), "type", docId), primary);
+            deleteOnReplica(deleteRequest, replica);
+            indexOnReplica(indexRequest, replica);
+            shards.assertAllEqual(0);
         }
     }
 

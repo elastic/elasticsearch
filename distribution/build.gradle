@@ -21,7 +21,6 @@
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
@@ -83,15 +82,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
       from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
     }
   }
-  // We would like to make sure integ tests for the distribution run after
-  // integ tests for the modules included in the distribution.
-  project.configure(distributions.findAll { it.name != 'integ-test-zip'}) { Project distribution ->
-    distribution.afterEvaluate({
-      // some integTest tasks will have multiple finalizers
-      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }
-    })
-  }
-  // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)
+  // make sure the module's integration tests run after the integ-test-zip (ie rest tests)
   module.afterEvaluate({
     module.integTest.mustRunAfter(':distribution:archives:integ-test-zip:integTest')
   })
@@ -119,41 +110,12 @@ task clean(type: Delete) {
   delete 'build'
 }
 
-configure(distributions) {
-  /*****************************************************************************
-   *                            Rest test config                               *
-   *****************************************************************************/
-  apply plugin: 'elasticsearch.standalone-rest-test'
-  apply plugin: 'elasticsearch.rest-test'
-  project.integTest {
-    includePackaged project.name == 'integ-test-zip'
-    if (project.name != 'integ-test-zip') {
-      mustRunAfter ':distribution:archives:integ-test-zip:integTest'
-    }
-  }
-  project.integTestCluster {
-    dependsOn project.assemble
-    distribution = project.name
-  }
-
-  processTestResources {
-    inputs.properties(project(':distribution').restTestExpansions)
-    MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
-  }
-
-  /*****************************************************************************
-   *                              Maven config                                 *
-   *****************************************************************************/
-  // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
-  project.group = "org.elasticsearch.distribution.${project.name}"
-  project.archivesBaseName = 'elasticsearch'
-
+configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   project.ext {
-    expansions = expansionsForDistribution(project.name)
 
     /*****************************************************************************
      *                   Common files in all distributions                       *
@@ -178,18 +140,22 @@ configure(distributions) {
       from project(':distribution').buildTransportModules
     }
 
-    configFiles = copySpec {
-      from '../../src/main/resources/config'
-      MavenFilteringHack.filter(it, expansions)
+    configFiles = { distributionType ->
+      copySpec {
+        from '../src/config'
+        MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+      }
     }
 
-    binFiles = copySpec {
-      // everything except windows files
-      from '../../src/main/resources/bin'
-      exclude '*.bat'
-      exclude '*.exe'
-      eachFile { it.setMode(0755) }
-      MavenFilteringHack.filter(it, expansions)
+    binFiles = { distributionType ->
+      copySpec {
+        // everything except windows files
+        from '../src/bin'
+        exclude '*.bat'
+        exclude '*.exe'
+        eachFile { it.setMode(0755) }
+        MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+      }
     }
 
     commonFiles = copySpec {
@@ -207,15 +173,6 @@ configure(distributions) {
     }
   }
 
-   /*****************************************************************************
-   *                           Publishing setup                                *
-   *****************************************************************************/
-  if (['zip', 'integ-test-zip'].contains(it.name)) {
-    BuildPlugin.configurePomGeneration(project)
-    apply plugin: 'nebula.info-scm'
-    apply plugin: 'nebula.maven-base-publish'
-    apply plugin: 'nebula.maven-scm'
-  }
 }
 
 task run(type: RunTask) {
@@ -252,83 +209,84 @@ task run(type: RunTask) {
  *    day. DEB retries forever.</dd>
  * </dl>
  */
-Map<String, String> expansionsForDistribution(distributionType) {
-  final String defaultHeapSize = "1g"
-  final String packagingPathData = "path.data: /var/lib/elasticsearch"
-  final String pathLogs = "/var/log/elasticsearch"
-  final String packagingPathLogs = "path.logs: ${pathLogs}"
-  final String packagingLoggc = "${pathLogs}/gc.log"
+subprojects {
+  ext.expansionsForDistribution = { distributionType ->
+    final String defaultHeapSize = "1g"
+    final String packagingPathData = "path.data: /var/lib/elasticsearch"
+    final String pathLogs = "/var/log/elasticsearch"
+    final String packagingPathLogs = "path.logs: ${pathLogs}"
+    final String packagingLoggc = "${pathLogs}/gc.log"
 
-  String footer = "# Built for ${project.name}-${project.version} " +
-      "(${distributionType})"
-  Map<String, Object> expansions = [
-    'project.name': project.name,
-    'project.version': version,
+    String footer = "# Built for ${project.name}-${project.version} " +
+        "(${distributionType})"
+    Map<String, Object> expansions = [
+      'project.name': project.name,
+      'project.version': version,
 
-    'path.conf': [
-      'tar': '"$ES_HOME"/config',
-      'zip': '"$ES_HOME"/config',
-      'integ-test-zip': '"$ES_HOME"/config',
-      'def': '/etc/elasticsearch',
-    ],
-    'path.data': [
-      'deb': packagingPathData,
-      'rpm': packagingPathData,
-      'def': '#path.data: /path/to/data'
-    ],
-    'path.env': [
-      'deb': '/etc/default/elasticsearch',
-      'rpm': '/etc/sysconfig/elasticsearch',
-      /* There isn't one of these files for tar or zip but its important to
-        make an empty string here so the script can properly skip it. */
-      'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
-    ],
-    'source.path.env': [
-       'deb': 'source /etc/default/elasticsearch',
-       'rpm': 'source /etc/sysconfig/elasticsearch',
-       'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
-    ],
-    'path.logs': [
-      'deb': packagingPathLogs,
-      'rpm': packagingPathLogs,
-      'def': '#path.logs: /path/to/logs'
-    ],
-    'loggc': [
-      'deb': packagingLoggc,
-      'rpm': packagingLoggc,
-      'def': 'logs/gc.log'
-    ],
+      'path.conf': [
+        'deb': '/etc/elasticsearch',
+        'rpm': '/etc/elasticsearch',
+        'def': '"$ES_HOME"/config'
+      ],
+      'path.data': [
+        'deb': packagingPathData,
+        'rpm': packagingPathData,
+        'def': '#path.data: /path/to/data'
+      ],
+      'path.env': [
+        'deb': '/etc/default/elasticsearch',
+        'rpm': '/etc/sysconfig/elasticsearch',
+        /* There isn't one of these files for tar or zip but its important to
+          make an empty string here so the script can properly skip it. */
+        'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
+      ],
+      'source.path.env': [
+         'deb': 'source /etc/default/elasticsearch',
+         'rpm': 'source /etc/sysconfig/elasticsearch',
+         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
+      ],
+      'path.logs': [
+        'deb': packagingPathLogs,
+        'rpm': packagingPathLogs,
+        'def': '#path.logs: /path/to/logs'
+      ],
+      'loggc': [
+        'deb': packagingLoggc,
+        'rpm': packagingLoggc,
+        'def': 'logs/gc.log'
+      ],
 
-    'heap.min': defaultHeapSize,
-    'heap.max': defaultHeapSize,
+      'heap.min': defaultHeapSize,
+      'heap.max': defaultHeapSize,
 
-    'heap.dump.path': [
-      'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-      'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-      'def': "#-XX:HeapDumpPath=/heap/dump/path"
-    ],
+      'heap.dump.path': [
+        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
+        'def': "#-XX:HeapDumpPath=/heap/dump/path"
+      ],
 
-    'stopping.timeout': [
-      'rpm': 86400,
-    ],
+      'stopping.timeout': [
+        'rpm': 86400,
+      ],
 
-    'scripts.footer': [
-      /* Debian needs exit 0 on these scripts so we add it here and preserve
-        the pretty footer. */
-      'deb': "exit 0\n${footer}",
-      'def': footer
-    ],
-  ]
-  Map<String, String> result = [:]
-  expansions = expansions.each { key, value ->
-    if (value instanceof Map) {
-      // 'def' is for default but its three characters like 'rpm' and 'deb'
-      value = value[distributionType] ?: value['def']
-      if (value == null) {
-        return
+      'scripts.footer': [
+        /* Debian needs exit 0 on these scripts so we add it here and preserve
+          the pretty footer. */
+        'deb': "exit 0\n${footer}",
+        'def': footer
+      ],
+    ]
+    Map<String, String> result = [:]
+    expansions = expansions.each { key, value ->
+      if (value instanceof Map) {
+        // 'def' is for default but its three characters like 'rpm' and 'deb'
+        value = value[distributionType] ?: value['def']
+        if (value == null) {
+          return
+        }
       }
+      result[key] = value
     }
-    result[key] = value
+    return result
   }
-  return result
 }

@@ -76,9 +76,11 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         try {
             XContent xContent = XContentFactory.xContent(actual.contentType());
             XContentParser jsonParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.bytes());
+                xContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.bytes().streamInput());
             XContentParser testParser =
-                xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.bytes());
+                xContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.bytes().streamInput());
 
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

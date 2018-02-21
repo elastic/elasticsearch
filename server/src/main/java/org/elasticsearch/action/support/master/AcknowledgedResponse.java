@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -87,5 +88,22 @@ public abstract class AcknowledgedResponse extends ActionResponse implements ToX
 
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        AcknowledgedResponse that = (AcknowledgedResponse) o;
+        return isAcknowledged() == that.isAcknowledged();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAcknowledged());
     }
 }

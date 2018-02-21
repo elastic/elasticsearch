@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -74,4 +75,19 @@ public abstract class ShardsAcknowledgedResponse extends AcknowledgedResponse {
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(SHARDS_ACKNOWLEDGED.getPreferredName(), isShardsAcknowledged());
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            ShardsAcknowledgedResponse that = (ShardsAcknowledgedResponse) o;
+            return shardsAcknowledged == that.shardsAcknowledged;
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), shardsAcknowledged);
+    }
+
 }

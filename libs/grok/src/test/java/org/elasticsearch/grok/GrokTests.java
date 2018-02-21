@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.grok;
 
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -38,8 +38,8 @@ public class GrokTests extends ESTestCase {
     private Map<String, String> basePatterns;
 
     @Before
-    public void setup() throws IOException {
-        basePatterns = IngestCommonPlugin.loadBuiltinPatterns();
+    public void setup() {
+        basePatterns = Grok.getBuiltinPatterns();
     }
 
     public void testMatchWithoutCaptures() {

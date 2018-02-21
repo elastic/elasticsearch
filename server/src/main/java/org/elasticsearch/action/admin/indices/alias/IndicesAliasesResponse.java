@@ -57,7 +57,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         writeAcknowledged(out);
     }
 
-    public static IndicesAliasesResponse fromXContent(XContentParser parser) throws IOException {
+    public static IndicesAliasesResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

@@ -343,7 +343,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
-        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content);
+        return xContentType.get().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput());
     }
 
     /**
@@ -372,7 +372,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2());
+        return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2().streamInput());
     }
 
     /**
@@ -386,7 +386,7 @@ public abstract class RestRequest implements ToXContent.Params {
             BytesReference content = tuple.v2();
             XContentType xContentType = tuple.v1();
             try (XContentParser parser = xContentType.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content)) {
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput())) {
                 withParser.accept(parser);
             }
         } else {

@@ -45,7 +45,7 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
         this.exceptionHandler = exceptionHandler;
     }
 
-    void register() throws IOException {
+    protected void register() throws IOException {
         setSelectionKey(rawChannel.register(getSelector().rawSelector(), 0));
     }
 

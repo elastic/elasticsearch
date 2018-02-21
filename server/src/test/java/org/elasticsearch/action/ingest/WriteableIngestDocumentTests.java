@@ -133,13 +133,13 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
-        for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
+        Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
+        for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
             String fieldName = metadata.getKey().getFieldName();
             if (metadata.getValue() == null) {
                assertThat(toXContentDoc.containsKey(fieldName), is(false));
             } else {
-                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue()));
+                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue().toString()));
             }
         }
 

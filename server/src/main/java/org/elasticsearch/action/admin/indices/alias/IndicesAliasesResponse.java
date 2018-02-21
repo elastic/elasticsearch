@@ -67,7 +67,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse implements ToXC
         return builder;
     }
 
-    public static IndicesAliasesResponse fromXContent(XContentParser parser) throws IOException {
+    public static IndicesAliasesResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

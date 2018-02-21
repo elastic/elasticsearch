@@ -671,6 +671,11 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
         final Path pathHome = createTempDir();
         final Path plugins = pathHome.resolve("plugins");
         final Path fake = plugins.resolve("fake");
@@ -696,6 +701,11 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryMetaPlugin() throws IOException {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
         final Path pathHome = createTempDir();
         final Path plugins = pathHome.resolve("plugins");
         final Path fakeMeta = plugins.resolve("fake-meta");

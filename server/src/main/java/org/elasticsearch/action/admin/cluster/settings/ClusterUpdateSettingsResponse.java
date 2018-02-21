@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A response for a cluster update settings action.
@@ -103,7 +104,22 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implemen
         return builder;
     }
 
-    public static ClusterUpdateSettingsResponse fromXContent(XContentParser parser) throws IOException {
+    public static ClusterUpdateSettingsResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            ClusterUpdateSettingsResponse that = (ClusterUpdateSettingsResponse) o;
+            return Objects.equals(transientSettings, that.transientSettings) &&
+                    Objects.equals(persistentSettings, that.persistentSettings);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), transientSettings, persistentSettings);
     }
 }

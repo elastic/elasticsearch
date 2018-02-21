@@ -168,24 +168,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
+        if (super.equals(o)) {
+            RolloverResponse that = (RolloverResponse) o;
+            return dryRun == that.dryRun &&
+                    rolledOver == that.rolledOver &&
+                    Objects.equals(oldIndex, that.oldIndex) &&
+                    Objects.equals(newIndex, that.newIndex) &&
+                    Objects.equals(conditionStatus, that.conditionStatus);
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RolloverResponse that = (RolloverResponse) o;
-        return isAcknowledged() == that.isAcknowledged() &&
-                isShardsAcknowledged() == that.isShardsAcknowledged() &&
-                dryRun == that.dryRun &&
-                rolledOver == that.rolledOver &&
-                Objects.equals(oldIndex, that.oldIndex) &&
-                Objects.equals(newIndex, that.newIndex) &&
-                Objects.equals(conditionStatus, that.conditionStatus);
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isAcknowledged(), isShardsAcknowledged(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

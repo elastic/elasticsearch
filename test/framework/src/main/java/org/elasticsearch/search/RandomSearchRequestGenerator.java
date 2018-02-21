@@ -311,7 +311,8 @@ public class RandomSearchRequestGenerator {
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, jsonBuilder.bytes());
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        jsonBuilder.bytes().streamInput());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();

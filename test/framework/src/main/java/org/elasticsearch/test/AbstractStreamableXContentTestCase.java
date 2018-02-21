@@ -37,7 +37,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two queries.
      */
-    public void testFromXContent() throws IOException {
+    public final void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());

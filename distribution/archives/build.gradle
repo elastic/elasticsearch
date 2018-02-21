@@ -27,7 +27,7 @@ import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
 
-// CopySpec does not make it easy to create an empty director so we
+// CopySpec does not make it easy to create an empty directory so we
 // create the directory that we want, and then point CopySpec to its
 // parent to copy to the root of the distribution
 ext.logsDir = new File(buildDir, 'logs-hack/logs')
@@ -109,6 +109,12 @@ task buildTar(type: Tar) {
   with archiveFiles(modulesFiles)
 }
 
+// This configures the default artifact for the distribution specific
+// subprojects. We have subprojects for two reasons:
+// 1. Gradle project substitutions can only bind to the default
+//    configuration of a project
+// 2. The integ-test-zip and zip distributions have the exact same
+//    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
 
@@ -127,6 +133,12 @@ subprojects {
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
+
+  if (project.name == 'integ-test-zip') {
+    integTest {
+      includePackaged true
+    }
+  }
 
   integTestCluster {
     dependsOn assemble
@@ -155,7 +167,8 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-  // note: the group must be correct before applying the nexus plugin, or it will capture the wrong value...
+  // note: the group must be correct before applying the nexus plugin, or
+  // it will capture the wrong value...
   project.group = "org.elasticsearch.distribution.${project.name}"
 
   publishing {
@@ -164,16 +177,22 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
         artifactId 'elasticsearch'
         artifact buildDist
       }
-      /* HUGE HACK: the underlying maven publication library refuses to deploy any attached artifacts
-       * when the packaging type is set to 'pom'. But Sonatype's OSS repositories require source files
-       * for artifacts that are of type 'zip'. We already publish the source and javadoc for Elasticsearch
-       * under the various other subprojects. So here we create another publication using the same
-       * name that has the "real" pom, and rely on the fact that gradle will execute the publish tasks
-       * in alphabetical order. This lets us publish the zip file and even though the pom says the
-       * type is 'pom' instead of 'zip'. We cannot setup a dependency between the tasks because the
-       * publishing tasks are created *extremely* late in the configuration phase, so that we cannot get
-       * ahold of the actual task. Furthermore, this entire hack only exists so we can make publishing to
-       * maven local work, since we publish to maven central externally. */
+      /*
+       * HUGE HACK: the underlying maven publication library refuses to
+       * deploy any attached artifacts when the packaging type is set to
+       * 'pom'. But Sonatype's OSS repositories require source files for
+       * artifacts that are of type 'zip'. We already publish the source
+       * and javadoc for Elasticsearch under the various other subprojects.
+       * So here we create another publication using the same name that
+       * has the "real" pom, and rely on the fact that gradle will execute
+       * the publish tasks in alphabetical order. This lets us publish the
+       * zip file and even though the pom says the type is 'pom' instead of
+       * 'zip'. We cannot setup a dependency between the tasks because the
+       * publishing tasks are created *extremely* late in the configuration
+       * phase, so that we cannot get ahold of the actual task. Furthermore,
+       * this entire hack only exists so we can make publishing to maven
+       * local work, since we publish to maven central externally.
+       */
       nebulaRealPom(MavenPublication) {
         artifactId 'elasticsearch'
         pom.packaging = 'pom'

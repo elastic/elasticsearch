@@ -297,6 +297,9 @@ task checkRpm(type: LoggedExec) {
   }
 }
 
+// This configures the default artifact for the distribution specific
+// subprojects. We have subprojects because Gradle project substitutions
+// can only bind to the default configuration of a project
 subprojects {
   apply plugin: 'distribution'
 

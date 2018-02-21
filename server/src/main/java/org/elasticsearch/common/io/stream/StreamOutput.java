@@ -459,13 +459,19 @@ public abstract class StreamOutput extends OutputStream {
         }
         assert false == (map instanceof LinkedHashMap);
         this.writeByte((byte) 10);
-        this.writeVInt(map.size());
+        final int size = map.size();
+        this.writeVInt(size);
         Iterator<? extends Map.Entry<String, ?>> iterator =
             map.entrySet().stream().sorted((a, b) -> a.getKey().compareTo(b.getKey())).iterator();
+        int count = 0;
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
             this.writeString(next.getKey());
             this.writeGenericValue(next.getValue());
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 
@@ -482,9 +488,15 @@ public abstract class StreamOutput extends OutputStream {
     public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
             throws IOException {
         writeMap(map, keyWriter, (stream, list) -> {
-            writeVInt(list.size());
+            final int size = list.size();
+            writeVInt(size);
+            int count = 0;
             for (final V value : list) {
                 valueWriter.write(this, value);
+                count++;
+            }
+            if (size != count) {
+                throw new IllegalStateException("Serialized size header does not match number of objects written.");
             }
         });
     }
@@ -501,10 +513,16 @@ public abstract class StreamOutput extends OutputStream {
      */
     public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
         throws IOException {
-        writeVInt(map.size());
+        final int size = map.size();
+        writeVInt(size);
+        int count = 0;
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(this, entry.getKey());
             valueWriter.write(this, entry.getValue());
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 
@@ -545,9 +563,15 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(List.class, (o, v) -> {
             o.writeByte((byte) 7);
             final List list = (List) v;
-            o.writeVInt(list.size());
+            final int size = list.size();
+            o.writeVInt(size);
+            int count = 0;
             for (Object item : list) {
                 o.writeGenericValue(item);
+                count++;
+            }
+            if (size != count) {
+                throw new IllegalStateException("Serialized size header does not match number of objects written.");
             }
         });
         writers.put(Object[].class, (o, v) -> {
@@ -566,10 +590,16 @@ public abstract class StreamOutput extends OutputStream {
             }
             @SuppressWarnings("unchecked")
             final Map<String, Object> map = (Map<String, Object>) v;
-            o.writeVInt(map.size());
+            final int size = map.size();
+            o.writeVInt(size);
+            int count = 0;
             for (Map.Entry<String, Object> entry : map.entrySet()) {
                 o.writeString(entry.getKey());
                 o.writeGenericValue(entry.getValue());
+                count++;
+            }
+            if (size != count) {
+                throw new IllegalStateException("Serialized size header does not match number of objects written.");
             }
         });
         writers.put(Byte.class, (o, v) -> {
@@ -926,9 +956,15 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a list of {@link Streamable} objects
      */
     public void writeStreamableList(List<? extends Streamable> list) throws IOException {
-        writeVInt(list.size());
+        final int size = list.size();
+        writeVInt(size);
+        int count = 0;
         for (Streamable obj: list) {
             obj.writeTo(this);
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 
@@ -936,9 +972,15 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a list of {@link Writeable} objects
      */
     public void writeList(List<? extends Writeable> list) throws IOException {
-        writeVInt(list.size());
+        final int size = list.size();
+        writeVInt(size);
+        int count = 0;
         for (Writeable obj: list) {
             obj.writeTo(this);
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 
@@ -946,9 +988,15 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a list of strings
      */
     public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
+        final int size = list.size();
+        writeVInt(size);
+        int count = 0;
         for (String string: list) {
             this.writeString(string);
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 
@@ -956,9 +1004,15 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a list of {@link NamedWriteable} objects.
      */
     public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
-        writeVInt(list.size());
+        final int size = list.size();
+        writeVInt(size);
+        int count = 0;
         for (NamedWriteable obj: list) {
             writeNamedWriteable(obj);
+            count++;
+        }
+        if (size != count) {
+            throw new IllegalStateException("Serialized size header does not match number of objects written.");
         }
     }
 

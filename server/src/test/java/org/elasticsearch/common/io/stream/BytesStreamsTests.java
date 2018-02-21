@@ -21,7 +21,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -33,7 +32,6 @@ import org.joda.time.DateTimeZone;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -811,5 +809,143 @@ public class BytesStreamsTests extends ESTestCase {
             assertEquals("Unknown TestEnum ordinal [" + randomNumber + "]", ex.getMessage());
         }
         assertEquals(0, input.available());
+    }
+
+    public void testWriteMapWithConsistentOrderSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            Map<String,String> liesAboutItsSize = new HashMap<String,String>(){
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class,
+                () -> output.writeMapWithConsistentOrder(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteMapOfListsSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            Map<String,List<String>> liesAboutItsSize = new HashMap<String,List<String>>(){
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class,
+                () -> output.writeMapOfLists(liesAboutItsSize, StreamOutput::writeString, StreamOutput::writeString));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteMapSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            Map<String,String> liesAboutItsSize = new HashMap<String,String>(){
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class,
+                () -> output.writeMap(liesAboutItsSize, StreamOutput::writeString, StreamOutput::writeString));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteGenericValueListSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            List<String> liesAboutItsSize = new ArrayList<String>() {
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeGenericValue(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteGenericValueMapSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            Map<String,String> liesAboutItsSize = new HashMap<String,String>(){
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeGenericValue(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteStreamableListSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            List<Streamable> liesAboutItsSize = new ArrayList<Streamable>() {
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeStreamableList(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteListSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            List<Writeable> liesAboutItsSize = new ArrayList<Writeable>() {
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeList(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteStringListSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            List<String> liesAboutItsSize = new ArrayList<String>() {
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeStringList(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
+    }
+
+    public void testWriteNamedWriteableListSizeCheck() {
+        try (BytesStreamOutput output = new BytesStreamOutput(1)) {
+            List<NamedWriteable> liesAboutItsSize = new ArrayList<NamedWriteable>() {
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+
+            final IllegalStateException illegalStateException
+                = expectThrows(IllegalStateException.class, () -> output.writeNamedWriteableList(liesAboutItsSize));
+            assertThat(illegalStateException.getMessage(), is("Serialized size header does not match number of objects written."));
+        }
     }
 }

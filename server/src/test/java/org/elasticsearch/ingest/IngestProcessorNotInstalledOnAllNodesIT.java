@@ -104,7 +104,10 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         installPlugin = false;
         String node2 = internalCluster().startNode();
         pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipelineStore().get("_id");
-        assertThat(pipeline, nullValue());
+
+        assertNotNull(pipeline);
+        assertThat(pipeline.getId(), equalTo("invalid__id"));
+        assertThat(pipeline.getDescription(), equalTo("No processor type exists with name [test]"));
     }
 
 }

@@ -271,5 +271,8 @@ public class IngestClientIT extends ESIntegTestCase {
             assertNotNull(ex);
             assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
+
+        GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id").get();
+        assertFalse(response.isFound());
     }
 }

@@ -175,9 +175,13 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         return client;
     }
 
-    private OperationContext generateOperationContext(String clientName) {
+    // Package private for testing in 6.x only: not needed anymore after
+    OperationContext generateOperationContext(String clientName) {
         OperationContext context = new OperationContext();
         AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
+        if (azureStorageSettings == null) {
+            azureStorageSettings = deprecatedStorageSettings.get(clientName);
+        }
 
         if (azureStorageSettings.getProxy() != null) {
             context.setProxy(azureStorageSettings.getProxy());

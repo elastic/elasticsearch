@@ -16,3 +16,5 @@ See {plugins}/repository-azure-usage.html#repository-azure-repository-settings[A
 
 * The repository settings `application_name`, `connect_timeout` and `read_timeout` have been removed and
 must now be specified in the client settings instead.
+
+See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].

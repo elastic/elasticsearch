@@ -141,7 +141,7 @@ PUT _snapshot/my_gcs_repository
 // TEST[skip:we don't have gcs setup while testing this]
 
 Some settings are sensitive and must be stored in the
-{ref}/secure-settings.html[elasticsearch keystore]. This is the case of the service account file:
+{ref}/secure-settings.html[elasticsearch keystore]. This is the case for the service account file:
 
 [source,sh]
 ----
@@ -159,7 +159,7 @@ are marked as `Secure`.
 `endpoint`::
 
     The Google Cloud Storage service endpoint to connect to. This will be automatically
-    figured out by the Google Cloud Storage client but can be specified explicitly.
+    determined by the Google Cloud Storage client but can be specified explicitly.
 
 `connect_timeout`::
 

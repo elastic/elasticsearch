@@ -74,7 +74,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        pathPrefix = randomBoolean() ? "/testPathPrefix/" + randomAsciiAlphanumOfLengthBetween(1, 5) : "";
+        pathPrefix = randomBoolean() ? "/testPathPrefix/" + randomAsciiLettersOfLengthBetween(1, 5) : "";
         httpServer = createHttpServer();
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         restClient = createRestClient(false, true);

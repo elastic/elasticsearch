@@ -6,9 +6,9 @@ Model snapshots are saved to disk periodically.
 By default, this is occurs approximately every 3 hours to 4 hours and is
 configurable with the `background_persist_interval` property.
 
-By default, model snapshots are retained for one day. You can change this
-behavior by updating the `model_snapshot_retention_days` for the job.
-When choosing a new value, consider the following:
+By default, model snapshots are retained for one day (twenty-four hours). You
+can change this behavior by updating the `model_snapshot_retention_days` for the
+job. When choosing a new value, consider the following:
 
 * Persistence enables resilience in the event of a system failure.
 * Persistence enables snapshots to be reverted.

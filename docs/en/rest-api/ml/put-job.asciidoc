@@ -56,8 +56,8 @@ This API enables you to instantiate a job.
 
 `model_snapshot_retention_days`::
   (long) The time in days that model snapshots are retained for the job.
-  Older snapshots are deleted. The default value is 1 day. For more information
-  about model snapshots, see <<ml-snapshot-resource>>.
+  Older snapshots are deleted. The default value is `1`, which means snapshots
+  are retained for one day (twenty-four hours). 
 
 `renormalization_window_days`::
   (long) Advanced configuration option. The period over which adjustments to the

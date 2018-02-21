@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -474,13 +475,13 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     for (Shape s : shapes) {
                         indexShape(context, s);
                     }
+                    return null;
                 } else if (shape instanceof Point == false) {
                     throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
                 }
-            } else {
-                indexShape(context, shape);
             }
+            indexShape(context, shape);
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);

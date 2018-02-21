@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -88,12 +86,34 @@ public interface ToXContent {
 
         @Override
         public boolean paramAsBoolean(String key, boolean defaultValue) {
-            return Booleans.parseBoolean(param(key), defaultValue);
+            if (key.length() > 0) {
+                switch (key) {
+                    case "true":
+                        return true;
+                    case "false":
+                        return false;
+                    default:
+                        throw new IllegalArgumentException("Failed to parse param [" + key + "] as only [true] or [false] are allowed.");
+                }
+            } else {
+                return defaultValue;
+            }
         }
 
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-            return Booleans.parseBoolean(param(key), defaultValue);
+            if (key.length() > 0) {
+                switch (key) {
+                    case "true":
+                        return true;
+                    case "false":
+                        return false;
+                    default:
+                        throw new IllegalArgumentException("Failed to parse param [" + key + "] as only [true] or [false] are allowed.");
+                }
+            } else {
+                return defaultValue;
+            }
         }
     }
 

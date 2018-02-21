@@ -234,6 +234,7 @@ task buildDeb(type: Deb) {
 
 // task that sanity checks if the Deb archive can be extracted
 task checkDeb(type: LoggedExec) {
+  dependsOn buildDeb
   onlyIf { new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
   final File debExtracted = new File("${buildDir}", 'deb-extracted')
   commandLine 'dpkg-deb', '-x', "deb/build/distributions/elasticsearch-${project.version}.deb", debExtracted
@@ -277,6 +278,7 @@ task buildRpm(type: Rpm) {
 
 // task that sanity checks if the RPM archive can be extracted
 task checkRpm(type: LoggedExec) {
+  dependsOn buildRpm
   onlyIf { new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
   final File rpmDatabase = new File("${buildDir}", 'rpm-database')
   final File rpmExtracted = new File("${buildDir}", 'rpm-extracted')

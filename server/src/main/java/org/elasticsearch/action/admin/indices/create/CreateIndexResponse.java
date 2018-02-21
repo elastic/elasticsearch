@@ -88,6 +88,7 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
         builder.field(INDEX.getPreferredName(), index());
     }
 

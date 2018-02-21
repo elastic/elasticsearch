@@ -145,21 +145,17 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
         builder.field(OLD_INDEX.getPreferredName(), oldIndex);
         builder.field(NEW_INDEX.getPreferredName(), newIndex);
         builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
         builder.field(DRY_RUN.getPreferredName(), dryRun);
-        addAcknowledgedField(builder);
-        addShardsAcknowledgedField(builder);
         builder.startObject(CONDITIONS.getPreferredName());
         for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     public static RolloverResponse fromXContent(XContentParser parser) {

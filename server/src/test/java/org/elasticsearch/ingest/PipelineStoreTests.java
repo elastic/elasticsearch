@@ -165,7 +165,9 @@ public class PipelineStoreTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
         }
         pipeline = store.get(id);
-        assertThat(pipeline, nullValue());
+        assertNotNull(pipeline);
+        assertThat(pipeline.getId(), equalTo("invalid__id"));
+        assertThat(pipeline.getDescription(), equalTo("[processors] required property is missing"));
     }
 
     public void testDelete() {

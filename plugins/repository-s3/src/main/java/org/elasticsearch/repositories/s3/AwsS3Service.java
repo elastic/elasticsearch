@@ -20,7 +20,7 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
+import java.util.Map;
 
 interface AwsS3Service extends LifecycleComponent {
 
@@ -29,6 +29,6 @@ interface AwsS3Service extends LifecycleComponent {
      */
     AmazonS3Reference client(String clientName);
 
-    void updateClientSettings(Settings settings);
+    void updateClientsSettings(Map<String, S3ClientSettings> clientsSettings);
 
 }

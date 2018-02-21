@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -36,7 +35,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -148,9 +146,9 @@ class S3Repository extends BlobStoreRepository {
 
     private final BlobPath basePath;
 
-    private ByteSizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
-    private boolean compress;
+    private final boolean compress;
 
     /**
      * Constructs an s3 backed repository
@@ -159,13 +157,13 @@ class S3Repository extends BlobStoreRepository {
             AwsS3Service awsService) throws IOException {
         super(metadata, settings, namedXContentRegistry);
 
-        String bucket = BUCKET_SETTING.get(metadata.settings());
+        final String bucket = BUCKET_SETTING.get(metadata.settings());
         if (bucket == null) {
             throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
         }
 
-        boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
-        ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
+        final boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        final ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         this.compress = COMPRESS_SETTING.get(metadata.settings());
 
@@ -176,19 +174,19 @@ class S3Repository extends BlobStoreRepository {
         }
 
         // Parse and validate the user's S3 Storage Class setting
-        String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
-        String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
-        String clientName = CLIENT_NAME.get(metadata.settings());
+        final String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        final String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
+        final String clientName = CLIENT_NAME.get(metadata.settings());
 
         logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        // TODO overridden credentials from cluster state
-        S3ClientSettings.loadCreadentials(deprecationLogger, metadata.settings());
+        awsService.updateClientsSettings(S3ClientSettings.load(settings, (ignoredSettings, ignoredClientName) -> S3ClientSettings
+                .loadDeprecatedCredentials(deprecationLogger, metadata.settings())));
         blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             this.basePath = new BlobPath().add(basePath);
         } else {

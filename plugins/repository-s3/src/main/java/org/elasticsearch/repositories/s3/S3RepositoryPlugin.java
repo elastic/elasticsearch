@@ -61,8 +61,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReIn
     private final AwsS3Service awsS3Service;
 
     public S3RepositoryPlugin(Settings settings) {
-        // eagerly load client settings so that secure settings are read
         this.awsS3Service = new InternalAwsS3Service(settings);
+        // eagerly load client settings so that secure settings are read
+        this.awsS3Service.updateClientsSettings(S3ClientSettings.load(settings, S3ClientSettings::loadCredentials));
     }
 
     @Override
@@ -90,7 +91,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReIn
 
     @Override
     public boolean reinit(Settings settings) {
-        this.awsS3Service.updateClientSettings(settings);
+        this.awsS3Service.updateClientsSettings(S3ClientSettings.load(settings, S3ClientSettings::loadCredentials));
         return true;
     }
 }

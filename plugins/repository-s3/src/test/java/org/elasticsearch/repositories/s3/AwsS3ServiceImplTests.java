@@ -24,8 +24,6 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,8 +34,8 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
-        AWSCredentialsProvider credentialsProvider = new InternalAwsS3Service(Settings.EMPTY).buildCredentials(clientSettings);
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default", S3ClientSettings::loadCredentials);
+        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, clientSettings);
         assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -86,8 +84,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     private void assertCredentials(Settings singleRepositorySettings, Settings settings,
                                    String expectedKey, String expectedSecret) {
         String configName = S3Repository.CLIENT_NAME.get(singleRepositorySettings);
-        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
-        AWSCredentials credentials = new InternalAwsS3Service(Settings.EMPTY).buildCredentials(clientSettings).getCredentials();
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName, S3ClientSettings::loadCredentials);
+        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, clientSettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }
@@ -137,7 +135,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                             boolean expectedUseThrottleRetries,
                                             int expectedReadTimeout) {
 
-        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", S3ClientSettings::loadCredentials);
         ClientConfiguration configuration = new InternalAwsS3Service(Settings.EMPTY).buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
@@ -160,7 +158,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     private void assertEndpoint(Settings repositorySettings, Settings settings, String expectedEndpoint) {
         String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
-        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
+        S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName, S3ClientSettings::loadCredentials);
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
     }
 

@@ -89,11 +89,13 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     }
 
     protected BlobStore newBlobStore() throws IOException {
-        MockAmazonS3 client = new MockAmazonS3(mockS3ServerSocket.getLocalPort());
-        String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(new MockAmazonS3(mockS3ServerSocket.getLocalPort()));
+        final InternalAwsS3Service awsService = mock(InternalAwsS3Service.class);
+        when(awsService.client(any(String.class))).thenReturn(clientReference);
+        final String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
-        return new S3BlobStore(Settings.EMPTY, client, bucket, false,
-            new ByteSizeValue(10, ByteSizeUnit.MB), "public-read-write", "standard");
+        return new S3BlobStore(Settings.EMPTY, awsService, "default", bucket, false, new ByteSizeValue(10, ByteSizeUnit.MB),
+                "public-read-write", "standard");
     }
 
     public void testExecuteSingleUploadBlobSizeTooLarge() throws IOException {
@@ -148,7 +150,8 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         }
 
         final AmazonS3 client = mock(AmazonS3.class);
-        when(blobStore.client()).thenReturn(client);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
 
         final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
@@ -218,7 +221,8 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         }
 
         final AmazonS3 client = mock(AmazonS3.class);
-        when(blobStore.client()).thenReturn(client);
+        final AmazonS3Reference clientReference = new AmazonS3Reference(client);
+        when(blobStore.clientReference()).thenReturn(clientReference);
 
         final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
         final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
@@ -305,7 +309,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
 
         final AmazonS3 client = mock(AmazonS3.class);
-        when(blobStore.client()).thenReturn(client);
+        when(blobStore.clientReference().client()).thenReturn(client);
 
         final String uploadId = randomAlphaOfLength(25);
 

@@ -37,22 +37,22 @@ public class TestAwsS3Service extends InternalAwsS3Service {
         }
     }
 
-    IdentityHashMap<AmazonS3, TestAmazonS3> clients = new IdentityHashMap<>();
+    IdentityHashMap<AmazonS3Reference, TestAmazonS3> clients = new IdentityHashMap<>();
 
     public TestAwsS3Service(Settings settings) {
-        super(settings, S3ClientSettings.load(settings));
+        super(settings);
     }
 
     @Override
-    public synchronized AmazonS3 client(Settings repositorySettings) {
-        return cachedWrapper(super.client(repositorySettings));
+    public synchronized AmazonS3Reference client(String clientName) {
+        return AmazonS3Reference(cachedWrapper(super.client(clientName)));
     }
 
-    private AmazonS3 cachedWrapper(AmazonS3 client) {
-        TestAmazonS3 wrapper = clients.get(client);
+    private AmazonS3 cachedWrapper(AmazonS3Reference clientReference) {
+        TestAmazonS3 wrapper = clients.get(clientReference);
         if (wrapper == null) {
-            wrapper = new TestAmazonS3(client, settings);
-            clients.put(client, wrapper);
+            wrapper = new TestAmazonS3(clientReference.client(), settings);
+            clients.put(clientReference, wrapper);
         }
         return wrapper;
     }

@@ -28,6 +28,8 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -44,7 +46,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
     InternalAwsS3Service(Settings settings) {
         super(settings);
-        updateClientSettings(settings);
     }
 
     /**
@@ -53,12 +54,13 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
      * destroyed contrary to being returned to the registry.
      */
     @Override
-    public synchronized void updateClientSettings(Settings settings) {
+    public synchronized void updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
         doClose();
         // reload secure settings
-        clientsSettings = S3ClientSettings.load(settings);
+        // clientsSettings = S3ClientSettings.load(settings);
+        this.clientsSettings = clientsSettings;
         assert clientsSettings.containsKey("default") : "always at least have 'default'";
         // clients are built lazily by {@link client(String)}
     }
@@ -92,7 +94,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
                 Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
         logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
-        final AWSCredentialsProvider credentials = buildCredentials(clientSettings);
+        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         final ClientConfiguration configuration = buildConfiguration(clientSettings);
         final AmazonS3Client client = new AmazonS3Client(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
@@ -102,7 +104,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -125,7 +127,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     // pkg private for tests
-    AWSCredentialsProvider buildCredentials(S3ClientSettings clientSettings) {
+    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
         final BasicAWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using instance profile credentials");

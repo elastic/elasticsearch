@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -121,7 +122,7 @@ class S3ClientSettings {
     /** Whether the s3 client should use an exponential backoff retry policy. */
     final boolean throttleRetries;
 
-    private S3ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol,
+    protected S3ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
                              int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
         this.credentials = credentials;
@@ -141,22 +142,22 @@ class S3ClientSettings {
      *
      * Note this will always at least return a client named "default".
      */
-    static Map<String, S3ClientSettings> load(Settings settings) {
-        Set<String> clientNames = settings.getGroups(PREFIX).keySet();
-        Map<String, S3ClientSettings> clients = new HashMap<>();
-        for (String clientName : clientNames) {
-            clients.put(clientName, getClientSettings(settings, clientName));
+    static Map<String, S3ClientSettings> load(Settings settings, BiFunction<Settings, String, BasicAWSCredentials> credentialsFactory) {
+        final Set<String> clientNames = settings.getGroups(PREFIX).keySet();
+        final Map<String, S3ClientSettings> clients = new HashMap<>();
+        for (final String clientName : clientNames) {
+            clients.put(clientName, getClientSettings(settings, clientName, credentialsFactory));
         }
         if (clients.containsKey("default") == false) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
-            clients.put("default", getClientSettings(settings, "default"));
+            clients.put("default", getClientSettings(settings, "default", credentialsFactory));
         }
         return Collections.unmodifiableMap(clients);
     }
 
     // backcompat for reading keys out of repository settings
-    static BasicAWSCredentials loadCreadentials(DeprecationLogger deprecationLogger, Settings repositorySettings) {
+    static BasicAWSCredentials loadDeprecatedCredentials(DeprecationLogger deprecationLogger, Settings repositorySettings) {
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
             if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
                 throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey()
@@ -175,23 +176,29 @@ class S3ClientSettings {
         return null;
     }
 
-    // pkg private for tests
-    /** Parse settings for a single client. */
-    static S3ClientSettings getClientSettings(Settings settings, String clientName) {
+    static BasicAWSCredentials loadCredentials(Settings settings, String clientName) {
         try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
-             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
-             SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
-             SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
-            BasicAWSCredentials credentials = null;
+                SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);) {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
-                    credentials = new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
+                    return new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
                 }
             } else if (secretKey.length() != 0) {
                 throw new IllegalArgumentException("Missing access key for s3 client [" + clientName + "]");
             }
+            return null;
+        }
+    }
+
+    // pkg private for tests
+    /** Parse settings for a single client. */
+    static S3ClientSettings getClientSettings(Settings settings, String clientName,
+                                              BiFunction<Settings, String, BasicAWSCredentials> credentialsFactory) {
+        final BasicAWSCredentials credentials = credentialsFactory.apply(settings, clientName);
+        try (SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
+             SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
             return new S3ClientSettings(
                 credentials,
                 getConfigValue(settings, clientName, ENDPOINT_SETTING),
@@ -209,7 +216,7 @@ class S3ClientSettings {
 
     private static <T> T getConfigValue(Settings settings, String clientName,
                                         Setting.AffixSetting<T> clientSetting) {
-        Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
 

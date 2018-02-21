@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -60,7 +61,7 @@ public class S3RepositoryTests extends ESTestCase {
         }
 
         @Override
-        public void updateClientSettings(Settings settings) {
+        public void updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
         }
     }
 

@@ -27,11 +27,16 @@ import org.elasticsearch.test.ESTestCase;
 public class RepositorySettingsCredentialsTests extends ESTestCase {
 
     public void testRepositorySettingsCredentials() {
-        Settings repositorySettings = Settings.builder()
+        final Settings repositorySettings = Settings.builder()
             .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "aws_key")
             .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, deprecationLogger,
-            S3ClientSettings.getClientSettings(Settings.EMPTY, "default"), repositorySettings).getCredentials();
+        final AWSCredentials credentials = InternalAwsS3Service
+                .buildCredentials(logger,
+                        S3ClientSettings
+                                .getClientSettings(Settings.EMPTY, "default",
+                                        (ignoredSettings, ignoredClientName) -> S3ClientSettings
+                                                .loadDeprecatedCredentials(deprecationLogger, repositorySettings)))
+                .getCredentials();
         assertEquals("aws_key", credentials.getAWSAccessKeyId());
         assertEquals("aws_secret", credentials.getAWSSecretKey());
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { S3Repository.ACCESS_KEY_SETTING, S3Repository.SECRET_KEY_SETTING },

@@ -59,12 +59,12 @@ final class PSubListShortcut extends AStoreable {
         getter = struct.methods.get(new Definition.MethodKey("get", 1));
         setter = struct.methods.get(new Definition.MethodKey("set", 2));
 
-        if (getter != null && (getter.rtn.clazz == void.class || getter.arguments.size() != 1 ||
-            getter.arguments.get(0).clazz != int.class)) {
+        if (getter != null && (getter.rtn == void.class || getter.arguments.size() != 1 ||
+            getter.arguments.get(0) != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list get shortcut for type [" + struct.name + "]."));
         }
 
-        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0).clazz != int.class)) {
+        if (setter != null && (setter.arguments.size() != 2 || setter.arguments.get(0) != int.class)) {
             throw createError(new IllegalArgumentException("Illegal list set shortcut for type [" + struct.name + "]."));
         }
 
@@ -78,7 +78,7 @@ final class PSubListShortcut extends AStoreable {
             index.analyze(locals);
             index = index.cast(locals);
 
-            actual = setter != null ? Definition.TypeToClass(setter.arguments.get(1)) : Definition.TypeToClass(getter.rtn);
+            actual = setter != null ? setter.arguments.get(1) : getter.rtn;
         } else {
             throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + struct.name + "]."));
         }
@@ -119,8 +119,8 @@ final class PSubListShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn == getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -130,7 +130,7 @@ final class PSubListShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.rtn).getSize());
     }
 
     @Override

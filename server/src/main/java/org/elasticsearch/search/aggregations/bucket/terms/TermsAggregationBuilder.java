@@ -21,11 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -44,6 +46,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TermsAggregationBuilder>
@@ -80,7 +83,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         PARSER.declareString(TermsAggregationBuilder::executionHint, EXECUTION_HINT_FIELD_NAME);
 
         PARSER.declareField(TermsAggregationBuilder::collectMode,
-                (p, c) -> SubAggCollectionMode.parse(p.text()),
+                (p, c) -> SubAggCollectionMode.parse(p.text(), LoggingDeprecationHandler.INSTANCE),
                 SubAggCollectionMode.KEY, ObjectParser.ValueType.STRING);
 
         PARSER.declareObjectArray(TermsAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
@@ -107,6 +110,21 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
 
     public TermsAggregationBuilder(String name, ValueType valueType) {
         super(name, ValuesSourceType.ANY, valueType);
+    }
+
+    protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.order = clone.order;
+        this.executionHint = clone.executionHint;
+        this.includeExclude = clone.includeExclude;
+        this.collectMode = clone.collectMode;
+        this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
+        this.showTermDocCountError = clone.showTermDocCountError;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new TermsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

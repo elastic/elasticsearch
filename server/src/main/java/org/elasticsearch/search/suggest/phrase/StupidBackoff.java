@@ -113,7 +113,7 @@ public final class StupidBackoff extends SmoothingModel {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             }
-            if (token.isValue() && DISCOUNT_FIELD.match(fieldName)) {
+            if (token.isValue() && DISCOUNT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
                 discount = parser.doubleValue();
             }
         }

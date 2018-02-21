@@ -20,18 +20,19 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.secure_sm.SecureSM;
 import org.junit.Assert;
 
-import java.io.FilePermission;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
@@ -87,7 +88,8 @@ public class BootstrapForTesting {
 
         // check for jar hell
         try {
-            JarHell.checkJarHell();
+            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            JarHell.checkJarHell(logger::debug);
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
@@ -136,6 +138,7 @@ public class BootstrapForTesting {
                     // intellij and eclipse don't package our internal libs, so we need to set the codebases for them manually
                     addClassCodebase(codebases,"plugin-classloader", "org.elasticsearch.plugins.ExtendedPluginsClassLoader");
                     addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+                    addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
                 }
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), codebases);
                 final Policy esPolicy = new ESPolicy(codebases, perms, getPluginPermissions(), true);

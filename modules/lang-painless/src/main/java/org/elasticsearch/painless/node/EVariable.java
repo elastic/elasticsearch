@@ -58,7 +58,7 @@ public final class EVariable extends AStoreable {
             throw createError(new IllegalArgumentException("Variable [" + variable.name + "] is read-only."));
         }
 
-        actual = Definition.TypeToClass(variable.type);
+        actual = variable.clazz;
     }
 
     @Override

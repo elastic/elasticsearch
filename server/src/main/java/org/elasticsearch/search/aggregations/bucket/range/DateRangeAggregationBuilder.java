@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
@@ -60,6 +62,15 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
 
     public DateRangeAggregationBuilder(String name) {
         super(name, InternalDateRange.FACTORY);
+    }
+
+    protected DateRangeAggregationBuilder(DateRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new DateRangeAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

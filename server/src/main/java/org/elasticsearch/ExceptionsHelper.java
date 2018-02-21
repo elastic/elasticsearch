@@ -33,9 +33,15 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
 
@@ -120,6 +126,46 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    public static String formatStackTrace(final StackTraceElement[] stackTrace) {
+        return Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
+    }
+
+    static final int MAX_ITERATIONS = 1024;
+
+    /**
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     *
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
+     */
+    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
+        // early terminate if the cause is already an error
+        if (cause instanceof Error) {
+            return Optional.of((Error) cause);
+        }
+
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        int iterations = 0;
+        while (!queue.isEmpty()) {
+            iterations++;
+            if (iterations > MAX_ITERATIONS) {
+                logger.warn("giving up looking for fatal errors", cause);
+                break;
+            }
+            final Throwable current = queue.remove();
+            if (current instanceof Error) {
+                return Optional.of((Error) current);
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return Optional.empty();
     }
 
     /**

@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -96,23 +92,6 @@ public class ParseField {
         ParseField parseField = this.withDeprecation(getAllNamesIncludedDeprecated());
         parseField.allReplacedWith = allReplacedWith;
         return parseField;
-    }
-
-    /**
-     * Does {@code fieldName} match this field? Uses {@link LoggingDeprecationHandler}
-     * to prevent us from having to touch every call to {@code match} in the change
-     * that introduced {@linkplain LoggingDeprecationHandler}. In a followup this will
-     * be removed.
-     * @param fieldName
-     *            the field name to match against this {@link ParseField}
-     * @return true if <code>fieldName</code> matches any of the acceptable
-     *         names for this {@link ParseField}.
-     * @deprecated Use {@link #match(String, DeprecationHandler)} with
-     *      {@link XContentParser#getDeprecationHandler()} instead.
-     */
-    @Deprecated
-    public boolean match(String fieldName) {
-        return match(fieldName, LoggingDeprecationHandler.INSTANCE);
     }
 
     /**

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.flush;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -199,10 +201,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 return;
             }
 
-            final ActionListener<Map<String, Engine.CommitId>> commitIdsListener = new ActionListener<Map<String, Engine.CommitId>>() {
+            final ActionListener<Map<String, PreSyncedFlushResponse>> presyncListener = new ActionListener<Map<String, PreSyncedFlushResponse>>() {
                 @Override
-                public void onResponse(final Map<String, Engine.CommitId> commitIds) {
-                    if (commitIds.isEmpty()) {
+                public void onResponse(final Map<String, PreSyncedFlushResponse> presyncResponses) {
+                    if (presyncResponses.isEmpty()) {
                         actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "all shards failed to commit on pre-sync"));
                         return;
                     }
@@ -216,7 +218,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             } else {
                                 // 3. now send the sync request to all the shards
                                 String syncId = UUIDs.randomBase64UUID();
-                                sendSyncRequests(syncId, activeShards, state, commitIds, shardId, totalShards, actionListener);
+                                sendSyncRequests(syncId, activeShards, state, presyncResponses, shardId, totalShards, actionListener);
                             }
                         }
 
@@ -236,7 +238,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             };
 
             // 1. send pre-sync flushes to all replicas
-            sendPreSyncRequests(activeShards, state, shardId, commitIdsListener);
+            sendPreSyncRequests(activeShards, state, shardId, presyncListener);
         } catch (Exception e) {
             actionListener.onFailure(e);
         }
@@ -299,28 +301,49 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
     }
 
+    private int numDocsOnPrimary(List<ShardRouting> shards, Map<String, PreSyncedFlushResponse> preSyncResponses) {
+        for (ShardRouting shard : shards) {
+            if (shard.primary()) {
+                final PreSyncedFlushResponse resp = preSyncResponses.get(shard.currentNodeId());
+                if (resp != null) {
+                    return resp.numDocs;
+                }
+            }
+        }
+        return PreSyncedFlushResponse.UNKNOWN_NUM_DOCS;
+    }
 
-    void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, Engine.CommitId> expectedCommitIds,
+    void sendSyncRequests(final String syncId, final List<ShardRouting> shards, ClusterState state, Map<String, PreSyncedFlushResponse> preSyncResponses,
                           final ShardId shardId, final int totalShards, final ActionListener<ShardsSyncedFlushResult> listener) {
         final CountDown countDown = new CountDown(shards.size());
         final Map<ShardRouting, ShardSyncedFlushResponse> results = ConcurrentCollections.newConcurrentMap();
+        final int numDocsOnPrimary = numDocsOnPrimary(shards, preSyncResponses);
         for (final ShardRouting shard : shards) {
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
             if (node == null) {
                 logger.trace("{} is assigned to an unknown node. skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("unknown node"));
-                contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
-            final Engine.CommitId expectedCommitId = expectedCommitIds.get(shard.currentNodeId());
-            if (expectedCommitId == null) {
+            final PreSyncedFlushResponse preSyncedResponse = preSyncResponses.get(shard.currentNodeId());
+            if (preSyncedResponse == null) {
                 logger.trace("{} can't resolve expected commit id for current node, skipping for sync id [{}]. shard routing {}", shardId, syncId, shard);
                 results.put(shard, new ShardSyncedFlushResponse("no commit id from pre-sync flush"));
-                contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                continue;
+            }
+            if (preSyncedResponse.numDocs != numDocsOnPrimary
+                && preSyncedResponse.numDocs != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS && numDocsOnPrimary != PreSyncedFlushResponse.UNKNOWN_NUM_DOCS) {
+                logger.warn("{} can't to issue sync id [{}] for out of sync replica [{}] with num docs [{}]; num docs on primary [{}]",
+                    shardId, syncId, shard, preSyncedResponse.numDocs, numDocsOnPrimary);
+                results.put(shard, new ShardSyncedFlushResponse("out of sync replica; " +
+                    "num docs on replica [" + preSyncedResponse.numDocs + "]; num docs on primary [" + numDocsOnPrimary + "]"));
+                countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                 continue;
             }
             logger.trace("{} sending synced flush request to {}. sync id [{}].", shardId, shard, syncId);
-            transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, expectedCommitId),
+            transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, preSyncedResponse.commitId),
                     new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
                         public ShardSyncedFlushResponse newInstance() {
@@ -332,14 +355,14 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             ShardSyncedFlushResponse existing = results.put(shard, response);
                             assert existing == null : "got two answers for node [" + node + "]";
                             // count after the assert so we won't decrement twice in handleException
-                            contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                            countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
                             logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
                             results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
-                            contDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
+                            countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
 
                         @Override
@@ -351,8 +374,8 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
     }
 
-    private void contDownAndSendResponseIfDone(String syncId, List<ShardRouting> shards, ShardId shardId, int totalShards,
-            ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting, ShardSyncedFlushResponse> results) {
+    private void countDownAndSendResponseIfDone(String syncId, List<ShardRouting> shards, ShardId shardId, int totalShards,
+                                                ActionListener<ShardsSyncedFlushResult> listener, CountDown countDown, Map<ShardRouting, ShardSyncedFlushResponse> results) {
         if (countDown.countDown()) {
             assert results.size() == shards.size();
             listener.onResponse(new ShardsSyncedFlushResult(shardId, syncId, totalShards, results));
@@ -362,16 +385,16 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     /**
      * send presync requests to all started copies of the given shard
      */
-    void sendPreSyncRequests(final List<ShardRouting> shards, final ClusterState state, final ShardId shardId, final ActionListener<Map<String, Engine.CommitId>> listener) {
+    void sendPreSyncRequests(final List<ShardRouting> shards, final ClusterState state, final ShardId shardId, final ActionListener<Map<String, PreSyncedFlushResponse>> listener) {
         final CountDown countDown = new CountDown(shards.size());
-        final ConcurrentMap<String, Engine.CommitId> commitIds = ConcurrentCollections.newConcurrentMap();
+        final ConcurrentMap<String, PreSyncedFlushResponse> presyncResponses = ConcurrentCollections.newConcurrentMap();
         for (final ShardRouting shard : shards) {
             logger.trace("{} sending pre-synced flush request to {}", shardId, shard);
             final DiscoveryNode node = state.nodes().get(shard.currentNodeId());
             if (node == null) {
                 logger.trace("{} shard routing {} refers to an unknown node. skipping.", shardId, shard);
                 if (countDown.countDown()) {
-                    listener.onResponse(commitIds);
+                    listener.onResponse(presyncResponses);
                 }
                 continue;
             }
@@ -383,11 +406,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleResponse(PreSyncedFlushResponse response) {
-                    Engine.CommitId existing = commitIds.putIfAbsent(node.getId(), response.commitId());
+                    PreSyncedFlushResponse existing = presyncResponses.putIfAbsent(node.getId(), response);
                     assert existing == null : "got two answers for node [" + node + "]";
                     // count after the assert so we won't decrement twice in handleException
                     if (countDown.countDown()) {
-                        listener.onResponse(commitIds);
+                        listener.onResponse(presyncResponses);
                     }
                 }
 
@@ -395,7 +418,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                 public void handleException(TransportException exp) {
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
                     if (countDown.countDown()) {
-                        listener.onResponse(commitIds);
+                        listener.onResponse(presyncResponses);
                     }
                 }
 
@@ -411,9 +434,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
-        Engine.CommitId commitId = indexShard.flush(flushRequest);
-        logger.trace("{} pre sync flush done. commit id {}", request.shardId(), commitId);
-        return new PreSyncedFlushResponse(commitId);
+        indexShard.flush(flushRequest);
+        final CommitStats commitStats = indexShard.commitStats();
+        final Engine.CommitId commitId = commitStats.getRawCommitId();
+        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
+        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs());
     }
 
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {
@@ -483,30 +508,53 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
      * Response for first step of synced flush (flush) for one shard copy
      */
     static final class PreSyncedFlushResponse extends TransportResponse {
+        static final int UNKNOWN_NUM_DOCS = -1;
 
         Engine.CommitId commitId;
+        int numDocs;
 
         PreSyncedFlushResponse() {
         }
 
-        PreSyncedFlushResponse(Engine.CommitId commitId) {
+        PreSyncedFlushResponse(Engine.CommitId commitId, int numDocs) {
             this.commitId = commitId;
+            this.numDocs = numDocs;
         }
 
-        public Engine.CommitId commitId() {
+        Engine.CommitId commitId() {
             return commitId;
+        }
+
+        int numDocs() {
+            return numDocs;
+        }
+
+        boolean includeNumDocs(Version version) {
+            if (version.major == Version.V_5_6_8.major) {
+                return version.onOrAfter(Version.V_5_6_8);
+            } else {
+                return version.onOrAfter(Version.V_6_2_2);
+            }
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
+            if (includeNumDocs(in.getVersion())) {
+                numDocs = in.readInt();
+            } else {
+                numDocs = UNKNOWN_NUM_DOCS;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
+            if (includeNumDocs(out.getVersion())) {
+                out.writeInt(numDocs);
+            }
         }
     }
 

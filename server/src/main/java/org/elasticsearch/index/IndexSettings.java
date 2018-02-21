@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -183,8 +183,15 @@ public final class IndexSettings {
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
             Property.Dynamic, Property.IndexScope);
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
+        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB),
+            /*
+             * An empty translog occupies 43 bytes on disk. If the flush threshold is below this, the flush thread
+             * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
+             * However, small thresholds are useful for testing so we do not add a large lower bound here.
+             */
+            new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how long translog files that are no longer needed for persistence reasons
@@ -219,9 +226,9 @@ public final class IndexSettings {
                      * generation threshold. However, small thresholds are useful for testing so we
                      * do not add a large lower bound here.
                      */
-                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
                     new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-                    new Property[]{Property.Dynamic, Property.IndexScope});
+                    Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting to enable / disable deletes garbage collection.
@@ -374,7 +381,7 @@ public final class IndexSettings {
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
-        logger = ServerLoggers.getLogger(getClass(), settings, index);
+        logger = Loggers.getLogger(getClass(), settings, index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);

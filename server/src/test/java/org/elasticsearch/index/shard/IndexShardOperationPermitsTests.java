@@ -35,6 +35,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -48,10 +49,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -122,7 +128,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 public void run() {
                     latch.countDown();
                     try {
-                        permits.acquire(future, threadPoolName, forceExecution);
+                        permits.acquire(future, threadPoolName, forceExecution, "");
                     } catch (DummyException dummyException) {
                         // ok, notify future
                         assertTrue(failingListener);
@@ -176,7 +182,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testOperationsInvokedImmediatelyIfNoBlock() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
         assertTrue(future.isDone());
         future.get().close();
     }
@@ -184,7 +190,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testOperationsIfClosed() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         permits.close();
-        permits.acquire(future, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
         ExecutionException exception = expectThrows(ExecutionException.class, future::get);
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
@@ -198,7 +204,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         try (Releasable ignored = blockAndWait()) {
-            permits.acquire(future, ThreadPool.Names.GENERIC, true);
+            permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
             assertFalse(future.isDone());
         }
         future.get(1, TimeUnit.HOURS).close();
@@ -245,8 +251,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                 context.putHeader("foo", "bar");
                 context.putTransient("bar", "baz");
                 // test both with and without a executor name
-                permits.acquire(future, ThreadPool.Names.GENERIC, true);
-                permits.acquire(future2, null, true);
+                permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+                permits.acquire(future2, null, true, "");
             }
             assertFalse(future.isDone());
         }
@@ -329,7 +335,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                             }
                         },
                         ThreadPool.Names.GENERIC,
-                        false));
+                        false, ""));
         thread.start();
         assertFalse(delayed.get());
         releaseBlock.countDown();
@@ -387,7 +393,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                             }
                         },
                         ThreadPool.Names.GENERIC,
-                        false);
+                        false, "");
         });
         secondOperationThread.start();
 
@@ -436,7 +442,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                             }
                         },
                         ThreadPool.Names.GENERIC,
-                        false);
+                        false, "");
             });
             thread.start();
             threads.add(thread);
@@ -490,12 +496,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testActiveOperationsCount() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future1 = new PlainActionFuture<>();
-        permits.acquire(future1, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future1, ThreadPool.Names.GENERIC, true, "");
         assertTrue(future1.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
 
         PlainActionFuture<Releasable> future2 = new PlainActionFuture<>();
-        permits.acquire(future2, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future2, ThreadPool.Names.GENERIC, true, "");
         assertTrue(future2.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(2));
 
@@ -511,7 +517,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();
-        permits.acquire(future3, ThreadPool.Names.GENERIC, true);
+        permits.acquire(future3, ThreadPool.Names.GENERIC, true, "");
         assertTrue(future3.isDone());
         assertThat(permits.getActiveOperationsCount(), equalTo(1));
         future3.get().close();
@@ -594,7 +600,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                             }
                         },
                         ThreadPool.Names.GENERIC,
-                        false));
+                        false, ""));
         assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
         permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
     }
@@ -645,8 +651,37 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                         }
                     },
                     ThreadPool.Names.GENERIC,
-                    false);
+                    false, "");
         };
     }
 
+    public void testPermitTraceCapturing() throws ExecutionException, InterruptedException {
+        final PlainActionFuture<Releasable> listener1 = new PlainActionFuture<>();
+        permits.acquire(listener1, null, false, "listener1");
+        final PlainActionFuture<Releasable> listener2 = new PlainActionFuture<>();
+        permits.acquire(listener2, null, false, "listener2");
+
+        assertThat(permits.getActiveOperationsCount(), equalTo(2));
+        List<String> messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+        assertThat(messages, hasSize(2));
+        assertThat(messages, containsInAnyOrder(Arrays.asList(containsString("listener1"), containsString("listener2"))));
+
+        if (randomBoolean()) {
+            listener1.get().close();
+            assertThat(permits.getActiveOperationsCount(), equalTo(1));
+            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+            assertThat(messages, hasSize(1));
+            assertThat(messages, contains(containsString("listener2")));
+            listener2.get().close();
+        } else {
+            listener2.get().close();
+            assertThat(permits.getActiveOperationsCount(), equalTo(1));
+            messages = permits.getActiveOperations().stream().collect(Collectors.toList());
+            assertThat(messages, hasSize(1));
+            assertThat(messages, contains(containsString("listener1")));
+            listener1.get().close();
+        }
+        assertThat(permits.getActiveOperationsCount(), equalTo(0));
+        assertThat(permits.getActiveOperations(), emptyIterable());
+    }
 }

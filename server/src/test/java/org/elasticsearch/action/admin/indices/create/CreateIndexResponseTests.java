@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -76,6 +77,18 @@ public class CreateIndexResponseTests extends ESTestCase {
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 
+    public void testToAndFromXContentIndexNull() throws IOException {
+        CreateIndexResponse response = new CreateIndexResponse(true, false, null);
+        String output = Strings.toString(response);
+        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":null}", output);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
+            CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);
+            assertNull(parsedResponse.index());
+            assertTrue(parsedResponse.isAcknowledged());
+            assertFalse(parsedResponse.isShardsAcknowledged());
+        }
+    }
+
     public void testToAndFromXContent() throws IOException {
         doFromXContentTestWithRandomFields(false);
     }
@@ -117,7 +130,7 @@ public class CreateIndexResponseTests extends ESTestCase {
     /**
      * Returns a random {@link CreateIndexResponse}.
      */
-    private static CreateIndexResponse createTestItem() throws IOException {
+    private static CreateIndexResponse createTestItem() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
         String index = randomAlphaOfLength(5);

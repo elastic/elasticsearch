@@ -172,6 +172,13 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         checkEqualsAndHashCode(createTestAggregatorBuilder(), this::copyAggregation);
     }
 
+    public void testShallowCopy() {
+        AB original = createTestAggregatorBuilder();
+        AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metaData);
+        assertNotSame(original, clone);
+        assertEquals(original, clone);
+    }
+
     // we use the streaming infra to create a copy of the query provided as
     // argument
     private AB copyAggregation(AB agg) throws IOException {

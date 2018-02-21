@@ -34,7 +34,10 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 
-public class RandomAliasActionsGenerator {
+public final class RandomAliasActionsGenerator {
+
+    private RandomAliasActionsGenerator() {}
+
     public static AliasActions randomAliasAction() {
         return randomAliasAction(false);
     }

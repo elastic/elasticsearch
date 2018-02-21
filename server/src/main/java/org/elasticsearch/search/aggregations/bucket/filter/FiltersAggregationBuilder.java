@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -41,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -94,6 +96,19 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         this.filters = keyedFilters;
         this.keyed = false;
+    }
+
+    public FiltersAggregationBuilder(FiltersAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.filters = new ArrayList<>(clone.filters);
+        this.keyed = clone.keyed;
+        this.otherBucket = clone.otherBucket;
+        this.otherBucketKey = clone.otherBucketKey;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new FiltersAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**
@@ -244,21 +259,21 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (OTHER_BUCKET_FIELD.match(currentFieldName)) {
+                if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName)) {
+                if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucketKey = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     keyedFilters = new ArrayList<>();
                     String key = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -274,7 +289,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                             "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FILTERS_FIELD.match(currentFieldName)) {
+                if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder filter = parseInnerQueryBuilder(parser);

@@ -68,7 +68,7 @@ public final class ENewObj extends AExpression {
         constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
-            Type[] types = new Type[constructor.arguments.size()];
+            Class<?>[] types = new Class<?>[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -79,7 +79,7 @@ public final class ENewObj extends AExpression {
             for (int argument = 0; argument < arguments.size(); ++argument) {
                 AExpression expression = arguments.get(argument);
 
-                expression.expected = Definition.TypeToClass(types[argument]);
+                expression.expected = types[argument];
                 expression.internal = true;
                 expression.analyze(locals);
                 arguments.set(argument, expression.cast(locals));

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -49,8 +47,8 @@ public final class SExpression extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        Type rtnType = locals.getReturnType();
-        boolean isVoid = rtnType.clazz == void.class;
+        Class<?> rtnType = locals.getReturnType();
+        boolean isVoid = rtnType == void.class;
 
         expression.read = lastSource && !isVoid;
         expression.analyze(locals);
@@ -61,7 +59,7 @@ public final class SExpression extends AStatement {
 
         boolean rtn = lastSource && !isVoid && expression.actual != void.class;
 
-        expression.expected = rtn ? Definition.TypeToClass(rtnType) : expression.actual;
+        expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
         expression = expression.cast(locals);
 

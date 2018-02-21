@@ -62,6 +62,7 @@ if (!isEclipse && !isIdea) {
 dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"
+  compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
 
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
@@ -83,8 +84,6 @@ dependencies {
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  compile 'org.elasticsearch:securesm:1.2'
-
   // utilities
   compile "org.elasticsearch:elasticsearch-cli:${version}"
   compile 'com.carrotsearch:hppc:0.7.1'
@@ -100,7 +99,7 @@ dependencies {
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   // percentiles aggregation
-  compile 'com.tdunning:t-digest:3.0'
+  compile 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   compile 'org.hdrhistogram:HdrHistogram:2.1.9'
 

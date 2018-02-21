@@ -50,6 +50,9 @@ if not defined ES_PATH_CONF (
   set ES_PATH_CONF=!ES_HOME!\config
 )
 
+rem now make ES_PATH_CONF absolute
+for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
+
 if not defined ES_TMPDIR (
   set ES_TMPDIR=!TMP!\elasticsearch
 )

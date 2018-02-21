@@ -152,21 +152,21 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (POSITIVE_FIELD.match(currentFieldName)) {
+                if (POSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     positiveQuery = parseInnerQueryBuilder(parser);
                     positiveQueryFound = true;
-                } else if (NEGATIVE_FIELD.match(currentFieldName)) {
+                } else if (NEGATIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     negativeQuery = parseInnerQueryBuilder(parser);
                     negativeQueryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (NEGATIVE_BOOST_FIELD.match(currentFieldName)) {
+                if (NEGATIVE_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     negativeBoost = parser.floatValue();
-                } else if (NAME_FIELD.match(currentFieldName)) {
+                } else if (NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (BOOST_FIELD.match(currentFieldName)) {
+                } else if (BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");

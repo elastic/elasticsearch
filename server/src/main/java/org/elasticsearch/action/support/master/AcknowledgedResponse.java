@@ -38,8 +38,8 @@ public abstract class AcknowledgedResponse extends ActionResponse {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
-    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> PARSER) {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
+    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
             ObjectParser.ValueType.BOOLEAN);
     }
 
@@ -62,14 +62,14 @@ public abstract class AcknowledgedResponse extends ActionResponse {
     }
 
     /**
-     * Reads the timeout value
+     * Reads the acknowledged value
      */
     protected void readAcknowledged(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }
 
     /**
-     * Writes the timeout value
+     * Writes the acknowledged value
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);

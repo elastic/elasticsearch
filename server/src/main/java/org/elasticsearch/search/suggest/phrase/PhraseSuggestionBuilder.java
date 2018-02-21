@@ -500,34 +500,34 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
+                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.analyzer(parser.text());
-                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fieldname = parser.text();
-                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.size(parser.intValue());
-                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
+                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.shardSize(parser.intValue());
-                } else if (PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.RWE_LIKELIHOOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.realWordErrorLikelihood(parser.floatValue());
-                } else if (PhraseSuggestionBuilder.CONFIDENCE_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.CONFIDENCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.confidence(parser.floatValue());
-                } else if (PhraseSuggestionBuilder.SEPARATOR_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.SEPARATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.separator(parser.text());
-                } else if (PhraseSuggestionBuilder.MAXERRORS_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.MAXERRORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.maxErrors(parser.floatValue());
-                } else if (PhraseSuggestionBuilder.GRAMSIZE_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.GRAMSIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.gramSize(parser.intValue());
-                } else if (PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.FORCE_UNIGRAM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.forceUnigrams(parser.booleanValue());
-                } else if (PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.TOKEN_LIMIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.tokenLimit(parser.intValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "suggester[phrase] doesn't support field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_ARRAY) {
-                if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName)) {
+                if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
                         tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
@@ -537,19 +537,19 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                             "suggester[phrase]  doesn't support array field [" + currentFieldName + "]");
                 }
             } else if (token == Token.START_OBJECT) {
-                if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName)) {
+                if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ensureNoSmoothing(tmpSuggestion);
                     tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parser));
-                } else if (PhraseSuggestionBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     String preTag = null;
                     String postTag = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (PhraseSuggestionBuilder.PRE_TAG_FIELD.match(currentFieldName)) {
+                            if (PhraseSuggestionBuilder.PRE_TAG_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 preTag = parser.text();
-                            } else if (PhraseSuggestionBuilder.POST_TAG_FIELD.match(currentFieldName)) {
+                            } else if (PhraseSuggestionBuilder.POST_TAG_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 postTag = parser.text();
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
@@ -558,11 +558,11 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                         }
                     }
                     tmpSuggestion.highlight(preTag, postTag);
-                } else if (PhraseSuggestionBuilder.COLLATE_FIELD.match(currentFieldName)) {
+                } else if (PhraseSuggestionBuilder.COLLATE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_FIELD.match(currentFieldName)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             if (tmpSuggestion.collateQuery() != null) {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
@@ -570,9 +570,9 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                             }
                             Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                             tmpSuggestion.collateQuery(template);
-                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName, parser.getDeprecationHandler())) {
                             tmpSuggestion.collateParams(parser.map());
-                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE.match(currentFieldName)) {
+                        } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PRUNE.match(currentFieldName, parser.getDeprecationHandler())) {
                             if (parser.isBooleanValue()) {
                                 tmpSuggestion.collatePrune(parser.booleanValue());
                             } else {

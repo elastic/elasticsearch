@@ -172,6 +172,10 @@ public class IngestClientIT extends ESIntegTestCase {
                 assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
+
+        // cleanup
+        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithUpsert() throws Exception {

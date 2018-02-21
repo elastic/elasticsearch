@@ -37,8 +37,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, "default");
-        AWSCredentialsProvider credentialsProvider =
-            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, clientSettings, Settings.EMPTY);
+        AWSCredentialsProvider credentialsProvider = new InternalAwsS3Service(Settings.EMPTY).buildCredentials(clientSettings);
         assertThat(credentialsProvider, instanceOf(InternalAwsS3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -51,7 +50,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testAwsCredsExplicitConfigSettings() {
-        Settings repositorySettings = Settings.builder().put(InternalAwsS3Service.CLIENT_NAME.getKey(), "myconfig").build();
+        Settings repositorySettings = Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), "myconfig").build();
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.myconfig.access_key", "aws_key");
         secureSettings.setString("s3.client.myconfig.secret_key", "aws_secret");
@@ -86,10 +85,9 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     private void assertCredentials(Settings singleRepositorySettings, Settings settings,
                                    String expectedKey, String expectedSecret) {
-        String configName = InternalAwsS3Service.CLIENT_NAME.get(singleRepositorySettings);
+        String configName = S3Repository.CLIENT_NAME.get(singleRepositorySettings);
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, deprecationLogger,
-            clientSettings, singleRepositorySettings).getCredentials();
+        AWSCredentials credentials = new InternalAwsS3Service(Settings.EMPTY).buildCredentials(clientSettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }
@@ -140,7 +138,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                             int expectedReadTimeout) {
 
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings);
+        ClientConfiguration configuration = new InternalAwsS3Service(Settings.EMPTY).buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));
@@ -161,7 +159,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     private void assertEndpoint(Settings repositorySettings, Settings settings, String expectedEndpoint) {
-        String configName = InternalAwsS3Service.CLIENT_NAME.get(repositorySettings);
+        String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
     }

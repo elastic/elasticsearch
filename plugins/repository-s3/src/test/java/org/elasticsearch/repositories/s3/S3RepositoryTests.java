@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
-import com.amazonaws.services.s3.AmazonS3;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -56,8 +55,12 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(Settings settings) {
-            return new DummyS3Client();
+        public AmazonS3Reference client(String clientName) {
+            return new AmazonS3Reference(new DummyS3Client());
+        }
+
+        @Override
+        public void updateClientSettings(Settings settings) {
         }
     }
 

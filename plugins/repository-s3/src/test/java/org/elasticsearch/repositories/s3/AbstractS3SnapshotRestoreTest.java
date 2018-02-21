@@ -179,7 +179,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
 
         Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucket = settings.getByPrefix("repositories.s3.");
-        try (AwsS3Service.AmazonS3Wrapper s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
+        try (AmazonS3Reference s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
             String bucketName = bucket.get("bucket");
             logger.info("--> verify encryption for bucket [{}], prefix [{}]", bucketName, basePath);
             List<S3ObjectSummary> summaries = s3Client.client().listObjects(bucketName, basePath).getObjectSummaries();
@@ -442,7 +442,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
             // We check that settings has been set in elasticsearch.yml integration test file
             // as described in README
             assertThat("Your settings in elasticsearch.yml are incorrect. Check README file.", bucketName, notNullValue());
-            try (AwsS3Service.AmazonS3Wrapper s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
+            try (AmazonS3Reference s3Client = internalCluster().getInstance(AwsS3Service.class).client("default")) {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
                 //we can do at most 1K objects per delete

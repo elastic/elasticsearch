@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import java.util.Collections;
 import java.util.Map;
 import static java.util.Collections.emptyMap;
 
@@ -55,12 +54,13 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
      */
     @Override
     public synchronized void updateClientSettings(Settings settings) {
-        // shutdown all unused clients, others will shutdown on their respective release
+        // shutdown all unused clients
+        // others will shutdown on their respective release
         doClose();
         // reload secure settings
-        clientsSettings = Collections.unmodifiableMap(S3ClientSettings.load(settings));
+        clientsSettings = S3ClientSettings.load(settings);
         assert clientsSettings.containsKey("default") : "always at least have 'default'";
-        // clients are built lazily by #client(String)
+        // clients are built lazily by {@link client(String)}
     }
 
     /**
@@ -150,10 +150,10 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         for (final AmazonS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();
         }
-        // clear previously cached clients
+        // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         // shutdown IdleConnectionReaper background thread
-        // it will be restarted on any new client usage
+        // it will be restarted on new client usage
         IdleConnectionReaper.shutdown();
     }
 

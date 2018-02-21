@@ -244,7 +244,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
         try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content.streamInput())) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {

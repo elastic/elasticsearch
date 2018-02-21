@@ -1015,7 +1015,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes());
+        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes().streamInput());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));

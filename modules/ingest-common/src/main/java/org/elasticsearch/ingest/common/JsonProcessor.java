@@ -78,7 +78,7 @@ public final class JsonProcessor extends AbstractProcessor {
         Object fieldValue = document.getFieldValue(field, Object.class);
         BytesReference bytesRef = (fieldValue == null) ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytesRef)) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytesRef.streamInput())) {
             XContentParser.Token token = parser.nextToken();
             Object value = null;
             if (token == XContentParser.Token.VALUE_NULL) {

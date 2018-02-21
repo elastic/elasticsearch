@@ -86,14 +86,15 @@ public interface ToXContent {
 
         @Override
         public boolean paramAsBoolean(String key, boolean defaultValue) {
-            if (key.length() > 0) {
-                switch (key) {
+            final String value = param(key);
+            if (value != null && value.length() > 0) {
+                switch (value) {
                     case "true":
                         return true;
                     case "false":
                         return false;
                     default:
-                        throw new IllegalArgumentException("Failed to parse param [" + key + "] as only [true] or [false] are allowed.");
+                        throw new IllegalArgumentException("Failed to parse param [" + value + "] as only [true] or [false] are allowed.");
                 }
             } else {
                 return defaultValue;
@@ -102,14 +103,15 @@ public interface ToXContent {
 
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-            if (key.length() > 0) {
-                switch (key) {
+            final String value = param(key);
+            if (value != null && value.length() > 0) {
+                switch (value) {
                     case "true":
                         return true;
                     case "false":
                         return false;
                     default:
-                        throw new IllegalArgumentException("Failed to parse param [" + key + "] as only [true] or [false] are allowed.");
+                        throw new IllegalArgumentException("Failed to parse param [" + value + "] as only [true] or [false] are allowed.");
                 }
             } else {
                 return defaultValue;

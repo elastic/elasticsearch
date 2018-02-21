@@ -106,8 +106,8 @@ public interface XContent {
 
     /**
      * Creates a parser over the provided bytes.
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, InputStream)}
-     * instead, the BytesReference will be removed it a future commit
+     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, InputStream)} instead,
+     * the BytesReference coupling in this class will be removed in a future commit
      */
     @Deprecated
     XContentParser createParser(NamedXContentRegistry xContentRegistry,

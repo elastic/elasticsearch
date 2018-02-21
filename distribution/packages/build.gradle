@@ -236,7 +236,7 @@ task buildDeb(type: Deb) {
 task checkDeb(type: LoggedExec) {
   onlyIf { new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
   final File debExtracted = new File("${buildDir}", 'deb-extracted')
-  commandLine 'dpkg-deb', '-x', "${buildDir}/distributions/elasticsearch-${project.version}.deb", debExtracted
+  commandLine 'dpkg-deb', '-x', "deb/build/distributions/elasticsearch-${project.version}.deb", debExtracted
   doFirst {
     debExtracted.deleteDir()
   }
@@ -290,7 +290,7 @@ task checkRpm(type: LoggedExec) {
           '--relocate',
           "/=${rpmExtracted}",
           '-i',
-          "${buildDir}/distributions/elasticsearch-${project.version}.rpm"
+          "rpm/build/distributions/elasticsearch-${project.version}.rpm"
   doFirst {
     rpmDatabase.deleteDir()
     rpmExtracted.deleteDir()

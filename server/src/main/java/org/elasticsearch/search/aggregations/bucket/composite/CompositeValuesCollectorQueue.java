@@ -20,7 +20,9 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -40,46 +42,56 @@ final class CompositeValuesCollectorQueue {
 
     private final int maxSize;
     private final TreeMap<Integer, Integer> keys;
-    private final CompositeValuesSource<?, ?>[] arrays;
+    private final CompositeValuesSource<?>[] arrays;
     private final int[] docCounts;
     private final SortedDocsProducer docsProducer;
     private boolean afterValueSet = false;
 
     /**
      * Ctr
-     * @param context The search context
+     * @param reader The index reader.
+     * @param query The query.
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
      */
-    CompositeValuesCollectorQueue(SearchContext context, CompositeValuesSourceConfig[] sources, int size) {
+    CompositeValuesCollectorQueue(IndexReader reader, Query query, CompositeValuesSourceConfig[] sources, int size) {
         this.maxSize = size;
-        this.arrays = new CompositeValuesSource<?, ?>[sources.length];
+        this.arrays = new CompositeValuesSource<?>[sources.length];
         this.docCounts = new int[size];
-        this.docsProducer = SortedDocsProducer.createProducerOrNull(sources[0]);
+        this.docsProducer = SortedDocsProducer.createProducerOrNull(reader, sources[0]);
         for (int i = 0; i < sources.length; i++) {
             final int reverseMul = sources[i].reverseMul();
             if (sources[i].valuesSource() instanceof Bytes.WithOrdinals &&
-                    context.searcher().getIndexReader() instanceof DirectoryReader) {
+                    reader instanceof DirectoryReader) {
                 Bytes.WithOrdinals vs = (Bytes.WithOrdinals) sources[i].valuesSource();
-                if (docsProducer != null && docsProducer.isApplicable(context.query())) {
+                if (docsProducer != null && docsProducer.isApplicable(query)) {
                     // switch to a simple binary source because the number of visited documents
                     // should be low and global ordinals need one lookup per visited term.
-                    arrays[i] = CompositeValuesSource.createBinary(vs, size, reverseMul);
+                    arrays[i] = CompositeValuesSource.createBinary(vs::bytesValues, size, reverseMul);
                 } else {
-                    arrays[i] = CompositeValuesSource.createGlobalOrdinals(vs, size, reverseMul);
+                    arrays[i] = CompositeValuesSource.createGlobalOrdinals(vs::globalOrdinalsValues, size, reverseMul);
                 }
             } else if (sources[i].valuesSource() instanceof Bytes) {
                 Bytes vs = (Bytes) sources[i].valuesSource();
-                arrays[i] = CompositeValuesSource.createBinary(vs, size, reverseMul);
+                arrays[i] = CompositeValuesSource.createBinary(vs::bytesValues, size, reverseMul);
             } else if (sources[i].valuesSource() instanceof Numeric) {
                 final Numeric vs = (Numeric) sources[i].valuesSource();
                 if (vs.isFloatingPoint()) {
-                    arrays[i] = CompositeValuesSource.createDouble(vs, size, reverseMul);
+                    arrays[i] = CompositeValuesSource.createDouble(vs::doubleValues, size, reverseMul);
                 } else {
-                    arrays[i] = CompositeValuesSource.createLong(vs, sources[i].format(), size, reverseMul);
+                    arrays[i] = CompositeValuesSource.createLong(vs::longValues, sources[i].format(), size, reverseMul);
                 }
             }
         }
+        this.keys = new TreeMap<>(this::compare);
+    }
+
+    // for tests only
+    CompositeValuesCollectorQueue(CompositeValuesSource<?>[] sources, SortedDocsProducer docsProducer, int size) {
+        this.maxSize = size;
+        this.arrays = sources;
+        this.docCounts = new int[size];
+        this.docsProducer = docsProducer;
         this.keys = new TreeMap<>(this::compare);
     }
 

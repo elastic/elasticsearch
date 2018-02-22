@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -111,7 +112,13 @@ abstract class SortedDocsProducer {
      * Creates a {@link SortedDocsProducer} from the provided <code>config</code> or returns null if there is
      * no implementation of producer that can handle the config.
      */
-    static SortedDocsProducer createProducerOrNull(CompositeValuesSourceConfig config) {
+    static SortedDocsProducer createProducerOrNull(IndexReader reader, CompositeValuesSourceConfig config) {
+        if (reader.hasDeletions()) {
+            if ((double) reader.numDeletedDocs() / (double) reader.maxDoc() > 0.5) {
+                // do not use the index if it has more than 50% of deleted docs
+                return null;
+            }
+        }
         if (config.fieldContext() == null ||
                 config.fieldContext().fieldType() == null ||
                 // the field is not indexed

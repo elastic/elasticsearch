@@ -23,6 +23,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -31,26 +32,24 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
  * A wrapper for {@link ValuesSource} that can record and compare values produced during a collection.
  */
-abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparable<T>> {
-    protected final VS vs;
+abstract class CompositeValuesSource<T extends Comparable<T>> {
     protected final int size;
     protected final int reverseMul;
     protected T afterValue;
 
     /**
-     *
-     * @param vs The original {@link ValuesSource}.
+     * Ctr
      * @param size The number of values to record.
      * @param reverseMul -1 if the natural order ({@link SortOrder#ASC} should be reversed.
      */
-    CompositeValuesSource(VS vs, int size, int reverseMul) {
-        this.vs = vs;
+    CompositeValuesSource(int size, int reverseMul) {
         this.size = size;
         this.reverseMul = reverseMul;
         this.afterValue = null;
@@ -86,7 +85,12 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
      */
     abstract void setAfter(Comparable<?> value);
 
-    abstract T getAfter();
+    /**
+     * Returns the after value set for this source.
+     */
+    T getAfter() {
+        return afterValue;
+    }
 
     /**
      * Transforms the value in <code>slot</code> to a {@link Comparable} object.
@@ -104,45 +108,50 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     /**
      * Creates a {@link CompositeValuesSource} that generates long values.
      */
-    static CompositeValuesSource<ValuesSource.Numeric, Long> createLong(ValuesSource.Numeric vs, DocValueFormat format,
-                                                                        int size, int reverseMul) {
-        return new LongValuesSource(vs, format, size, reverseMul);
+    static CompositeValuesSource<Long> createLong(CheckedFunction<LeafReaderContext, SortedNumericDocValues,
+            IOException> docValuesFunc, DocValueFormat format, int size, int reverseMul) {
+        return new LongValuesSource(docValuesFunc, format, size, reverseMul);
     }
 
     /**
      * Creates a {@link CompositeValuesSource} that generates double values.
      */
-    static CompositeValuesSource<ValuesSource.Numeric, Double> createDouble(ValuesSource.Numeric vs, int size, int reverseMul) {
-        return new DoubleValuesSource(vs, size, reverseMul);
+    static CompositeValuesSource<Double> createDouble(CheckedFunction<LeafReaderContext, SortedNumericDoubleValues,
+            IOException> docValuesFunc, int size, int reverseMul) {
+        return new DoubleValuesSource(docValuesFunc, size, reverseMul);
     }
 
     /**
      * Creates a {@link CompositeValuesSource} that generates binary values.
      */
-    static CompositeValuesSource<ValuesSource.Bytes, BytesRef> createBinary(ValuesSource.Bytes vs, int size, int reverseMul) {
-        return new BinaryValuesSource(vs, size, reverseMul);
+    static CompositeValuesSource<BytesRef> createBinary(CheckedFunction<LeafReaderContext, SortedBinaryDocValues,
+            IOException> docValuesFunc, int size, int reverseMul) {
+        return new BinaryValuesSource(docValuesFunc, size, reverseMul);
     }
 
     /**
      * Creates a {@link CompositeValuesSource} that generates global ordinal values.
      */
-    static CompositeValuesSource<ValuesSource.Bytes.WithOrdinals, BytesRef> createGlobalOrdinals(ValuesSource.Bytes.WithOrdinals vs,
-                                                                                                 int size, int reverseMul) {
-        return new GlobalOrdinalValuesSource(vs, size, reverseMul);
+    static CompositeValuesSource<BytesRef> createGlobalOrdinals(CheckedFunction<LeafReaderContext, SortedSetDocValues,
+            IOException> docValuesFunc, int size, int reverseMul) {
+        return new GlobalOrdinalValuesSource(docValuesFunc, size, reverseMul);
     }
 
     /**
      * A {@link CompositeValuesSource} for global ordinals
      */
-    private static class GlobalOrdinalValuesSource extends CompositeValuesSource<ValuesSource.Bytes.WithOrdinals, BytesRef> {
+    private static class GlobalOrdinalValuesSource extends CompositeValuesSource<BytesRef> {
+        private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
         private final long[] values;
         private SortedSetDocValues lookup;
         private long currentValue;
         private Long afterValueGlobalOrd;
         private boolean isTopValueInsertionPoint;
 
-        GlobalOrdinalValuesSource(ValuesSource.Bytes.WithOrdinals vs, int size, int reverseMul) {
-            super(vs, size, reverseMul);
+        GlobalOrdinalValuesSource(CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+                                  int size, int reverseMul) {
+            super(size, reverseMul);
+            this.docValuesFunc = docValuesFunc;
             this.values = new long[size];
         }
 
@@ -190,18 +199,13 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
         }
 
         @Override
-        BytesRef getAfter() {
-            return afterValue;
-        }
-
-        @Override
         BytesRef toComparable(int slot) throws IOException {
             return BytesRef.deepCopyOf(lookup.lookupOrd(values[slot]));
         }
 
         @Override
         LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-            final SortedSetDocValues dvs = vs.globalOrdinalsValues(context);
+            final SortedSetDocValues dvs = docValuesFunc.apply(context);
             if (lookup == null) {
                 initLookup(dvs);
             }
@@ -225,7 +229,7 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
                 throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
             }
             BytesRef term = (BytesRef) value;
-            final SortedSetDocValues dvs = vs.globalOrdinalsValues(context);
+            final SortedSetDocValues dvs = docValuesFunc.apply(context);
             if (lookup == null) {
                 initLookup(dvs);
             }
@@ -240,6 +244,7 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
                                 if (term.equals(lookup.lookupOrd(ord))) {
                                     currentValueIsSet = true;
                                     currentValue = ord;
+                                    break;
                                 }
                             }
                         }
@@ -266,12 +271,15 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     /**
      * A {@link CompositeValuesSource} for binary source ({@link BytesRef})
      */
-    private static class BinaryValuesSource extends CompositeValuesSource<ValuesSource.Bytes, BytesRef> {
+    private static class BinaryValuesSource extends CompositeValuesSource<BytesRef> {
+        private final CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc;
         private final BytesRef[] values;
         private BytesRef currentValue;
 
-        BinaryValuesSource(ValuesSource.Bytes vs, int size, int reverseMul) {
-            super(vs, size, reverseMul);
+        BinaryValuesSource(CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
+                           int size, int reverseMul) {
+            super(size, reverseMul);
+            this.docValuesFunc = docValuesFunc;
             this.values = new BytesRef[size];
         }
 
@@ -316,18 +324,13 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
         }
 
         @Override
-        BytesRef getAfter() {
-            return afterValue;
-        }
-
-        @Override
         BytesRef toComparable(int slot) {
             return values[slot];
         }
 
         @Override
         LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-            final SortedBinaryDocValues dvs = vs.bytesValues(context);
+            final SortedBinaryDocValues dvs = docValuesFunc.apply(context);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -361,17 +364,20 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     /**
      * A {@link CompositeValuesSource} for longs.
      */
-    private static class LongValuesSource extends CompositeValuesSource<ValuesSource.Numeric, Long> {
+    private static class LongValuesSource extends CompositeValuesSource<Long> {
+        private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
         private final long[] values;
         private long currentValue;
 
         // handles "format" for date histogram source
         private final DocValueFormat format;
 
-        LongValuesSource(ValuesSource.Numeric vs, DocValueFormat format, int size, int reverseMul) {
-            super(vs, size, reverseMul);
-            this.format = format;
+        LongValuesSource(CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+                         DocValueFormat format, int size, int reverseMul) {
+            super(size, reverseMul);
+            this.docValuesFunc = docValuesFunc;
             this.values = new long[size];
+            this.format = format;
         }
 
         @Override
@@ -417,18 +423,13 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
         }
 
         @Override
-        Long getAfter() {
-            return afterValue;
-        }
-
-        @Override
         Long toComparable(int slot) {
             return values[slot];
         }
 
         @Override
         LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-            final SortedNumericDocValues dvs = vs.longValues(context);
+            final SortedNumericDocValues dvs = docValuesFunc.apply(context);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
@@ -462,12 +463,15 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
     /**
      * A {@link CompositeValuesSource} for doubles.
      */
-    private static class DoubleValuesSource extends CompositeValuesSource<ValuesSource.Numeric, Double> {
+    private static class DoubleValuesSource extends CompositeValuesSource<Double> {
+        private final CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc;
         private final double[] values;
         private double currentValue;
 
-        DoubleValuesSource(ValuesSource.Numeric vs, int size, int reverseMul) {
-            super(vs, size, reverseMul);
+        DoubleValuesSource(CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+                           int size, int reverseMul) {
+            super(size, reverseMul);
+            this.docValuesFunc = docValuesFunc;
             this.values = new double[size];
         }
 
@@ -510,18 +514,13 @@ abstract class CompositeValuesSource<VS extends ValuesSource, T extends Comparab
         }
 
         @Override
-        Double getAfter() {
-            return afterValue;
-        }
-
-        @Override
         Double toComparable(int slot) {
             return values[slot];
         }
 
         @Override
         LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-            final SortedNumericDoubleValues dvs = vs.doubleValues(context);
+            final SortedNumericDoubleValues dvs = docValuesFunc.apply(context);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long bucket) throws IOException {

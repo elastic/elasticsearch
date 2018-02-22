@@ -56,7 +56,7 @@ final class CompositeAggregator extends DeferableBucketAggregator {
         this.sources = sources;
         this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
         this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.queue = new CompositeValuesCollectorQueue(context, sources, size);
+        this.queue = new CompositeValuesCollectorQueue(context.searcher().getIndexReader(), context.query(), sources, size);
         if (rawAfterKey != null) {
             queue.setAfter(rawAfterKey.values());
         }

@@ -149,7 +149,7 @@ final class BestCompositeBucketsDeferringCollector extends DeferringBucketCollec
         }
         for (Entry entry : entries) {
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
-            if (docIdSetIterator == null) {
+            if (docIdSetIterator == null || docIdSetIterator.cost() == 0) {
                 continue;
             }
             final LeafBucketCollector subCollector = collector.getLeafCollector(entry.context);
@@ -159,7 +159,7 @@ final class BestCompositeBucketsDeferringCollector extends DeferringBucketCollec
             if (needsScores) {
                 Scorer scorer = weight.scorer(entry.context);
                 // We don't need to check if the scorer is null
-                // since we are sure that there are documents to replay (docIdSetIterator it not empty).
+                // since we are sure that there are documents to replay (docIdSetIterator.cost > 0).
                 scorerIt = scorer.iterator();
                 subCollector.setScorer(scorer);
             }

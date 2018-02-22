@@ -28,6 +28,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 
+//TODO once all the responses that use this class implement ToXContent we can move to RestToXContentListener and remove this class
 public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends RestBuilderListener<T> {
 
     public AcknowledgedRestListener(RestChannel channel) {
@@ -36,7 +37,6 @@ public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends Re
 
     @Override
     public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
-        // TODO - Once AcknowledgedResponse implements ToXContent, this method should be updated to call response.toXContent.
         builder.startObject()
                 .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
         addCustomFields(builder, response);

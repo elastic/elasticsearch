@@ -32,8 +32,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
+import java.security.AccessController;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,7 +83,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
         if (!blobExists(account, mode, container, blob)) {
             throw new NoSuchFileException("missing blob [" + blob + "]");
         }
-        return new ByteArrayInputStream(blobs.get(blob).toByteArray());
+        return AzureStorageService.giveSocketPermissionsToStream(new PermissionRequiringInputStream(blobs.get(blob).toByteArray()));
     }
 
     @Override
@@ -169,5 +171,30 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
         String lcStr = str.substring(0, suffix.length()).toLowerCase(Locale.ROOT);
         String lcPrefix = suffix.toLowerCase(Locale.ROOT);
         return lcStr.equals(lcPrefix);
+    }
+
+    private static class PermissionRequiringInputStream extends ByteArrayInputStream {
+
+        private PermissionRequiringInputStream(byte[] buf) {
+            super(buf);
+        }
+
+        @Override
+        public synchronized int read() {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read();
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read(b);
+        }
+
+        @Override
+        public synchronized int read(byte[] b, int off, int len) {
+            AccessController.checkPermission(new SocketPermission("*", "connect"));
+            return super.read(b, off, len);
+        }
     }
 }

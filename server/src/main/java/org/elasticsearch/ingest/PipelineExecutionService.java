@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -164,18 +165,24 @@ public class PipelineExecutionService implements ClusterStateApplier {
             String id = indexRequest.id();
             String routing = indexRequest.routing();
             String parent = indexRequest.parent();
+            Long version = indexRequest.version();
+            VersionType versionType = indexRequest.versionType();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, sourceAsMap);
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, version, versionType, sourceAsMap);
             pipeline.execute(ingestDocument);
 
-            Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
+            Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
             //it's fine to set all metadata fields all the time, as ingest document holds their starting values
             //before ingestion, which might also get modified during ingestion.
-            indexRequest.index(metadataMap.get(IngestDocument.MetaData.INDEX));
-            indexRequest.type(metadataMap.get(IngestDocument.MetaData.TYPE));
-            indexRequest.id(metadataMap.get(IngestDocument.MetaData.ID));
-            indexRequest.routing(metadataMap.get(IngestDocument.MetaData.ROUTING));
-            indexRequest.parent(metadataMap.get(IngestDocument.MetaData.PARENT));
+            indexRequest.index((String) metadataMap.get(IngestDocument.MetaData.INDEX));
+            indexRequest.type((String) metadataMap.get(IngestDocument.MetaData.TYPE));
+            indexRequest.id((String) metadataMap.get(IngestDocument.MetaData.ID));
+            indexRequest.routing((String) metadataMap.get(IngestDocument.MetaData.ROUTING));
+            indexRequest.parent((String) metadataMap.get(IngestDocument.MetaData.PARENT));
+            indexRequest.version(((Number) metadataMap.get(IngestDocument.MetaData.VERSION)).longValue());
+            if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
+                indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
+            }
             indexRequest.source(ingestDocument.getSourceAndMetadata());
         } catch (Exception e) {
             totalStats.ingestFailed();

@@ -81,7 +81,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -1929,8 +1928,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        ServerLoggers.addAppender(rootLogger, mockAppender);
-        ServerLoggers.setLevel(rootLogger, Level.DEBUG);
+        Loggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.DEBUG);
         rootLogger = LogManager.getRootLogger();
 
         try {
@@ -1941,15 +1940,15 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            ServerLoggers.setLevel(rootLogger, Level.TRACE);
+            Loggers.setLevel(rootLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            ServerLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.removeAppender(rootLogger, mockAppender);
             mockAppender.stop();
-            ServerLoggers.setLevel(rootLogger, savedLevel);
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 
@@ -2217,8 +2216,8 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
-        ServerLoggers.addAppender(iwIFDLogger, mockAppender);
-        ServerLoggers.setLevel(iwIFDLogger, Level.DEBUG);
+        Loggers.addAppender(iwIFDLogger, mockAppender);
+        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -2229,16 +2228,16 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
-            ServerLoggers.setLevel(iwIFDLogger, Level.TRACE);
+            Loggers.setLevel(iwIFDLogger, Level.TRACE);
             engine.index(indexForDoc(doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            ServerLoggers.removeAppender(iwIFDLogger, mockAppender);
+            Loggers.removeAppender(iwIFDLogger, mockAppender);
             mockAppender.stop();
-            ServerLoggers.setLevel(iwIFDLogger, (Level) null);
+            Loggers.setLevel(iwIFDLogger, (Level) null);
         }
     }
 
@@ -4516,5 +4515,61 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
+    }
+
+
+    public void testStressUpdateSameDocWhileGettingIt() throws IOException, InterruptedException {
+        final int iters = randomIntBetween(1, 15);
+        for (int i = 0; i < iters; i++) {
+            // this is a reproduction of https://github.com/elastic/elasticsearch/issues/28714
+            try (Store store = createStore(); InternalEngine engine = createEngine(store, createTempDir())) {
+                final IndexSettings indexSettings = engine.config().getIndexSettings();
+                final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+                    .settings(Settings.builder().put(indexSettings.getSettings())
+                        .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(1))).build();
+                engine.engineConfig.getIndexSettings().updateIndexMetaData(indexMetaData);
+                engine.onSettingsChanged();
+                ParsedDocument document = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
+                final Engine.Index doc = new Engine.Index(newUid(document), document, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                    Versions.MATCH_ANY, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false);
+                // first index an append only document and then delete it. such that we have it in the tombstones
+                engine.index(doc);
+                engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid()));
+
+                // now index more append only docs and refresh so we re-enabel the optimization for unsafe version map
+                ParsedDocument document1 = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(new Engine.Index(newUid(document1), document1, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                    Versions.MATCH_ANY, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false));
+                engine.refresh("test");
+                ParsedDocument document2 = testParsedDocument(Integer.toString(2), null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(new Engine.Index(newUid(document2), document2, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                    Versions.MATCH_ANY, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false));
+                engine.refresh("test");
+                ParsedDocument document3 = testParsedDocument(Integer.toString(3), null, testDocumentWithTextField(), SOURCE, null);
+                final Engine.Index doc3 = new Engine.Index(newUid(document3), document3, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                    Versions.MATCH_ANY, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false);
+                engine.index(doc3);
+                engine.engineConfig.setEnableGcDeletes(true);
+                // once we are here the version map is unsafe again and we need to do a refresh inside the get calls to ensure we
+                // de-optimize. We also enabled GCDeletes which now causes pruning tombstones inside that refresh that is done internally
+                // to ensure we de-optimize. One get call will purne and the other will try to lock the version map concurrently while
+                // holding the lock that pruneTombstones needs and we have a deadlock
+                CountDownLatch awaitStarted = new CountDownLatch(1);
+                Thread thread = new Thread(() -> {
+                    awaitStarted.countDown();
+                    try (Engine.GetResult getResult = engine.get(new Engine.Get(true, doc3.type(), doc3.id(), doc3.uid()),
+                        engine::acquireSearcher)) {
+                        assertTrue(getResult.exists());
+                    }
+                });
+                thread.start();
+                awaitStarted.await();
+                try (Engine.GetResult getResult = engine.get(new Engine.Get(true, doc.type(), doc.id(), doc.uid()),
+                    engine::acquireSearcher)) {
+                    assertFalse(getResult.exists());
+                }
+                thread.join();
+            }
+        }
     }
 }

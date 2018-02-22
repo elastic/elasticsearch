@@ -208,7 +208,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // now parse the action
             if (nextMarker - from > 0) {
                 try (XContentParser parser = xContent
-                        .createParser(registry, LoggingDeprecationHandler.INSTANCE, data.slice(from, nextMarker - from))) {
+                        .createParser(registry, LoggingDeprecationHandler.INSTANCE,
+                            data.slice(from, nextMarker - from).streamInput())) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -244,7 +245,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes)) {
+            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

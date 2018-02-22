@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -27,7 +28,6 @@ import org.elasticsearch.ingest.Processor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
@@ -42,7 +42,7 @@ public final class GrokProcessor extends AbstractProcessor {
     private final boolean traceMatch;
     private final boolean ignoreMissing;
 
-    public GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
+    GrokProcessor(String tag, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
                          boolean traceMatch, boolean ignoreMissing) {
         super(tag);
         this.matchField = matchField;

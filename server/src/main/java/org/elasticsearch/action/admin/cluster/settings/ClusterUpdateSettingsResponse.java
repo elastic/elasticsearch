@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,7 +34,7 @@ import java.util.Objects;
 /**
  * A response for a cluster update settings action.
  */
-public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implements ToXContentObject {
+public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     private static final ParseField PERSISTENT = new ParseField("persistent");
     private static final ParseField TRANSIENT = new ParseField("transient");
@@ -91,17 +90,13 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse implemen
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(PERSISTENT.getPreferredName());
         persistentSettings.toXContent(builder, params);
         builder.endObject();
         builder.startObject(TRANSIENT.getPreferredName());
         transientSettings.toXContent(builder, params);
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     public static ClusterUpdateSettingsResponse fromXContent(XContentParser parser) {

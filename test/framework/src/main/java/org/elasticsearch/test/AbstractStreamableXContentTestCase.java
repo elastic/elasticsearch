@@ -18,18 +18,12 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & Streamable> extends AbstractStreamableTestCase<T> {
 
@@ -38,25 +32,37 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false);
-            BytesReference withRandomFields;
-            if (supportsUnknownFields()) {
-                // we add a few random fields to check that parser is lenient on new fields
-                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, getRandomFieldsExcludeFilter(), random());
-            } else {
-                withRandomFields = shuffled;
+        new AbstractXContentTestCase<T>() {
+            @Override
+            protected int numberOfTestRuns() {
+                return NUMBER_OF_TEST_RUNS;
             }
-            XContentParser parser = createParser(XContentFactory.xContent(xContentType), withRandomFields);
-            T parsed = parseInstance(parser);
-            T expected = getExpectedFromXContent(testInstance);
-            assertNotSame(expected, parsed);
-            assertEquals(expected, parsed);
-            assertEquals(expected.hashCode(), parsed.hashCode());
-            assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
-        }
+
+            @Override
+            protected T createTestInstance() {
+                return AbstractStreamableXContentTestCase.this.createTestInstance();
+            }
+
+            @Override
+            protected T doParseInstance(XContentParser parser) {
+                return AbstractStreamableXContentTestCase.this.doParseInstance(parser);
+            }
+
+            @Override
+            protected T getExpectedFromXContent(T testInstance) {
+                return AbstractStreamableXContentTestCase.this.getExpectedFromXContent(testInstance);
+            }
+
+            @Override
+            protected boolean supportsUnknownFields() {
+                return AbstractStreamableXContentTestCase.this.supportsUnknownFields();
+            }
+
+            @Override
+            protected Predicate<String> getRandomFieldsExcludeFilter() {
+                return AbstractStreamableXContentTestCase.this.getRandomFieldsExcludeFilter();
+            }
+        }.testFromXContent();
     }
 
     /**
@@ -77,12 +83,6 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
 
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> false;
-    }
-
-    private T parseInstance(XContentParser parser) throws IOException {
-        T parsedInstance = doParseInstance(parser);
-        assertNull(parser.nextToken());
-        return parsedInstance;
     }
 
     /**

@@ -23,8 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -32,7 +30,7 @@ import java.io.IOException;
 /**
  * A response for a add/remove alias action.
  */
-public class IndicesAliasesResponse extends AcknowledgedResponse implements ToXContentObject {
+public class IndicesAliasesResponse extends AcknowledgedResponse {
 
     private static final ConstructingObjectParser<IndicesAliasesResponse, Void> PARSER = new ConstructingObjectParser<>("indices_aliases",
             true, args -> new IndicesAliasesResponse((boolean) args[0]));
@@ -59,15 +57,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse implements ToXC
         writeAcknowledged(out);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
-        builder.endObject();
-        return builder;
-    }
-
-    public static IndicesAliasesResponse fromXContent(XContentParser parser) throws IOException {
+    public static IndicesAliasesResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

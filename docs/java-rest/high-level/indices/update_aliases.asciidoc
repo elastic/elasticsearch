@@ -1,10 +1,10 @@
 [[java-rest-high-update-aliases]]
-=== Update Aliases API
+=== Index Aliases API
 
 [[java-rest-high-update-aliases-request]]
 ==== Indices Aliases Request
 
-The Update Aliases API allows aliasing an index with a name, with all APIs
+The Index Aliases API allows aliasing an index with a name, with all APIs
 automatically converting the alias name to the actual index name.
 
 An `IndicesAliasesRequest` must have at least one `AliasActions`:

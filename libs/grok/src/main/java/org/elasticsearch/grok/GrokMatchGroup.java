@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.grok;
 
 final class GrokMatchGroup {
     private static final String DEFAULT_TYPE = "string";

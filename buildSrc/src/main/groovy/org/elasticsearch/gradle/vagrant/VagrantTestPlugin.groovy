@@ -119,7 +119,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             } else {
                 it = "packages:${it}"
             }
-            project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'archives'))
+            project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
         UPGRADE_FROM_ARCHIVES.each {

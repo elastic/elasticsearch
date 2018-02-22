@@ -27,10 +27,6 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     private static ThreadPool THREADPOOL;
 
-    public LocalExporterIntegTestCase() throws Exception {
-        super();
-    }
-
     @BeforeClass
     public static void setupThreadPool() {
         THREADPOOL = new TestThreadPool(LocalExporterIntegTestCase.class.getName());
@@ -45,7 +41,8 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     protected Settings localExporterSettings() {
         return Settings.builder()
-                       .put(MonitoringService.INTERVAL.getKey(), "-1")
+                       .put(MonitoringService.ENABLED.getKey(), false)
+                       .put(MonitoringService.INTERVAL.getKey(), "3s")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
                        .put("xpack.monitoring.exporters." + exporterName +  ".cluster_alerts.management.enabled", false)

@@ -73,6 +73,15 @@ public class MonitoringServiceTests extends ESTestCase {
 
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
+        assertFalse(monitoringService.isMonitoringActive());
+
+        monitoringService.setMonitoringActive(true);
+        assertTrue(monitoringService.isMonitoringActive());
+
+        monitoringService.setInterval(TimeValue.MINUS_ONE);
+        assertFalse(monitoringService.isMonitoringActive());
+
+        monitoringService.setInterval(TimeValue.timeValueSeconds(10));
         assertTrue(monitoringService.isMonitoringActive());
 
         monitoringService.stop();
@@ -89,7 +98,11 @@ public class MonitoringServiceTests extends ESTestCase {
     }
 
     public void testInterval() throws Exception {
-        Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), TimeValue.MINUS_ONE).build();
+        final Settings settings =
+                Settings.builder()
+                        .put(MonitoringService.ENABLED.getKey(), true)
+                        .put(MonitoringService.INTERVAL.getKey(), TimeValue.MINUS_ONE)
+                        .build();
 
         CountingExporter exporter = new CountingExporter();
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
@@ -113,8 +126,12 @@ public class MonitoringServiceTests extends ESTestCase {
     public void testSkipExecution() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         final BlockingExporter exporter = new BlockingExporter(latch);
+        final Settings settings =
+                Settings.builder()
+                        .put(MonitoringService.ENABLED.getKey(), true)
+                        .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
+                        .build();
 
-        Settings settings = Settings.builder().put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL).build();
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
         monitoringService.start();

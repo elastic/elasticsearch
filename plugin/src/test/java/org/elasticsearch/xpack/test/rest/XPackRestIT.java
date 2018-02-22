@@ -129,7 +129,8 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     XContentMapValues.extractRawValues("monitoring.enabled_exporters", exporters), hasSize(0));
 
             final Map<String, Object> settings = new HashMap<>();
-            settings.put("xpack.monitoring.collection.interval", "3s");
+            settings.put("xpack.monitoring.collection.enabled", true);
+            settings.put("xpack.monitoring.collection.interval", "1s");
             settings.put("xpack.monitoring.exporters._local.enabled", true);
 
             awaitCallApi("cluster.put_settings", emptyMap(),
@@ -151,6 +152,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private void disableMonitoring() throws Exception {
         if (isMonitoringTest()) {
             final Map<String, Object> settings = new HashMap<>();
+            settings.put("xpack.monitoring.collection.enabled", null);
             settings.put("xpack.monitoring.collection.interval", null);
             settings.put("xpack.monitoring.exporters._local.enabled", null);
 

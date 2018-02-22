@@ -41,7 +41,14 @@ public class MonitoringService extends AbstractLifecycleComponent {
     /**
      * Minimum value for sampling interval (1 second)
      */
-    static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
+    public static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
+
+    /**
+     * Dynamically controls enabling or disabling the collection of Monitoring data.
+     */
+    public static final Setting<Boolean> ENABLED =
+            Setting.boolSetting("xpack.monitoring.collection.enabled", false,
+                                Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /**
      * Sampling interval between two collections (default to 10s)
@@ -67,6 +74,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     private final Set<Collector> collectors;
     private final Exporters exporters;
 
+    private volatile boolean enabled;
     private volatile TimeValue interval;
     private volatile ThreadPool.Cancellable scheduler;
 
@@ -77,11 +85,19 @@ public class MonitoringService extends AbstractLifecycleComponent {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
+        this.enabled = ENABLED.get(settings);
         this.interval = INTERVAL.get(settings);
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(ENABLED, this::setMonitoringActive);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(INTERVAL, this::setInterval);
     }
 
-    void setInterval(TimeValue interval) {
+    void setMonitoringActive(final boolean enabled) {
+        this.enabled = enabled;
+        scheduleExecution();
+    }
+
+    void setInterval(final TimeValue interval) {
         this.interval = interval;
         scheduleExecution();
     }
@@ -92,6 +108,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     public boolean isMonitoringActive() {
         return isStarted()
+                && enabled
                 && interval != null
                 && interval.millis() >= MIN_INTERVAL.millis();
     }

@@ -27,22 +27,18 @@ import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class MultiNodesStatsTests extends MonitoringIntegTestCase {
-    public MultiNodesStatsTests() throws Exception {
-        super();
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringService.INTERVAL.getKey(), "-1")
                 .put("xpack.monitoring.exporters.default_local.type", "local")
                 .build();
     }
 
     @After
     public void cleanup() throws Exception {
-        disableMonitoringInterval();
+        disableMonitoringCollection();
         wipeMonitoringIndices();
     }
 
@@ -60,7 +56,9 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
         n = randomIntBetween(1, 2);
         internalCluster().startNodes(n,
-                Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), false)
+                Settings.builder()
+                        .put(Node.NODE_DATA_SETTING.getKey(), false)
+                        .put(Node.NODE_MASTER_SETTING.getKey(), false)
                         .put(Node.NODE_INGEST_SETTING.getKey(), false).build());
         nodes += n;
 
@@ -77,7 +75,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
-        updateMonitoringInterval(3L, TimeUnit.SECONDS);
+        enableMonitoringCollection();
         waitForMonitoringIndices();
 
         assertBusy(() -> {

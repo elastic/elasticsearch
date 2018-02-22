@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -54,6 +53,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+                .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
 //                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
 //                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 // Disable native ML autodetect_process as the c++ controller won't be available
@@ -230,12 +230,14 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareExists(indices).get().isExists(), is(true));
     }
 
-    protected void disableMonitoringInterval() {
-        updateMonitoringInterval(TimeValue.MINUS_ONE.millis(), TimeUnit.MILLISECONDS);
+    protected void enableMonitoringCollection() {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                    Settings.builder().put(MonitoringService.ENABLED.getKey(), true)));
     }
 
-    protected void updateMonitoringInterval(long value, TimeUnit timeUnit) {
+    protected void disableMonitoringCollection() {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().put(MonitoringService.INTERVAL.getKey(), value, timeUnit)));
+                    Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
     }
+
 }

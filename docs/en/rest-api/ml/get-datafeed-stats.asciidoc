@@ -66,7 +66,7 @@ The following example gets usage information for the
 GET _xpack/ml/datafeeds/datafeed-total-requests/_stats
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:https://github.com/elastic/x-pack-elasticsearch/issues/4004]
+// TEST[setup:server_metrics_startdf]
 
 The API returns the following results:
 [source,js]
@@ -97,4 +97,4 @@ The API returns the following results:
 // TESTRESPONSE[s/"node-0"/$body.$_path/]
 // TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
 // TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]
-// TESTRESONSE[s/"17179869184"/$body.$_path/]
+// TESTRESPONSE[s/"17179869184"/$body.datafeeds.0.node.attributes.ml\\.machine_memory/]

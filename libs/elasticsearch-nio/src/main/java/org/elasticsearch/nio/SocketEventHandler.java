@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.util.function.BiConsumer;
 
 /**
@@ -41,91 +42,93 @@ public class SocketEventHandler extends EventHandler {
      * This method is called when a NioSocketChannel is successfully registered. It should only be called
      * once per channel.
      *
-     * @param channel that was registered
+     * @param context that was registered
      */
-    protected void handleRegistration(NioSocketChannel channel) throws IOException {
-        SocketChannelContext context = channel.getContext();
-        context.channelRegistered();
+    protected void handleRegistration(SocketChannelContext context) throws IOException {
+        context.register();
+        SelectionKey selectionKey = context.getSelectionKey();
+        selectionKey.attach(context);
         if (context.hasQueuedWriteOps()) {
-            SelectionKeyUtils.setConnectReadAndWriteInterested(channel);
+            SelectionKeyUtils.setConnectReadAndWriteInterested(selectionKey);
         } else {
-            SelectionKeyUtils.setConnectAndReadInterested(channel);
+            SelectionKeyUtils.setConnectAndReadInterested(selectionKey);
         }
     }
 
     /**
      * This method is called when an attempt to register a channel throws an exception.
      *
-     * @param channel that was registered
+     * @param context that was registered
      * @param exception that occurred
      */
-    protected void registrationException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", channel), exception);
-        channel.getContext().handleException(exception);
+    protected void registrationException(SocketChannelContext context, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("failed to register socket channel: {}", context.getChannel()), exception);
+        context.handleException(exception);
     }
 
     /**
-     * This method is called when a NioSocketChannel is successfully connected. It should only be called
-     * once per channel.
+     * This method is called when a NioSocketChannel has just been accepted or if it has receive an
+     * OP_CONNECT event.
      *
-     * @param channel that was registered
+     * @param context that was registered
      */
-    protected void handleConnect(NioSocketChannel channel) {
-        SelectionKeyUtils.removeConnectInterested(channel);
+    protected void handleConnect(SocketChannelContext context) throws IOException {
+        if (context.connect()) {
+            SelectionKeyUtils.removeConnectInterested(context.getSelectionKey());
+        }
     }
 
     /**
      * This method is called when an attempt to connect a channel throws an exception.
      *
-     * @param channel that was connecting
+     * @param context that was connecting
      * @param exception that occurred
      */
-    protected void connectException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", channel), exception);
-        channel.getContext().handleException(exception);
+    protected void connectException(SocketChannelContext context, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("failed to connect to socket channel: {}", context.getChannel()), exception);
+        context.handleException(exception);
     }
 
     /**
      * This method is called when a channel signals it is ready for be read. All of the read logic should
      * occur in this call.
      *
-     * @param channel that can be read
+     * @param context that can be read
      */
-    protected void handleRead(NioSocketChannel channel) throws IOException {
-        channel.getContext().read();
+    protected void handleRead(SocketChannelContext context) throws IOException {
+        context.read();
     }
 
     /**
      * This method is called when an attempt to read from a channel throws an exception.
      *
-     * @param channel that was being read
+     * @param context that was being read
      * @param exception that occurred
      */
-    protected void readException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", channel), exception);
-        channel.getContext().handleException(exception);
+    protected void readException(SocketChannelContext context, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while reading from socket channel: {}", context.getChannel()), exception);
+        context.handleException(exception);
     }
 
     /**
      * This method is called when a channel signals it is ready to receive writes. All of the write logic
      * should occur in this call.
      *
-     * @param channel that can be written to
+     * @param context that can be written to
      */
-    protected void handleWrite(NioSocketChannel channel) throws IOException {
-        SocketChannelContext channelContext = channel.getContext();
-        channelContext.flushChannel();
+    protected void handleWrite(SocketChannelContext context) throws IOException {
+        context.flushChannel();
     }
 
     /**
      * This method is called when an attempt to write to a channel throws an exception.
      *
-     * @param channel that was being written to
+     * @param context that was being written to
      * @param exception that occurred
      */
-    protected void writeException(NioSocketChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", channel), exception);
-        channel.getContext().handleException(exception);
+    protected void writeException(SocketChannelContext context, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while writing to socket channel: {}", context.getChannel()), exception);
+        context.handleException(exception);
     }
 
     /**
@@ -139,18 +142,19 @@ public class SocketEventHandler extends EventHandler {
     }
 
     /**
-     * @param channel that was handled
+     * @param context that was handled
      */
-    protected void postHandling(NioSocketChannel channel) {
-        if (channel.getContext().selectorShouldClose()) {
-            handleClose(channel);
+    protected void postHandling(SocketChannelContext context) {
+        if (context.selectorShouldClose()) {
+            handleClose(context);
         } else {
-            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(channel);
-            boolean pendingWrites = channel.getContext().hasQueuedWriteOps();
+            SelectionKey selectionKey = context.getSelectionKey();
+            boolean currentlyWriteInterested = SelectionKeyUtils.isWriteInterested(selectionKey);
+            boolean pendingWrites = context.hasQueuedWriteOps();
             if (currentlyWriteInterested == false && pendingWrites) {
-                SelectionKeyUtils.setWriteInterested(channel);
+                SelectionKeyUtils.setWriteInterested(selectionKey);
             } else if (currentlyWriteInterested && pendingWrites == false) {
-                SelectionKeyUtils.removeWriteInterested(channel);
+                SelectionKeyUtils.removeWriteInterested(selectionKey);
             }
         }
     }

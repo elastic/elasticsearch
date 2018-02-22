@@ -178,8 +178,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            //TODO version needs to be updated once backport to 6.x
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+            if (in.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag was removed
                 in.readBoolean();
             }
@@ -189,8 +188,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            //TODO version needs to be updated once backport to 6.x
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+            if (out.getVersion().before(Version.V_6_3_0)) {
                 //the acknowledged flag is no longer supported
                 out.writeBoolean(true);
             }

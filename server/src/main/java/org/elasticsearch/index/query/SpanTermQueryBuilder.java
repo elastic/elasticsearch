@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 
 /**
  * A Span Query that matches documents containing a term.
@@ -109,9 +111,9 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                         currentFieldName = parser.currentName();
                     } else {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
                         } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -125,7 +127,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
             } else {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
-                value = parser.objectBytes();
+                value = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
             }
         }
 

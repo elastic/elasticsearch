@@ -593,7 +593,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
         return field(name).utf8Value(value);
@@ -615,7 +615,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Value(BytesRef value) throws IOException {
         if (value == null) {

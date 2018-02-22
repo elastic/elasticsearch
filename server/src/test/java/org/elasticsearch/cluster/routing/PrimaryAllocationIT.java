@@ -60,6 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -333,7 +334,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
         final String oldPrimary = internalCluster().startDataOnlyNode();
         final ShardId shardId = new ShardId(clusterService().state().metaData().index("test").getIndex(), 0);
-        ensureYellow();
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();
         assertAcked(
@@ -352,22 +352,20 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             IndexResponse indexResult = index("test", "doc", Long.toString(numDocs + i));
             assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
         }
-        final Set<String> isolatedReplicas = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));
-        final Set<String> connectedReplicas = Sets.difference(replicaNodes, isolatedReplicas);
-        final Set<String> connectedNodes = Sets.newHashSet(master, oldPrimary);
-        connectedNodes.addAll(connectedReplicas);
-        NetworkDisruption partition = new NetworkDisruption(new TwoPartitions(connectedNodes, isolatedReplicas), new NetworkDisconnect());
+        final Set<String> replicasSide1 = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));
+        final Set<String> replicasSide2 = Sets.difference(replicaNodes, replicasSide1);
+        NetworkDisruption partition = new NetworkDisruption(new TwoPartitions(replicasSide2, replicasSide1), new NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
-        logger.info("--> isolating some replicas from cluster during primary-replica resync");
+        logger.info("--> isolating some replicas during primary-replica resync");
         partition.startDisrupting();
-        ensureStableCluster(connectedNodes.size(), master);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimary));
-        // Fails replicas but not mark them as stale.
+        // Checks that we fails replicas in one side but not mark them as stale.
         assertBusy(() -> {
             ClusterState state = client(master).admin().cluster().prepareState().get().getState();
-            assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(connectedReplicas.size()));
+            assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(),
+                anyOf(hasSize(replicasSide1.size()), hasSize(replicasSide2.size())));
             assertThat(state.metaData().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all")).get());

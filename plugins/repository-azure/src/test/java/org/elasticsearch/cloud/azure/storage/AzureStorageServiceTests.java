@@ -390,7 +390,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     @Deprecated
-    public void testGetSelectedClientDefault() {
+    public void testGenerateOperationContext() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(deprecatedSettings);
         // This was producing a NPE when calling any operation with deprecated settings.
         // See https://github.com/elastic/elasticsearch/issues/28299

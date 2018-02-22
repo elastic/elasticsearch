@@ -218,8 +218,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
     }
 
     private void createBuckets(String jobId, int count) {

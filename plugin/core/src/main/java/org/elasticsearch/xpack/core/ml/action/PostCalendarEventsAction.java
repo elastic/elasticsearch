@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -140,7 +141,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private List<ScheduledEvent> scheduledEvents;
 
@@ -148,21 +149,28 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         }
 
         public Response(List<ScheduledEvent> scheduledEvents) {
-            super(true);
             this.scheduledEvents = scheduledEvents;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            //TODO version needs to be updated once backport to 6.x
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag was removed
+                in.readBoolean();
+            }
             in.readList(ScheduledEvent::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            //TODO version needs to be updated once backport to 6.x
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag is no longer supported
+                out.writeBoolean(true);
+            }
             out.writeList(scheduledEvents);
         }
 
@@ -176,7 +184,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
 
         @Override
         public int hashCode() {
-            return Objects.hash(isAcknowledged(), scheduledEvents);
+            return Objects.hash(scheduledEvents);
         }
 
         @Override
@@ -188,7 +196,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(isAcknowledged(), other.isAcknowledged()) && Objects.equals(scheduledEvents, other.scheduledEvents);
+            return Objects.equals(scheduledEvents, other.scheduledEvents);
         }
     }
 }

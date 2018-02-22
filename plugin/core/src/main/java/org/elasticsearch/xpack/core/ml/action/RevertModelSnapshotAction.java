@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
@@ -157,9 +158,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
 
-        private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
         private static final ParseField MODEL = new ParseField("model");
         private ModelSnapshot model;
 
@@ -168,7 +168,6 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         }
 
         public Response(ModelSnapshot modelSnapshot) {
-            super(true);
             model = modelSnapshot;
         }
 
@@ -179,14 +178,22 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            //TODO version needs to be updated once backport to 6.x
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag was removed
+                in.readBoolean();
+            }
             model = new ModelSnapshot(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            //TODO version needs to be updated once backport to 6.x
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag is no longer supported
+                out.writeBoolean(true);
+            }
             model.writeTo(out);
         }
 
@@ -198,7 +205,6 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(ACKNOWLEDGED.getPreferredName(), true);
             builder.field(MODEL.getPreferredName());
             builder = model.toXContent(builder, params);
             builder.endObject();

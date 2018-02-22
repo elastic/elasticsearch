@@ -34,8 +34,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         // create and open first job, which succeeds:
         Job.Builder job = createJob("close-failed-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =
@@ -46,8 +45,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         // create and try to open second job, which fails:
         job = createJob("close-failed-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
         putJobRequest = new PutJobAction.Request(job);
-        putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("close-failed-job-2")).actionGet());
 
@@ -82,8 +80,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-            PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-            assertTrue(putJobResponse.isAcknowledged());
+            client().execute(PutJobAction.INSTANCE, putJobRequest).get();
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
             try {

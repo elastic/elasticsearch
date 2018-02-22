@@ -31,8 +31,7 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob("delete-aliases-test-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();

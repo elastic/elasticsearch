@@ -294,14 +294,13 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         });
     }
 
-    private void putJob() throws Exception {
+    private void putJob() {
         Detector detector = new Detector.Builder("dc", "by_instance").build();
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector)));
         PutJobAction.Request request = new PutJobAction.Request(jobBuilder);
-        PutJobAction.Response response = client().execute(PutJobAction.INSTANCE, request).actionGet();
-        assertTrue(response.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, request).actionGet();
     }
 
     private Bucket createBucket(boolean isInterim) {

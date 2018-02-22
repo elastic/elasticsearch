@@ -107,26 +107,24 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // wrap the listener with one that invokes the OldDataRemover on
         // acknowledged responses
         return ActionListener.wrap(response -> {
-            if (response.isAcknowledged()) {
-                Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
-                logger.debug("Removing intervening records: last record: " + deleteAfter + ", last result: "
-                        + modelSnapshot.getLatestResultTimeStamp());
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            logger.debug("Removing intervening records: last record: " + deleteAfter + ", last result: "
+                    + modelSnapshot.getLatestResultTimeStamp());
 
-                logger.info("Deleting results after '" + deleteAfter + "'");
+            logger.info("Deleting results after '" + deleteAfter + "'");
 
-                JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-                dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean success) {
-                        listener.onResponse(response);
-                    }
+            JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean success) {
+                    listener.onResponse(response);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }, listener::onFailure);
     }
 
@@ -136,22 +134,20 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
 
         return ActionListener.wrap(response -> {
-            if (response.isAcknowledged()) {
-                jobProvider.dataCounts(jobId, counts -> {
-                    counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                    jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
-                        @Override
-                        public void onResponse(Boolean aBoolean) {
-                            listener.onResponse(response);
-                        }
+            jobProvider.dataCounts(jobId, counts -> {
+                counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+                jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                    @Override
+                    public void onResponse(Boolean aBoolean) {
+                        listener.onResponse(response);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                }, listener::onFailure);
-            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }, listener::onFailure);
         }, listener::onFailure);
     }
 

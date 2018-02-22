@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PutLicenseResponseTests extends ESTestCase {
+    @SuppressWarnings("unchecked")
     public void testSerialization() throws Exception {
         boolean acknowledged = randomBoolean();
         LicensesStatus status = randomFrom(LicensesStatus.VALID, LicensesStatus.INVALID, LicensesStatus.EXPIRED);
@@ -32,9 +33,7 @@ public class PutLicenseResponseTests extends ESTestCase {
         PutLicenseResponse response = new PutLicenseResponse(acknowledged, status, "", ackMessages);
 
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
-        contentBuilder.startObject();
         response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
-        contentBuilder.endObject();
 
         Map<String, Object> map = XContentHelper.convertToMap(contentBuilder.bytes(), false, contentBuilder.contentType()).v2();
         assertThat(map.containsKey("acknowledged"), equalTo(true));
@@ -46,7 +45,7 @@ public class PutLicenseResponseTests extends ESTestCase {
         assertThat(actualStatus, equalTo(status.name().toLowerCase(Locale.ROOT)));
 
         assertThat(map.containsKey("acknowledge"), equalTo(true));
-        Map<String, List<String>> actualAckMessages = (HashMap) map.get("acknowledge");
+        Map<String, List<String>> actualAckMessages = (Map<String, List<String>>) map.get("acknowledge");
         assertTrue(actualAckMessages.containsKey("message"));
         actualAckMessages.remove("message");
         assertThat(actualAckMessages.keySet(), equalTo(ackMessages.keySet()));
@@ -82,7 +81,7 @@ public class PutLicenseResponseTests extends ESTestCase {
         }
     }
 
-    private Map<String, String[]> randomAckMessages() {
+    private static Map<String, String[]> randomAckMessages() {
         int nFeatures = randomIntBetween(1, 5);
 
         Map<String, String[]> ackMessages = new HashMap<>();

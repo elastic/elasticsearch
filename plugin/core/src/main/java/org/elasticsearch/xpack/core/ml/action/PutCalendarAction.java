@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,7 +138,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private Calendar calendar;
 
@@ -145,14 +146,17 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
         }
 
         public Response(Calendar calendar) {
-            super(true);
             this.calendar = calendar;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            //TODO version needs to be updated once backport to 6.x
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag was removed
+                in.readBoolean();
+            }
             calendar = new Calendar(in);
 
         }
@@ -160,7 +164,11 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            //TODO version needs to be updated once backport to 6.x
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1) == false) {
+                //the acknowledged flag is no longer supported
+                out.writeBoolean(true);
+            }
             calendar.writeTo(out);
         }
 
@@ -171,7 +179,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
 
         @Override
         public int hashCode() {
-            return Objects.hash(isAcknowledged(), calendar);
+            return Objects.hash(calendar);
         }
 
         @Override
@@ -183,7 +191,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(isAcknowledged(), other.isAcknowledged()) && Objects.equals(calendar, other.calendar);
+            return Objects.equals(calendar, other.calendar);
         }
     }
 }

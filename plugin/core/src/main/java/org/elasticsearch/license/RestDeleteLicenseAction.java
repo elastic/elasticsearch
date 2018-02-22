@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
@@ -34,7 +34,6 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
         deleteLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteLicenseRequest.masterNodeTimeout()));
 
         return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest,
-                new AcknowledgedRestListener<>(channel));
+                new RestToXContentListener<>(channel));
     }
-
 }

@@ -59,7 +59,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
                         if (acknowledged) {
                             logger.info("Updated datafeed [{}]", request.getUpdate().getId());
                         }
-                        return new PutDatafeedAction.Response(acknowledged, updatedDatafeed);
+                        return new PutDatafeedAction.Response(updatedDatafeed);
                     }
 
                     @Override

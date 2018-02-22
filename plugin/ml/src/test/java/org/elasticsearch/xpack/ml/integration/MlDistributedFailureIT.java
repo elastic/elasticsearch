@@ -171,14 +171,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     private void setupJobAndDatafeed(String jobId, String datafeedId) throws Exception {
         Job.Builder job = createScheduledJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         DatafeedConfig config = createDatafeed(datafeedId, job.getId(), Collections.singletonList("data"));
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
-        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest)
-                .actionGet();
-        assertTrue(putDatadeedResponse.isAcknowledged());
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
         assertBusy(() -> {

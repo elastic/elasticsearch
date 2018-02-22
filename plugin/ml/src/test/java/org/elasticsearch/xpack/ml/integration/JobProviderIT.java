@@ -504,8 +504,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
         builder.setDataDescription(dc);
 
         PutJobAction.Request request = new PutJobAction.Request(builder);
-        PutJobAction.Response response = client().execute(PutJobAction.INSTANCE, request).actionGet();
-        assertTrue(response.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, request).actionGet();
         return builder;
     }
 

@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -31,10 +29,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
-            throws IOException {
-        return channel -> client.watcherService(new WatcherServiceRequest().start(),
-                new AcknowledgedRestListener<>(channel));
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
+        return channel -> client.watcherService(new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
     }
 
     private static class StopRestHandler extends WatcherRestHandler {
@@ -49,10 +45,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
-                throws IOException {
-            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new
-                    AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
+            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
         }
     }
 }

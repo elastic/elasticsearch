@@ -299,6 +299,12 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             new MoveAllocationCommand("test", 0, "node2", "node4")), true, false);
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
+        for(Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()){
+            if(decision.label().equals(ThrottlingAllocationDecider.NAME)){
+                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, " +
+                        "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] (can also be set via [cluster.routing.allocation.node_concurrent_recoveries])",decision.getExplanation());
+            }
+        }
         // even though it is throttled, move command still forces allocation
 
         clusterState = commandsResult.getClusterState();

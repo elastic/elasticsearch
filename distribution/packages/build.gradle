@@ -160,7 +160,7 @@ Closure commonPackageConfig(String type) {
     Closure copyEmptyDir = { path, u, g, mode ->
       File file = new File(path)
       into(file.parent) {
-        from "${packagingFiles}/${path}"
+        from "${packagingFiles}/${file.parent}"
         include file.name
         includeEmptyDirs true
         createDirectoryEntry true

@@ -136,7 +136,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                                             int expectedReadTimeout) {
 
         S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", S3ClientSettings::loadCredentials);
-        ClientConfiguration configuration = new InternalAwsS3Service(Settings.EMPTY).buildConfiguration(clientSettings);
+        ClientConfiguration configuration = InternalAwsS3Service.buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

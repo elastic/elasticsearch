@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -225,8 +226,8 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             RoundingValuesSource vs = new RoundingValuesSource(numeric, rounding);
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
-            final FieldContext fieldContext = config.fieldContext();
-            return new CompositeValuesSourceConfig(name, fieldContext, vs, docValueFormat, order());
+            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order());
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

@@ -26,6 +26,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -35,6 +36,9 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -46,53 +50,61 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
+import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     static class ClassAndName {
-        final String name;
+        final MappedFieldType fieldType;
         final Class<? extends Comparable<?>> clazz;
 
-        ClassAndName(String name, Class<? extends Comparable<?>> clazz) {
-            this.name = name;
+        ClassAndName(MappedFieldType fieldType, Class<? extends Comparable<?>> clazz) {
+            this.fieldType = fieldType;
             this.clazz = clazz;
         }
     }
 
     public void testRandomLong() throws IOException {
-        testRandomCase(new ClassAndName("long", Long.class));
+        testRandomCase(new ClassAndName(createNumber("long", LONG) , Long.class));
     }
 
     public void testRandomDouble() throws IOException {
-        testRandomCase(new ClassAndName("double", Double.class));
+        testRandomCase(new ClassAndName(createNumber("double", DOUBLE) , Double.class));
     }
 
     public void testRandomDoubleAndLong() throws IOException {
-        testRandomCase(new ClassAndName("double", Double.class), new ClassAndName("long", Long.class));
+        testRandomCase(new ClassAndName(createNumber("double", DOUBLE), Double.class),
+            new ClassAndName(createNumber("long", LONG),  Long.class));
     }
 
     public void testRandomDoubleAndKeyword() throws IOException {
-        testRandomCase(new ClassAndName("double", Double.class), new ClassAndName("keyword", BytesRef.class));
+        testRandomCase(new ClassAndName(createNumber("double", DOUBLE), Double.class),
+            new ClassAndName(createKeyword("keyword"), BytesRef.class));
     }
 
     public void testRandomKeyword() throws IOException {
-        testRandomCase(new ClassAndName("keyword", BytesRef.class));
+        testRandomCase(new ClassAndName(createKeyword("keyword"), BytesRef.class));
     }
 
     public void testRandomLongAndKeyword() throws IOException {
-        testRandomCase(new ClassAndName("long", Long.class), new ClassAndName("keyword", BytesRef.class));
+        testRandomCase(new ClassAndName(createNumber("long", LONG),  Long.class),
+            new ClassAndName(createKeyword("keyword"), BytesRef.class));
     }
 
     public void testRandomLongAndDouble() throws IOException {
-        testRandomCase(new ClassAndName("long", Long.class), new ClassAndName("double", Double.class));
+        testRandomCase(new ClassAndName(createNumber("long", LONG),  Long.class),
+            new ClassAndName(createNumber("double", DOUBLE) , Double.class));
     }
 
     public void testRandomKeywordAndLong() throws IOException {
-        testRandomCase(new ClassAndName("keyword", BytesRef.class), new ClassAndName("long", Long.class));
+        testRandomCase(new ClassAndName(createKeyword("keyword"), BytesRef.class),
+            new ClassAndName(createNumber("long", LONG), Long.class));
     }
 
     public void testRandomKeywordAndDouble() throws IOException {
-        testRandomCase(new ClassAndName("keyword", BytesRef.class), new ClassAndName("double", Double.class));
+        testRandomCase(new ClassAndName(createKeyword("keyword"), BytesRef.class),
+            new ClassAndName(createNumber("double", DOUBLE), Double.class));
     }
 
     public void testRandom() throws IOException {
@@ -102,13 +114,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             int rand = randomIntBetween(0, 2);
             switch (rand) {
                 case 0:
-                    types[i] = new ClassAndName(Integer.toString(i), Long.class);
+                    types[i] = new ClassAndName(createNumber(Integer.toString(i), LONG), Long.class);
                     break;
                 case 1:
-                    types[i] = new ClassAndName(Integer.toString(i), Double.class);
+                    types[i] = new ClassAndName(createNumber(Integer.toString(i), DOUBLE), Double.class);
                     break;
                 case 2:
-                    types[i] = new ClassAndName(Integer.toString(i), BytesRef.class);
+                    types[i] = new ClassAndName(createKeyword(Integer.toString(i)), BytesRef.class);
                     break;
                 default:
                     assert(false);
@@ -163,15 +175,15 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             values.add(possibleValues.get(j)[randomIntBetween(0, possibleValues.get(j).length-1)]);
                             if (types[j].clazz == Long.class) {
                                 long value = (Long) values.get(k);
-                                document.add(new SortedNumericDocValuesField(types[j].name, value));
-                                document.add(new LongPoint(types[j].name, value));
+                                document.add(new SortedNumericDocValuesField(types[j].fieldType.name(), value));
+                                document.add(new LongPoint(types[j].fieldType.name(), value));
                             } else if (types[j].clazz == Double.class) {
-                                document.add(new SortedNumericDocValuesField(types[j].name,
+                                document.add(new SortedNumericDocValuesField(types[j].fieldType.name(),
                                     NumericUtils.doubleToSortableLong((Double) values.get(k))));
                             } else if (types[j].clazz == BytesRef.class) {
                                 BytesRef value = (BytesRef) values.get(k);
-                                document.add(new SortedSetDocValuesField(types[j].name, (BytesRef) values.get(k)));
-                                document.add(new TextField(types[j].name, value.utf8ToString(), Field.Store.NO));
+                                document.add(new SortedSetDocValuesField(types[j].fieldType.name(), (BytesRef) values.get(k)));
+                                document.add(new TextField(types[j].fieldType.name(), value.utf8ToString(), Field.Store.NO));
                             } else {
                                 assert(false);
                             }
@@ -190,53 +202,43 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             }
             IndexReader reader = DirectoryReader.open(directory);
             int size = randomIntBetween(1, keys.size());
-            CompositeValuesSource<?>[] sources = new CompositeValuesSource[types.length];
+            SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[types.length];
             for (int i = 0; i < types.length; i++) {
-                final String name = types[i].name;
+                final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
-                    sources[i] = CompositeValuesSource.createLong(
-                        context -> context.reader().getSortedNumericDocValues(name), DocValueFormat.RAW, size, 1
+                    sources[i] = new LongValuesSource(fieldType, context -> context.reader().getSortedNumericDocValues(fieldType.name()),
+                        value -> value, DocValueFormat.RAW, size, 1
                     );
                 } else if (types[i].clazz == Double.class) {
-                    sources[i] = CompositeValuesSource.createDouble(
-                        context -> FieldData.sortableLongBitsToDoubles(context.reader().getSortedNumericDocValues(name)), size, 1
-                    );
+                    sources[i] = new DoubleValuesSource(fieldType,
+                        context -> FieldData.sortableLongBitsToDoubles(context.reader().getSortedNumericDocValues(fieldType.name())),
+                        size, 1);
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
                         // we don't create global ordinals but we test this mode when the reader has a single segment
                         // since ordinals are global in this case.
-                        sources[i] = CompositeValuesSource.createGlobalOrdinals(
-                            context -> context.reader().getSortedSetDocValues(name), size, 1
-                        );
+                        sources[i] = new GlobalOrdinalValuesSource(fieldType,
+                            context -> context.reader().getSortedSetDocValues(fieldType.name()), size, 1);
                     } else {
-                        sources[i] = CompositeValuesSource.createBinary(
-                            context -> FieldData.toString(context.reader().getSortedSetDocValues(name)), size, 1
-                        );
+                        sources[i] = new BinaryValuesSource(fieldType,
+                            context -> FieldData.toString(context.reader().getSortedSetDocValues(fieldType.name())), size, 1);
                     }
                 } else {
                     assert(false);
                 }
             }
-            final SortedDocsProducer producer;
-            if (types[0].clazz == BytesRef.class) {
-                producer = SortedDocsProducer.createTerms(types[0].name);
-            } else if (types[0].clazz == Long.class) {
-                producer = SortedDocsProducer.createLong(types[0].name);
-            } else {
-                producer = null;
-            }
-
             CompositeKey[] expected = keys.toArray(new CompositeKey[0]);
             Arrays.sort(expected, (a, b) -> compareKey(a, b));
+            CompositeValuesCollectorQueue queue = new CompositeValuesCollectorQueue(sources, size);
+            final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
             for (boolean withProducer : new boolean[] {true, false}) {
-                if (withProducer && producer == null) {
+                if (withProducer && docsProducer == null) {
                     continue;
                 }
                 int pos = 0;
                 CompositeKey last = null;
                 while (pos < size) {
-                    CompositeValuesCollectorQueue queue =
-                        new CompositeValuesCollectorQueue(sources, producer, size);
+                    queue.clear();
                     if (last != null) {
                         queue.setAfter(last.values());
                     }
@@ -254,7 +256,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                 public void collect(int doc, long bucket) throws IOException {
                                 }
                             };
-                            queue.getDocsProducer().processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, empty);
+                            docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, empty);
                         } else {
                             final LeafBucketCollector queueCollector = queue.getLeafCollector(leafReaderContext, leafCollector);
                             final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
@@ -279,7 +281,25 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
     }
 
-    private int compareKey(CompositeKey key1, CompositeKey key2) {
+    private static MappedFieldType createNumber(String name, NumberFieldMapper.NumberType type) {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(type);
+        fieldType.setIndexOptions(IndexOptions.DOCS);
+        fieldType.setName(name);
+        fieldType.setHasDocValues(true);
+        fieldType.freeze();
+        return fieldType;
+    }
+
+    private static MappedFieldType createKeyword(String name) {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
+        fieldType.setIndexOptions(IndexOptions.DOCS);
+        fieldType.setName(name);
+        fieldType.setHasDocValues(true);
+        fieldType.freeze();
+        return fieldType;
+    }
+
+    private static int compareKey(CompositeKey key1, CompositeKey key2) {
         assert key1.size() == key2.size();
         for (int i = 0; i < key1.size(); i++) {
             Comparable<Object> cmp1 = (Comparable<Object>) key1.get(i);

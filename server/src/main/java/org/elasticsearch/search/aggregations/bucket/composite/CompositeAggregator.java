@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -31,6 +34,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,28 +46,28 @@ import java.util.stream.Collectors;
 
 final class CompositeAggregator extends DeferableBucketAggregator {
     private final int size;
-    private final CompositeValuesSourceConfig[] sources;
+    private final SortedDocsProducer sortedDocsProducer;
     private final List<String> sourceNames;
+    private final int[] reverseMuls;
     private final List<DocValueFormat> formats;
 
     private final CompositeValuesCollectorQueue queue;
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                         List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                        int size, CompositeValuesSourceConfig[] sources, CompositeKey rawAfterKey) throws IOException {
+                        int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.size = size;
-        this.sources = sources;
-        this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
-        this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
-        this.queue = new CompositeValuesCollectorQueue(context.searcher().getIndexReader(), context.query(), sources, size);
+        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
+        this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
+        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
+        final SingleDimensionValuesSource<?>[] sources =
+            createValuesSources(context.searcher().getIndexReader(), context.query(), sourceConfigs, size);
+        this.queue = new CompositeValuesCollectorQueue(sources, size);
+        this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
         if (rawAfterKey != null) {
             queue.setAfter(rawAfterKey.values());
         }
-    }
-
-    private int[] getReverseMuls() {
-        return Arrays.stream(sources).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
     }
 
     @Override
@@ -75,7 +79,7 @@ final class CompositeAggregator extends DeferableBucketAggregator {
     @Override
     public DeferringBucketCollector getDeferringCollector() {
         return new BestCompositeBucketsDeferringCollector(context, queue,
-            queue.getDocsProducer() == null || queue.getDocsProducer().isApplicable(context.query()) == false);
+            sortedDocsProducer == null);
     }
 
     @Override
@@ -88,7 +92,6 @@ final class CompositeAggregator extends DeferableBucketAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        final int[] reverseMuls = getReverseMuls();
         int pos = 0;
         for (int slot : queue.getSortedSlot()) {
             CompositeKey key = queue.toCompositeKey(slot);
@@ -103,20 +106,19 @@ final class CompositeAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        final int[] reverseMuls = getReverseMuls();
         return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
             pipelineAggregators(), metaData());
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        if (queue.getDocsProducer() != null && queue.getDocsProducer().isApplicable(context.query())) {
+        if (sortedDocsProducer != null) {
             /**
              * The producer will visit documents sorted by the leading source of the composite definition
              * and terminates when the leading source value is guaranteed to be greater than the lowest
              * composite bucket in the queue.
              */
-             queue.getDocsProducer().processLeaf(context.query(), queue, ctx, sub);
+             sortedDocsProducer.processLeaf(context.query(), queue, ctx, sub);
 
             /**
              * We can bypass search entirely for this segment, all the processing has been done in the previous call.
@@ -149,6 +151,41 @@ final class CompositeAggregator extends DeferableBucketAggregator {
                 }
             }
         };
+    }
+
+    private static SingleDimensionValuesSource<?>[] createValuesSources(IndexReader reader, Query query,
+                                                                        CompositeValuesSourceConfig[] configs, int size) {
+        final SingleDimensionValuesSource<?>[] sources = new SingleDimensionValuesSource[configs.length];
+        for (int i = 0; i < sources.length; i++) {
+            final int reverseMul = configs[i].reverseMul();
+            if (configs[i].valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+                ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) configs[i].valuesSource();
+                sources[i] = new GlobalOrdinalValuesSource(configs[i].fieldType(), vs::globalOrdinalsValues, size, reverseMul);
+                if (i == 0 && sources[i].createSortedDocsProducerOrNull(reader, query) != null) {
+                    // this the leading source and we can optimize it with the sorted docs producer but
+                    // we don't want to use global ordinals because the number of visited documents
+                    // should be low and global ordinals need one lookup per visited term.
+                    sources[i] = new BinaryValuesSource(configs[i].fieldType(), vs::bytesValues, size, reverseMul);
+                }
+            } else if (configs[i].valuesSource() instanceof ValuesSource.Bytes) {
+                ValuesSource.Bytes vs = (ValuesSource.Bytes) configs[i].valuesSource();
+                sources[i] = new BinaryValuesSource(configs[i].fieldType(), vs::bytesValues, size, reverseMul);
+            } else if (configs[i].valuesSource() instanceof ValuesSource.Numeric) {
+                final ValuesSource.Numeric vs = (ValuesSource.Numeric) configs[i].valuesSource();
+                if (vs.isFloatingPoint()) {
+                    sources[i] = new DoubleValuesSource(configs[i].fieldType(), vs::doubleValues, size, reverseMul);
+                } else {
+                    if (vs instanceof RoundingValuesSource) {
+                        sources[i] = new LongValuesSource(configs[i].fieldType(), vs::longValues,
+                            ((RoundingValuesSource) vs)::round, configs[i].format(), size, reverseMul);
+                    } else {
+                        sources[i] = new LongValuesSource(configs[i].fieldType(), vs::longValues,
+                            (value) -> value, configs[i].format(), size, reverseMul);
+                    }
+                }
+            }
+        }
+        return sources;
     }
 }
 

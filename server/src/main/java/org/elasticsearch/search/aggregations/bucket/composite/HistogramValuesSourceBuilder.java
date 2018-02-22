@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -113,7 +114,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-            return new CompositeValuesSourceConfig(name, config.fieldContext(), vs, config.format(), order());
+            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order());
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

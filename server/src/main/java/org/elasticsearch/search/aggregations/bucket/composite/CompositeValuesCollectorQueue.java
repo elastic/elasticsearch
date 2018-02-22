@@ -19,19 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeMap;
-
-import static org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import static org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 
 /**
  * A specialized queue implementation for composite buckets
@@ -42,58 +36,27 @@ final class CompositeValuesCollectorQueue {
 
     private final int maxSize;
     private final TreeMap<Integer, Integer> keys;
-    private final CompositeValuesSource<?>[] arrays;
+    private final SingleDimensionValuesSource<?>[] arrays;
     private final int[] docCounts;
-    private final SortedDocsProducer docsProducer;
     private boolean afterValueSet = false;
 
     /**
      * Constructs a composite queue with the specified size and sources.
      *
-     * @param reader The index reader.
-     * @param query The query.
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.
      * @param size The number of composite buckets to keep.
      */
-    CompositeValuesCollectorQueue(IndexReader reader, Query query, CompositeValuesSourceConfig[] sources, int size) {
-        this.maxSize = size;
-        this.arrays = new CompositeValuesSource<?>[sources.length];
-        this.docCounts = new int[size];
-        this.docsProducer = SortedDocsProducer.createProducerOrNull(reader, sources[0]);
-        for (int i = 0; i < sources.length; i++) {
-            final int reverseMul = sources[i].reverseMul();
-            if (sources[i].valuesSource() instanceof Bytes.WithOrdinals &&
-                    reader instanceof DirectoryReader) {
-                Bytes.WithOrdinals vs = (Bytes.WithOrdinals) sources[i].valuesSource();
-                if (docsProducer != null && docsProducer.isApplicable(query)) {
-                    // switch to a simple binary source because the number of visited documents
-                    // should be low and global ordinals need one lookup per visited term.
-                    arrays[i] = CompositeValuesSource.createBinary(vs::bytesValues, size, reverseMul);
-                } else {
-                    arrays[i] = CompositeValuesSource.createGlobalOrdinals(vs::globalOrdinalsValues, size, reverseMul);
-                }
-            } else if (sources[i].valuesSource() instanceof Bytes) {
-                Bytes vs = (Bytes) sources[i].valuesSource();
-                arrays[i] = CompositeValuesSource.createBinary(vs::bytesValues, size, reverseMul);
-            } else if (sources[i].valuesSource() instanceof Numeric) {
-                final Numeric vs = (Numeric) sources[i].valuesSource();
-                if (vs.isFloatingPoint()) {
-                    arrays[i] = CompositeValuesSource.createDouble(vs::doubleValues, size, reverseMul);
-                } else {
-                    arrays[i] = CompositeValuesSource.createLong(vs::longValues, sources[i].format(), size, reverseMul);
-                }
-            }
-        }
-        this.keys = new TreeMap<>(this::compare);
-    }
-
-    // for tests only
-    CompositeValuesCollectorQueue(CompositeValuesSource<?>[] sources, SortedDocsProducer docsProducer, int size) {
+    CompositeValuesCollectorQueue(SingleDimensionValuesSource<?>[] sources, int size) {
         this.maxSize = size;
         this.arrays = sources;
         this.docCounts = new int[size];
-        this.docsProducer = docsProducer;
         this.keys = new TreeMap<>(this::compare);
+    }
+
+    void clear() {
+        keys.clear();
+        Arrays.fill(docCounts, 0);
+        afterValueSet = false;
     }
 
     /**
@@ -108,14 +71,6 @@ final class CompositeValuesCollectorQueue {
      */
     boolean isFull() {
         return keys.size() == maxSize;
-    }
-
-    /**
-     * Return the {@link SortedDocsProducer} associated with this queue or null
-     * if there is no producer for this source.
-     */
-    SortedDocsProducer getDocsProducer() {
-        return docsProducer;
     }
 
     /**

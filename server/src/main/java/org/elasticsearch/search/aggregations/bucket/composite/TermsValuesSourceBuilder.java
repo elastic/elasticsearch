@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -82,6 +83,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         if (vs == null) {
             vs = ValuesSource.Numeric.EMPTY;
         }
-        return new CompositeValuesSourceConfig(name, config.fieldContext(), vs, config.format(), order());
+        final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+        return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order());
     }
 }

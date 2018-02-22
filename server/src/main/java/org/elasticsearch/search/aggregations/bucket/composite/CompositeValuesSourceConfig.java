@@ -19,21 +19,31 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
 
 class CompositeValuesSourceConfig {
     private final String name;
-    private final FieldContext fieldContext;
+    @Nullable
+    private final MappedFieldType fieldType;
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
 
-    CompositeValuesSourceConfig(String name, FieldContext fieldContext, ValuesSource vs, DocValueFormat format, SortOrder order) {
+    /**
+     *
+     * @param name
+     * @param fieldType
+     * @param vs
+     * @param format
+     * @param order
+     */
+    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format, SortOrder order) {
         this.name = name;
-        this.fieldContext = fieldContext;
+        this.fieldType = fieldType;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
@@ -47,10 +57,10 @@ class CompositeValuesSourceConfig {
     }
 
     /**
-     * Returns the {@link FieldContext} for this config.
+     * Returns the {@link MappedFieldType} for this config.
      */
-    FieldContext fieldContext() {
-        return fieldContext;
+    MappedFieldType fieldType() {
+        return fieldType;
     }
 
     /**

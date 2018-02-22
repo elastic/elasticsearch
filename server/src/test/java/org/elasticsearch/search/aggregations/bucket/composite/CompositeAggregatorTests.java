@@ -1371,7 +1371,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numTerms; i++) {
             terms.add(randomSupplier.get());
         }
-        int numDocs = randomIntBetween(100, 1000);
+        int numDocs = randomIntBetween(100, 200);
         List<Map<String, List<Object>>> dataset = new ArrayList<>();
 
         Set<T> valuesSet = new HashSet<>();

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 
@@ -76,6 +77,9 @@ public class ResizeRequestTests extends ESTestCase {
         CreateIndexRequestTests.assertAliasesEqual(resizeRequest.getTargetIndexRequest().aliases(),
                 parsedResizeRequest.getTargetIndexRequest().aliases());
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
+
+        BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     private static ResizeRequest createTestItem() {

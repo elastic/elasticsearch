@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -135,13 +136,13 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        } else if (PREFIX_FIELD.match(currentFieldName)) {
+                        } else if (PREFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = parser.textOrNull();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite = parser.textOrNull();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -169,7 +170,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);

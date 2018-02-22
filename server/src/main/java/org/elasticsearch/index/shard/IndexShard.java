@@ -1076,22 +1076,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
+     * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
-     * @param safeCommit <code>true</code> capture the most recent safe commit point; otherwise the most recent commit point.
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public Engine.IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException {
-        IndexShardState state = this.state; // one time volatile read
+    public Engine.IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireIndexCommit(safeCommit, flushFirst);
+            return getEngine().acquireLastIndexCommit(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
     }
 
+    /**
+     * Snapshots the most recent safe index commit from the currently running engine.
+     * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
+     */
+    public Engine.IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        final IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
+            return getEngine().acquireSafeIndexCommit();
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
 
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
@@ -1120,7 +1132,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return store.getMetadata(null, true);
                 }
             }
-            indexCommit = engine.acquireIndexCommit(false, false);
+            indexCommit = engine.acquireLastIndexCommit(false);
             return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
             store.decRef();
@@ -1348,8 +1360,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we have to set it before we open an engine and recover from the translog because
             // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
             // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            replicationTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
-                "read from translog checkpoint");
+            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         }
         createNewEngine(config);
         verifyNotClosed();
@@ -2191,19 +2204,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
+     *
+     * @param debugInfo an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                  the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                  isn't used
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
         verifyPrimary();
 
-        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
+        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
     private final Object primaryTermMutex = new Object();
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -2212,9 +2229,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo            an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                             isn't used
      */
     public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
-                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
+                                              final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
         final boolean globalCheckpointUpdated;
@@ -2250,7 +2271,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     getLocalCheckpoint(),
                                     localCheckpoint);
                             getEngine().getLocalCheckpointTracker().resetCheckpoint(localCheckpoint);
-                            getEngine().getTranslog().rollGeneration();
+                            getEngine().rollTranslogGeneration();
                         });
                         globalCheckpointUpdated = true;
                     } catch (final Exception e) {
@@ -2300,11 +2321,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 },
                 executorOnDelay,
-                true);
+                true, debugInfo);
     }
 
     public int getActiveOperationsCount() {
         return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    /**
+     * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
+     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
+     */
+    public List<String> getActiveOperations() {
+        return indexShardOperationPermits.getActiveOperations();
     }
 
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
@@ -2470,13 +2499,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                setRefreshPending();
+                final Engine engine = getEngine();
+                engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+                setRefreshPending(engine);
                 return false;
             } else {
                 refresh("schedule");
                 return true;
             }
         }
+        final Engine engine = getEngine();
+        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
         return false;
     }
 
@@ -2494,8 +2527,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
-    private void setRefreshPending() {
-        Engine engine = getEngine();
+    private void setRefreshPending(Engine engine) {
         Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
         Translog.Location location;
         do {

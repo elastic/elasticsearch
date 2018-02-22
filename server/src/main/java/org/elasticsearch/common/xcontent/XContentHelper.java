@@ -43,7 +43,8 @@ public class XContentHelper {
      * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)} to avoid content type auto-detection
      */
     @Deprecated
-    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                              BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.streamInput(bytes.streamInput());
@@ -51,9 +52,9 @@ public class XContentHelper {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(xContentRegistry, compressedInput);
+            return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
+            return XContentFactory.xContent(bytes).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 
@@ -71,7 +72,7 @@ public class XContentHelper {
             }
             return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            return xContentType.xContent().createParser(xContentRegistry, bytes.streamInput());
+            return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 
@@ -117,7 +118,8 @@ public class XContentHelper {
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, string)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -131,7 +133,8 @@ public class XContentHelper {
     public static Map<String, Object> convertToMap(XContent xContent, InputStream input, boolean ordered)
             throws ElasticsearchParseException {
         // It is safe to use EMPTY here because this never uses namedObject
-        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -161,7 +164,7 @@ public class XContentHelper {
 
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
             parser.nextToken();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             if (prettyPrint) {

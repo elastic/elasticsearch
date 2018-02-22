@@ -119,27 +119,12 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(
-                    TestReleaseBranch.V_5_3_0,
-                    TestReleaseBranch.V_5_3_1,
-                    TestReleaseBranch.V_5_3_2,
-                    TestReleaseBranch.V_5_4_0);
-            expectedUnreleased = Collections.singletonList(TestReleaseBranch.V_5_4_1);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestReleaseBranch.V_5_3_0,
-                    TestReleaseBranch.V_5_3_1,
-                    TestReleaseBranch.V_5_3_2,
-                    TestReleaseBranch.V_5_4_0,
-                    TestReleaseBranch.V_5_4_1);
-            expectedUnreleased = Collections.emptyList();
-        }
-
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestReleaseBranch.V_5_3_0,
+            TestReleaseBranch.V_5_3_1,
+            TestReleaseBranch.V_5_3_2,
+            TestReleaseBranch.V_5_4_0)));
+        assertThat(unreleased, equalTo(Collections.singletonList(TestReleaseBranch.V_5_4_1)));
     }
 
     public static class TestStableBranch {
@@ -155,19 +140,12 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1);
-            expectedUnreleased = Arrays.asList(TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0);
-        } else {
-            expectedReleased =
-                    Arrays.asList(TestStableBranch.V_5_3_0, TestStableBranch.V_5_3_1, TestStableBranch.V_5_3_2, TestStableBranch.V_5_4_0);
-            expectedUnreleased = Collections.emptyList();
-        }
-
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestStableBranch.V_5_3_0,
+            TestStableBranch.V_5_3_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestStableBranch.V_5_3_2,
+            TestStableBranch.V_5_4_0)));
     }
 
     public static class TestStableBranchBehindStableBranch {
@@ -184,25 +162,13 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(TestStableBranchBehindStableBranch.V_5_3_0, TestStableBranchBehindStableBranch.V_5_3_1);
-            expectedUnreleased = Arrays.asList(
-                    TestStableBranchBehindStableBranch.V_5_3_2,
-                    TestStableBranchBehindStableBranch.V_5_4_0,
-                    TestStableBranchBehindStableBranch.V_5_5_0);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestStableBranchBehindStableBranch.V_5_3_0,
-                    TestStableBranchBehindStableBranch.V_5_3_1,
-                    TestStableBranchBehindStableBranch.V_5_3_2,
-                    TestStableBranchBehindStableBranch.V_5_4_0,
-                    TestStableBranchBehindStableBranch.V_5_5_0);
-            expectedUnreleased = Collections.emptyList();
-        }
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_5_3_0,
+            TestStableBranchBehindStableBranch.V_5_3_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_5_3_2,
+            TestStableBranchBehindStableBranch.V_5_4_0,
+            TestStableBranchBehindStableBranch.V_5_5_0)));
     }
 
     public static class TestUnstableBranch {
@@ -222,28 +188,15 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(
-                    TestUnstableBranch.V_5_3_0,
-                    TestUnstableBranch.V_5_3_1,
-                    TestUnstableBranch.V_6_0_0_alpha1,
-                    TestUnstableBranch.V_6_0_0_alpha2);
-            expectedUnreleased = Arrays.asList(TestUnstableBranch.V_5_3_2, TestUnstableBranch.V_5_4_0, TestUnstableBranch.V_6_0_0_beta1);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestUnstableBranch.V_5_3_0,
-                    TestUnstableBranch.V_5_3_1,
-                    TestUnstableBranch.V_5_3_2,
-                    TestUnstableBranch.V_5_4_0,
-                    TestUnstableBranch.V_6_0_0_alpha1,
-                    TestUnstableBranch.V_6_0_0_alpha2,
-                    TestUnstableBranch.V_6_0_0_beta1);
-            expectedUnreleased = Collections.emptyList();
-        }
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestUnstableBranch.V_5_3_0,
+            TestUnstableBranch.V_5_3_1,
+            TestUnstableBranch.V_6_0_0_alpha1,
+            TestUnstableBranch.V_6_0_0_alpha2)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestUnstableBranch.V_5_3_2,
+            TestUnstableBranch.V_5_4_0,
+            TestUnstableBranch.V_6_0_0_beta1)));
     }
 
     public static class TestNewMajorRelease {
@@ -265,34 +218,17 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(
-                    TestNewMajorRelease.V_5_6_0,
-                    TestNewMajorRelease.V_5_6_1,
-                    TestNewMajorRelease.V_6_0_0_alpha1,
-                    TestNewMajorRelease.V_6_0_0_alpha2,
-                    TestNewMajorRelease.V_6_0_0_beta1,
-                    TestNewMajorRelease.V_6_0_0_beta2,
-                    TestNewMajorRelease.V_6_0_0);
-            expectedUnreleased = Arrays.asList(TestNewMajorRelease.V_5_6_2, TestNewMajorRelease.V_6_0_1);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestNewMajorRelease.V_5_6_0,
-                    TestNewMajorRelease.V_5_6_1,
-                    TestNewMajorRelease.V_5_6_2,
-                    TestNewMajorRelease.V_6_0_0_alpha1,
-                    TestNewMajorRelease.V_6_0_0_alpha2,
-                    TestNewMajorRelease.V_6_0_0_beta1,
-                    TestNewMajorRelease.V_6_0_0_beta2,
-                    TestNewMajorRelease.V_6_0_0,
-                    TestNewMajorRelease.V_6_0_1);
-            expectedUnreleased = Collections.emptyList();
-        }
-
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestNewMajorRelease.V_5_6_0,
+            TestNewMajorRelease.V_5_6_1,
+            TestNewMajorRelease.V_5_6_2,
+            TestNewMajorRelease.V_6_0_0_alpha1,
+            TestNewMajorRelease.V_6_0_0_alpha2,
+            TestNewMajorRelease.V_6_0_0_beta1,
+            TestNewMajorRelease.V_6_0_0_beta2,
+            TestNewMajorRelease.V_6_0_0)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestNewMajorRelease.V_6_0_1)));
     }
 
     public static class TestVersionBumpIn6x {
@@ -315,36 +251,18 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(
-                    TestVersionBumpIn6x.V_5_6_0,
-                    TestVersionBumpIn6x.V_5_6_1,
-                    TestVersionBumpIn6x.V_6_0_0_alpha1,
-                    TestVersionBumpIn6x.V_6_0_0_alpha2,
-                    TestVersionBumpIn6x.V_6_0_0_beta1,
-                    TestVersionBumpIn6x.V_6_0_0_beta2,
-                    TestVersionBumpIn6x.V_6_0_0);
-            expectedUnreleased = Arrays.asList(TestVersionBumpIn6x.V_5_6_2, TestVersionBumpIn6x.V_6_0_1, TestVersionBumpIn6x.V_6_1_0);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestVersionBumpIn6x.V_5_6_0,
-                    TestVersionBumpIn6x.V_5_6_1,
-                    TestVersionBumpIn6x.V_5_6_2,
-                    TestVersionBumpIn6x.V_6_0_0_alpha1,
-                    TestVersionBumpIn6x.V_6_0_0_alpha2,
-                    TestVersionBumpIn6x.V_6_0_0_beta1,
-                    TestVersionBumpIn6x.V_6_0_0_beta2,
-                    TestVersionBumpIn6x.V_6_0_0,
-                    TestVersionBumpIn6x.V_6_0_1,
-                    TestVersionBumpIn6x.V_6_1_0);
-            expectedUnreleased = Collections.emptyList();
-        }
-
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestVersionBumpIn6x.V_5_6_0,
+            TestVersionBumpIn6x.V_5_6_1,
+            TestVersionBumpIn6x.V_6_0_0_alpha1,
+            TestVersionBumpIn6x.V_6_0_0_alpha2,
+            TestVersionBumpIn6x.V_6_0_0_beta1,
+            TestVersionBumpIn6x.V_6_0_0_beta2,
+            TestVersionBumpIn6x.V_6_0_0)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestVersionBumpIn6x.V_5_6_2,
+            TestVersionBumpIn6x.V_6_0_1,
+            TestVersionBumpIn6x.V_6_1_0)));
     }
 
     public static class TestNewMinorBranchIn6x {
@@ -370,44 +288,21 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> released = t.v1();
         List<Version> unreleased = t.v2();
 
-        final List<Version> expectedReleased;
-        final List<Version> expectedUnreleased;
-        if (Booleans.parseBoolean(System.getProperty("build.snapshot", "true"))) {
-            expectedReleased = Arrays.asList(
-                    TestNewMinorBranchIn6x.V_5_6_0,
-                    TestNewMinorBranchIn6x.V_5_6_1,
-                    TestNewMinorBranchIn6x.V_6_0_0_alpha1,
-                    TestNewMinorBranchIn6x.V_6_0_0_alpha2,
-                    TestNewMinorBranchIn6x.V_6_0_0_beta1,
-                    TestNewMinorBranchIn6x.V_6_0_0_beta2,
-                    TestNewMinorBranchIn6x.V_6_0_0,
-                    TestNewMinorBranchIn6x.V_6_1_0,
-                    TestNewMinorBranchIn6x.V_6_1_1);
-            expectedUnreleased = Arrays.asList(
-                    TestNewMinorBranchIn6x.V_5_6_2,
-                    TestNewMinorBranchIn6x.V_6_0_1,
-                    TestNewMinorBranchIn6x.V_6_1_2,
-                    TestNewMinorBranchIn6x.V_6_2_0);
-        } else {
-            expectedReleased = Arrays.asList(
-                    TestNewMinorBranchIn6x.V_5_6_0,
-                    TestNewMinorBranchIn6x.V_5_6_1,
-                    TestNewMinorBranchIn6x.V_5_6_2,
-                    TestNewMinorBranchIn6x.V_6_0_0_alpha1,
-                    TestNewMinorBranchIn6x.V_6_0_0_alpha2,
-                    TestNewMinorBranchIn6x.V_6_0_0_beta1,
-                    TestNewMinorBranchIn6x.V_6_0_0_beta2,
-                    TestNewMinorBranchIn6x.V_6_0_0,
-                    TestNewMinorBranchIn6x.V_6_0_1,
-                    TestNewMinorBranchIn6x.V_6_1_0,
-                    TestNewMinorBranchIn6x.V_6_1_1,
-                    TestNewMinorBranchIn6x.V_6_1_2,
-                    TestNewMinorBranchIn6x.V_6_2_0);
-            expectedUnreleased = Collections.emptyList();
-        }
-
-        assertThat(released, equalTo(expectedReleased));
-        assertThat(unreleased, equalTo(expectedUnreleased));
+        assertThat(released, equalTo(Arrays.asList(
+            TestNewMinorBranchIn6x.V_5_6_0,
+            TestNewMinorBranchIn6x.V_5_6_1,
+            TestNewMinorBranchIn6x.V_6_0_0_alpha1,
+            TestNewMinorBranchIn6x.V_6_0_0_alpha2,
+            TestNewMinorBranchIn6x.V_6_0_0_beta1,
+            TestNewMinorBranchIn6x.V_6_0_0_beta2,
+            TestNewMinorBranchIn6x.V_6_0_0,
+            TestNewMinorBranchIn6x.V_6_0_1,
+            TestNewMinorBranchIn6x.V_6_1_0,
+            TestNewMinorBranchIn6x.V_6_1_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestNewMinorBranchIn6x.V_5_6_2,
+            TestNewMinorBranchIn6x.V_6_1_2,
+            TestNewMinorBranchIn6x.V_6_2_0)));
     }
 
     /**

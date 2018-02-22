@@ -111,13 +111,13 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (BIG_FIELD.match(currentFieldName)) {
+                if (BIG_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [big] must be of type span query");
                     }
                     big = (SpanQueryBuilder) query;
-                } else if (LITTLE_FIELD.match(currentFieldName)) {
+                } else if (LITTLE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "span_containing [little] must be of type span query");
@@ -127,9 +127,9 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
                     throw new ParsingException(parser.getTokenLocation(),
                             "[span_containing] query does not support [" + currentFieldName + "]");
                 }
-            } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+            } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 boost = parser.floatValue();
-            } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+            } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 queryName = parser.text();
             } else {
                 throw new ParsingException(parser.getTokenLocation(),

@@ -63,6 +63,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -1275,7 +1276,8 @@ public class IndicesService extends AbstractLifecycleComponent
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
-            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
+            try (XContentParser parser = XContentFactory.xContent(bytes)
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
                 return parseInnerQueryBuilder(parser);
             }
         };

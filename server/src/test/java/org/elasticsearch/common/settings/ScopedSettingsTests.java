@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
@@ -795,8 +795,8 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().build());
             assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
         } finally {
-            ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), level);
-            ServerLoggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
         }
     }
 
@@ -811,7 +811,7 @@ public class ScopedSettingsTests extends ESTestCase {
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
             assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
-            ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
         }
     }
 

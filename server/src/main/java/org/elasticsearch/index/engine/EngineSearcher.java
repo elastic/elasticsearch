@@ -26,23 +26,24 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.index.store.Store;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Searcher for an Engine
  */
-public class EngineSearcher extends Engine.Searcher {
-    private final ReferenceManager<IndexSearcher> manager;
+final class EngineSearcher extends Engine.Searcher {
     private final AtomicBoolean released = new AtomicBoolean(false);
     private final Store store;
     private final Logger logger;
+    private final ReferenceManager<IndexSearcher> referenceManager;
 
-    public EngineSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager, Store store, Logger logger) {
-        super(source, searcher);
-        this.manager = manager;
+    EngineSearcher(String source, ReferenceManager<IndexSearcher> searcherReferenceManager, Store store, Logger logger) throws IOException {
+        super(source, searcherReferenceManager.acquire());
         this.store = store;
         this.logger = logger;
+        this.referenceManager = searcherReferenceManager;
     }
 
     @Override
@@ -56,7 +57,7 @@ public class EngineSearcher extends Engine.Searcher {
             return;
         }
         try {
-            manager.release(this.searcher());
+            referenceManager.release(searcher());
         } catch (IOException e) {
             throw new IllegalStateException("Cannot close", e);
         } catch (AlreadyClosedException e) {

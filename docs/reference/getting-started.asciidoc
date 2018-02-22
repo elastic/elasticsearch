@@ -380,7 +380,7 @@ Let's now put something into our customer index. We'll index a simple customer d
 
 [source,js]
 --------------------------------------------------
-PUT /customer/_doc/1?pretty
+POST /customer/_doc/1?pretty
 {
   "name": "John Doe"
 }

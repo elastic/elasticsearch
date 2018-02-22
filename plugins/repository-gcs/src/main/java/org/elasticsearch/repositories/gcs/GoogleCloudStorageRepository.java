@@ -20,10 +20,13 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.Storage;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -44,6 +47,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
 
+    private final Logger logger = ESLoggerFactory.getLogger(GoogleCloudStorageRepository.class);
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
@@ -60,11 +66,17 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
     static final Setting<ByteSizeValue> CHUNK_SIZE =
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
-    static final Setting<String> APPLICATION_NAME =
-            new Setting<>("application_name", GoogleCloudStoragePlugin.NAME, Function.identity(), Property.NodeScope, Property.Dynamic);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+
+    @Deprecated
+    static final Setting<String> APPLICATION_NAME =
+        new Setting<>("application_name", "", Function.identity(), Property.NodeScope, Property.Dynamic);
+
+    @Deprecated
     static final Setting<TimeValue> HTTP_READ_TIMEOUT =
             timeSetting("http.read_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
+
+    @Deprecated
     static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =
             timeSetting("http.connect_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
 
@@ -79,9 +91,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         String bucket = getSetting(BUCKET, metadata);
-        String application = getSetting(APPLICATION_NAME, metadata);
         String clientName = CLIENT_NAME.get(metadata.settings());
-
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
@@ -93,32 +103,39 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             this.basePath = BlobPath.cleanPath();
         }
 
+        this.compress = getSetting(COMPRESS, metadata);
+        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
+
+        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
+
+        String application = APPLICATION_NAME.get(metadata.settings());
+        if (Strings.hasText(application)) {
+            deprecationLogger.deprecated("Setting [application_name] in repository settings is deprecated, " +
+                "it must be specified in the client settings instead");
+        }
         TimeValue connectTimeout = null;
         TimeValue readTimeout = null;
 
         TimeValue timeout = HTTP_CONNECT_TIMEOUT.get(metadata.settings());
         if ((timeout != null) && (timeout.millis() != NO_TIMEOUT.millis())) {
+            deprecationLogger.deprecated("Setting [http.connect_timeout] in repository settings is deprecated, " +
+                "it must be specified in the client settings instead");
             connectTimeout = timeout;
         }
-
         timeout = HTTP_READ_TIMEOUT.get(metadata.settings());
         if ((timeout != null) && (timeout.millis() != NO_TIMEOUT.millis())) {
+            deprecationLogger.deprecated("Setting [http.read_timeout] in repository settings is deprecated, " +
+                "it must be specified in the client settings instead");
             readTimeout = timeout;
         }
 
-        this.compress = getSetting(COMPRESS, metadata);
-        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
-
-        logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], application [{}]",
-                bucket, basePath, chunkSize, compress, application);
-
         TimeValue finalConnectTimeout = connectTimeout;
         TimeValue finalReadTimeout = readTimeout;
+
         Storage client = SocketAccess.doPrivilegedIOException(() ->
             storageService.createClient(clientName, application, finalConnectTimeout, finalReadTimeout));
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
-
 
     @Override
     protected BlobStore blobStore() {

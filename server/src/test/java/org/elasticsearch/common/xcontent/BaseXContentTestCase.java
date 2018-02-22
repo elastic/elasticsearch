@@ -748,7 +748,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             if (useStream) {
                 generator.writeRawField("bar", new ByteArrayInputStream(rawData));
             } else {
-                generator.writeRawField("bar", new BytesArray(rawData));
+                generator.writeRawField("bar", new BytesArray(rawData).streamInput());
             }
             generator.writeEndObject();
         }
@@ -785,7 +785,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
         XContentParser parser = xcontentType().xContent()
@@ -801,7 +801,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
             generator.writeEndObject();
         }
 

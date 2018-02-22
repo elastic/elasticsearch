@@ -89,8 +89,8 @@ public class RestGetAllAliasesAction extends BaseRestHandler {
                 return new BytesRestResponse(OK, builder);
             }
 
-            private void writeAliases(final List<AliasMetaData> aliases, final XContentBuilder builder,
-                                      final Params params) throws IOException {
+            private void writeAliases(final List<AliasMetaData> aliases, final XContentBuilder builder, final Params params)
+                    throws IOException {
                 builder.startObject("aliases");
                 {
                     if (aliases != null) {

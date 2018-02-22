@@ -41,7 +41,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
+public class AliasMetaData extends AbstractDiffable<AliasMetaData> implements ToXContent{
 
     private final String alias;
 
@@ -198,6 +198,17 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         return readDiffFrom(AliasMetaData::new, in);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        AliasMetaData.Builder.toXContent(this, builder, params);
+        return builder;
+    }
+
     public static class Builder {
 
         private final String alias;
@@ -335,5 +346,4 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
             return builder.build();
         }
     }
-
 }

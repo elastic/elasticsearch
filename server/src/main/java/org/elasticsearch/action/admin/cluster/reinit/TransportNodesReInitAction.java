@@ -94,8 +94,8 @@ public class TransportNodesReInitAction extends TransportNodesAction<NodesReInit
         final Settings.Builder builder = Settings.builder().put(environment.settings(), false);
         builder.setSecureSettings(keystore);
 
-        final boolean success = pluginsService.filterPlugins(ReInitializablePlugin.class).stream().map(p -> p.reinit(builder.build())).allMatch(
-                e -> e == true);
+        final boolean success = pluginsService.filterPlugins(ReInitializablePlugin.class).stream()
+          .map(p -> p.reinit(builder.build())).allMatch(e -> e == true);
 
         return new NodesReInitResponse.NodeResponse(clusterService.localNode());
     }

@@ -138,7 +138,7 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.rawValue(preview, XContentType.JSON);
+            builder.rawValue(preview.streamInput(), XContentType.JSON);
             return builder;
         }
 

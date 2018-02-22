@@ -75,12 +75,17 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
         return this.client;
     }
 
-    private static String buildRegion(String endpoint) {
+    // Package private for tests
+    static String buildRegion(String endpoint) {
         // We try to get the region from the metadata instance information
         String region = new InstanceMetadataRegionProvider().getRegion();
         if (region == null) {
             // Or we try to get it from the endpoint itself
             region = AwsHostNameUtils.parseRegion(endpoint, null);
+            if (region == null) {
+                // Endpoint is non-standard
+                throw new IllegalArgumentException("Can not guess a region from endpoint [" + endpoint + "].");
+            }
         }
         return region;
     }

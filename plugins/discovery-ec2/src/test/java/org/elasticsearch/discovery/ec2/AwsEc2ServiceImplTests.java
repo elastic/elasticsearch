@@ -106,4 +106,12 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         String endpoint = AwsEc2ServiceImpl.findEndpoint(logger, settings);
         assertThat(endpoint, is("ec2.endpoint"));
     }
+
+    public void testBuildRegion() {
+        assertThat(AwsEc2ServiceImpl.buildRegion("ec2.us-east-1.amazonaws.com"), is("us-east-1"));
+        assertThat(AwsEc2ServiceImpl.buildRegion("ec2.eu-west-3.amazonaws.com"), is("eu-west-3"));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> AwsEc2ServiceImpl.buildRegion("foo.bar.nodomain"));
+        assertThat(exception.getMessage(), is("Can not guess a region from endpoint [foo.bar.nodomain]."));
+    }
 }

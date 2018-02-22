@@ -36,10 +36,9 @@ check.dependsOn internalClusterTest
 internalClusterTest.mustRunAfter test
 
 dependencies {
-    provided "org.elasticsearch:elasticsearch:${version}"
-
-    provided "org.elasticsearch.plugin:x-pack-core:${version}"
-    testCompile project(path: ':x-pack-elasticsearch:plugin:core', configuration: 'testArtifacts')
+    compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 dependencyLicenses {

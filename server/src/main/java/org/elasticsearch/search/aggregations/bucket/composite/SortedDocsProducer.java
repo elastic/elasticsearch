@@ -113,7 +113,8 @@ abstract class SortedDocsProducer {
      * no implementation of producer that can handle the config.
      */
     static SortedDocsProducer createProducerOrNull(IndexReader reader, CompositeValuesSourceConfig config) {
-        if ((double) reader.numDocs() / (double) reader.maxDoc() > 0.5) {
+        if (reader.hasDeletions() &&
+                (reader.numDocs() == 0 || (double) reader.numDocs() / (double) reader.maxDoc() > 0.5)) {
             // do not use the index if it has more than 50% of deleted docs
             return null;
         }

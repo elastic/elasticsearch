@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -62,14 +63,14 @@ public abstract class AcknowledgedResponse extends ActionResponse {
     }
 
     /**
-     * Reads the timeout value
+     * Reads the acknowledged value
      */
     protected void readAcknowledged(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }
 
     /**
-     * Writes the timeout value
+     * Writes the acknowledged value
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);
@@ -77,5 +78,22 @@ public abstract class AcknowledgedResponse extends ActionResponse {
 
     protected void addAcknowledgedField(XContentBuilder builder) throws IOException {
         builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        AcknowledgedResponse that = (AcknowledgedResponse) o;
+        return isAcknowledged() == that.isAcknowledged();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAcknowledged());
     }
 }

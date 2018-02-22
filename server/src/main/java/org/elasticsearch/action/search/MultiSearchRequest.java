@@ -27,6 +27,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -206,7 +207,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(registry, data.slice(from, nextMarker - from))) {
+                try (XContentParser parser = xContent
+                        .createParser(registry, LoggingDeprecationHandler.INSTANCE,
+                            data.slice(from, nextMarker - from).streamInput())) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -242,7 +245,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, bytes)) {
+            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

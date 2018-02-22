@@ -19,9 +19,7 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.SearcherManager;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -79,8 +77,8 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) throws EngineException {
-        final Searcher engineSearcher = super.newSearcher(source, searcher, manager);
-        return support().wrapSearcher(source, engineSearcher, searcher, manager);
+    public Searcher acquireSearcher(String source, SearcherScope scope) {
+        final Searcher engineSearcher = super.acquireSearcher(source, scope);
+        return support().wrapSearcher(source, engineSearcher);
     }
 }

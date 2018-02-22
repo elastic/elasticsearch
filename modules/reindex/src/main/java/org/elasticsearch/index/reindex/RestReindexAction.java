@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -73,7 +74,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
+            try (XContentParser innerParser = parser.contentType().xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), builder.bytes().streamInput())) {
                 request.getSearchRequest().source().parseXContent(innerParser);
             }
         };

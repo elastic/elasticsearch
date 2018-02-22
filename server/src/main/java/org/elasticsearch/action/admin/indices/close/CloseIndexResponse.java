@@ -67,7 +67,7 @@ public class CloseIndexResponse extends AcknowledgedResponse implements ToXConte
         return builder;
     }
 
-    public static CloseIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static CloseIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

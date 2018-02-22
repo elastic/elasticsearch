@@ -68,7 +68,7 @@ public class DeleteIndexResponse extends AcknowledgedResponse implements ToXCont
         return builder;
     }
 
-    public static DeleteIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static DeleteIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

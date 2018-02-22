@@ -64,6 +64,7 @@ case $key in
             "-Dtests.network=true"
             "-Dtests.badapples=true"
             "-Dbuild.snapshot=false"
+            "-Dlicense.key=/etc/x-pack/license.key"
             "-Dtests.jvm.argline=-Dbuild.snapshot=false"
         )
         ;;

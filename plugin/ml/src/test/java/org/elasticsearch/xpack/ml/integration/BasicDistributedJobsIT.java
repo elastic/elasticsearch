@@ -60,8 +60,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
@@ -91,8 +90,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         job.setDataDescription(new DataDescription.Builder());
 
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         DatafeedConfig.Builder configBuilder = createDatafeedBuilder("data_feed_id", job.getId(), Collections.singletonList("*"));
 
         MaxAggregationBuilder maxAggregation = AggregationBuilders.max("time").field("time");
@@ -103,8 +101,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         configBuilder.setFrequency(TimeValue.timeValueMinutes(2));
         DatafeedConfig config = configBuilder.build();
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
-        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
-        assertTrue(putDatadeedResponse.isAcknowledged());
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
@@ -165,14 +162,11 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createScheduledJob("job_id");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         DatafeedConfig config = createDatafeed("data_feed_id", job.getId(), Collections.singletonList("data"));
         PutDatafeedAction.Request putDatafeedRequest = new PutDatafeedAction.Request(config);
-        PutDatafeedAction.Response putDatadeedResponse = client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest)
-                .actionGet();
-        assertTrue(putDatadeedResponse.isAcknowledged());
+        client().execute(PutDatafeedAction.INSTANCE, putDatafeedRequest).actionGet();
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
 
@@ -204,8 +198,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         String jobId = "dedicated-ml-node-job";
         Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
@@ -286,8 +279,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-            PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-            assertTrue(putJobResponse.isAcknowledged());
+            client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
             OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
             client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
@@ -347,8 +339,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         String jobId = "ml-indices-not-available-job";
         Job.Builder job = createFareQuoteJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();

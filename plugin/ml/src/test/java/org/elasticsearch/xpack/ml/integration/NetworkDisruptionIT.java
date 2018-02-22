@@ -58,8 +58,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
         Job.Builder job = createJob("relocation-job", new ByteSizeValue(2, ByteSizeUnit.MB));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureGreen();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());

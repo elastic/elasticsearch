@@ -10,11 +10,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -37,6 +37,6 @@ public class RestDeleteCalendarEventAction extends BaseRestHandler {
         String eventId = restRequest.param(ScheduledEvent.EVENT_ID.getPreferredName());
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
         DeleteCalendarEventAction.Request request = new DeleteCalendarEventAction.Request(calendarId, eventId);
-        return channel -> client.execute(DeleteCalendarEventAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(DeleteCalendarEventAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

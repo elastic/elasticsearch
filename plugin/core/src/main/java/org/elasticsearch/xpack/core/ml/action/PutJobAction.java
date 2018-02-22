@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
@@ -130,12 +131,11 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private Job job;
 
-        public Response(boolean acked, Job job) {
-            super(acked);
+        public Response(Job job) {
             this.job = job;
         }
 
@@ -149,20 +149,25 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            readAcknowledged(in);
+            if (in.getVersion().before(Version.V_6_3_0)) {
+                //the acknowledged flag was removed
+                in.readBoolean();
+            }
             job = new Job(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            writeAcknowledged(out);
+            if (out.getVersion().before(Version.V_6_3_0)) {
+                //the acknowledged flag is no longer supported
+                out.writeBoolean(true);
+            }
             job.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            // Don't serialize acknowledged because current api directly serializes the job details
             builder.startObject();
             job.doXContentBody(builder, params);
             builder.endObject();
@@ -182,5 +187,4 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
             return Objects.hash(job);
         }
     }
-
 }

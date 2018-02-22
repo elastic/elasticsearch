@@ -100,7 +100,6 @@ When the operation is complete, you receive the following results:
 [source,js]
 ----
 {
-  "acknowledged": true,
   "model": {
     "job_id": "it_ops_new_kpi",
     "timestamp": 1491856080000,

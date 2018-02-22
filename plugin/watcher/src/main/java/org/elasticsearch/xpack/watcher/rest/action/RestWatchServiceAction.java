@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
@@ -41,20 +41,18 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
-            throws IOException {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
         return channel -> client.watcherService(new WatcherServiceRequest().stop(),
                 ActionListener.wrap(
-                    stopResponse -> client.watcherService(new WatcherServiceRequest().start(),
-                        new AcknowledgedRestListener<>(channel))
-                , e -> {
-                    try {
-                        channel.sendResponse(new BytesRestResponse(channel, e));
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.error("failed to send failure response", inner);
-                    }
-                }));
+                    stopResponse -> client.watcherService(new WatcherServiceRequest().start(), new RestToXContentListener<>(channel)),
+                    e -> {
+                        try {
+                            channel.sendResponse(new BytesRestResponse(channel, e));
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.error("failed to send failure response", inner);
+                        }
+                    }));
     }
 
     private static class StartRestHandler extends WatcherRestHandler {
@@ -69,10 +67,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
-                throws IOException {
-            return channel -> client.watcherService(new WatcherServiceRequest().start(),
-                    new AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
+            return channel -> client.watcherService(new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
         }
     }
 
@@ -88,10 +84,8 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
-        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
-                throws IOException {
-            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new
-                    AcknowledgedRestListener<>(channel));
+        public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
+            return channel -> client.watcherService(new WatcherServiceRequest().stop(), new RestToXContentListener<>(channel));
         }
     }
 }

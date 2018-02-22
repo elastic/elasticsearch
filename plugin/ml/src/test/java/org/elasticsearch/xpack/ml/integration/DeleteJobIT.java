@@ -30,14 +30,13 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         final String jobId = "wait-for-delete-job";
         Job.Builder job = createJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
-        PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        assertTrue(putJobResponse.isAcknowledged());
+        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch markAsDeletedLatch = new CountDownLatch(1);
         clusterService().submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 return markJobAsDeleted(jobId, currentState);
             }
 

@@ -55,7 +55,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
 
         PutJobAction.Response putJobResponse = mlClient.putJob(new PutJobAction.Request(job)).actionGet();
         assertThat(putJobResponse, notNullValue());
-        assertThat(putJobResponse.isAcknowledged(), equalTo(true));
 
         GetJobsAction.Response getJobResponse = mlClient.getJobs(new GetJobsAction.Request(jobId)).actionGet();
         assertThat(getJobResponse, notNullValue());
@@ -131,7 +130,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
 
         PutJobAction.Response putJobResponse = mlClient.putJob(new PutJobAction.Request(job)).actionGet();
         assertThat(putJobResponse, notNullValue());
-        assertThat(putJobResponse.isAcknowledged(), equalTo(true));
 
         String datafeedId = "ml-transport-client-it-datafeed";
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder(datafeedId, jobId);
@@ -140,8 +138,7 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         datafeed.setIndices(Collections.singletonList(datafeedIndex));
         datafeed.setTypes(Collections.singletonList("type-bar"));
 
-        PutDatafeedAction.Response putDatafeedResponse = mlClient.putDatafeed(new PutDatafeedAction.Request(datafeed.build())).actionGet();
-        assertThat(putDatafeedResponse.isAcknowledged(), equalTo(true));
+        mlClient.putDatafeed(new PutDatafeedAction.Request(datafeed.build())).actionGet();
 
         GetDatafeedsAction.Response getDatafeedResponse = mlClient.getDatafeeds(new GetDatafeedsAction.Request(datafeedId)).actionGet();
         assertThat(getDatafeedResponse.getResponse(), notNullValue());

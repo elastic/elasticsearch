@@ -11,10 +11,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ public class RestPutFilterAction extends BaseRestHandler {
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());
         XContentParser parser = restRequest.contentOrSourceParamParser();
         PutFilterAction.Request putFilterRequest = PutFilterAction.Request.parseRequest(filterId, parser);
-        return channel -> client.execute(PutFilterAction.INSTANCE, putFilterRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.execute(PutFilterAction.INSTANCE, putFilterRequest, new RestToXContentListener<>(channel));
     }
 
 }

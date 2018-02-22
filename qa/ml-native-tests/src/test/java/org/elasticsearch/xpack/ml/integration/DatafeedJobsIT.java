@@ -68,7 +68,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = createScheduledJob("lookback-job");
         registerJob(job);
         PutJobAction.Response putJobResponse = putJob(job);
-        assertTrue(putJobResponse.isAcknowledged());
         assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
@@ -78,7 +77,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         t.add("data-2");
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), t);
         registerDatafeed(datafeedConfig);
-        assertTrue(putDatafeed(datafeedConfig).isAcknowledged());
+        putDatafeed(datafeedConfig);
 
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
@@ -245,7 +244,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = createScheduledJob("lookback-job-stopped-then-killed");
         registerJob(job);
         PutJobAction.Response putJobResponse = putJob(job);
-        assertTrue(putJobResponse.isAcknowledged());
         assertThat(putJobResponse.getResponse().getJobVersion(), equalTo(Version.CURRENT));
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
@@ -256,8 +254,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         datafeedConfigBuilder.setChunkingConfig(ChunkingConfig.newManual(new TimeValue(1, TimeUnit.SECONDS)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerDatafeed(datafeedConfig);
-        assertTrue(putDatafeed(datafeedConfig).isAcknowledged());
-
+        putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, now);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());
@@ -291,14 +288,13 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = createScheduledJob(jobId);
         registerJob(job);
-        assertTrue(putJob(job).isAcknowledged());
+        putJob(job);
         openJob(job.getId());
         assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
         registerDatafeed(datafeedConfig);
-        assertTrue(putDatafeed(datafeedConfig).isAcknowledged());
-
+        putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts(job.getId());

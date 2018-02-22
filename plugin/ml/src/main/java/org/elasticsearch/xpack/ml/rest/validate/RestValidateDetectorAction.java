@@ -11,9 +11,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class RestValidateDetectorAction extends BaseRestHandler {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateDetectorAction.Request validateDetectorRequest = ValidateDetectorAction.Request.parseRequest(parser);
         return channel ->
-                client.execute(ValidateDetectorAction.INSTANCE, validateDetectorRequest, new AcknowledgedRestListener<>(channel));
+                client.execute(ValidateDetectorAction.INSTANCE, validateDetectorRequest, new RestToXContentListener<>(channel));
     }
 
 }

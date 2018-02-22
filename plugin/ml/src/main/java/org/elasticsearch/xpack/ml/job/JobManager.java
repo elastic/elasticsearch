@@ -199,7 +199,7 @@ public class JobManager extends AbstractComponent {
                             @Override
                             protected PutJobAction.Response newResponse(boolean acknowledged) {
                                 auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                                return new PutJobAction.Response(acknowledged, job);
+                                return new PutJobAction.Response(job);
                             }
 
                             @Override
@@ -276,7 +276,7 @@ public class JobManager extends AbstractComponent {
 
                     @Override
                     protected PutJobAction.Response newResponse(boolean acknowledged) {
-                        return new PutJobAction.Response(acknowledged, updatedJob);
+                        return new PutJobAction.Response(updatedJob);
                     }
 
                     @Override
@@ -460,7 +460,7 @@ public class JobManager extends AbstractComponent {
             if (response) {
                 ModelSizeStats revertedModelSizeStats = new ModelSizeStats.Builder(modelSizeStats).setLogTime(new Date()).build();
                 persister.persistModelSizeStats(revertedModelSizeStats, WriteRequest.RefreshPolicy.IMMEDIATE, ActionListener.wrap(
-                        modelSizeStatsResponseHandler::accept, actionListener::onFailure));
+                        modelSizeStatsResponseHandler, actionListener::onFailure));
             }
         };
 
@@ -481,7 +481,7 @@ public class JobManager extends AbstractComponent {
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) {
                 Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
                 Job.Builder builder = new Job.Builder(job);
                 builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
@@ -506,5 +506,4 @@ public class JobManager extends AbstractComponent {
         newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MLMetadataField.TYPE, builder.build()).build());
         return newState.build();
     }
-
 }

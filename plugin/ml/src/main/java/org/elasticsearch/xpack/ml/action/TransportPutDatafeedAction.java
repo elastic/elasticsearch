@@ -131,7 +131,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                         if (acknowledged) {
                             logger.info("Created datafeed [{}]", request.getDatafeed().getId());
                         }
-                        return new PutDatafeedAction.Response(acknowledged, request.getDatafeed());
+                        return new PutDatafeedAction.Response(request.getDatafeed());
                     }
 
                     @Override

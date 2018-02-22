@@ -17,7 +17,7 @@ public class PutJobActionResponseTests extends AbstractStreamableTestCase<Respon
     @Override
     protected Response createTestInstance() {
         Job.Builder builder = buildJobBuilder(randomValidJobId());
-        return new Response(randomBoolean(), builder.build());
+        return new Response(builder.build());
     }
 
     @Override

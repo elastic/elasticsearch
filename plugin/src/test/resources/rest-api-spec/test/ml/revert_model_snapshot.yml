@@ -216,7 +216,6 @@ setup:
         job_id: "revert-model-snapshot"
         snapshot_id: "first"
 
-  - match: { acknowledged: true }
   - match: { model.job_id: "revert-model-snapshot" }
   - match: { model.timestamp: 1464825600000 }
   - match: { model.snapshot_id: "first" }
@@ -227,7 +226,6 @@ setup:
         job_id: "revert-model-snapshot"
         snapshot_id: "second"
 
-  - match: { acknowledged: true }
   - match: { model.job_id: "revert-model-snapshot" }
   - match: { model.timestamp: 1464739200000 }
   - match: { model.snapshot_id: "second" }

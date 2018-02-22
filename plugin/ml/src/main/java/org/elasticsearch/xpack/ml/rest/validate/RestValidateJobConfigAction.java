@@ -11,9 +11,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 
@@ -34,7 +34,7 @@ public class RestValidateJobConfigAction extends BaseRestHandler {
         XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateJobConfigAction.Request validateConfigRequest = ValidateJobConfigAction.Request.parseRequest(parser);
         return channel ->
-                client.execute(ValidateJobConfigAction.INSTANCE, validateConfigRequest, new AcknowledgedRestListener<>(channel));
+                client.execute(ValidateJobConfigAction.INSTANCE, validateConfigRequest, new RestToXContentListener<>(channel));
     }
 
 }

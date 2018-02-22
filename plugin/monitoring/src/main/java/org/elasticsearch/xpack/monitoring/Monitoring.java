@@ -170,6 +170,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(MonitoringField.HISTORY_DURATION);
         settings.add(CLEAN_WATCHER_HISTORY);
+        settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.INTERVAL);
         settings.add(Collector.INDICES);
         settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);

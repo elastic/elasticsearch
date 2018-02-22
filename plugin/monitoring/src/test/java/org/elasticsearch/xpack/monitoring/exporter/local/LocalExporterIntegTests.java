@@ -56,26 +56,22 @@ import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplat
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE,
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
     private final String indexTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM", null);
 
-    public LocalExporterIntegTests() throws Exception {
-        super();
-    }
-
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                Settings.builder().putNull(MonitoringService.INTERVAL.getKey())
+                Settings.builder().putNull(MonitoringService.ENABLED.getKey())
                                   .putNull("xpack.monitoring.exporters._local.enabled")
                                   .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
                                   .putNull("xpack.monitoring.exporters._local.index.name.time_format")));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3954")
     public void testExport() throws Exception {
         try {
             if (randomBoolean()) {
@@ -90,7 +86,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
             // start the monitoring service so that _xpack/monitoring/_bulk is not ignored
             final Settings.Builder exporterSettings = Settings.builder()
-                    .put(MonitoringService.INTERVAL.getKey(), 3L, TimeUnit.SECONDS)
+                    .put(MonitoringService.ENABLED.getKey(), true)
                     .put("xpack.monitoring.exporters._local.enabled", true)
                     .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
 
@@ -119,7 +115,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
                     SearchResponse response = client().prepareSearch(".monitoring-*").get();
-                    assertEquals(nbDocs, response.getHits().getTotalHits());
+                    assertThat((long)nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits()));
                 });
 
                 checkMonitoringTemplates();

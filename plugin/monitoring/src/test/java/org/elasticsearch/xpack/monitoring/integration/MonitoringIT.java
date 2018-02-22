@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsMonitoringDoc;
@@ -79,14 +80,12 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MonitoringIT extends ESSingleNodeTestCase {
 
-    private final TimeValue collectionInterval = TimeValue.timeValueSeconds(3);
-
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
                        .put(super.nodeSettings())
                        .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                       .put("xpack.monitoring.collection.interval", "-1")
+                       .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
                        .put("xpack.monitoring.exporters._local.type", "local")
                        .put("xpack.monitoring.exporters._local.enabled", false)
                        .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false)
@@ -221,7 +220,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 final Map<String, Object> searchHit = toMap(hit);
                 final String type = (String) extractValue("_source.type", searchHit);
 
-                assertMonitoringDoc(searchHit, MonitoredSystem.ES, type, collectionInterval);
+                assertMonitoringDoc(searchHit, MonitoredSystem.ES, type, MonitoringService.MIN_INTERVAL);
 
                 if (ClusterStatsMonitoringDoc.TYPE.equals(type)) {
                     assertClusterStatsMonitoringDoc(searchHit, createAPMIndex);
@@ -499,7 +498,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     private void whenExportersAreReady(final CheckedRunnable<Exception> runnable) throws Exception {
         try {
-            enableMonitoring(collectionInterval);
+            enableMonitoring();
             runnable.run();
         } finally {
             disableMonitoring();
@@ -510,31 +509,22 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * Enable the monitoring service and the Local exporter, waiting for some monitoring documents
      * to be indexed before it returns.
      */
-    public void enableMonitoring(final TimeValue interval) throws Exception {
+    public void enableMonitoring() throws Exception {
         // delete anything that may happen to already exist
         assertAcked(client().admin().indices().prepareDelete(".monitoring-*").get());
 
-        final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
-        final Optional<MonitoringFeatureSetUsage> monitoringUsage =
-                usageResponse.getUsages()
-                             .stream()
-                             .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
-                             .map(usage -> (MonitoringFeatureSetUsage)usage)
-                             .findFirst();
-        assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
-
-        final Map<String, Object> exporters = monitoringUsage.get().getExporters();
-
-        assertThat("List of enabled exporters must be empty before enabling monitoring", exporters.isEmpty(), is(true));
+        assertThat("Must be no enabled exporters before enabling monitoring", getMonitoringUsageExporters().isEmpty(), is(true));
 
         final Settings settings = Settings.builder()
-                .put("xpack.monitoring.collection.interval", interval.getStringRep())
+                .put("xpack.monitoring.collection.enabled", true)
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         assertBusy(() -> {
+            assertThat("[_local] exporter not enabled yet", getMonitoringUsageExporters().isEmpty(), is(false));
+
             assertThat("No monitoring documents yet",
                        client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*")
                                .setSize(0)
@@ -549,26 +539,15 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     public void disableMonitoring() throws Exception {
         final Settings settings = Settings.builder()
-                .put("xpack.monitoring.collection.interval", (String) null)
-                .put("xpack.monitoring.exporters._local.enabled", (String) null)
+                .putNull("xpack.monitoring.collection.enabled")
+                .putNull("xpack.monitoring.exporters._local.enabled")
                 .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         assertBusy(() -> {
             try {
-                final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
-                final Optional<MonitoringFeatureSetUsage> monitoringUsage =
-                        usageResponse.getUsages()
-                                .stream()
-                                .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
-                                .map(usage -> (MonitoringFeatureSetUsage)usage)
-                                .findFirst();
-                assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
-
-                final Map<String, Object> exporters = monitoringUsage.get().getExporters();
-
-                assertThat("Exporters are not yet stopped", exporters.isEmpty(), is(true));
+                assertThat("Exporters are not yet stopped", getMonitoringUsageExporters().isEmpty(), is(true));
 
                 // now wait until Monitoring has actually stopped
                 final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
@@ -590,6 +569,20 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
         });
+    }
+
+    private Map<String, Object> getMonitoringUsageExporters() throws Exception {
+        final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
+        final Optional<MonitoringFeatureSetUsage> monitoringUsage =
+                usageResponse.getUsages()
+                        .stream()
+                        .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
+                        .map(usage -> (MonitoringFeatureSetUsage)usage)
+                        .findFirst();
+
+        assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
+
+        return monitoringUsage.get().getExporters();
     }
 
     /**

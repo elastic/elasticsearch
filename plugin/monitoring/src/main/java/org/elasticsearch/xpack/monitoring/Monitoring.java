@@ -77,7 +77,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
      * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
      */
     public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
-                                                                             false,
+                                                                             true,
                                                                              Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     protected final Settings settings;

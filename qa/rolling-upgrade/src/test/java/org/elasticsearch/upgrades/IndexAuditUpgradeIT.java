@@ -6,7 +6,6 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
@@ -20,6 +19,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4025")
 public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     private Version minVersionInCluster;

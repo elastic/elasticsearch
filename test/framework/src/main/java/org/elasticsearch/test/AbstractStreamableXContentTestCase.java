@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,46 +33,15 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        new AbstractXContentTestCase<T>() {
-            @Override
-            protected int numberOfTestRuns() {
-                return NUMBER_OF_TEST_RUNS;
-            }
-
-            @Override
-            protected T createTestInstance() {
-                return AbstractStreamableXContentTestCase.this.createTestInstance();
-            }
-
-            @Override
-            protected T doParseInstance(XContentParser parser) {
-                return AbstractStreamableXContentTestCase.this.doParseInstance(parser);
-            }
-
-            @Override
-            protected T getExpectedFromXContent(T testInstance) {
-                return AbstractStreamableXContentTestCase.this.getExpectedFromXContent(testInstance);
-            }
-
-            @Override
-            protected boolean supportsUnknownFields() {
-                return AbstractStreamableXContentTestCase.this.supportsUnknownFields();
-            }
-
-            @Override
-            protected Predicate<String> getRandomFieldsExcludeFilter() {
-                return AbstractStreamableXContentTestCase.this.getRandomFieldsExcludeFilter();
-            }
-        }.testFromXContent();
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
+                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances);
     }
 
     /**
-     * Returns the expected parsed object given the test object that the parser will be fed with.
-     * Useful in cases some fields are not written as part of toXContent, hence not parsed back.
+     * Parses to a new instance using the provided {@link XContentParser}
      */
-    protected T getExpectedFromXContent(T testInstance) {
-        return testInstance;
-    }
+    protected abstract T doParseInstance(XContentParser parser) throws IOException;;
 
     /**
      * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
@@ -81,12 +51,18 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
         return true;
     }
 
+    /**
+     * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
+     */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
+        assert supportsUnknownFields();
         return field -> false;
     }
 
     /**
-     * Parses to a new instance using the provided {@link XContentParser}
+     * Fields that have to be ignored when shuffling as part of testFromXContent
      */
-    protected abstract T doParseInstance(XContentParser parser);
+    protected String[] getShuffleFieldsExceptions() {
+        return Strings.EMPTY_ARRAY;
+    }
 }

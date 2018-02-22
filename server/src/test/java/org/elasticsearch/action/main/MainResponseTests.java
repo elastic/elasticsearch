@@ -35,21 +35,13 @@ import java.util.Date;
 public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
 
     @Override
-    protected MainResponse getExpectedFromXContent(MainResponse testInstance) {
-        // we cannot recreate the "available" flag from xContent, but should be "true" if request came through
-        testInstance.available = true;
-        return testInstance;
-    }
-
-    @Override
     protected MainResponse createTestInstance() {
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
         Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
-        boolean available = randomBoolean();
-        return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid , build, true);
     }
 
     @Override

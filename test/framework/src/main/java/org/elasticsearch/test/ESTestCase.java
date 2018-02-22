@@ -47,6 +47,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
@@ -926,8 +927,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
                                                       boolean humanReadable, String... exceptFieldNames) throws IOException{
+        return toShuffledXContent(toXContent, xContentType, params, humanReadable, this::createParser, exceptFieldNames);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected static BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
+                                                       boolean humanReadable,
+                                                       CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
+                                                               parserFunction,
+                                                       String... exceptFieldNames) throws IOException{
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
-        try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+        try (XContentParser parser = parserFunction.apply(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return builder.bytes();
             }
@@ -952,7 +966,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
+    public static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames)
+            throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
@@ -969,6 +984,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // shuffle fields of objects in the list, but not the list itself
+    @SuppressWarnings("unchecked")
     private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
         List<Object> targetList = new ArrayList<>();
         for(Object value : list) {
@@ -985,6 +1001,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return targetList;
     }
 
+    @SuppressWarnings("unchecked")
     public static LinkedHashMap<String, Object> shuffleMap(LinkedHashMap<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
         LinkedHashMap<String, Object> targetMap = new LinkedHashMap<>();

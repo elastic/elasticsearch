@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -32,38 +33,31 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        new AbstractXContentTestCase<T>() {
-            @Override
-            protected int numberOfTestRuns() {
-                return NUMBER_OF_TEST_RUNS;
-            }
-
-            @Override
-            protected T createTestInstance() {
-                return AbstractSerializingTestCase.this.createTestInstance();
-            }
-
-            @Override
-            protected T doParseInstance(XContentParser parser) throws IOException {
-                return AbstractSerializingTestCase.this.doParseInstance(parser);
-            }
-
-            @Override
-            protected boolean supportsUnknownFields() {
-                return false;
-            }
-
-            @Override
-            protected String[] getShuffleFieldsExceptions() {
-                return AbstractSerializingTestCase.this.getShuffleFieldsExceptions();
-            }
-        }.testFromXContent();
+        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
+                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
+                this::assertEqualInstances);
     }
 
     /**
      * Parses to a new instance using the provided {@link XContentParser}
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
+
+    /**
+     * Indicates whether the parser supports unknown fields or not. In case it does, such behaviour will be tested by
+     * inserting random fields before parsing and checking that they don't make parsing fail.
+     */
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    /**
+     * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
+     */
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        assert supportsUnknownFields();
+        return field -> false;
+    }
 
     /**
      * Fields that have to be ignored when shuffling as part of testFromXContent

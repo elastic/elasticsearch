@@ -19,44 +19,59 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class AbstractXContentTestCase<T extends ToXContent> extends ESTestCase {
+
+    public static <T extends ToXContent> void testFromXContent(int numberOfTestRuns, Supplier<T> instanceSupplier,
+                                                               boolean supportsUnknownFields, String[] shuffleFieldsExceptions,
+                                                               Predicate<String> randomFieldsExcludeFilter,
+                                                               CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
+                                                                       createParserFunction,
+                                                               CheckedFunction<XContentParser, T, IOException> parseFunction,
+                                                               BiConsumer<T, T> assertEqualsConsumer) throws IOException {
+        for (int runs = 0; runs < numberOfTestRuns; runs++) {
+            T testInstance = instanceSupplier.get();
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false, createParserFunction,
+                    shuffleFieldsExceptions);
+            BytesReference withRandomFields;
+            if (supportsUnknownFields) {
+                // we add a few random fields to check that parser is lenient on new fields
+                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, randomFieldsExcludeFilter, random());
+            } else {
+                withRandomFields = shuffled;
+            }
+            XContentParser parser = createParserFunction.apply(XContentFactory.xContent(xContentType), withRandomFields);
+            T parsed = parseFunction.apply(parser);
+            assertEqualsConsumer.accept(testInstance, parsed);
+            assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
+        }
+    }
 
     /**
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two queries.
      */
     public final void testFromXContent() throws IOException {
-        for (int runs = 0; runs < numberOfTestRuns(); runs++) {
-            T testInstance = createTestInstance();
-            XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS,
-                    false, getShuffleFieldsExceptions());
-            BytesReference withRandomFields;
-            if (supportsUnknownFields()) {
-                // we add a few random fields to check that parser is lenient on new fields
-                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, getRandomFieldsExcludeFilter(), random());
-            } else {
-                withRandomFields = shuffled;
-            }
-            XContentParser parser = createParser(XContentFactory.xContent(xContentType), withRandomFields);
-            T parsed = parseInstance(parser);
-            T expected = getExpectedFromXContent(testInstance);
-            assertEqualInstances(expected, parsed);
-            assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
-        }
+        testFromXContent(numberOfTestRuns(), this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
+                getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances);
     }
 
     protected abstract int numberOfTestRuns();
@@ -79,14 +94,6 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      */
     protected abstract T doParseInstance(XContentParser parser) throws IOException;
 
-    /**
-     * Returns the expected parsed object given the test object that the parser will be fed with.
-     * Useful in cases some fields are not written as part of toXContent, hence not parsed back.
-     */
-    protected T getExpectedFromXContent(T testInstance) {
-        return testInstance;
-    }
-
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);
@@ -99,6 +106,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      */
     protected abstract boolean supportsUnknownFields();
 
+    /**
+     * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
+     */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         assert supportsUnknownFields();
         return field -> false;

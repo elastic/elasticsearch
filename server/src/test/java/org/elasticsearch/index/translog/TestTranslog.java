@@ -116,7 +116,8 @@ public class TestTranslog {
     private static long minTranslogGenUsedInRecovery(Path translogPath) throws IOException {
         try (NIOFSDirectory directory = new NIOFSDirectory(translogPath.getParent().resolve("index"))) {
             List<IndexCommit> commits = DirectoryReader.listCommits(directory);
-            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+            final String translogUUID = commits.get(commits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
             IndexCommit recoveringCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
             return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }

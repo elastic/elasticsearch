@@ -38,6 +38,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -46,6 +48,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,7 +74,7 @@ import java.util.concurrent.TimeUnit;
  * Then in the documentation, you can extract what is between tag and end tags with
  * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
+ * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -105,7 +109,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    public void testIndicesExistAsync() throws IOException {
+    public void testIndicesExistAsync() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
@@ -138,6 +142,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::indices-exists-async
             client.indices().existsAsync(request, listener); // <1>
             // end::indices-exists-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
     public void testDeleteIndex() throws IOException {
@@ -411,19 +417,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.type("tweet"); // <2>
             // end::put-mapping-request
 
-            // tag::put-mapping-request-source
-            request.source(
-                "{\n" +
-                "  \"tweet\": {\n" +
-                "    \"properties\": {\n" +
-                "      \"message\": {\n" +
-                "        \"type\": \"text\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}", // <1>
-                XContentType.JSON);
-            // end::put-mapping-request-source
+            {
+                // tag::put-mapping-request-source
+                request.source(
+                    "{\n" +
+                    "  \"properties\": {\n" +
+                    "    \"message\": {\n" +
+                    "      \"type\": \"text\"\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <1>
+                    XContentType.JSON);
+                // end::put-mapping-request-source
+                PutMappingResponse putMappingResponse = client.indices().putMapping(request);
+                assertTrue(putMappingResponse.isAcknowledged());
+            }
 
             {
                 //tag::put-mapping-map
@@ -432,9 +440,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
-                Map<String, Object> tweet = new HashMap<>();
-                tweet.put("properties", properties);
-                jsonMap.put("tweet", tweet);
+                jsonMap.put("properties", properties);
                 request.source(jsonMap); // <1>
                 //end::put-mapping-map
                 PutMappingResponse putMappingResponse = client.indices().putMapping(request);
@@ -445,15 +451,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject();
                 {
-                    builder.startObject("tweet");
+                    builder.startObject("properties");
                     {
-                        builder.startObject("properties");
+                        builder.startObject("message");
                         {
-                            builder.startObject("message");
-                            {
-                                builder.field("type", "text");
-                            }
-                            builder.endObject();
+                            builder.field("type", "text");
                         }
                         builder.endObject();
                     }
@@ -733,7 +735,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testUpdateAliases() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -751,17 +752,31 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::update-aliases-request
             IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
-            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1"); // <2>
+            AliasActions aliasAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias1"); // <2>
             request.addAliasAction(aliasAction); // <3>
             // end::update-aliases-request
 
             // tag::update-aliases-request2
-            AliasActions addIndexAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("alias1")
-                .filter("{\"term\":{\"year\":2016}}"); // <1>
-            AliasActions addIndicesAction = new AliasActions(AliasActions.Type.ADD).indices("index1", "index2").alias("alias2")
-                .routing("1"); // <2>
-            AliasActions removeAction = new AliasActions(AliasActions.Type.REMOVE).index("index3").alias("alias3"); // <3>
-            AliasActions removeIndexAction = new AliasActions(AliasActions.Type.REMOVE_INDEX).index("index4"); // <4>
+            AliasActions addIndexAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .index("index1")
+                    .alias("alias1")
+                    .filter("{\"term\":{\"year\":2016}}"); // <1>
+            AliasActions addIndicesAction =
+                    new AliasActions(AliasActions.Type.ADD)
+                    .indices("index1", "index2")
+                    .alias("alias2")
+                    .routing("1"); // <2>
+            AliasActions removeAction =
+                    new AliasActions(AliasActions.Type.REMOVE)
+                    .index("index3")
+                    .alias("alias3"); // <3>
+            AliasActions removeIndexAction =
+                    new AliasActions(AliasActions.Type.REMOVE_INDEX)
+                    .index("index4"); // <4>
             // end::update-aliases-request2
 
             // tag::update-aliases-request-timeout
@@ -774,7 +789,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-request-masterTimeout
 
             // tag::update-aliases-execute
-            IndicesAliasesResponse indicesAliasesResponse = client.indices().updateAliases(request);
+            IndicesAliasesResponse indicesAliasesResponse =
+                    client.indices().updateAliases(request);
             // end::update-aliases-execute
 
             // tag::update-aliases-response
@@ -782,13 +798,15 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::update-aliases-response
             assertTrue(acknowledged);
         }
+
         {
-            IndicesAliasesRequest request = new IndicesAliasesRequest(); // <1>
-            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("async"); // <2>
+            IndicesAliasesRequest request = new IndicesAliasesRequest();
+            AliasActions aliasAction = new AliasActions(AliasActions.Type.ADD).index("index1").alias("async");
             request.addAliasAction(aliasAction);
 
             // tag::update-aliases-execute-listener
-            ActionListener<IndicesAliasesResponse> listener = new ActionListener<IndicesAliasesResponse>() {
+            ActionListener<IndicesAliasesResponse> listener =
+                    new ActionListener<IndicesAliasesResponse>() {
                 @Override
                 public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
                     // <1>
@@ -813,12 +831,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testShrinkIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
             Map<String, Object> nodes = getAsMap("_nodes");
+            @SuppressWarnings("unchecked")
             String firstNode = ((Map<String, Object>) nodes.get("nodes")).keySet().iterator().next();
             createIndex("source_index", Settings.builder().put("index.number_of_shards", 4).put("index.number_of_replicas", 0).build());
             updateIndexSettings("source_index", Settings.builder().put("index.routing.allocation.require._name", firstNode)
@@ -838,8 +856,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::shrink-index-request-masterTimeout
         // tag::shrink-index-request-waitForActiveShards
-        request.getTargetIndexRequest().waitForActiveShards(2); // <1>
-        request.getTargetIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        request.setWaitForActiveShards(2); // <1>
+        request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2)); // <1>
@@ -884,7 +902,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testSplitIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -908,8 +925,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::split-index-request-masterTimeout
         // tag::split-index-request-waitForActiveShards
-        request.getTargetIndexRequest().waitForActiveShards(2); // <1>
-        request.getTargetIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        request.setWaitForActiveShards(2); // <1>
+        request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::split-index-request-waitForActiveShards
         // tag::split-index-request-settings
         request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
@@ -950,6 +967,91 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::split-index-execute-async
         client.indices().splitAsync(request,listener); // <1>
         // end::split-index-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testRolloverIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            client.indices().create(new CreateIndexRequest("index-1").alias(new Alias("alias")));
+        }
+
+        // tag::rollover-request
+        RolloverRequest request = new RolloverRequest("alias", "index-2"); // <1>
+        request.addMaxIndexAgeCondition(new TimeValue(7, TimeUnit.DAYS)); // <2>
+        request.addMaxIndexDocsCondition(1000); // <3>
+        request.addMaxIndexSizeCondition(new ByteSizeValue(5, ByteSizeUnit.GB)); // <4>
+        // end::rollover-request
+
+        // tag::rollover-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::rollover-request-timeout
+        // tag::rollover-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::rollover-request-masterTimeout
+        // tag::rollover-request-dryRun
+        request.dryRun(true); // <1>
+        // end::rollover-request-dryRun
+        // tag::rollover-request-waitForActiveShards
+        request.getCreateIndexRequest().waitForActiveShards(2); // <1>
+        request.getCreateIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
+        // end::rollover-request-waitForActiveShards
+        // tag::rollover-request-settings
+        request.getCreateIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        // end::rollover-request-settings
+        // tag::rollover-request-mapping
+        request.getCreateIndexRequest().mapping("type", "field", "type=keyword"); // <1>
+        // end::rollover-request-mapping
+        // tag::rollover-request-alias
+        request.getCreateIndexRequest().alias(new Alias("another_alias")); // <1>
+        // end::rollover-request-alias
+
+        // tag::rollover-execute
+        RolloverResponse rolloverResponse = client.indices().rollover(request);
+        // end::rollover-execute
+
+        // tag::rollover-response
+        boolean acknowledged = rolloverResponse.isAcknowledged(); // <1>
+        boolean shardsAcked = rolloverResponse.isShardsAcknowledged(); // <2>
+        String oldIndex = rolloverResponse.getOldIndex(); // <3>
+        String newIndex = rolloverResponse.getNewIndex(); // <4>
+        boolean isRolledOver = rolloverResponse.isRolledOver(); // <5>
+        boolean isDryRun = rolloverResponse.isDryRun(); // <6>
+        Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();// <7>
+        // end::rollover-response
+        assertFalse(acknowledged);
+        assertFalse(shardsAcked);
+        assertEquals("index-1", oldIndex);
+        assertEquals("index-2", newIndex);
+        assertFalse(isRolledOver);
+        assertTrue(isDryRun);
+        assertEquals(3, conditionStatus.size());
+
+        // tag::rollover-execute-listener
+        ActionListener<RolloverResponse> listener = new ActionListener<RolloverResponse>() {
+            @Override
+            public void onResponse(RolloverResponse rolloverResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rollover-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::rollover-execute-async
+        client.indices().rolloverAsync(request,listener); // <1>
+        // end::rollover-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

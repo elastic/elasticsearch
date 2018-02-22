@@ -35,6 +35,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 
@@ -272,7 +274,7 @@ public final class IndicesClient {
      * Splits an index using the Split Index API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-split-index.html">
-     * Shrink Index API on elastic.co</a>
+     * Split Index API on elastic.co</a>
      */
     public ResizeResponse split(ResizeRequest resizeRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(resizeRequest, Request::split, ResizeResponse::fromXContent,
@@ -287,6 +289,28 @@ public final class IndicesClient {
      */
     public void splitAsync(ResizeRequest resizeRequest, ActionListener<ResizeResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, Request::split, ResizeResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    /**
+     * Rolls over an index using the Rollover Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
+     * Rollover Index API on elastic.co</a>
+     */
+    public RolloverResponse rollover(RolloverRequest rolloverRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, Request::rollover, RolloverResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously rolls over an index using the Rollover Index API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-rollover-index.html">
+     * Rollover Index API on elastic.co</a>
+     */
+    public void rolloverAsync(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, Request::rollover, RolloverResponse::fromXContent,
                 listener, emptySet(), headers);
     }
 }

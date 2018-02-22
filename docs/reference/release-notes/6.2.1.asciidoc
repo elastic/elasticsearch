@@ -1,0 +1,13 @@
+[[release-notes-6.2.1]]
+== 6.2.1 Release Notes
+
+[[bug-6.2.1]]
+[float]
+=== Bug fixes
+
+Plugin Lang Painless::
+* Painless: Fix For Loop NullPointerException {pull}28506[#28506] (issue: {issue}28501[#28501])
+
+Plugins::
+* Fix the ability to remove old plugin {pull}28540[#28540] (issue: {issue}28538[#28538])
+

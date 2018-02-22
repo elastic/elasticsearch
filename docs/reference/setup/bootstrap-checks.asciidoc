@@ -166,8 +166,7 @@ the two VMs can be substantial. The client JVM check ensures that
 Elasticsearch is not running inside the client JVM. To pass the client
 JVM check, you must start Elasticsearch with the server VM. On modern
 systems and operating systems, the server VM is the
-default. Additionally, Elasticsearch is configured by default to force
-the server VM.
+default.
 
 === Use serial collector check
 

@@ -236,7 +236,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse;
-        for (int i = 1; i <= max; i++) {
+        for (int i = 1; i < max; i++) {
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                     .setTerminateAfter(i).execute().actionGet();

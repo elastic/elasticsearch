@@ -47,7 +47,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");
 

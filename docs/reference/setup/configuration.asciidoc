@@ -82,6 +82,10 @@ network.host: ${ES_NETWORK_HOST}
 [float]
 === Prompting for settings
 
+NOTE: Prompting for settings is deprecated. Please use <<secure-settings>>
+for sensitive property values. Not all settings can be converted to use
+<<secure-settings>>.
+
 For settings that you do not wish to store in the configuration file, you can
 use the value `${prompt.text}` or `${prompt.secret}` and start Elasticsearch
 in the foreground. `${prompt.secret}` has echoing disabled so that the value

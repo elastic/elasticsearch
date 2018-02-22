@@ -162,7 +162,12 @@ cd elasticsearch/
 ./gradlew assemble
 ```
 
-You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/build/distributions/`.
+The package distributions (Debian and RPM) can be found under:
+`./distribution/packages/(deb|rpm)/build/distributions/`
+
+The archive distributions (tar and zip) can be found under:
+`./distribution/archives/(tar|zip)/build/distributions/`
+
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 

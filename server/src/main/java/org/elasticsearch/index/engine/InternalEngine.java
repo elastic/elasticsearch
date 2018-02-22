@@ -20,6 +20,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -50,6 +52,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -431,7 +434,8 @@ public class InternalEngine extends Engine {
             case OPEN_INDEX_AND_TRANSLOG:
                 // Use the safe commit
                 final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath);
+                final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
                 existingCommits = DirectoryReader.listCommits(store.directory());
                 // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
                 // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -500,26 +504,31 @@ public class InternalEngine extends Engine {
                                   LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final Map<String, String> commitUserData = startingCommit.getUserData();
-            if (commitUserData.containsKey(Translog.TRANSLOG_UUID_KEY)) {
-                if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
-                    throw new IllegalStateException("commit doesn't contain translog generation id");
-                }
+        final String translogUUID;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID =
+                    Translog.createEmptyTranslog(translogConfig.getTranslogPath(), globalCheckpointSupplier.getAsLong(), shardId);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                final Map<String, String> commitUserData = startingCommit.getUserData();
                 translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
-            }
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
-            // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
-            // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
-                final long minRequiredTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
-                translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
-                translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
-            }
+                // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
+                if (translogUUID == null) {
+                    throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
+                }
+                // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
+                // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
+                if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
+                    final long minRequiredTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+                    translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
+                    translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
+                }
+
+                break;
+            default:
+                throw new AssertionError("Unknown openMode " + openMode);
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }
@@ -1074,21 +1083,14 @@ public class InternalEngine extends Engine {
      */
     private boolean mayHaveBeenIndexedBefore(Index index) {
         assert canOptimizeAddDocument(index);
-        boolean mayHaveBeenIndexBefore;
-        long deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
+        final boolean mayHaveBeenIndexBefore;
         if (index.isRetry()) {
             mayHaveBeenIndexBefore = true;
-            do {
-                deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
-                if (deOptimizeTimestamp >= index.getAutoGeneratedIdTimestamp()) {
-                    break;
-                }
-            } while (maxUnsafeAutoIdTimestamp.compareAndSet(deOptimizeTimestamp,
-                index.getAutoGeneratedIdTimestamp()) == false);
+            maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(index.getAutoGeneratedIdTimestamp(), curr));
             assert maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         } else {
             // in this case we force
-            mayHaveBeenIndexBefore = deOptimizeTimestamp >= index.getAutoGeneratedIdTimestamp();
+            mayHaveBeenIndexBefore = maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         }
         return mayHaveBeenIndexBefore;
     }
@@ -1233,7 +1235,7 @@ public class InternalEngine extends Engine {
             }
             throw e;
         }
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         return deleteResult;
     }
 
@@ -1380,7 +1382,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void maybePruneDeletedTombstones() {
+    @Override
+    public void maybePruneDeletes() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
         if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().relativeTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
@@ -1433,18 +1436,25 @@ public class InternalEngine extends Engine {
         writingBytes.addAndGet(bytes);
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            switch (scope) {
-                case EXTERNAL:
-                    // even though we maintain 2 managers we really do the heavy-lifting only once.
-                    // the second refresh will only do the extra work we have to do for warming caches etc.
-                    externalSearcherManager.maybeRefreshBlocking();
-                    // the break here is intentional we never refresh both internal / external together
-                    break;
-                case INTERNAL:
-                    internalSearcherManager.maybeRefreshBlocking();
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown scope: " + scope);
+            if (store.tryIncRef()) {
+                // increment the ref just to ensure nobody closes the store during a refresh
+                try {
+                    switch (scope) {
+                        case EXTERNAL:
+                            // even though we maintain 2 managers we really do the heavy-lifting only once.
+                            // the second refresh will only do the extra work we have to do for warming caches etc.
+                            externalSearcherManager.maybeRefreshBlocking();
+                            // the break here is intentional we never refresh both internal / external together
+                            break;
+                        case INTERNAL:
+                            internalSearcherManager.maybeRefreshBlocking();
+                            break;
+                        default:
+                            throw new IllegalArgumentException("unknown scope: " + scope);
+                    }
+                } finally {
+                    store.decRef();
+                }
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1463,7 +1473,7 @@ public class InternalEngine extends Engine {
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         mergeScheduler.refreshConfig();
     }
 
@@ -1683,32 +1693,15 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
-        long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-
-        // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
-
-        // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
-        for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
-            BytesRef uid = entry.getKey();
-            try (Releasable ignored = versionMap.acquireLock(uid)) {
-                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
-                if (versionValue != null) {
-                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
-                        versionMap.removeTombstoneUnderLock(uid);
-                    }
-                }
-            }
-        }
-
+        final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
+        versionMap.pruneTombstones(timeMSec, engineConfig.getIndexSettings().getGcDeletesInMillis());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     // testing
     void clearDeletedTombstones() {
-        versionMap.clearTombstones();
+        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
+        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
     }
 
     @Override
@@ -1761,7 +1754,7 @@ public class InternalEngine extends Engine {
              * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
              * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
              * we are handling a tragic even exception here */
-            ensureOpen();
+            ensureOpen(ex);
             failOnTragicEvent(ex);
             throw ex;
         } catch (Exception e) {
@@ -1781,7 +1774,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireIndexCommit(final boolean safeCommit, final boolean flushFirst) throws EngineException {
+    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -1789,8 +1782,22 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit snapshotCommit = combinedDeletionPolicy.acquireIndexCommit(safeCommit);
-        return new Engine.IndexCommitRef(snapshotCommit, () -> combinedDeletionPolicy.releaseCommit(snapshotCommit));
+        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+    }
+
+    @Override
+    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+    }
+
+    private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
+        // Revisit the deletion policy if we can clean up the snapshotting commit.
+        if (combinedDeletionPolicy.releaseCommit(snapshot)) {
+            ensureOpen();
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
@@ -1923,14 +1930,35 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope) {
-        switch (scope) {
-            case INTERNAL:
-                return internalSearcherManager;
-            case EXTERNAL:
-                return externalSearcherManager;
-            default:
-                throw new IllegalStateException("unknown scope: " + scope);
+    public Searcher acquireSearcher(String source, SearcherScope scope) {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        store.incRef();
+        Releasable releasable = store::decRef;
+        try {
+            final ReferenceManager<IndexSearcher> referenceManager;
+            switch (scope) {
+                case INTERNAL:
+                    referenceManager = internalSearcherManager;
+                    break;
+                case EXTERNAL:
+                    referenceManager = externalSearcherManager;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown scope: " + scope);
+            }
+            EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
         }
     }
 
@@ -2252,7 +2280,7 @@ public class InternalEngine extends Engine {
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
             // this is an anti-viral settings you can only opt out for the entire index
             // only if a shard starts up again due to relocation or if the index is closed

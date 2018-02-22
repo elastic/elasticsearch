@@ -30,6 +30,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -73,6 +75,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -272,7 +275,7 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest, expectedParams);
+        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -1117,15 +1120,9 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
-            if (randomBoolean()) {
-                setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
-            }
             resizeRequest.setTargetIndex(createIndexRequest);
-        } else {
-            if (randomBoolean()) {
-                setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
-            }
         }
+        setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
 
         Request request = function.apply(resizeRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
@@ -1134,6 +1131,58 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(resizeRequest, request.getEntity());
+    }
+    
+    public void testClusterPutSettings() throws IOException {
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomFlatSettings(request::flatSettings, expectedParams);
+        setRandomMasterTimeout(request, expectedParams);
+        setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request expectedRequest = Request.clusterPutSettings(request);
+        assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
+        assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testRollover() throws IOException {
+        RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
+        setRandomMasterTimeout(rolloverRequest, expectedParams);
+        if (randomBoolean()) {
+            rolloverRequest.dryRun(randomBoolean());
+            if (rolloverRequest.isDryRun()) {
+                expectedParams.put("dry_run", "true");
+            }
+        }
+        if (randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            String type = randomAlphaOfLengthBetween(3, 10);
+            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
+        }
+        if (randomBoolean()) {
+            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
+        }
+        setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards,
+                ActiveShardCount.DEFAULT, expectedParams);
+
+        Request request = Request.rollover(rolloverRequest);
+        if (rolloverRequest.getNewIndexName() == null) {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+        } else {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(), request.getEndpoint());
+        }
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
@@ -1178,6 +1227,22 @@ public class RequestTests extends ESTestCase {
         assertEquals("/a/b/_create", Request.buildEndpoint("a", "b", "_create"));
         assertEquals("/a/b/c/_create", Request.buildEndpoint("a", "b", "c", "_create"));
         assertEquals("/a/_create", Request.buildEndpoint("a", null, null, "_create"));
+    }
+
+    public void testBuildEndPointEncodeParts() {
+        assertEquals("/-%23index1,index%232/type/id", Request.buildEndpoint("-#index1,index#2", "type", "id"));
+        assertEquals("/index/type%232/id", Request.buildEndpoint("index", "type#2", "id"));
+        assertEquals("/index/type/this%2Fis%2Fthe%2Fid", Request.buildEndpoint("index", "type", "this/is/the/id"));
+        assertEquals("/index/type/this%7Cis%7Cthe%7Cid", Request.buildEndpoint("index", "type", "this|is|the|id"));
+        assertEquals("/index/type/id%231", Request.buildEndpoint("index", "type", "id#1"));
+        assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", Request.buildEndpoint("<logstash-{now/M}>", "_search"));
+        assertEquals("/中文", Request.buildEndpoint("中文"));
+        assertEquals("/foo%20bar", Request.buildEndpoint("foo bar"));
+        assertEquals("/foo+bar", Request.buildEndpoint("foo+bar"));
+        assertEquals("/foo%2Fbar", Request.buildEndpoint("foo/bar"));
+        assertEquals("/foo%5Ebar", Request.buildEndpoint("foo^bar"));
+        assertEquals("/cluster1:index1,index2/_search", Request.buildEndpoint("cluster1:index1,index2", "_search"));
+        assertEquals("/*", Request.buildEndpoint("*"));
     }
 
     public void testEndpoint() {
@@ -1291,16 +1356,6 @@ public class RequestTests extends ESTestCase {
         }
     }
 
-    private static void setRandomFlatSettings(GetIndexRequest request, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            request.flatSettings(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
-        }
-    }
-
     private static void setRandomLocal(MasterNodeReadRequest<?> request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean local = randomBoolean();
@@ -1318,6 +1373,16 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", timeout);
         } else {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
+    private static void setRandomFlatSettings(Consumer<Boolean> setter, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            boolean flatSettings = randomBoolean();
+            setter.accept(flatSettings);
+            if (flatSettings) {
+                expectedParams.put("flat_settings", String.valueOf(flatSettings));
+            }
         }
     }
 

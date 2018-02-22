@@ -27,12 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Date;
-
-import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class MainResponseTests extends AbstractStreamableXContentTestCase<MainResponse> {
 
@@ -87,45 +86,37 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
           + "}", builder.string());
     }
 
-    //TODO this should be removed and the metehod from AbstractStreamableTestCase should be
-    //used instead once https://github.com/elastic/elasticsearch/pull/25910 goes in
-    public void testEqualsAndHashcode() {
-        MainResponse original = createTestInstance();
-        checkEqualsAndHashCode(original, MainResponseTests::copy, MainResponseTests::mutate);
-    }
-
-    private static MainResponse copy(MainResponse o) {
-        return new MainResponse(o.getNodeName(), o.getVersion(), o.getClusterName(), o.getClusterUuid(), o.getBuild(), o.isAvailable());
-    }
-
-    private static MainResponse mutate(MainResponse o) {
-        String clusterUuid = o.getClusterUuid();
-        boolean available = o.isAvailable();
-        Build build = o.getBuild();
-        Version version = o.getVersion();
-        String nodeName = o.getNodeName();
-        ClusterName clusterName = o.getClusterName();
-        switch (randomIntBetween(0, 5)) {
-        case 0:
-            clusterUuid = clusterUuid + randomAlphaOfLength(5);
-            break;
-        case 1:
-            nodeName = nodeName + randomAlphaOfLength(5);
-            break;
-        case 2:
-            available = !available;
-            break;
-        case 3:
-            // toggle the snapshot flag of the original Build parameter
-            build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
-            break;
-        case 4:
-            version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
-            break;
-        case 5:
-            clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
-            break;
-        }
-        return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
+    @Override
+    protected EqualsHashCodeTestUtils.MutateFunction<MainResponse> getMutateFunction() {
+        return o -> {
+            String clusterUuid = o.getClusterUuid();
+            boolean available = o.isAvailable();
+            Build build = o.getBuild();
+            Version version = o.getVersion();
+            String nodeName = o.getNodeName();
+            ClusterName clusterName = o.getClusterName();
+            switch (randomIntBetween(0, 5)) {
+                case 0:
+                    clusterUuid = clusterUuid + randomAlphaOfLength(5);
+                    break;
+                case 1:
+                    nodeName = nodeName + randomAlphaOfLength(5);
+                    break;
+                case 2:
+                    available = !available;
+                    break;
+                case 3:
+                    // toggle the snapshot flag of the original Build parameter
+                    build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+                    break;
+                case 4:
+                    version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
+                    break;
+                case 5:
+                    clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
+                    break;
+            }
+            return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
+        };
     }
 }

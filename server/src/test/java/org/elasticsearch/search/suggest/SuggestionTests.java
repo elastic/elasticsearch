@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -174,7 +175,8 @@ public class SuggestionTests extends ESTestCase {
                                 + "\"collate_match\":true}]"
                             + "}]"
                 + "}";
-        try (XContentParser parser = xContent.createParser(xContentRegistry(), suggestionString)) {
+        try (XContentParser parser = xContent.createParser(xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, suggestionString)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);

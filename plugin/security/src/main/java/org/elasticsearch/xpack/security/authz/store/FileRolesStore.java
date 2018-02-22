@@ -171,7 +171,7 @@ public class FileRolesStore extends AbstractComponent {
             return emptyMap();
         }
 
-        logger.debug("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
+        logger.info("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
         return unmodifiableMap(roles);
     }
 
@@ -323,7 +323,7 @@ public class FileRolesStore extends AbstractComponent {
             if (file.equals(FileRolesStore.this.file)) {
                 try {
                     permissions = parseFile(file, logger, settings, licenseState);
-                    logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(), Files.exists(file) ? "changed" : "removed");
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(

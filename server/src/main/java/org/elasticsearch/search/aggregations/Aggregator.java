@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -128,10 +130,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return parseField;
         }
 
-        public static SubAggCollectionMode parse(String value) {
+        public static SubAggCollectionMode parse(String value, DeprecationHandler deprecationHandler) {
             SubAggCollectionMode[] modes = SubAggCollectionMode.values();
             for (SubAggCollectionMode mode : modes) {
-                if (mode.parseField.match(value)) {
+                if (mode.parseField.match(value, deprecationHandler)) {
                     return mode;
                 }
             }

@@ -350,7 +350,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         });
         assertEquals(0, translog.uncommittedOperations());
         translog.sync();
-        long size = translog.uncommittedSizeInBytes();
+        long size = Math.max(translog.uncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
             translog.uncommittedOperations(), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(

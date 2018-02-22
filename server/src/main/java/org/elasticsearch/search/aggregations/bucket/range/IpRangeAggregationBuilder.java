@@ -89,13 +89,13 @@ public final class IpRangeAggregationBuilder
             if (parser.currentToken() == Token.FIELD_NAME) {
                 continue;
             }
-            if (RangeAggregator.Range.KEY_FIELD.match(parser.currentName())) {
+            if (RangeAggregator.Range.KEY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 key = parser.text();
-            } else if (RangeAggregator.Range.FROM_FIELD.match(parser.currentName())) {
+            } else if (RangeAggregator.Range.FROM_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 from = parser.textOrNull();
-            } else if (RangeAggregator.Range.TO_FIELD.match(parser.currentName())) {
+            } else if (RangeAggregator.Range.TO_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 to = parser.textOrNull();
-            } else if (MASK_FIELD.match(parser.currentName())) {
+            } else if (MASK_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 mask = parser.text();
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected ip range parameter: [" + parser.currentName() + "]");

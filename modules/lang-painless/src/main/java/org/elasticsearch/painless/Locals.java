@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
@@ -58,7 +57,7 @@ public final class Locals {
      * <p>
      * This is just like {@link #newFunctionScope}, except the captured parameters are made read-only.
      */
-    public static Locals newLambdaScope(Locals programScope, Type returnType, List<Parameter> parameters,
+    public static Locals newLambdaScope(Locals programScope, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
         for (int i = 0; i < parameters.size(); i++) {
@@ -68,43 +67,43 @@ public final class Locals {
             // currently, this cannot be allowed, as we swap in real types,
             // but that can prevent a store of a different type...
             boolean isCapture = true;
-            locals.addVariable(parameter.location, parameter.type, parameter.name, isCapture);
+            locals.addVariable(parameter.location, parameter.clazz, parameter.name, isCapture);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
 
     /** Creates a new function scope inside the current scope */
-    public static Locals newFunctionScope(Locals programScope, Type returnType, List<Parameter> parameters, int maxLoopCounter) {
+    public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.definition, returnType, KEYWORDS);
         for (Parameter parameter : parameters) {
-            locals.addVariable(parameter.location, parameter.type, parameter.name, false);
+            locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
 
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.definition,
-                scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+        Locals locals = new Locals(
+            programScope, programScope.definition, scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
-        locals.defineVariable(null, programScope.definition.getType("Object"), THIS, true);
+        locals.defineVariable(null, Object.class, THIS, true);
 
         // Method arguments
         for (MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
-            locals.defineVariable(null, arg.getType(), arg.getName(), true);
+            locals.defineVariable(null, arg.getClazz(), arg.getName(), true);
         }
 
         // Loop counter to catch infinite loops.  Internal use only.
         if (maxLoopCounter > 0) {
-            locals.defineVariable(null, locals.getDefinition().intType, LOOP, true);
+            locals.defineVariable(null, int.class, LOOP, true);
         }
         return locals;
     }
@@ -155,18 +154,18 @@ public final class Locals {
     }
 
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
-    public Variable addVariable(Location location, Type type, String name, boolean readonly) {
+    public Variable addVariable(Location location, Class<?> clazz, String name, boolean readonly) {
         if (hasVariable(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is already defined."));
         }
         if (keywords.contains(name)) {
             throw location.createError(new IllegalArgumentException("Variable [" + name + "] is reserved."));
         }
-        return defineVariable(location, type, name, readonly);
+        return defineVariable(location, clazz, name, readonly);
     }
 
     /** Return type of this scope (e.g. int, if inside a function that returns int) */
-    public Type getReturnType() {
+    public Class<?> getReturnType() {
         return returnType;
     }
 
@@ -191,7 +190,7 @@ public final class Locals {
     // parent scope
     private final Locals parent;
     // return type of this scope
-    private final Type returnType;
+    private final Class<?> returnType;
     // keywords for this scope
     private final Set<String> keywords;
     // next slot number to assign
@@ -211,7 +210,7 @@ public final class Locals {
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, Definition definition, Type returnType, Set<String> keywords) {
+    private Locals(Locals parent, Definition definition, Class<?> returnType, Set<String> keywords) {
         this.parent = parent;
         this.definition = definition;
         this.returnType = returnType;
@@ -246,13 +245,13 @@ public final class Locals {
 
 
     /** Defines a variable at this scope internally. */
-    private Variable defineVariable(Location location, Type type, String name, boolean readonly) {
+    private Variable defineVariable(Location location, Class<?> type, String name, boolean readonly) {
         if (variables == null) {
             variables = new HashMap<>();
         }
         Variable variable = new Variable(location, name, type, getNextSlot(), readonly);
         variables.put(name, variable); // TODO: check result
-        nextSlotNumber += type.type.getSize();
+        nextSlotNumber += MethodWriter.getType(type).getSize();
         return variable;
     }
 
@@ -272,15 +271,15 @@ public final class Locals {
     public static final class Variable {
         public final Location location;
         public final String name;
-        public final Type type;
+        public final Class<?> clazz;
         public final boolean readonly;
         private final int slot;
         private boolean used;
 
-        public Variable(Location location, String name, Type type, int slot, boolean readonly) {
+        public Variable(Location location, String name, Class<?> clazz, int slot, boolean readonly) {
             this.location = location;
             this.name = name;
-            this.type = type;
+            this.clazz = clazz;
             this.slot = slot;
             this.readonly = readonly;
         }
@@ -292,7 +291,7 @@ public final class Locals {
         @Override
         public String toString() {
             StringBuilder b = new StringBuilder();
-            b.append("Variable[type=").append(type);
+            b.append("Variable[type=").append(Definition.ClassToName(clazz));
             b.append(",name=").append(name);
             b.append(",slot=").append(slot);
             if (readonly) {
@@ -306,12 +305,12 @@ public final class Locals {
     public static final class Parameter {
         public final Location location;
         public final String name;
-        public final Type type;
+        public final Class<?> clazz;
 
-        public Parameter(Location location, String name, Type type) {
+        public Parameter(Location location, String name, Class<?> clazz) {
             this.location = location;
             this.name = name;
-            this.type = type;
+            this.clazz = clazz;
         }
     }
 }

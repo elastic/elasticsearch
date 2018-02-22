@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -187,13 +188,17 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         }));
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("term")).count());
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                    e.name.match("term", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("phrase")).count());
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                    e.name.match("phrase", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("completion")).count());
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                    e.name.match("completion", LoggingDeprecationHandler.INSTANCE)).count());
         assertEquals(1, module.getNamedXContents().stream()
-                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("custom")).count());
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
+                    e.name.match("custom", LoggingDeprecationHandler.INSTANCE)).count());
 
         assertEquals(1, module.getNamedWriteables().stream()
                 .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
@@ -250,7 +255,8 @@ public class SearchModuleTests extends ModuleTestCase {
 
         assertThat(
                 module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
+                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
                     .collect(toList()),
                 hasSize(1));
     }
@@ -266,7 +272,8 @@ public class SearchModuleTests extends ModuleTestCase {
 
         assertThat(
                 module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
+                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
                     .collect(toList()),
                 hasSize(1));
     }
@@ -280,7 +287,8 @@ public class SearchModuleTests extends ModuleTestCase {
         }));
         assertThat(
                 module.getNamedXContents().stream()
-                    .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) && entry.name.match("test"))
+                    .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) &&
+                        entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
                     .collect(toList()),
                 hasSize(1));
     }

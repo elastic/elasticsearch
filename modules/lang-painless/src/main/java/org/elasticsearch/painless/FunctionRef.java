@@ -75,7 +75,7 @@ public class FunctionRef {
      * @param numCaptures number of captured arguments
      */
     public FunctionRef(Definition definition, Class<?> expected, String type, String call, int numCaptures) {
-        this(expected, definition.ClassToType(expected).struct.getFunctionalMethod(),
+        this(expected, definition.ClassToType(expected).struct.functionalMethod,
                 lookup(definition, expected, type, call, numCaptures > 0), numCaptures);
     }
 
@@ -155,7 +155,7 @@ public class FunctionRef {
                                             String type, String call, boolean receiverCaptured) {
         // check its really a functional interface
         // for e.g. Comparable
-        Method method = definition.ClassToType(expected).struct.getFunctionalMethod();
+        Method method = definition.ClassToType(expected).struct.functionalMethod;
         if (method == null) {
             throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                "to [" + Definition.ClassToName(expected) + "], not a functional interface");

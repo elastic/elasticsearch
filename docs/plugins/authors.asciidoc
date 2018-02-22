@@ -5,9 +5,9 @@
 
 The Elasticsearch repository contains examples of:
 
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/custom-settings[Java plugin]
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/custom-settings[Java plugin]
   which contains a plugin with custom settings.
-* a https://github.com/elastic/elasticsearch/tree/master/plugins/rest-handler[Java plugin]
+* a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rest-handler[Java plugin]
   which contains a plugin that registers a Rest handler.
 * a https://github.com/elastic/elasticsearch/tree/master/plugins/examples/rescore[Java plugin]
   which contains a rescore plugin.
@@ -21,17 +21,12 @@ information about how to write a plugin, we recommend looking at the plugins
 listed in this documentation for inspiration.
 
 [float]
-=== Plugin Structure
-
-All plugin files must be contained in a directory called `elasticsearch`.
-
-[float]
 === Plugin descriptor file
 
-All plugins must contain a file called `plugin-descriptor.properties` in the folder named `elasticsearch`.
+All plugins must contain a file called `plugin-descriptor.properties`.
 The format for this file is described in detail in this example:
 
-["source","properties",subs="attributes"]
+["source","properties"]
 --------------------------------------------------
 include::{plugin-properties-files}/plugin-descriptor.properties[]
 --------------------------------------------------
@@ -63,7 +58,7 @@ of nonnegative decimal integers separated by "."'s and may have leading zeros.
 
 |=======================================================================
 
-Note that only jar files in the 'elasticsearch' directory are added to the classpath for the plugin!
+Note that only jar files at the root of the plugin are added to the classpath for the plugin!
 If you need other resources, package them into a resources jar.
 
 [IMPORTANT]

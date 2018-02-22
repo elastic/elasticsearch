@@ -108,12 +108,17 @@ class VagrantTestPlugin implements Plugin<Project> {
         if (upgradeFromVersion == null) {
             String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
             final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
-            final def indexCompatVersions = project.versionCollection.versionsIndexCompatibleWithCurrent
+            final def indexCompatVersions = project.bwcVersions.indexCompatible
             upgradeFromVersion = indexCompatVersions[new Random(seed).nextInt(indexCompatVersions.size())]
         }
 
         DISTRIBUTION_ARCHIVES.each {
             // Adds a dependency for the current version
+            if (it == 'tar') {
+                it = 'archives:tar'
+            } else {
+                it = "packages:${it}"
+            }
             project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'archives'))
         }
 

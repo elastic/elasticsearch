@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -71,7 +72,8 @@ public class XContentTestUtilsTests extends ESTestCase {
         }
         builder.endObject();
 
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes(), builder.contentType())) {
             parser.nextToken();
             List<String> insertPaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
             assertEquals(5, insertPaths.size());
@@ -96,7 +98,8 @@ public class XContentTestUtilsTests extends ESTestCase {
                 Collections.singletonList("inn\\.er1"), () -> "inner2", () -> new HashMap<>());
         builder = XContentTestUtils.insertIntoXContent(XContentType.JSON.xContent(), builder.bytes(),
                 Collections.singletonList("inn\\.er1"), () -> "field2", () -> "value2");
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes(), builder.contentType())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes(), builder.contentType())) {
             Map<String, Object> map = parser.map();
             assertEquals(2, map.size());
             assertEquals("value1", map.get("field1"));

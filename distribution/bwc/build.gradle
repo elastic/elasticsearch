@@ -29,14 +29,21 @@ import java.util.regex.Matcher
  * tests to test against the next unreleased version, closest to this version,
  * without relying on snapshots.
  */
-final Matcher match = project.name =~ /bwc-snapshot-(\d+\.(\d+|x))/
-if (!match.matches()) {
-  throw new InvalidUserDataException("Unsupport project name ${project.name}")
-}
-String bwcBranch = match.group(1)
+subprojects {
 
-if (project.hasProperty('bwcVersion')) {
-  Version bwcVersion = project.ext.bwcVersion
+  Version bwcVersion = bwcVersions.getSnapshotForProject(project.name)
+  if (bwcVersion == null) {
+    // this project wont do anything
+    return
+  }
+
+  String bwcBranch
+  if (project.name == 'next-minor-snapshot') {
+    // this is always a .x series
+    bwcBranch = "${bwcVersion.major}.x"
+  } else {
+    bwcBranch = "${bwcVersion.major}.${bwcVersion.minor}"
+  }
 
   apply plugin: 'distribution'
   // Not published so no need to assemble
@@ -61,7 +68,7 @@ if (project.hasProperty('bwcVersion')) {
     doLast {
       project.ext.remoteExists = false
       output.toString('UTF-8').eachLine {
-        if (it.contains("${remote}\thttps://github.com/${remote}/elasticsearch.git")) {
+        if (it.contains("${remote}\t")) {
           project.ext.remoteExists = true
         }
       }
@@ -113,9 +120,17 @@ if (project.hasProperty('bwcVersion')) {
     }
   }
 
-  File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
-  File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
+  String debDir = 'distribution/packages/deb'
+  String rpmDir = 'distribution/packages/rpm'  
+  String zipDir = 'distribution/archives/zip'
+  if (bwcVersion.before('6.3.0')) {
+    debDir = 'distribution/deb'
+    rpmDir = 'distribution/rpm'
+    zipDir = 'distribution/zip'
+  }
+  File bwcDeb = file("${checkoutDir}/${debDir}/build/distributions/elasticsearch-${bwcVersion}.deb")
+  File bwcRpm = file("${checkoutDir}/${rpmDir}/build/distributions/elasticsearch-${bwcVersion}.rpm")
+  File bwcZip = file("${checkoutDir}/${zipDir}/build/distributions/elasticsearch-${bwcVersion}.zip")
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
@@ -132,7 +147,7 @@ if (project.hasProperty('bwcVersion')) {
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
     }
-    args ":distribution:deb:assemble", ":distribution:rpm:assemble", ":distribution:zip:assemble", "-Dbuild.snapshot=${System.getProperty('build.snapshot') ?: 'true'}"
+    args ":${debDir.replace('/', ':')}:assemble", ":${rpmDir.replace('/', ':')}:assemble", ":${zipDir.replace('/', ':')}:assemble", "-Dbuild.snapshot=true"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
       args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"

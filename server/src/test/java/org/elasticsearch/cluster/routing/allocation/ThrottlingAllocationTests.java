@@ -59,7 +59,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
@@ -301,15 +300,18 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             new MoveAllocationCommand("test", 0, "node2", "node4")), true, false);
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);
-        boolean beingOutgoingThrottled = false;
+        boolean foundThrottledMessage = false;
         for (Decision decision : commandsResult.explanations().explanations().get(0).decisions().getDecisions()) {
             if (decision.label().equals(ThrottlingAllocationDecider.NAME)) {
-                assertThat(decision.getExplanation(), containsString("node [node1] which holds the primary"));
+                assertEquals("reached the limit of outgoing shard recoveries [1] on the node [node1] which holds the primary, " 
+                        + "cluster setting [cluster.routing.allocation.node_concurrent_outgoing_recoveries=1] " 
+                        + "(can also be set via [cluster.routing.allocation.node_concurrent_recoveries])", 
+                        decision.getExplanation());
                 assertEquals(Decision.Type.THROTTLE, decision.type());
-                beingOutgoingThrottled = true;
+                foundThrottledMessage = true;
             }
         }
-        assertEquals(true, beingOutgoingThrottled);
+        assertTrue(foundThrottledMessage);
         // even though it is throttled, move command still forces allocation
 
         clusterState = commandsResult.getClusterState();

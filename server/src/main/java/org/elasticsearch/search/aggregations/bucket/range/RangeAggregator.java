@@ -141,26 +141,27 @@ public class RangeAggregator extends BucketsAggregator {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (FROM_FIELD.match(currentFieldName)) {
+                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         from = parser.doubleValue();
-                    } else if (TO_FIELD.match(currentFieldName)) {
+                    } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         to = parser.doubleValue();
                     } else {
                         XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (FROM_FIELD.match(currentFieldName)) {
+                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         fromAsStr = parser.text();
-                    } else if (TO_FIELD.match(currentFieldName)) {
+                    } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         toAsStr = parser.text();
-                    } else if (KEY_FIELD.match(currentFieldName)) {
+                    } else if (KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         key = parser.text();
                     } else {
                         XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_NULL) {
-                    if (FROM_FIELD.match(currentFieldName) || TO_FIELD.match(currentFieldName)
-                            || KEY_FIELD.match(currentFieldName)) {
+                    if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())
+                        || TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())
+                        || KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         // ignore null value
                     } else {
                         XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());

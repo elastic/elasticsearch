@@ -21,6 +21,7 @@ package org.elasticsearch.ingest.common;
 
 import com.fasterxml.jackson.core.JsonFactory;
 
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -97,7 +98,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-            XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, builder.bytes().streamInput());
+            XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput());
             Script script = Script.parse(parser);
 
             Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);

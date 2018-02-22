@@ -415,6 +415,51 @@ stop_elasticsearch_service() {
     fi
 }
 
+# the default netcat packages in the distributions we test are not all compatible
+# so we use /dev/tcp - a feature of bash which makes tcp connections
+# http://tldp.org/LDP/abs/html/devref1.html#DEVTCP
+test_port() {
+    local host="$1"
+    local port="$2"
+    cat < /dev/null > "/dev/tcp/$host/$port"
+}
+
+describe_port() {
+    local host="$1"
+    local port="$2"
+    if test_port "$host" "$port"; then
+        echo "port $port on host $host is open"
+    else
+        echo "port $port on host $host is not open"
+    fi
+}
+
+debug_collect_logs() {
+    local es_logfile="$ESLOG/elasticsearch.log"
+    local system_logfile='/var/log/messages'
+
+    if [ -e "$es_logfile" ]; then
+        echo "Here's the elasticsearch log:"
+        cat "$es_logfile"
+    else
+        echo "The elasticsearch log doesn't exist at $es_logfile"
+    fi
+
+    if [ -e "$system_logfile" ]; then
+        echo "Here's the tail of the log at $system_logfile:"
+        tail -n20 "$system_logfile"
+    else
+        echo "The logfile at $system_logfile doesn't exist"
+    fi
+
+    echo "Current java processes:"
+    ps aux | grep java || true
+
+    echo "Testing if ES ports are open:"
+    describe_port 127.0.0.1 9200
+    describe_port 127.0.0.1 9201
+}
+
 # Waits for Elasticsearch to reach some status.
 # $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
@@ -422,15 +467,10 @@ wait_for_elasticsearch_status() {
     local index=$2
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries 120 http://localhost:9200/_cluster/health || {
-          echo "Looks like elasticsearch never started. Here is its log:"
-          if [ -e "$ESLOG/elasticsearch.log" ]; then
-              cat "$ESLOG/elasticsearch.log"
-          else
-              echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
-              tail -n20 /var/log/messages
-          fi
-          false
+    wget -O - --retry-connrefused --waitretry=1 --timeout=120 --tries=120 http://localhost:9200/_cluster/health || {
+        echo "Looks like elasticsearch never started"
+        debug_collect_logs
+        false
     }
 
     if [ -z "index" ]; then

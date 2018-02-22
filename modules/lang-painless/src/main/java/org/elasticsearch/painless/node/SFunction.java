@@ -137,7 +137,7 @@ public final class SFunction extends AStatement {
 
                 paramClasses[param] = Definition.defClassToObjectClass(paramType);
                 paramTypes.add(paramType);
-                parameters.add(new Parameter(location, paramNameStrs.get(param), definition.ClassToType(paramType)));
+                parameters.add(new Parameter(location, paramNameStrs.get(param), paramType));
             } catch (IllegalArgumentException exception) {
                 throw createError(new IllegalArgumentException(
                     "Illegal parameter type [" + this.paramTypeStrs.get(param) + "] for function [" + name + "]."));

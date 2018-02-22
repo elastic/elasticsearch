@@ -48,7 +48,7 @@ public final class SReturn extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        expression.expected = Definition.TypeToClass(locals.getReturnType());
+        expression.expected = locals.getReturnType();
         expression.internal = true;
         expression.analyze(locals);
         expression = expression.cast(locals);

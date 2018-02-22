@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite Aggregation
 
-experimental[]
+beta[]
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 

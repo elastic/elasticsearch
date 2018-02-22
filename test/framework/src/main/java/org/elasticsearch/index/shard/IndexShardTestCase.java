@@ -60,7 +60,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -620,7 +620,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireIndexCommit(false, true)) {
+        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
@@ -640,7 +640,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return indexShard.getEngine();
     }
 
-    public static GlobalCheckpointTracker getGlobalCheckpointTracker(IndexShard indexShard) {
-        return indexShard.getGlobalCheckpointTracker();
+    public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {
+        return indexShard.getReplicationTracker();
     }
 }

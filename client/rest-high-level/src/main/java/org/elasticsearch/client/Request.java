@@ -29,11 +29,13 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -57,6 +59,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -71,6 +74,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
@@ -315,7 +320,8 @@ public final class Request {
                 BytesReference indexSource = indexRequest.source();
                 XContentType indexXContentType = indexRequest.getContentType();
 
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, indexSource, indexXContentType)) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = builder.bytes().toBytesRef();
@@ -525,6 +531,17 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
+    static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
+        parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
+        parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
+
+        String endpoint = buildEndpoint("_cluster", "settings");
+        HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -565,7 +582,16 @@ public final class Request {
         StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
             if (Strings.hasLength(part)) {
-                joiner.add(part);
+                try {
+                    //encode each part (e.g. index, type and id) separately before merging them into the path
+                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                    //paths that start with `-` or contain `:`
+                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
+                    //manually encode any slash that each part may contain
+                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
+                } catch (URISyntaxException e) {
+                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
+                }
             }
         }
         return joiner.toString();
@@ -580,6 +606,17 @@ public final class Request {
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    static Request indicesExist(GetIndexRequest request) {
+        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
+        Params params = Params.builder();
+        params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
+        params.withIndicesOptions(request.indicesOptions());
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**
@@ -729,8 +766,31 @@ public final class Request {
             return this;
         }
 
+        Params withHuman(boolean human) {
+            if (human) {
+                putParam("human", Boolean.toString(human));
+            }
+            return this;
+        }
+
         Params withLocal(boolean local) {
-            putParam("local", Boolean.toString(local));
+            if (local) {
+                putParam("local", Boolean.toString(local));
+            }
+            return this;
+        }
+
+        Params withFlatSettings(boolean flatSettings) {
+            if (flatSettings) {
+                return putParam("flat_settings", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withIncludeDefaults(boolean includeDefaults) {
+            if (includeDefaults) {
+                return putParam("include_defaults", Boolean.TRUE.toString());
+            }
             return this;
         }
 

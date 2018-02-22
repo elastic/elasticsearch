@@ -387,14 +387,14 @@ public abstract class TransportWriteAction<
 
             logger.warn((org.apache.logging.log4j.util.Supplier<?>)
                     () -> new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, message, exception,
+            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
                     createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
 
         @Override
         public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
                                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, "mark copy as stale", null,
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
                     createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }
 

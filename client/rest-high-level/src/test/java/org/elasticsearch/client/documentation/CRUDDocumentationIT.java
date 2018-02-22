@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -60,11 +61,11 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -227,9 +228,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             IndexRequest request = new IndexRequest("posts", "doc", "async").source("field", "value");
-
-            // tag::index-execute-async
-            client.indexAsync(request, new ActionListener<IndexResponse>() {
+            // tag::index-execute-listener
+            ActionListener<IndexResponse> listener = new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     // <1>
@@ -239,10 +239,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::index-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::index-execute-async
+            client.indexAsync(request, listener); // <1>
             // end::index-execute-async
 
-            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -490,8 +498,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             UpdateRequest request = new UpdateRequest("posts", "doc", "async").doc("reason", "async update").docAsUpsert(true);
 
-            // tag::update-execute-async
-            client.updateAsync(request, new ActionListener<UpdateResponse>() {
+            // tag::update-execute-listener
+            ActionListener<UpdateResponse> listener = new ActionListener<UpdateResponse>() {
                 @Override
                 public void onResponse(UpdateResponse updateResponse) {
                     // <1>
@@ -501,10 +509,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::update-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-execute-async
+            client.updateAsync(request, listener); // <1>
             // end::update-execute-async
 
-            assertBusy(() -> assertTrue(client.exists(new GetRequest("posts", "doc", "async"))));
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -602,8 +618,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             DeleteRequest request = new DeleteRequest("posts", "doc", "async");
 
-            // tag::delete-execute-async
-            client.deleteAsync(request, new ActionListener<DeleteResponse>() {
+            // tag::delete-execute-listener
+            ActionListener<DeleteResponse> listener = new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     // <1>
@@ -613,14 +629,22 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::delete-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-execute-async
+            client.deleteAsync(request, listener); // <1>
             // end::delete-execute-async
 
-            assertBusy(() -> assertFalse(client.exists(new GetRequest("posts", "doc", "async"))));
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
-    public void testBulk() throws IOException {
+    public void testBulk() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::bulk-request
@@ -696,8 +720,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.waitForActiveShards(ActiveShardCount.ALL); // <2>
             // end::bulk-request-active-shards
 
-            // tag::bulk-execute-async
-            client.bulkAsync(request, new ActionListener<BulkResponse>() {
+            // tag::bulk-execute-listener
+            ActionListener<BulkResponse> listener = new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse bulkResponse) {
                     // <1>
@@ -707,12 +731,22 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::bulk-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::bulk-execute-async
+            client.bulkAsync(request, listener); // <1>
             // end::bulk-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
-    public void testGet() throws IOException {
+    public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             String mappings = "{\n" +
@@ -839,8 +873,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             GetRequest request = new GetRequest("posts", "doc", "1");
-            //tag::get-execute-async
-            client.getAsync(request, new ActionListener<GetResponse>() {
+
+            // tag::get-execute-listener
+            ActionListener<GetResponse> listener = new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse getResponse) {
                     // <1>
@@ -850,8 +885,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::get-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-execute-async
+            client.getAsync(request, listener); // <1>
             //end::get-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
         {
             //tag::get-indexnotfound
@@ -879,7 +924,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testBulkProcessor() throws InterruptedException, IOException {
+    public void testBulkProcessor() throws InterruptedException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::bulk-processor-init

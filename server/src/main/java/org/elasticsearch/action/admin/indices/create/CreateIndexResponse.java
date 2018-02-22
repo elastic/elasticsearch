@@ -26,18 +26,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A response for a create index action.
  */
-public class CreateIndexResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
+public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ParseField INDEX = new ParseField("index");
 
@@ -88,16 +88,26 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse implements T
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
-        addShardsAcknowledgedField(builder);
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
         builder.field(INDEX.getPreferredName(), index());
-        builder.endObject();
-        return builder;
     }
 
     public static CreateIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            CreateIndexResponse that = (CreateIndexResponse) o;
+            return Objects.equals(index, that.index);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), index);
     }
 }

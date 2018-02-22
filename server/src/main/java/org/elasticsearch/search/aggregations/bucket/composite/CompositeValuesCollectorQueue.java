@@ -49,7 +49,7 @@ final class CompositeValuesCollectorQueue {
 
     /**
      * Constructs a composite queue with the specified size and sources.
-     * 
+     *
      * @param reader The index reader.
      * @param query The query.
      * @param sources The list of {@link CompositeValuesSourceConfig} to build the composite buckets.

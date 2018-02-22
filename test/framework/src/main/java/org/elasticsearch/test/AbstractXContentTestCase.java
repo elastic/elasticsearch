@@ -110,7 +110,6 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * Returns a predicate that given the field name indicates whether the field has to be excluded from random fields insertion or not
      */
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        assert supportsUnknownFields();
         return field -> false;
     }
 

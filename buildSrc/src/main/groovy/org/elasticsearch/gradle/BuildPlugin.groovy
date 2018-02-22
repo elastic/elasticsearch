@@ -420,7 +420,7 @@ class BuildPlugin implements Plugin<Project> {
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                options.forkOptions.memoryMaximumSize = "1g"
+                options.forkOptions.memoryMaximumSize = "512m"
                 if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE

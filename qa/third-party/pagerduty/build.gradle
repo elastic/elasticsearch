@@ -1,0 +1,39 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+}
+
+String pagerDutyPropertyName = 'xpack.notification.pagerduty.service_api_key'
+System.setProperty(pagerDutyPropertyName, 'fc082467005d4072a914e0bb041882d0')
+
+ext {
+  jiraUrl      = 'https://elasticsearch.atlassian.net/'
+  jiraUser     = 'xpack-user@elastic.co'
+  jiraPassword = 'N9M4ea9rfy'
+  jiraProject  =  'XWT'
+  slackUrl     = 'https://hooks.slack.com/services/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'
+  pagerDutyUrl = 'fc082467005d4072a914e0bb041882d0'
+  hipchatUserAuthToken        = '4UefsFLvKRw01EMN5vo3oyoY6BLiz7IQBQbGug8K'
+  hipchatIntegrationAuthToken = 'huuS9v7ccuOy3ZBWWWr1vt8Lqu3sQnLUE81nrLZU'
+  hipchatV1AuthToken          = 'a734baf62df618b96dda55b323fc30'
+}
+
+integTestCluster {
+  plugin xpackProject('plugin').path
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+
+  // pagerduty
+  setting 'xpack.notification.pagerduty.account.test_account.service_api_key', System.getProperty(pagerDutyPropertyName)
+}
+
+// require network access for this one, exit early instead of starting up the cluster if we dont have network
+if (!System.getProperty(pagerDutyPropertyName) || !System.getProperty('tests.network')) {
+    integTest.enabled = false
+}

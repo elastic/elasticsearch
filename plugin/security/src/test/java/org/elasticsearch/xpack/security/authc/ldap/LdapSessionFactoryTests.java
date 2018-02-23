@@ -81,33 +81,6 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Network
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
-    public void testConnectTimeout() {
-        // Local sockets connect too fast...
-        String ldapUrl = "ldap://54.200.235.244:389";
-        String groupSearchBase = "o=sevenSeas";
-        String userTemplates = "cn={0},ou=people,o=sevenSeas";
-
-        Settings settings = Settings.builder()
-                .put(buildLdapSettings(ldapUrl, userTemplates, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, "1ms") //1 millisecond
-                .build();
-
-        RealmConfig config = new RealmConfig("ldap_realm", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
-        String user = "Horatio Hornblower";
-        SecureString userPass = new SecureString("pass");
-
-        long start = System.currentTimeMillis();
-        LDAPException expected = expectThrows(LDAPException.class, () -> session(sessionFactory, user, userPass));
-        long time = System.currentTimeMillis() - start;
-        assertThat(time, lessThan(10000L));
-        assertThat(expected, instanceOf(LDAPException.class));
-        assertThat(expected.getCause().getMessage(),
-                anyOf(containsString("within the configured timeout of"), containsString("connect timed out")));
-    }
-
     public void testBindWithTemplates() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {

@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
  * This tests that "run-as" works on LDAP/AD realms
  */
 @Network
-public class ActiveDirectoryRunAsTests extends AbstractAdLdapRealmTestCase {
+public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass
     public static void selectRealmConfig() {

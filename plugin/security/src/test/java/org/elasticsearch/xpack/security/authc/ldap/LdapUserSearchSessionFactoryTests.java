@@ -403,62 +403,6 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    @Network
-    public void testUserSearchWithActiveDirectory() throws Exception {
-        String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
-        String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(
-                        new String[] { ActiveDirectorySessionFactoryTests.AD_LDAP_URL },
-                        Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE, null,
-                        true))
-                .put("user_search.base_dn", userSearchBase)
-                .put("bind_dn", "ironman@ad.test.elasticsearch.com")
-                .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
-                .put("user_search.filter", "(cn={0})")
-                .put("user_search.pool.enabled", randomBoolean())
-                .build();
-        Settings.Builder builder = Settings.builder()
-                .put(globalSettings);
-        settings.keySet().forEach(k -> {
-            builder.copy("xpack.security.authc.realms.ldap." + k, k, settings);
-
-        });
-        Settings fullSettings = builder.build();
-        sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
-
-        String user = "Bruce Banner";
-        try {
-            //auth
-            try (LdapSession ldap = session(sessionFactory, user, new SecureString(ActiveDirectorySessionFactoryTests.PASSWORD))) {
-                assertConnectionCanReconnect(ldap.getConnection());
-                List<String> groups = groups(ldap);
-
-                assertThat(groups, containsInAnyOrder(
-                        containsString("Avengers"),
-                        containsString("SHIELD"),
-                        containsString("Geniuses"),
-                        containsString("Philanthropists")));
-            }
-
-            //lookup
-            try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionCanReconnect(ldap.getConnection());
-                List<String> groups = groups(ldap);
-
-                assertThat(groups, containsInAnyOrder(
-                        containsString("Avengers"),
-                        containsString("SHIELD"),
-                        containsString("Geniuses"),
-                        containsString("Philanthropists")));
-            }
-        } finally {
-            sessionFactory.close();
-        }
-    }
-
     public void testConnectionPoolDefaultSettings() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
@@ -586,7 +530,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
-                .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
+                .put("bind_password", "password")
                 .put("user_search.attribute", "cn")
                 .put("timeout.tcp_connect", "500ms")
                 .put("type", "ldap")

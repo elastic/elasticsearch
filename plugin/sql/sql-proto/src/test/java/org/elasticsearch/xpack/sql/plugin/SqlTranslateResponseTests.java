@@ -7,7 +7,8 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
+
+import java.io.IOException;
 
 public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTranslateResponse> {
 
@@ -39,11 +40,10 @@ public class SqlTranslateResponseTests extends AbstractStreamableTestCase<SqlTra
     }
 
     @Override
-    protected MutateFunction<SqlTranslateResponse> getMutateFunction() {
-        return response -> {
-            SqlTranslateResponse copy = getCopyFunction().copy(response);
-            copy.source().size(randomValueOtherThan(response.source().size(), () -> between(0, Integer.MAX_VALUE)));
-            return copy;
-        };
+    protected SqlTranslateResponse mutateInstance(SqlTranslateResponse instance) throws IOException {
+        SqlTranslateResponse sqlTranslateResponse = copyInstance(instance);
+        SearchSourceBuilder source = sqlTranslateResponse.source();
+        source.size(randomValueOtherThan(source.size(), () -> between(0, Integer.MAX_VALUE)));
+        return new SqlTranslateResponse(source);
     }
 }

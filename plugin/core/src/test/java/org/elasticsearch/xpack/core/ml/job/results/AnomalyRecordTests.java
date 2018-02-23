@@ -14,10 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyCause;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyCauseTests;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.core.ml.job.results.Influence;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,7 +197,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         record.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(builder);
-        AnomalyRecord serialised = parseInstance(parser);
+        AnomalyRecord serialised = doParseInstance(parser);
         assertEquals(record, serialised);
     }
 }

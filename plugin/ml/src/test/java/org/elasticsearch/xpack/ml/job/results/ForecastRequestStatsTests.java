@@ -11,17 +11,11 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ForecastRequestStatsTests extends AbstractSerializingTestCase<ForecastRequestStats> {
-
-    @Override
-    protected ForecastRequestStats parseInstance(XContentParser parser) {
-        return ForecastRequestStats.PARSER.apply(parser, null);
-    }
 
     @Override
     protected ForecastRequestStats createTestInstance() {
@@ -79,7 +73,7 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
     }
 
     @Override
-    protected ForecastRequestStats doParseInstance(XContentParser parser) throws IOException {
+    protected ForecastRequestStats doParseInstance(XContentParser parser) {
         return ForecastRequestStats.PARSER.apply(parser, null);
     }
 }

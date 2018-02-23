@@ -39,9 +39,15 @@ import static org.hamcrest.Matchers.containsString;
 public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
+
         @Override
         public boolean doesBucketExist(String bucketName) {
             return true;
+        }
+
+        @Override
+        public void shutdown() {
+            // TODO check is closed
         }
     }
 
@@ -81,31 +87,31 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private void assertValidBuffer(long bufferMB, long chunkMB) throws IOException {
-        RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
+        final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB).getStringRep())
                 .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB).getStringRep()).build());
         new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
     }
 
     private void assertInvalidBuffer(int bufferMB, int chunkMB, Class<? extends Exception> clazz, String msg) throws IOException {
-        RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
+        final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
                 .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB).getStringRep())
                 .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB).getStringRep()).build());
 
-        Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
+        final Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
             new DummyS3Service()));
         assertThat(e.getMessage(), containsString(msg));
     }
 
     public void testBasePathSetting() throws IOException {
-        RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
+        final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
             .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
-        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
+        final S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString());
     }
 
     public void testDefaultBufferSize() {
-        ByteSizeValue defaultBufferSize = S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        final ByteSizeValue defaultBufferSize = S3Repository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
         assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(new ByteSizeValue(100, ByteSizeUnit.MB)));
         assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(new ByteSizeValue(5, ByteSizeUnit.MB)));
     }

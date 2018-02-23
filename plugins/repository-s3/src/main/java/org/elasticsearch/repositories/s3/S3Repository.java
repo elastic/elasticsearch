@@ -182,8 +182,12 @@ class S3Repository extends BlobStoreRepository {
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        awsService.updateClientsSettings(S3ClientSettings.load(settings, (ignoredSettings, ignoredClientName) -> S3ClientSettings
-                .loadDeprecatedCredentials(deprecationLogger, metadata.settings())));
+        // deprecated behavior: override client credentials from cluster state
+        // (repository settings)
+        if (S3ClientSettings.checkDeprecatedCredentialsAndLog(deprecationLogger, metadata.settings())) {
+            awsService.updateClientsSettings(S3ClientSettings.load(settings,
+                    (ignoredSettings, ignoredClientName) -> S3ClientSettings.loadDeprecatedCredentials(metadata.settings())));
+        }
         blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());

@@ -32,10 +32,13 @@ public class RepositorySettingsCredentialsTests extends ESTestCase {
             .put(S3Repository.SECRET_KEY_SETTING.getKey(), "aws_secret").build();
         final AWSCredentials credentials = InternalAwsS3Service
                 .buildCredentials(logger,
-                        S3ClientSettings
-                                .getClientSettings(Settings.EMPTY, "default",
-                                        (ignoredSettings, ignoredClientName) -> S3ClientSettings
-                                                .loadDeprecatedCredentials(deprecationLogger, repositorySettings)))
+                        S3ClientSettings.getClientSettings(Settings.EMPTY, "default",
+                                (ignoredSettings, ignoredClientName) -> {
+                                    if (S3ClientSettings.checkDeprecatedCredentialsAndLog(deprecationLogger, repositorySettings)) {
+                                        return S3ClientSettings.loadDeprecatedCredentials(repositorySettings);
+                                    }
+                                    return null;
+                                }))
                 .getCredentials();
         assertEquals("aws_key", credentials.getAWSAccessKeyId());
         assertEquals("aws_secret", credentials.getAWSSecretKey());

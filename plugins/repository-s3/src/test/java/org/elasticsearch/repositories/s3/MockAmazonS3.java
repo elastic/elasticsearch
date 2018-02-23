@@ -208,6 +208,11 @@ class MockAmazonS3 extends AbstractAmazonS3 {
 
         blobs.remove(blobName);
     }
+    
+    @Override
+    public void shutdown() {
+        // TODO check close
+    }
 
     private int getSize(InputStream stream) throws IOException {
         int size = stream.read(byteCounter);

@@ -156,24 +156,28 @@ class S3ClientSettings {
         return Collections.unmodifiableMap(clients);
     }
 
-    // backcompat for reading keys out of repository settings
-    static BasicAWSCredentials loadDeprecatedCredentials(DeprecationLogger deprecationLogger, Settings repositorySettings) {
+    static boolean checkDeprecatedCredentialsAndLog(DeprecationLogger deprecationLogger, Settings repositorySettings) {
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
             if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
                 throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey()
                         + " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
             }
-            try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
-                    SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
-                deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
-                        + "store these in named clients and the elasticsearch keystore for secure settings.");
-                return new BasicAWSCredentials(key.toString(), secret.toString());
-            }
+            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings.");
+            return true;
         } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
             throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey()
                     + " must be accompanied by setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() + "]");
         }
-        return null;
+        return false;
+    }
+
+    // backcompat for reading keys out of repository settings (clusterState)
+    static BasicAWSCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+        try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
+                SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
+            return new BasicAWSCredentials(key.toString(), secret.toString());
+        }
     }
 
     static BasicAWSCredentials loadCredentials(Settings settings, String clientName) {

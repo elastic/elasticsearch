@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -455,7 +454,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
                     listener.onFailure(e);
                 }
 
@@ -472,7 +471,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
 
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
             listener.onFailure(e);
         }
     }
@@ -679,7 +678,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
 
         @Override
         public void onFailure(final String source, final Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
         }
 
         @Override

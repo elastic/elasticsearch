@@ -431,8 +431,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug((org.apache.logging.log4j.util.Supplier<?>)
-                            () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }

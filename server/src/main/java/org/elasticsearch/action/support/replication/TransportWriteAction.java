@@ -385,8 +385,7 @@ public abstract class TransportWriteAction<
         public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
 
-            logger.warn((org.apache.logging.log4j.util.Supplier<?>)
-                    () -> new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            logger.warn(() -> new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
                     createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }

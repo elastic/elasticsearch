@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -125,10 +124,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            if (logger.isDebugEnabled()) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()),
-                    cause);
-            }
+            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
@@ -138,9 +134,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
                     Throwable cause = shardSearchFailures.length == 0 ? null :
                         ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} shards failed for phase: [{}]", 
-                            shardSearchFailures.length, getName()),
-                        cause);
+                    logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]", 
+                            shardSearchFailures.length, getName()), cause);
                 }
                 onPhaseFailure(currentPhase, "Partial shards failure", null);                
             } else { 
@@ -160,10 +155,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             phase.run();
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "Failed to execute [{}] while moving to [{}] phase", request, phase.getName()),
-                    e);
+                logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);
             }
             onPhaseFailure(phase, "", e);
         }

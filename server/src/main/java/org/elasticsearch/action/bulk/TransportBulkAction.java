@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -148,8 +147,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final Set<String> indices = bulkRequest.requests.stream()
                     // delete requests should not attempt to create the index (if the index does not
                     // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE 
-                        || request.versionType() == VersionType.EXTERNAL 
+                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
+                        || request.versionType() == VersionType.EXTERNAL
                         || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());
@@ -494,7 +493,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         long ingestStartTimeInNanos = System.nanoTime();
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
         ingestService.getPipelineExecutionService().executeBulkRequest(() -> bulkRequestModifier, (indexRequest, exception) -> {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+            logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
                 indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
             bulkRequestModifier.markCurrentItemAsFailed(exception);
         }, (exception) -> {

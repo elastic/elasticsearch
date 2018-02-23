@@ -30,8 +30,6 @@ if (project.rootProject.vagrantSupported) {
 }
 
 integTestCluster {
-  plugin xpackProject('plugin').path
-
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
@@ -54,7 +52,7 @@ integTestCluster {
   extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
 
   setupCommand 'setupTestAdmin',
-            'bin/x-pack/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+            'bin/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
 
   waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')

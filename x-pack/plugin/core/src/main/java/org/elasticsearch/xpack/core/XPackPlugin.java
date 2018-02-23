@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.SpecialPermission;
@@ -22,6 +23,8 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import javax.security.auth.DestroyFailedException;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
@@ -62,6 +66,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin {
+
+    private static Logger logger = ESLoggerFactory.getLogger(XPackPlugin.class);
+    private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -216,11 +223,15 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        return env.configFile().resolve(XPackField.NAME).resolve(name);
+        Path config =  env.configFile().resolve(name);
+        if (Files.exists(config) == false) {
+            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            if (Files.exists(legacyConfig)) {
+                deprecationLogger.deprecated("Config file [" + name + "] is in a deprecated location. Move from " +
+                    legacyConfig.toString() + " to " + config.toString());
+                return legacyConfig;
+            }
+        }
+        return config;
     }
-
-    public static Path resolveXPackExtensionsFile(Environment env) {
-        return env.pluginsFile().resolve(XPackField.NAME).resolve("x-pack-security").resolve("extensions");
-    }
-
 }

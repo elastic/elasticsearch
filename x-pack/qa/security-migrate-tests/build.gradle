@@ -8,10 +8,9 @@ dependencies {
 }
 
 integTestCluster {
-  plugin xpackProject('plugin').path
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  extraConfigFile 'roles.yml', 'roles.yml'
   [
     test_admin: 'superuser',
     transport_user: 'superuser',
@@ -19,7 +18,7 @@ integTestCluster {
     bob: 'actual_role'
   ].each { String user, String role ->
     setupCommand 'setupUser#' + user,
-                 'bin/x-pack/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+                 'bin/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
   }
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

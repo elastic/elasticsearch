@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -43,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 public class FileUserPasswdStoreTests extends ESTestCase {
 
@@ -66,7 +66,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
     }
 
     public void testStore_ConfiguredWithUnreadableFile() throws Exception {
-        Path xpackConf = env.configFile().resolve(XPackField.NAME);
+        Path xpackConf = env.configFile();
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
 
@@ -82,7 +82,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile().resolve(XPackField.NAME);
+        Path xpackConf = env.configFile();
         Files.createDirectories(xpackConf);
         Path file = xpackConf.resolve("users");
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
@@ -119,7 +119,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
-        Path xpackConf = env.configFile().resolve(XPackField.NAME);
+        Path xpackConf = env.configFile();
         Files.createDirectories(xpackConf);
         Path testUsers = xpackConf.resolve("users");
         Files.copy(users, testUsers, StandardCopyOption.REPLACE_EXISTING);
@@ -184,6 +184,8 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
+        assertThat(users, nullValue());
+        users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));
     }

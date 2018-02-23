@@ -38,15 +38,8 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
      */
     @Override
     public void doAssertXPackIsInstalled() {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
-        for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-            // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
-//            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
-            Collection<String> pluginNames =
-                nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
-            assertThat("plugin [" + Security.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
-                hasItem(Security.class.getName()));
-        }
+        // this assertion doesn't make sense with a real distribution, since there is not currently a way
+        // from nodes info to see which modules are loaded
     }
 
     public void testDeleteByQuery() {

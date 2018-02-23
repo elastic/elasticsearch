@@ -10,10 +10,10 @@ load $BATS_UTILS/xpack.bash
 
 setup() {
     if [ $BATS_TEST_NUMBER == 1 ]; then
+        export PACKAGE_NAME="elasticsearch"
         clean_before_test
         install
 
-        install_xpack
         generate_trial_license
         verify_xpack_installation
     fi
@@ -50,7 +50,7 @@ fi
     wait_for_xpack
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_AUTO"
-echo 'y' | $ESHOME/bin/x-pack/setup-passwords auto
+echo 'y' | $ESHOME/bin/setup-passwords auto
 SETUP_AUTO
     echo "$output" > /tmp/setup-passwords-output
     [ "$status" -eq 0 ] || {

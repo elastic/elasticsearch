@@ -77,7 +77,7 @@ public class SystemKeyToolTests extends CommandTestCase {
     public void testGeneratePathInSettings() throws Exception {
         final Path homeDir = initFileSystem(false);
 
-        Path xpackConf = homeDir.resolve("config").resolve(XPackField.NAME);
+        Path xpackConf = homeDir.resolve("config");
         Files.createDirectories(xpackConf);
         execute("-Epath.home=" + homeDir.toString());
         byte[] bytes = Files.readAllBytes(xpackConf.resolve("system_key"));
@@ -86,7 +86,7 @@ public class SystemKeyToolTests extends CommandTestCase {
 
     public void testGenerateDefaultPath() throws Exception {
         final Path homeDir = initFileSystem(false);
-        Path keyPath = homeDir.resolve("config/x-pack/system_key");
+        Path keyPath = homeDir.resolve("config/system_key");
         Files.createDirectories(keyPath.getParent());
         execute("-Epath.home=" + homeDir.toString());
         byte[] bytes = Files.readAllBytes(keyPath);

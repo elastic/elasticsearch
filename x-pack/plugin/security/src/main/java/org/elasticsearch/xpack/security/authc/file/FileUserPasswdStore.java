@@ -104,7 +104,8 @@ public class FileUserPasswdStore {
      */
     static Map<String, char[]> parseFileLenient(Path path, Logger logger, Settings settings) {
         try {
-            return parseFile(path, logger, settings);
+            Map<String, char[]> map = parseFile(path, logger, settings);
+            return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage(
@@ -114,8 +115,9 @@ public class FileUserPasswdStore {
     }
 
     /**
-     * parses the users file. Should never return {@code null}, if the file doesn't exist an
-     * empty map is returned
+     * Parses the users file.
+     *
+     * Returns {@code null}, if the {@code users} file does not exist.
      */
     public static Map<String, char[]> parseFile(Path path, @Nullable Logger logger, Settings settings) {
         if (logger == null) {
@@ -123,8 +125,8 @@ public class FileUserPasswdStore {
         }
         logger.trace("reading users file [{}]...", path.toAbsolutePath());
 
-        if (!Files.exists(path)) {
-            return emptyMap();
+        if (Files.exists(path) == false) {
+            return null;
         }
 
         List<String> lines;

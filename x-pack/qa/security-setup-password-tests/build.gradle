@@ -12,9 +12,8 @@ integTestRunner {
 }
 
 integTestCluster {
-    plugin xpackProject('plugin').path
     setupCommand 'setupTestAdmin',
-            'bin/x-pack/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+            'bin/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     waitCondition = { node, ant ->

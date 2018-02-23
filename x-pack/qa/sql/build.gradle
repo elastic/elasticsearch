@@ -104,7 +104,6 @@ subprojects {
     apply plugin: 'elasticsearch.rest-test'
 
     integTestCluster {
-      plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
@@ -112,7 +111,6 @@ subprojects {
     }
 
     task runqa(type: RunTask) {
-      plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'

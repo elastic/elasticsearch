@@ -302,7 +302,7 @@ public class FileRolesStoreTests extends ESTestCase {
         try {
             Path roles = getDataPath("roles.yml");
             Path home = createTempDir();
-            Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
+            Path xpackConf = home.resolve("config");
             Files.createDirectories(xpackConf);
             Path tmp = xpackConf.resolve("roles.yml");
             try (OutputStream stream = Files.newOutputStream(tmp)) {
@@ -430,7 +430,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testUsageStats() throws Exception {
         Path roles = getDataPath("roles.yml");
         Path home = createTempDir();
-        Path tmp = home.resolve("config/x-pack/roles.yml");
+        Path tmp = home.resolve("config/roles.yml");
         Files.createDirectories(tmp.getParent());
         try (OutputStream stream = Files.newOutputStream(tmp)) {
             Files.copy(roles, stream);

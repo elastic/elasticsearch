@@ -15,6 +15,7 @@ instances="/tmp/instances.yml"
 certificates="/tmp/certificates.zip"
 
 setup() {
+    export PACKAGE_NAME="elasticsearch"
     if [ $BATS_TEST_NUMBER == 1 ]; then
         clean_before_test
     fi
@@ -32,10 +33,14 @@ if [[ "$BATS_TEST_FILENAME" =~ 40_tar_certgen.bats$ ]]; then
     GROUP='TAR CERTGEN'
 
     MASTER_USER=$DEFAULT_ARCHIVE_USER
+    MASTER_GROUP=$DEFAULT_ARCHIVE_USER
+    MASTER_DPERMS=755
     MASTER_HOME=$DEFAULT_ARCHIVE_ESHOME
     MASTER_UTILS=$DEFAULT_ARCHIVE_UTILS
 
     DATA_USER=$DEFAULT_PACKAGE_USER
+    DATA_GROUP=elasticsearch
+    DATA_DPERMS=2755
     DATA_HOME=$DEFAULT_PACKAGE_ESHOME
     DATA_UTILS=$DEFAULT_PACKAGE_UTILS
 
@@ -59,10 +64,14 @@ else
     fi
 
     MASTER_USER=$DEFAULT_PACKAGE_USER
+    MASTER_GROUP=elasticsearch
+    MASTER_DPERMS=2755
     MASTER_HOME=$DEFAULT_PACKAGE_ESHOME
     MASTER_UTILS=$DEFAULT_PACKAGE_UTILS
 
     DATA_USER=$DEFAULT_ARCHIVE_USER
+    DATA_GROUP=$DEFAULT_ARCHIVE_USER
+    DATA_DPERMS=755
     DATA_HOME=$DEFAULT_ARCHIVE_ESHOME
     DATA_UTILS=$DEFAULT_ARCHIVE_UTILS
 
@@ -90,7 +99,6 @@ install_node_using_archive() {
     verify_archive_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_ARCHIVE_USER
-    install_xpack
     generate_trial_license
     verify_xpack_installation
 }
@@ -118,7 +126,6 @@ install_node_using_package() {
     verify_package_installation
 
     export ESPLUGIN_COMMAND_USER=$DEFAULT_PACKAGE_USER
-    install_xpack
     generate_trial_license
     verify_xpack_installation
 }
@@ -189,7 +196,7 @@ CREATE_INSTANCES_FILE
 	    sudo rm -f "$certificates"
     fi
 
-    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/x-pack/certgen" --in "$instances" --out "$certificates"
+    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/certgen" --in "$instances" --out "$certificates"
     [ "$status" -eq 0 ] || {
         echo "Expected certgen tool exit code to be zero"
         echo "$output"
@@ -205,7 +212,7 @@ CREATE_INSTANCES_FILE
     export ESHOME="$MASTER_HOME"
     export_elasticsearch_paths
 
-    certs="$ESCONFIG/x-pack/certs"
+    certs="$ESCONFIG/certs"
     if [[ -d "$certs" ]]; then
 	    sudo rm -rf "$certs"
     fi
@@ -216,16 +223,16 @@ CREATE_INSTANCES_FILE
 	    false
     }
 
-    assert_file "$certs/ca/ca.key" f $MASTER_USER $MASTER_USER 644
-    assert_file "$certs/ca/ca.crt" f $MASTER_USER $MASTER_USER 644
+    assert_file "$certs/ca/ca.key" f $MASTER_USER $MASTER_GROUP 644
+    assert_file "$certs/ca/ca.crt" f $MASTER_USER $MASTER_GROUP 644
 
-    assert_file "$certs/node-master" d $MASTER_USER $MASTER_USER 755
-    assert_file "$certs/node-master/node-master.key" f $MASTER_USER $MASTER_USER 644
-    assert_file "$certs/node-master/node-master.crt" f $MASTER_USER $MASTER_USER 644
+    assert_file "$certs/node-master" d $MASTER_USER $MASTER_GROUP $MASTER_DPERMS
+    assert_file "$certs/node-master/node-master.key" f $MASTER_USER $MASTER_GROUP 644
+    assert_file "$certs/node-master/node-master.crt" f $MASTER_USER $MASTER_GROUP 644
 
-    assert_file "$certs/node-data" d $MASTER_USER $MASTER_USER 755
-    assert_file "$certs/node-data/node-data.key" f $MASTER_USER $MASTER_USER 644
-    assert_file "$certs/node-data/node-data.crt" f $MASTER_USER $MASTER_USER 644
+    assert_file "$certs/node-data" d $MASTER_USER $MASTER_GROUP $MASTER_DPERMS
+    assert_file "$certs/node-data/node-data.key" f $MASTER_USER $MASTER_GROUP 644
+    assert_file "$certs/node-data/node-data.crt" f $MASTER_USER $MASTER_GROUP 644
 }
 
 @test "[$GROUP] update master node settings" {
@@ -240,9 +247,9 @@ node.master: true
 node.data: false
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9301"]
 
-xpack.ssl.key: $ESCONFIG/x-pack/certs/node-master/node-master.key
-xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-master/node-master.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/x-pack/certs/ca/ca.crt"]
+xpack.ssl.key: $ESCONFIG/certs/node-master/node-master.key
+xpack.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
+xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
 transport.tcp.port: 9300
@@ -254,7 +261,7 @@ EOF
 MASTER_SETTINGS
 
     start_master_node
-    wait_for_xpack 127.0.0.1 9200
+        wait_for_xpack 127.0.0.1 9200
 }
 
 @test "[$GROUP] test connection to master node using HTTPS" {
@@ -262,7 +269,7 @@ MASTER_SETTINGS
     export ESHOME="$MASTER_HOME"
     export_elasticsearch_paths
 
-    run sudo -E -u $MASTER_USER curl -u "elastic:changeme" --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" -XGET "https://127.0.0.1:9200"
+    run sudo -E -u $MASTER_USER curl -u "elastic:changeme" --cacert "$ESCONFIG/certs/ca/ca.crt" -XGET "https://127.0.0.1:9200"
     [ "$status" -eq 0 ] || {
 	    echo "Failed to connect to master node using HTTPS:"
 	    echo "$output"
@@ -287,7 +294,7 @@ MASTER_SETTINGS
 	    false
     }
 
-    certs="$ESCONFIG/x-pack/certs"
+    certs="$ESCONFIG/certs"
     if [[ -d "$certs" ]]; then
 	    sudo rm -rf "$certs"
     fi
@@ -298,17 +305,17 @@ MASTER_SETTINGS
 	    false
     }
 
-    assert_file "$certs/ca" d $DATA_USER $DATA_USER
-    assert_file "$certs/ca/ca.key" f $DATA_USER $DATA_USER 644
-    assert_file "$certs/ca/ca.crt" f $DATA_USER $DATA_USER 644
+    assert_file "$certs/ca" d $DATA_USER $DATA_GROUP
+    assert_file "$certs/ca/ca.key" f $DATA_USER $DATA_GROUP 644
+    assert_file "$certs/ca/ca.crt" f $DATA_USER $DATA_GROUP 644
 
-    assert_file "$certs/node-master" d $DATA_USER $DATA_USER
-    assert_file "$certs/node-master/node-master.key" f $DATA_USER $DATA_USER 644
-    assert_file "$certs/node-master/node-master.crt" f $DATA_USER $DATA_USER 644
+    assert_file "$certs/node-master" d $DATA_USER $DATA_GROUP
+    assert_file "$certs/node-master/node-master.key" f $DATA_USER $DATA_GROUP 644
+    assert_file "$certs/node-master/node-master.crt" f $DATA_USER $DATA_GROUP 644
 
-    assert_file "$certs/node-data" d $DATA_USER $DATA_USER
-    assert_file "$certs/node-data/node-data.key" f $DATA_USER $DATA_USER 644
-    assert_file "$certs/node-data/node-data.crt" f $DATA_USER $DATA_USER 644
+    assert_file "$certs/node-data" d $DATA_USER $DATA_GROUP
+    assert_file "$certs/node-data/node-data.key" f $DATA_USER $DATA_GROUP 644
+    assert_file "$certs/node-data/node-data.crt" f $DATA_USER $DATA_GROUP 644
 }
 
 @test "[$GROUP] update data node settings" {
@@ -323,9 +330,9 @@ node.master: false
 node.data: true
 discovery.zen.ping.unicast.hosts: ["127.0.0.1:9300"]
 
-xpack.ssl.key: $ESCONFIG/x-pack/certs/node-data/node-data.key
-xpack.ssl.certificate: $ESCONFIG/x-pack/certs/node-data/node-data.crt
-xpack.ssl.certificate_authorities: ["$ESCONFIG/x-pack/certs/ca/ca.crt"]
+xpack.ssl.key: $ESCONFIG/certs/node-data/node-data.key
+xpack.ssl.certificate: $ESCONFIG/certs/node-data/node-data.crt
+xpack.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
 transport.tcp.port: 9301
@@ -345,7 +352,7 @@ DATA_SETTINGS
     export ESHOME="$DATA_HOME"
     export_elasticsearch_paths
 
-    run sudo -E -u $DATA_USER curl --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" -XGET "https://127.0.0.1:9201"
+    run sudo -E -u $DATA_USER curl --cacert "$ESCONFIG/certs/ca/ca.crt" -XGET "https://127.0.0.1:9201"
     [ "$status" -eq 0 ] || {
 	    echo "Failed to connect to data node using HTTPS:"
 	    echo "$output"
@@ -361,7 +368,7 @@ DATA_SETTINGS
 
     testIndex=$(sudo curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
-        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        --cacert "$ESCONFIG/certs/ca/ca.crt" \
         -XPOST "https://127.0.0.1:9200/books/book/0?refresh" \
         -d '{"title": "Elasticsearch The Definitive Guide"}')
 
@@ -370,7 +377,7 @@ DATA_SETTINGS
 
     masterSettings=$(sudo curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
-        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        --cacert "$ESCONFIG/certs/ca/ca.crt" \
         -XGET "https://127.0.0.1:9200/_nodes/node-master?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
 
     echo "$masterSettings" | grep '"http":{"ssl":{"enabled":"true"}'
@@ -384,7 +391,7 @@ DATA_SETTINGS
 
     dataSettings=$(curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
-        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        --cacert "$ESCONFIG/certs/ca/ca.crt" \
         -XGET "https://127.0.0.1:9200/_nodes/node-data?filter_path=nodes.*.settings.xpack,nodes.*.settings.http.type,nodes.*.settings.transport.type")
 
     echo "$dataSettings" | grep '"http":{"ssl":{"enabled":"true"}'
@@ -394,7 +401,7 @@ DATA_SETTINGS
 
     testSearch=$(curl -u "elastic:changeme" \
         -H "Content-Type: application/json" \
-        --cacert "$ESCONFIG/x-pack/certs/ca/ca.crt" \
+        --cacert "$ESCONFIG/certs/ca/ca.crt" \
         -XGET "https://127.0.0.1:9200/_search?q=title:guide")
 
     echo "$testSearch" | grep '"_index":"books"'

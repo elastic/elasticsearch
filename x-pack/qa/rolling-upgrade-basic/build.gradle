@@ -81,7 +81,9 @@ for (Version version : bwcVersions.wireCompatible) {
     }
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        plugin xpackProject('plugin').path
+        if (version.before('6.3.0')) {
+          plugin xpackProject('plugin').path
+        }
         bwcVersion = version
         numBwcNodes = 2
         numNodes = 2
@@ -104,7 +106,6 @@ for (Version version : bwcVersions.wireCompatible) {
 
     configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
         dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-        plugin xpackProject('plugin').path
         clusterName = 'rolling-upgrade-basic'
         unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
         minimumMasterNodes = { 2 }
@@ -128,7 +129,6 @@ for (Version version : bwcVersions.wireCompatible) {
 
     configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
         dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-        plugin xpackProject('plugin').path
         clusterName = 'rolling-upgrade-basic'
         unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
         minimumMasterNodes = { 2 }

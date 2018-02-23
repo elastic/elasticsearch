@@ -50,7 +50,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            boolean isModule = project.path.startsWith(':modules:')
+            boolean isModule = project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
@@ -70,6 +70,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
+                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)

@@ -23,16 +23,15 @@ integTestCluster {
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
   setting 'xpack.notification.email.account._email.smtp.password', '_passwd'
   setting 'xpack.license.self_generated.type', 'trial'
-  plugin xpackProject('plugin').path
-  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupXpackUserForTests',
-               'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
+               'bin/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupWatcherManagerUser',
-               'bin/x-pack/users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
+               'bin/users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupPowerlessUser',
-               'bin/x-pack/users', 'useradd', 'powerless_user', '-p', 'x-pack-test-password', '-r', 'crappy_role'
+               'bin/users', 'useradd', 'powerless_user', '-p', 'x-pack-test-password', '-r', 'crappy_role'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

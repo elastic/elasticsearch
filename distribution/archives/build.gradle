@@ -42,18 +42,18 @@ task createPluginsDir(type: EmptyDirTask) {
   dirMode 0755
 }
 
-CopySpec archiveFiles(CopySpec... innerFiles) {
+CopySpec archiveFiles(CopySpec modulesFiles) {
   return copySpec {
     into("elasticsearch-${version}") {
       with libFiles
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles('def')
+        with configFiles('def', false)
       }
       into('bin') {
+        with binFiles('def', oss)
         with copySpec {
-          with binFiles('def')
           from('../src/bin') {
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
@@ -78,36 +78,48 @@ CopySpec archiveFiles(CopySpec... innerFiles) {
       from('../src') {
         include 'bin/*.exe'
       }
-      for (CopySpec files : innerFiles) {
-        with files
+      into('modules') {
+        with modulesFiles
       }
     }
   }
 }
 
-task buildIntegTestZip(type: Zip) {
+// common config across all zip/tar
+tasks.withType(AbstractArchiveTask) {
   dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('integ-test-zip/build/distributions')
-  baseName = 'elasticsearch'
+  String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
+  destinationDir = file("${subdir}/build/distributions")
+  baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
+}
+
+task buildIntegTestZip(type: Zip) {
   with archiveFiles(transportModulesFiles)
 }
 
 task buildZip(type: Zip) {
-  dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('zip/build/distributions')
-  baseName = 'elasticsearch'
-  with archiveFiles(modulesFiles)
+  with archiveFiles(modulesFiles(false))
 }
 
-task buildTar(type: Tar) {
-  dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('tar/build/distributions')
-  baseName = 'elasticsearch'
+task buildOssZip(type: Zip) {
+  with archiveFiles(modulesFiles(true))
+}
+
+Closure commonTarConfig = {
   extension = 'tar.gz'
   compression = Compression.GZIP
   dirMode 0755
   fileMode 0644
-  with archiveFiles(modulesFiles)
+}
+
+task buildTar(type: Tar) {
+  configure(commonTarConfig)
+  with archiveFiles(modulesFiles(false))
+}
+
+task buildOssTar(type: Tar) {
+  configure(commonTarConfig)
+  with archiveFiles(modulesFiles(true))
 }
 
 // This configures the default artifact for the distribution specific
@@ -118,8 +130,6 @@ task buildTar(type: Tar) {
 //    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
-
-  archivesBaseName = 'elasticsearch'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.getByName(buildTask)
@@ -158,7 +168,7 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.rest-test'
 
   integTest {
-    includePackaged true
+    includePackaged = true
   }
 
   integTestCluster {
@@ -190,12 +200,16 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
 
   // note: the group must be correct before applying the nexus plugin, or
   // it will capture the wrong value...
-  project.group = "org.elasticsearch.distribution.${project.name}"
+  String subgroup = project.name == 'integ-test-zip' ? 'integ-test-zip' : 'zip'
+  project.group = "org.elasticsearch.distribution.${subgroup}"
+
+  // make the pom file name use elasticsearch instead of the project name
+  archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
 
   publishing {
     publications {
       nebula {
-        artifactId 'elasticsearch'
+        artifactId archivesBaseName
         artifact buildDist
       }
       /*
@@ -215,7 +229,7 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
        * local work, since we publish to maven central externally.
        */
       nebulaRealPom(MavenPublication) {
-        artifactId 'elasticsearch'
+        artifactId archivesBaseName
         pom.packaging = 'pom'
         pom.withXml { XmlProvider xml ->
           Node root = xml.asNode()

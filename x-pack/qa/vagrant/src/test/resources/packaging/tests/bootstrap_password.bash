@@ -10,10 +10,10 @@ load $BATS_UTILS/xpack.bash
 
 setup() {
     if [ $BATS_TEST_NUMBER == 1 ]; then
+        export PACKAGE_NAME="elasticsearch"
         clean_before_test
         install
 
-        install_xpack
         generate_trial_license
         verify_xpack_installation
     fi
@@ -93,7 +93,7 @@ NODE_SETTINGS
     fi
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_OK"
-echo 'y' | $ESHOME/bin/x-pack/setup-passwords auto
+echo 'y' | $ESHOME/bin/setup-passwords auto
 SETUP_OK
     echo "$output" > /tmp/setup-passwords-output-with-bootstrap
     [ "$status" -eq 0 ] || {
@@ -136,7 +136,7 @@ SETUP_OK
 
     password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
 
-    run $ESHOME/bin/x-pack/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
+    run $ESHOME/bin/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
 $password
 SELECT * FROM library;
 SQL
@@ -152,7 +152,7 @@ SQL
 
 @test "[$GROUP] test sql-cli when user refuses password" {
     # Run with empty stdin
-    run $ESHOME/bin/x-pack/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
+    run $ESHOME/bin/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
 SQL
     [ "$status" -eq 77 ] || { #NOPERM
         echo "SQL cli failed:\n$output"

@@ -118,7 +118,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
     public void testMissingFiles() throws Exception {
         Path homeDir = createTempDir();
         Path confDir = homeDir.resolve("config");
-        Path xpackConfDir = confDir.resolve("x-pack");
+        Path xpackConfDir = confDir;
         Files.createDirectories(xpackConfDir);
 
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();

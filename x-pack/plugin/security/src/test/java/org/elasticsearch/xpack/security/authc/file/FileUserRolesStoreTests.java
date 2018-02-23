@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 public class FileUserRolesStoreTests extends ESTestCase {
 
@@ -186,6 +187,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, logger);
+        assertThat(usersRoles, nullValue());
+        usersRoles = FileUserRolesStore.parseFileLenient(file, logger);
         assertThat(usersRoles, notNullValue());
         assertThat(usersRoles.isEmpty(), is(true));
     }
@@ -270,7 +273,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
     }
 
     private Path getUsersRolesPath() throws IOException {
-        Path xpackConf = env.configFile().resolve(XPackField.NAME);
+        Path xpackConf = env.configFile();
         Files.createDirectories(xpackConf);
         return xpackConf.resolve("users_roles");
     }

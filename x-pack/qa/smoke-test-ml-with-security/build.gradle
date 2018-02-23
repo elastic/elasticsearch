@@ -94,16 +94,15 @@ integTestRunner {
 
 integTestCluster {
   dependsOn copyMlRestTests
-  plugin xpackProject('plugin').path
-  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMlAdminUser',
-               'bin/x-pack/users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
+               'bin/users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
   setupCommand 'setupMlUserUser',
-               'bin/x-pack/users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
+               'bin/users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
   setupCommand 'setupPowerlessUser',
-               'bin/x-pack/users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+               'bin/users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   waitCondition = { node, ant ->

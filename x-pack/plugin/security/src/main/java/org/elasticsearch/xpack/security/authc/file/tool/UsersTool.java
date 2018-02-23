@@ -75,7 +75,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         return new ListCommand();
     }
 
-    static class AddUserCommand extends XPackConfigurationAwareCommand {
+    static class AddUserCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> rolesOption;
@@ -105,7 +105,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
@@ -121,11 +121,15 @@ public class UsersTool extends LoggingAwareMultiCommand {
             Path rolesFile = FileUserRolesStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null, env.settings()));
+            Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, env.settings());
+            if (users == null) {
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+            }
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
             Hasher hasher = Hasher.BCRYPT;
+            users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, passwordFile);
 
@@ -139,7 +143,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class DeleteUserCommand extends XPackConfigurationAwareCommand {
+    static class DeleteUserCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -160,18 +164,22 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
             Path rolesFile = FileUserRolesStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null, env.settings()));
+            Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, env.settings());
+            if (users == null) {
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+            }
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             if (Files.exists(passwordFile)) {
+                users = new HashMap<>(users);
                 char[] passwd = users.remove(username);
                 if (passwd != null) {
                     FileUserPasswdStore.writeFile(users, passwordFile);
@@ -190,7 +198,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class PasswordCommand extends XPackConfigurationAwareCommand {
+    static class PasswordCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> arguments;
@@ -215,7 +223,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             char[] password = parsePassword(terminal, passwordOption.value(options));
@@ -223,6 +231,9 @@ public class UsersTool extends LoggingAwareMultiCommand {
             Path file = FileUserPasswdStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null, env.settings()));
+            if (users == null) {
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+            }
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
@@ -233,7 +244,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class RolesCommand extends XPackConfigurationAwareCommand {
+    static class RolesCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> addOption;
         private final OptionSpec<String> removeOption;
@@ -259,7 +270,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
@@ -303,7 +314,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
     }
 
-    static class ListCommand extends XPackConfigurationAwareCommand {
+    static class ListCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -319,7 +330,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = null;
             if (options.has(arguments)) {
@@ -333,15 +344,24 @@ public class UsersTool extends LoggingAwareMultiCommand {
     static void listUsersAndRoles(Terminal terminal, Environment env, String username) throws Exception {
         Path userRolesFilePath = FileUserRolesStore.resolveFile(env);
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
+        if (userRoles == null) {
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [users_roles] is missing");
+        }
 
         Path userFilePath = FileUserPasswdStore.resolveFile(env);
-        Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null, env.settings()).keySet();
+        Map<String, char[]> users = FileUserPasswdStore.parseFile(userFilePath, null, env.settings());
+        if (users == null) {
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+        }
 
         Path rolesFilePath = FileRolesStore.resolveFile(env);
         Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFilePath, null), ReservedRolesStore.names());
+        if (knownRoles == null) {
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [roles.xml] is missing");
+        }
 
         if (username != null) {
-            if (!users.contains(username)) {
+            if (!users.containsKey(username)) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
 
@@ -373,7 +393,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 usersExist = true;
             }
             // list users without roles
-            Set<String> usersWithoutRoles = Sets.newHashSet(users);
+            Set<String> usersWithoutRoles = Sets.newHashSet(users.keySet());
             usersWithoutRoles.removeAll(userRoles.keySet());
             for (String user : usersWithoutRoles) {
                 terminal.println(String.format(Locale.ROOT, "%-15s: -", user));
@@ -479,36 +499,5 @@ public class UsersTool extends LoggingAwareMultiCommand {
         verifyRoles(terminal, env, roles);
 
         return roles;
-    }
-
-    private abstract static class XPackConfigurationAwareCommand extends EnvironmentAwareCommand {
-
-        XPackConfigurationAwareCommand(final String description) {
-            super(description);
-        }
-
-        @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-            checkConfigurationDir(env);
-            executeCommand(terminal, options, env);
-        }
-
-        /**
-         * Ensure the X-Pack configuration directory exists as a child of $ES_CONF_DIR or return a helpful error message.
-         */
-        private void checkConfigurationDir(Environment env) throws Exception {
-            Path configDir = env.configFile().resolve(XPackField.NAME);
-            if (Files.exists(configDir) == false) {
-                throw new UserException(ExitCodes.CONFIG, String.format(Locale.ROOT,
-                        "Directory %s does not exist. Please ensure " +
-                                "that %s is the configuration directory for Elasticsearch and create directory %s/x-pack manually",
-                        configDir.toString(),
-                        configDir.getParent().toString(),
-                        configDir.toString()));
-            }
-        }
-
-        protected abstract void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception;
-
     }
 }

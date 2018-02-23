@@ -122,8 +122,11 @@ subprojects {
     Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
-      plugin xpackProject('plugin').path
-      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      if (version.before('6.3.0')) {
+        plugin xpackProject('plugin').path
+      }
+      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/users'
+      setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       bwcVersion = version
       numBwcNodes = 2
       numNodes = 2
@@ -152,7 +155,8 @@ subprojects {
         if (version.onOrAfter('6.0.0')) {
             keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         } else {
-            extraConfigFile 'x-pack/system_key', "${mainProject.projectDir}/src/test/resources/system_key"
+            String systemKeyFile = version.before('6.3.0') ? 'x-pack/system_key' : 'system_key'
+            extraConfigFile systemKeyFile, "${mainProject.projectDir}/src/test/resources/system_key"
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
@@ -167,8 +171,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
       dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-      plugin xpackProject('plugin').path
-      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }
@@ -206,8 +209,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
       dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-      plugin xpackProject('plugin').path
-      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }

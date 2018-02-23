@@ -140,12 +140,15 @@ subprojects {
     Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
-      plugin xpackProject('plugin').path
+      if (version.before('6.3.0')) {
+        plugin xpackProject('plugin').path
+      }
       bwcVersion = version
       numBwcNodes = 2
       numNodes = 2
       clusterName = 'full-cluster-restart'
-      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/users'
+      setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
 
       // some tests rely on the translog not being flushed
@@ -189,12 +192,11 @@ subprojects {
       dependsOn oldClusterTestRunner,
           "${baseName}#oldClusterTestCluster#node0.stop",
           "${baseName}#oldClusterTestCluster#node1.stop"
-      plugin xpackProject('plugin').path
       numNodes = 2
       clusterName = 'full-cluster-restart'
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
       cleanShared = false // We want to keep snapshots made by the old cluster!
-      setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
 
       // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691

@@ -9,13 +9,12 @@ dependencies {
 }
 
 integTestCluster {
-  plugin xpackProject('plugin').path
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'x-pack/roles.yml', 'roles.yml'
+  extraConfigFile 'roles.yml', 'roles.yml'
   [
     test_admin: 'superuser',
     powerful_user: 'superuser',
@@ -26,7 +25,7 @@ integTestCluster {
     can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
   ].each { String user, String role ->
     setupCommand 'setupUser#' + user,
-                 'bin/x-pack/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+                 'bin/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
   }
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

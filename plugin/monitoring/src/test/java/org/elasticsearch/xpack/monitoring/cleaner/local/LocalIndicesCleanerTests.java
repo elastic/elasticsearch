@@ -24,10 +24,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
 
-    public LocalIndicesCleanerTests() throws Exception {
-        super();
-    }
-
     private final boolean cleanUpWatcherHistory = randomBoolean();
 
     @Override

@@ -26,19 +26,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
 
-    public AbstractIndicesCleanerTestCase() throws Exception {
-        super();
-    }
-
     static Integer INDEX_TEMPLATE_VERSION = null;
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringService.INTERVAL.getKey(), "-1");
-        return settings.build();
-    }
 
     public void testNothingToDelete() throws Exception {
         internalCluster().startNode();

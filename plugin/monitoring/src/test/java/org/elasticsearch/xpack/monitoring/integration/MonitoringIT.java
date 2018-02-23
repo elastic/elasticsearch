@@ -515,7 +515,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         // delete anything that may happen to already exist
         assertAcked(client().admin().indices().prepareDelete(".monitoring-*").get());
 
-        assertThat("Must be no enabled exporters before enabling monitoring", getMonitoringUsageExporters().isEmpty(), is(true));
+        assertThat("Must be no enabled exporters before enabling monitoring", getMonitoringUsageExportersDefined(), is(true));
 
         final Settings settings = Settings.builder()
                 .put("xpack.monitoring.collection.enabled", true)
@@ -524,9 +524,8 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
+        assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(false)));
         assertBusy(() -> {
-            assertThat("[_local] exporter not enabled yet", getMonitoringUsageExporters().isEmpty(), is(false));
-
             assertThat("No monitoring documents yet",
                        client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*")
                                .setSize(0)
@@ -547,10 +546,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
+        assertBusy(() -> assertThat("Exporters are not yet stopped", getMonitoringUsageExportersDefined(), is(true)));
         assertBusy(() -> {
             try {
-                assertThat("Exporters are not yet stopped", getMonitoringUsageExporters().isEmpty(), is(true));
-
                 // now wait until Monitoring has actually stopped
                 final NodesStatsResponse response = client().admin().cluster().prepareNodesStats().clear().setThreadPool(true).get();
 
@@ -573,7 +571,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         });
     }
 
-    private Map<String, Object> getMonitoringUsageExporters() throws Exception {
+    private boolean getMonitoringUsageExportersDefined() throws Exception {
         final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
         final Optional<MonitoringFeatureSetUsage> monitoringUsage =
                 usageResponse.getUsages()
@@ -584,7 +582,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
 
-        return monitoringUsage.get().getExporters();
+        return monitoringUsage.get().getExporters().isEmpty();
     }
 
     /**

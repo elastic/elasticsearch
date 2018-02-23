@@ -41,8 +41,8 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
 
     protected Settings localExporterSettings() {
         return Settings.builder()
-                       .put(MonitoringService.ENABLED.getKey(), false)
-                       .put(MonitoringService.INTERVAL.getKey(), "3s")
+                       .put("xpack.monitoring.collection.enabled", false)
+                       .put("xpack.monitoring.collection.interval", "1s")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
                        .put("xpack.monitoring.exporters." + exporterName +  ".cluster_alerts.management.enabled", false)

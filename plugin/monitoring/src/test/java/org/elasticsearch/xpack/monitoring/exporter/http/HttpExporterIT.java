@@ -32,7 +32,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringTestUtils;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -74,10 +73,6 @@ import static org.hamcrest.Matchers.notNullValue;
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
-    public HttpExporterIT() throws Exception {
-        super();
-    }
-
     private final List<String> clusterAlertBlacklist =
             rarely() ? randomSubsetOf(Arrays.asList(ClusterAlertsUtil.WATCH_IDS)) : Collections.emptyList();
     private final boolean templatesExistsAlready = randomBoolean();
@@ -96,7 +91,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     @After
-    public void stopWebServer() throws Exception {
+    public void stopWebServer() {
         if (webServer != null) {
             webServer.close();
         }
@@ -113,7 +108,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         // we make an exporter on demand per test
         return Settings.builder()
                        .put(super.nodeSettings(nodeOrdinal))
-                       .put(MonitoringService.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters._http.type", "http")
                        .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
                        .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings

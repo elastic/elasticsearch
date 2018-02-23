@@ -54,12 +54,12 @@ final class Spawner implements Closeable {
     }
 
     /**
-     * Spawns the native controllers for each plugin
+     * Spawns the native controllers for each plugin/module.
      *
      * @param environment the node environment
      * @throws IOException if an I/O error occurs reading the plugins or spawning a native process
      */
-    void spawnNativePluginControllers(final Environment environment) throws IOException {
+    void spawnNativeControllers(final Environment environment) throws IOException {
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }

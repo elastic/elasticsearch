@@ -54,19 +54,21 @@ buildscript {
   }
 }
 
-void addProcessFilesTask(String type) {
-  String packagingFiles = "build/packaging/${type}"
+void addProcessFilesTask(String type, boolean oss) {
+  String packagingFiles = "build/packaging/${ oss ? 'oss-' : ''}${type}"
 
-  task("process${type.capitalize()}Files", type: Copy) {
-    from 'src/common'
-    from "src/${type}"
+  task("process${oss ? 'Oss' : ''}${type.capitalize()}Files", type: Copy) {
     into packagingFiles
 
-    into('config') {
-      from '../src/config'
+    with copySpec {
+      from 'src/common'
+      from "src/${type}"
+      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
     }
 
-    MavenFilteringHack.filter(it, expansionsForDistribution(type))
+    into('config') {
+      with configFiles(type, oss)
+    }
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -77,19 +79,24 @@ void addProcessFilesTask(String type) {
     }
   }
 }
-addProcessFilesTask('deb')
-addProcessFilesTask('rpm')
+addProcessFilesTask('deb', true)
+addProcessFilesTask('deb', false)
+addProcessFilesTask('rpm', true)
+addProcessFilesTask('rpm', false)
 
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
-Closure commonPackageConfig(String type) {
+Closure commonPackageConfig(String type, boolean oss) {
   return {
+    dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+    packageName "elasticsearch${oss ? '-oss' : ''}"
     // Follow elasticsearch's file naming convention
-    archiveName "elasticsearch-${project.version}.${type}"
+    archiveName "${packageName}-${project.version}.${type}"
 
-    destinationDir = file("${type}/build/distributions")
-    String packagingFiles = "build/packaging/${type}"
+    String prefix = "${oss ? 'oss-' : ''}${type}"
+    destinationDir = file("${prefix}/build/distributions")
+    String packagingFiles = "build/packaging/${prefix}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -104,13 +111,28 @@ Closure commonPackageConfig(String type) {
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type)
+        with binFiles(type, oss)
       }
       with copySpec {
         with commonFiles
         if (type == 'deb') {
           // Deb gets a copyright file instead.
           exclude 'LICENSE.txt'
+        }
+      }
+      into('modules') {
+        with copySpec {
+          with modulesFiles(oss)
+          // we need to specify every intermediate directory, but modules could have sub directories
+          // and there might not be any files as direct children of intermediates (eg platform)
+          // so we must iterate through the parents, but duplicate calls with the same path
+          // are ok (they don't show up in the built packages)
+          eachFile { FileCopyDetails fcp ->
+            String[] segments = fcp.relativePath.segments
+            for (int i = segments.length - 2; i > 0 && segments[i] != 'modules'; --i) {
+              directory('/' + segments[0..i].join('/'), 0755)
+            }
+          }
         }
       }
     }
@@ -120,7 +142,7 @@ Closure commonPackageConfig(String type) {
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {
-      //dirMode 0750
+      dirMode 0750
       fileMode 0660
       permissionGroup 'elasticsearch'
       includeEmptyDirs true
@@ -183,7 +205,6 @@ apply plugin: 'nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
-  packageName 'elasticsearch'
   maintainer 'Elasticsearch Team <info@elastic.co>'
   summary '''
     Elasticsearch is a distributed RESTful search engine built for the cloud.
@@ -212,94 +233,72 @@ ospackage {
 
   into '/usr/share/elasticsearch'
   with libFiles
-  with modulesFiles
   with noticeFile
 }
 
-task buildDeb(type: Deb) {
-  dependsOn processDebFiles
-  configure(commonPackageConfig('deb'))
+Closure commonDebConfig(boolean oss) {
+  return {
+    configure(commonPackageConfig('deb', oss))
 
-  version = project.version
-  packageGroup 'web'
-  requires 'bash'
-  requires 'libc6'
-  requires 'adduser'
+    version = project.version
+    packageGroup 'web'
+    requires 'bash'
+    requires 'libc6'
+    requires 'adduser'
 
-  into('/usr/share/lintian/overrides') {
-    from('src/deb/lintian/elasticsearch')
-  }
-  into('/usr/share/doc/elasticsearch') {
-    from 'src/deb/copyright'
-    fileMode 0644
-  }
-}
-
-// task that sanity checks if the Deb archive can be extracted
-task checkDeb(type: LoggedExec) {
-  dependsOn buildDeb
-  onlyIf { new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
-  final File debExtracted = new File("${buildDir}", 'deb-extracted')
-  commandLine 'dpkg-deb', '-x', "deb/build/distributions/elasticsearch-${project.version}.deb", debExtracted
-  doFirst {
-    debExtracted.deleteDir()
-  }
-}
-
-task buildRpm(type: Rpm) {
-  dependsOn processRpmFiles
-  configure(commonPackageConfig('rpm'))
-
-  packageGroup 'Application/Internet'
-  requires '/bin/bash'
-
-  prefix '/usr'
-  packager 'Elasticsearch'
-  version = project.version.replace('-', '_')
-  release = '1'
-  arch 'NOARCH'
-  os 'LINUX'
-  license '2009'
-  distribution 'Elasticsearch'
-  vendor 'Elasticsearch'
-  // TODO ospackage doesn't support icon but we used to have one
-
-  // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
-  addParentDirs false
-
-  // Declare the folders so that the RPM package manager removes
-  // them when upgrading or removing the package
-  directory('/usr/share/elasticsearch/bin', 0755)
-  directory('/usr/share/elasticsearch/lib', 0755)
-  directory('/usr/share/elasticsearch/modules', 0755)
-  modulesFiles.eachFile { FileCopyDetails fcp ->
-    if (fcp.name == "plugin-descriptor.properties") {
-      directory('/usr/share/elasticsearch/modules/' + fcp.file.parentFile.name, 0755)
+    into('/usr/share/lintian/overrides') {
+      from('src/deb/lintian/elasticsearch')
+    }
+    into('/usr/share/doc/elasticsearch') {
+      from 'src/deb/copyright'
+      fileMode 0644
     }
   }
 }
 
-// task that sanity checks if the RPM archive can be extracted
-task checkRpm(type: LoggedExec) {
-  dependsOn buildRpm
-  onlyIf { new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
-  final File rpmDatabase = new File("${buildDir}", 'rpm-database')
-  final File rpmExtracted = new File("${buildDir}", 'rpm-extracted')
-  commandLine 'rpm',
-          '--badreloc',
-          '--nodeps',
-          '--noscripts',
-          '--notriggers',
-          '--dbpath',
-          rpmDatabase,
-          '--relocate',
-          "/=${rpmExtracted}",
-          '-i',
-          "rpm/build/distributions/elasticsearch-${project.version}.rpm"
-  doFirst {
-    rpmDatabase.deleteDir()
-    rpmExtracted.deleteDir()
+task buildDeb(type: Deb) {
+  configure(commonDebConfig(false))
+}
+
+task buildOssDeb(type: Deb) {
+  configure(commonDebConfig(true))
+}
+
+Closure commonRpmConfig(boolean oss) {
+  return {
+    configure(commonPackageConfig('rpm', oss))
+
+    packageGroup 'Application/Internet'
+    requires '/bin/bash'
+
+    prefix '/usr'
+    packager 'Elasticsearch'
+    version = project.version.replace('-', '_')
+    release = '1'
+    arch 'NOARCH'
+    os 'LINUX'
+    license '2009'
+    distribution 'Elasticsearch'
+    vendor 'Elasticsearch'
+    // TODO ospackage doesn't support icon but we used to have one
+
+    // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
+    addParentDirs false
+
+    // Declare the folders so that the RPM package manager removes
+    // them when upgrading or removing the package
+    directory('/usr/share/elasticsearch/bin', 0755)
+    directory('/usr/share/elasticsearch/lib', 0755)
+    directory('/usr/share/elasticsearch/modules', 0755)
   }
+}
+
+task buildRpm(type: Rpm) {
+  configure(commonRpmConfig(false))
+}
+
+task buildOssRpm(type: Rpm) {
+  configure(commonRpmConfig(true))
 }
 
 // This configures the default artifact for the distribution specific
@@ -313,7 +312,39 @@ subprojects {
   artifacts {
     'default' buildDist
   }
+
+  // sanity checks if a archives can be extracted
+  File extractionDir = new File(buildDir, 'extracted')
+  task testExtraction(type: LoggedExec) {
+    dependsOn buildDist
+    doFirst {
+      project.delete(extractionDir)
+      extractionDir.mkdirs()
+    }
+  }
+  if (project.name.contains('deb')) {
+    testExtraction {
+      onlyIf { new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
+      Closure debFilter = { f -> f.name.endsWith('.deb') }
+      commandLine 'dpkg-deb', '-x', "${-> buildDist.outputs.files.filter(debFilter).singleFile}", extractionDir
+    }
+  } else { // rpm
+    testExtraction {
+      onlyIf { new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
+      final File rpmDatabase = new File(extractionDir, 'rpm-database')
+      final File rpmExtracted = new File(extractionDir, 'rpm-extracted')
+      commandLine 'rpm',
+          '--badreloc',
+          '--nodeps',
+          '--noscripts',
+          '--notriggers',
+          '--dbpath',
+          rpmDatabase,
+          '--relocate',
+          "/=${rpmExtracted}",
+          '-i',
+          "${-> buildDist.outputs.files.singleFile}"
+    }
+  }
+  check.dependsOn testExtraction
 }
-
-check.dependsOn checkDeb, checkRpm
-

@@ -9,7 +9,6 @@ dependencies {
 String pagerDutyServiceKey = System.getenv('pagerduty_service_api_key')
 
 integTestCluster {
-  plugin xpackProject('plugin').path
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

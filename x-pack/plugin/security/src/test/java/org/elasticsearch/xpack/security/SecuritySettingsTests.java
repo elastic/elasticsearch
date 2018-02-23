@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 
@@ -54,7 +53,7 @@ public class SecuritySettingsTests extends ESTestCase {
         Settings settings = Settings.builder().put("tribe.t1.cluster.name", "non_existing")
                 .put(TRIBE_T1_SECURITY_ENABLED, false)
                 .put("tribe.t2.cluster.name", "non_existing")
-                .putList("tribe.t1.plugin.mandatory", "test_plugin", XPackField.NAME).build();
+                .putList("tribe.t1.plugin.mandatory", "test_plugin", "x-pack").build();
 
         try {
             Security.additionalSettings(settings, true, false);

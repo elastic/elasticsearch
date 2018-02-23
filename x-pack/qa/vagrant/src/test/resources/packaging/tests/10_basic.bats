@@ -23,17 +23,12 @@ setup() {
     export ESPLUGIN_COMMAND_USER=elasticsearch
 }
 
-@test "[X-PACK] install x-pack" {
+@test "[X-PACK] install default distribution" {
     # Cleans everything for the 1st execution
     clean_before_test
 
     # Install the archive
     install_archive
-
-    count=$(find . -type f -name 'x-pack*.zip' | wc -l)
-    [ "$count" -eq 1 ]
-
-    install_xpack
 }
 
 @test "[X-PACK] verify x-pack installation" {
@@ -41,7 +36,7 @@ setup() {
 }
 
 @test "[X-PACK] verify croneval works" {
-    run $ESHOME/bin/x-pack/croneval "0 0 20 ? * MON-THU" -c 2
+    run $ESHOME/bin/croneval "0 0 20 ? * MON-THU" -c 2
     [ "$status" -eq 0 ]
     [[ "$output" == *"Valid!"* ]] || {
       echo "Expected output message to contain [Valid!] but found: $output"

@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -68,7 +69,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
             }
             keyPath = parsePath(args.get(0));
         } else {
-            keyPath = env.configFile().resolve(XPackField.NAME).resolve("system_key");
+            keyPath = XPackPlugin.resolveConfigFile(env, "system_key");
         }
 
         // write the key

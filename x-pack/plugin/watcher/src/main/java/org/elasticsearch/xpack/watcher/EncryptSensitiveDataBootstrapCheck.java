@@ -9,6 +9,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import java.nio.file.Files;
@@ -26,7 +27,7 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
     public BootstrapCheckResult check(BootstrapContext context) {
         if (Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(context.settings)
                 && WatcherField.ENCRYPTION_KEY_SETTING.exists(context.settings) == false) {
-            final Path systemKeyPath = environment.configFile().resolve(XPackField.NAME).resolve("system_key").toAbsolutePath();
+            final Path systemKeyPath = XPackPlugin.resolveConfigFile(environment, "system_key").toAbsolutePath();
             final String message;
             if (Files.exists(systemKeyPath)) {
                 message = "Encryption of sensitive data requires the key to be placed in the secure setting store. Run " +

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core;
 
 public final class XPackField {
     // These should be moved back to XPackPlugin once its moved to common
-    public static final String NAME = "x-pack";
     /** Name constant for the security feature. */
     public static final String SECURITY = "security";
     /** Name constant for the monitoring feature. */

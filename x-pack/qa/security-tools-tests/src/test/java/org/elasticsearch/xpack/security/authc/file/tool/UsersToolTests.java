@@ -68,7 +68,7 @@ public class UsersToolTests extends CommandTestCase {
     public void setupHome() throws IOException {
         Path homeDir = jimfs.getPath("eshome");
         IOUtils.rm(homeDir);
-        confDir = homeDir.resolve("config").resolve(XPackField.NAME);
+        confDir = homeDir.resolve("config");
         Files.createDirectories(confDir);
         String defaultPassword = SecuritySettingsSourceField.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
@@ -113,7 +113,7 @@ public class UsersToolTests extends CommandTestCase {
                 return new AddUserCommand() {
                     @Override
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                        return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
             }
@@ -123,7 +123,7 @@ public class UsersToolTests extends CommandTestCase {
                 return new DeleteUserCommand() {
                     @Override
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                        return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
             }
@@ -133,7 +133,7 @@ public class UsersToolTests extends CommandTestCase {
                 return new PasswordCommand() {
                     @Override
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                        return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
             }
@@ -143,7 +143,7 @@ public class UsersToolTests extends CommandTestCase {
                 return new RolesCommand() {
                     @Override
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                        return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
             }
@@ -153,7 +153,7 @@ public class UsersToolTests extends CommandTestCase {
                 return new ListCommand() {
                     @Override
                     protected Environment createEnv(Terminal terminal, Map<String, String> settings) throws UserException {
-                        return new Environment(UsersToolTests.this.settings, confDir.getParent());
+                        return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
             }
@@ -493,53 +493,49 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testUserAddNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackField.NAME);
-        IOUtils.rm(confDir);
+        IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
         UserException e = expectThrows(UserException.class, () -> {
             execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSourceField.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
     }
 
     public void testUserListNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackField.NAME);
-        IOUtils.rm(confDir);
+        IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
         UserException e = expectThrows(UserException.class, () -> {
             execute("list", pathHomeParameter, fileTypeParameter);
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
     }
 
     public void testUserDelNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackField.NAME);
-        IOUtils.rm(confDir);
+        IOUtils.rm(confDir.resolve("users"));
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
         UserException e = expectThrows(UserException.class, () -> {
             execute("userdel", pathHomeParameter, fileTypeParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+        assertThat(e.getMessage(), containsString("Configuration file [users] is missing"));
     }
 
     public void testListUserRolesNoConfig() throws Exception {
         Path homeDir = jimfs.getPath("eshome");
-        Path xpackConfDir = homeDir.resolve("config").resolve(XPackField.NAME);
-        IOUtils.rm(confDir);
+        IOUtils.rm(confDir.resolve("users_roles"));
         pathHomeParameter = "-Epath.home=" + homeDir;
         fileTypeParameter = "-Expack.security.authc.realms.file.type=file";
         UserException e = expectThrows(UserException.class, () -> {
             execute("roles", pathHomeParameter, fileTypeParameter, "username");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
-        assertThat(e.getMessage(), containsString("is the configuration directory for Elasticsearch and create directory"));
+        assertThat(e.getMessage(), containsString("Configuration file [users_roles] is missing"));
     }
 }

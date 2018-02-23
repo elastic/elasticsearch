@@ -12,7 +12,6 @@ dependencies {
 }
 
 integTestCluster {
-  plugin xpackProject('plugin').path
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

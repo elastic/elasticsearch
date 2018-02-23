@@ -92,7 +92,8 @@ public class FileUserRolesStore {
      */
     static Map<String, String[]> parseFileLenient(Path path, Logger logger) {
         try {
-            return parseFile(path, logger);
+            Map<String, String[]> map = parseFile(path, logger);
+            return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage("failed to parse users_roles file [{}]. skipping/removing all entries...",
@@ -103,9 +104,10 @@ public class FileUserRolesStore {
     }
 
     /**
-     * parses the users_roles file. Should never return return {@code null}, if the file doesn't exist
-     * an empty map is returned. The read file holds a mapping per line of the form "role -&gt; users" while the returned
-     * map holds entries of the form  "user -&gt; roles".
+     * Parses the users_roles file.
+     *
+     * Returns @{code null} if the {@code users_roles} file does not exist. The read file holds a mapping per
+     * line of the form "role -&gt; users" while the returned map holds entries of the form  "user -&gt; roles".
      */
     public static Map<String, String[]> parseFile(Path path, @Nullable Logger logger) {
         if (logger == null) {
@@ -113,9 +115,8 @@ public class FileUserRolesStore {
         }
         logger.trace("reading users_roles file [{}]...", path.toAbsolutePath());
 
-
-        if (!Files.exists(path)) {
-            return emptyMap();
+        if (Files.exists(path) == false) {
+            return null;
         }
 
         List<String> lines;

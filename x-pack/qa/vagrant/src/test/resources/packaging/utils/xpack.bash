@@ -4,10 +4,6 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
-install_xpack() {
-    install_meta_plugin x-pack
-}
-
 # Checks that X-Pack files are correctly installed
 verify_xpack_installation() {
     local name="x-pack"
@@ -15,7 +11,8 @@ verify_xpack_installation() {
     local group="$ESPLUGIN_COMMAND_USER"
 
     # Verify binary files
-    assert_file "$ESHOME/bin/$name" d $user $group 755
+    # nocommit: already verified by "main" package verification
+    #assert_file "$ESHOME/bin" d $user $group 755
     local binaryFiles=(
         'certgen'
         'certgen.bat'
@@ -44,16 +41,19 @@ verify_xpack_installation() {
         'x-pack-watcher-env.bat'
     )
 
-    local binaryFilesCount=0
+    local binaryFilesCount=5 # start with oss distro number
     for binaryFile in ${binaryFiles[@]}; do
-        echo "checking for bin file $name/${binaryFile}"
-        assert_file "$ESHOME/bin/$name/${binaryFile}" f $user $group 755
+        echo "checking for bin file ${binaryFile}"
+        assert_file "$ESHOME/bin/${binaryFile}" f $user $group 755
         binaryFilesCount=$(( binaryFilesCount + 1 ))
     done
-    assert_number_of_files "$ESHOME/bin/$name/" $binaryFilesCount
+    ls "$ESHOME/bin/"
+    # nocommit: decide whether to check the files added by the distribution, not part of xpack...
+    #assert_number_of_files "$ESHOME/bin/" $binaryFilesCount
 
     # Verify config files
-    assert_file "$ESCONFIG/$name" d $user elasticsearch 750
+    # nocommit: already verified by "main" package verification
+    #assert_file "$ESCONFIG" d $user elasticsearch 755
     local configFiles=(
         'users'
         'users_roles'
@@ -62,20 +62,21 @@ verify_xpack_installation() {
         'log4j2.properties'
     )
 
-    local configFilesCount=0
+    local configFilesCount=2 # start with ES files, excluding log4j2
     for configFile in ${configFiles[@]}; do
-        assert_file "$ESCONFIG/$name/${configFile}" f $user elasticsearch 660
+        assert_file "$ESCONFIG/${configFile}" f $user elasticsearch 660
         configFilesCount=$(( configFilesCount + 1 ))
     done
-    assert_number_of_files "$ESCONFIG/$name/" $configFilesCount
+    # nocommit: decide whether to check the files added by the distribution, not part of xpack...
+    #assert_number_of_files "$ESCONFIG/" $configFilesCount
 
     # Read the $name.expected file that contains all the expected
     # plugins for the meta plugin
     while read plugin; do
-        assert_module_or_plugin_directory "$ESPLUGINS/$name/$plugin"
-        assert_file_exist "$ESPLUGINS/$name/$plugin/$plugin"*".jar"
-        assert_file_exist "$ESPLUGINS/$name/$plugin/plugin-descriptor.properties"
-        assert_file_exist "$ESPLUGINS/$name/$plugin/plugin-security.policy"
+        assert_module_or_plugin_directory "$ESMODULES/$name/$plugin"
+        assert_file_exist "$ESMODULES/$name/$plugin/$plugin"*".jar"
+        assert_file_exist "$ESMODULES/$name/$plugin/plugin-descriptor.properties"
+        assert_file_exist "$ESMODULES/$name/$plugin/plugin-security.policy"
     done </project/build/plugins/$name.expected
 }
 

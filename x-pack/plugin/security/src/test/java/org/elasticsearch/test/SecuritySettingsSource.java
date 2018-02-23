@@ -112,7 +112,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         final Path home = nodePath(nodeOrdinal);
-        final Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
+        final Path xpackConf = home.resolve("config");
         try {
             Files.createDirectories(xpackConf);
         } catch (IOException e) {

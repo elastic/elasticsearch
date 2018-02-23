@@ -42,9 +42,8 @@ configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
 configOne.setting('xpack.license.self_generated.type', 'trial')
 configOne.setting('xpack.security.enabled', 'true')
-configOne.plugin(xpackProject('plugin').path)
 configOne.setupCommand('setupDummyUser',
-        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+        'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
@@ -65,9 +64,8 @@ configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
 configTwo.setting('xpack.license.self_generated.type', 'trial')
 configTwo.setting('xpack.security.enabled', 'true')
-configTwo.plugin(xpackProject('plugin').path)
 configTwo.setupCommand('setupDummyUser',
-        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+        'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
@@ -82,10 +80,9 @@ List<NodeInfo> cluster2Nodes = ClusterFormationTasks.setup(project, 'clusterTwo'
 
 integTestCluster {
     dependsOn setupClusterOne, setupClusterTwo
-    plugin xpackProject('plugin').path
     nodeStartupWaitSeconds 45
     setupCommand 'setupDummyUser',
-            'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+            'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false
     setting 'xpack.ml.enabled', false
     setting 'xpack.license.self_generated.type', 'trial'

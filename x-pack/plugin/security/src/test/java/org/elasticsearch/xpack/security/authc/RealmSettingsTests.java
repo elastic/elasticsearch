@@ -225,7 +225,7 @@ public class RealmSettingsTests extends ESTestCase {
 
     private Settings.Builder configureSsl(String prefix, Settings.Builder builder, boolean useKeyStore, boolean useTrustStore) {
         if (useKeyStore) {
-            builder.put(prefix + "keystore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jks");
+            builder.put(prefix + "keystore.path", "ssl/" + randomAlphaOfLength(5) + ".jks");
             SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
                 secureSettings.setString(prefix + "keystore.secure_password", randomAlphaOfLength(8));
                 secureSettings.setString(prefix + "keystore.secure_key_password", randomAlphaOfLength(8));
@@ -235,7 +235,7 @@ public class RealmSettingsTests extends ESTestCase {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                 secureSettings.setString(prefix + "secure_key_passphrase", randomAlphaOfLength(32)));
 
-            builder.put(prefix + "certificate", "x-pack/ssl/" + randomAlphaOfLength(5) + ".cert");
+            builder.put(prefix + "certificate", "ssl/" + randomAlphaOfLength(5) + ".cert");
         }
 
         if (useTrustStore) {
@@ -243,7 +243,7 @@ public class RealmSettingsTests extends ESTestCase {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                 secureSettings.setString(prefix + "truststore.secure_password", randomAlphaOfLength(8)));
         } else {
-            builder.put(prefix + "certificate_authorities", "x-pack/ssl/" + randomAlphaOfLength(8) + ".ca");
+            builder.put(prefix + "certificate_authorities", "ssl/" + randomAlphaOfLength(8) + ".ca");
         }
 
         builder.put(prefix + "verification_mode", "full");

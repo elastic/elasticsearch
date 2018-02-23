@@ -4,11 +4,11 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
-source "`dirname "$0"`"/../elasticsearch-env
+source "`dirname "$0"`"/elasticsearch-env
 
 source "`dirname "$0"`"/x-pack-env
 
-CLI_JAR=$(ls $ES_HOME/bin/x-pack/sql-cli-*.jar)
+CLI_JAR=$(ls $ES_HOME/bin/sql-cli-*.jar)
 
 exec \
   "$JAVA" \

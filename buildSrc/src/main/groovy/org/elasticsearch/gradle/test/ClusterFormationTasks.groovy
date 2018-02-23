@@ -131,13 +131,22 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, Version elasticsearchVersion) {
+        if (elasticsearchVersion.before('6.3.0') && distro.startsWith('oss-')) {
+            distro = distro.substring('oss-'.length())
+        }
         String packaging = distro
-        if (distro == 'tar') {
-            packaging = 'tar.gz'
-        } else if (distro == 'integ-test-zip') {
+        if (distro.contains('tar')) {
+            packaging = 'tar.gz'\
+        } else if (distro.contains('zip')) {
             packaging = 'zip'
         }
-        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${distro}:elasticsearch:${elasticsearchVersion}@${packaging}")
+        String subgroup = distro
+        String artifactName = 'elasticsearch'
+        if (distro.contains('oss')) {
+            artifactName += '-oss'
+            subgroup = distro.substring('oss-'.length())
+        }
+        project.dependencies.add(configuration.name, "org.elasticsearch.distribution.${subgroup}:${artifactName}:${elasticsearchVersion}@${packaging}")
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
@@ -260,6 +269,7 @@ class ClusterFormationTasks {
         switch (node.config.distribution) {
             case 'integ-test-zip':
             case 'zip':
+            case 'oss-zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from {
                         project.zipTree(configuration.singleFile)
@@ -268,6 +278,7 @@ class ClusterFormationTasks {
                 }
                 break;
             case 'tar':
+            case 'oss-tar':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from {
                         project.tarTree(project.resources.gzip(configuration.singleFile))

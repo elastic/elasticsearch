@@ -91,7 +91,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "has.native.controller", "false");
 
         try (Spawner spawner = new Spawner()) {
-            spawner.spawnNativePluginControllers(environment);
+            spawner.spawnNativeControllers(environment);
             assertThat(spawner.getProcesses(), hasSize(0));
         }
     }
@@ -149,7 +149,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativePluginControllers(environment);
+        spawner.spawnNativeControllers(environment);
 
         List<Process> processes = spawner.getProcesses();
         /*
@@ -228,7 +228,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativePluginControllers(environment);
+        spawner.spawnNativeControllers(environment);
 
         List<Process> processes = spawner.getProcesses();
         /*
@@ -277,7 +277,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Spawner spawner = new Spawner();
         IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> spawner.spawnNativePluginControllers(environment));
+                () -> spawner.spawnNativeControllers(environment));
         assertThat(
                 e.getMessage(),
                 equalTo("plugin [test_plugin] does not have permission to fork native controller"));
@@ -298,11 +298,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final Spawner spawner = new Spawner();
         if (Constants.MAC_OS_X) {
             // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativePluginControllers(environment);
+            spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
             final FileSystemException e =
-                    expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
+                    expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
             if (Constants.WINDOWS) {
                 assertThat(e, instanceOf(NoSuchFileException.class));
             } else {

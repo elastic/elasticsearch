@@ -160,12 +160,6 @@ integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCert
 
 
 ext.pluginsCount = 0
-project(xpackProject('plugin').path).subprojects { Project p ->
-  // the meta plugin contains the individual xpack plugins
-  if (p.extensions.findByName('esplugin') != null) {
-    pluginsCount += 1
-  }
-}
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
   integTestCluster.plugin(subproj.path)
@@ -189,16 +183,14 @@ integTestCluster {
 
   setting 'xpack.ml.enabled', 'false'
 
-  plugin xpackProject('plugin').path
-
   // copy keystores into config/
   extraConfigFile nodeKeystore.name, nodeKeystore
   extraConfigFile clientKeyStore.name, clientKeyStore
 
   setupCommand 'setupTestUser',
-               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMonitoringUser',
-               'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
+               'bin/users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

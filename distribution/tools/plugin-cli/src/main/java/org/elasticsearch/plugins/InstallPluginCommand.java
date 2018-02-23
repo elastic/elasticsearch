@@ -152,7 +152,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 plugins.add(line.trim());
                 line = reader.readLine();
             }
-            plugins.add("x-pack");
             OFFICIAL_PLUGINS = Collections.unmodifiableSet(plugins);
         } catch (IOException e) {
             throw new RuntimeException(e);

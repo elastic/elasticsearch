@@ -53,7 +53,6 @@ ClusterConfiguration cluster1Config = new ClusterConfiguration(project)
 cluster1Config.clusterName = 'cluster1'
 cluster1Config.setting('node.name', 'cluster1-node1')
 // x-pack
-cluster1Config.plugin(xpackProject('plugin').path)
 cluster1Config.setting('xpack.monitoring.enabled', false)
 cluster1Config.setting('xpack.security.enabled', false)
 cluster1Config.setting('xpack.watcher.enabled', false)
@@ -67,7 +66,6 @@ ClusterConfiguration cluster2Config = new ClusterConfiguration(project)
 cluster2Config.clusterName = 'cluster2'
 cluster2Config.setting('node.name', 'cluster2-node1')
 // x-pack
-cluster2Config.plugin(xpackProject('plugin').path)
 cluster2Config.setting('xpack.monitoring.enabled', false)
 cluster2Config.setting('xpack.monitoring.enabled', false)
 cluster2Config.setting('xpack.security.enabled', false)
@@ -102,7 +100,6 @@ integTestCluster {
   setting 'tribe.cluster2.xpack.ml.enabled', false
   setting 'tribe.cluster2.xpack.license.self_generated.type', 'trial'
   // x-pack
-  plugin xpackProject('plugin').path
   setting 'xpack.monitoring.enabled', false
   setting 'xpack.monitoring.enabled', false
   setting 'xpack.security.enabled', false

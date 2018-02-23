@@ -95,7 +95,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     public void testThatConnectionToServerTypeConnectionWorks() throws IOException, NodeValidationException {
         Path home = createTempDir();
-        Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
+        Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
@@ -127,7 +127,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
     public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException, InterruptedException {
         Path home = createTempDir();
-        Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
+        Path xpackConf = home.resolve("config");
         Files.createDirectories(xpackConf);
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());

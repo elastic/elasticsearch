@@ -13,5 +13,4 @@ integTestCluster {
     setting 'xpack.ml.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     numNodes = 3
-    plugin xpackProject('plugin').path
 }

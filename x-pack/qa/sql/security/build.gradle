@@ -27,11 +27,11 @@ subprojects {
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     // Setup roles used by tests
-    extraConfigFile 'x-pack/roles.yml', '../roles.yml'
+    extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.
      * Tests use "run as" to get different users. */
     setupCommand 'setupUser#test_admin',
-                'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+                'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     // Subprojects override the wait condition to work properly with security
   }
 
@@ -46,10 +46,10 @@ subprojects {
     setting 'xpack.security.audit.outputs', 'logfile'
     setting 'xpack.security.enabled', 'true'
     // Setup roles used by tests
-    extraConfigFile 'x-pack/roles.yml', '../roles.yml'
+    extraConfigFile 'roles.yml', '../roles.yml'
     /* Setup the one admin user that we run the tests as.
      * Tests use "run as" to get different users. */
     setupCommand 'setupUser#test_admin',
-                'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+                'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   }
 }

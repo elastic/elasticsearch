@@ -75,4 +75,6 @@ subprojects {
       String snapshotProject = ":x-pack:plugin:bwc:${snapshotName}"
       project(snapshotProject).ext.bwcVersion = snapshot
         ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${snapshot}"] = snapshotProject
+    }
+  }
 }

@@ -1,0 +1,4 @@
+[[rollup-search-limitations]]
+== Rollup Search Limitations
+
+todo

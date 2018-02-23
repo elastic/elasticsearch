@@ -60,6 +60,10 @@ public class XPackLicenseState {
         messages.put(XPackField.SQL, new String[] {
             "SQL support is disabled"
         });
+        messages.put(XPackField.ROLLUP, new String[] {
+            "Creating and Starting rollup jobs will no longer be allowed.",
+            "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -77,6 +81,7 @@ public class XPackLicenseState {
         messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
+        messages.put(XPackField.ROLLUP, XPackLicenseState::rollupAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -221,6 +226,22 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                         return new String[] { "JDBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] rollupAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+            case STANDARD:
+            case GOLD:
+                switch (currentMode) {
+                    case TRIAL:
+                    case PLATINUM:
+                        return new String[] { "Creating new Rollup jobs or starting existing jobs will be disabled.",
+                                "All existing jobs can still be queried with GET APIs, and RollupSearch continues to function." };
                 }
                 break;
         }
@@ -456,6 +477,29 @@ public class XPackLicenseState {
      *         {@code false}.
      */
     public boolean isMachineLearningAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        OperationMode operationMode = localStatus.mode;
+
+        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if Rollup should be enabled.
+     * <p>
+     * Rollup is only disabled when the license has expired or if the
+     * mode is not:
+     * <ul>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isRollupAllowed() {
         // status is volatile
         Status localStatus = status;
         OperationMode operationMode = localStatus.mode;

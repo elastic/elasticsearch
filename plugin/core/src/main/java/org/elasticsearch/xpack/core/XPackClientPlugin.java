@@ -92,6 +92,16 @@ import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
+import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
+import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
@@ -280,7 +290,15 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 GetTrialStatusAction.INSTANCE,
                 // x-pack
                 XPackInfoAction.INSTANCE,
-                XPackUsageAction.INSTANCE
+                XPackUsageAction.INSTANCE,
+                //rollup
+                RollupSearchAction.INSTANCE,
+                PutRollupJobAction.INSTANCE,
+                StartRollupJobAction.INSTANCE,
+                StopRollupJobAction.INSTANCE,
+                DeleteRollupJobAction.INSTANCE,
+                GetRollupJobsAction.INSTANCE,
+                GetRollupCapsAction.INSTANCE
         );
     }
 
@@ -324,7 +342,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
                 // licensing
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, LicensesMetaData.TYPE, LicensesMetaData::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetaData.TYPE, LicensesMetaData::readDiffFrom)
+                new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetaData.TYPE, LicensesMetaData::readDiffFrom),
+                //rollup
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new)
         );
     }
 
@@ -349,7 +370,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                         WatcherMetaData::fromXContent),
                 // licensing
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
-                        LicensesMetaData::fromXContent)
+                        LicensesMetaData::fromXContent),
+                //rollup
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(RollupField.TASK_NAME),
+                        parser -> RollupJob.fromXContent(parser)),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME), RollupJobStatus::fromXContent)
         );
     }
 

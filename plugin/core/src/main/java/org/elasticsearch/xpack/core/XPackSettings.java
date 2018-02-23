@@ -44,6 +44,10 @@ public class XPackSettings {
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
             Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling rollup. Defaults to true. */
+    public static final Setting<Boolean> ROLLUP_ENABLED = Setting.boolSetting("xpack.rollup.enabled", true,
+            Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
             Setting.Property.NodeScope);
@@ -144,6 +148,7 @@ public class XPackSettings {
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
+        settings.add(ROLLUP_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

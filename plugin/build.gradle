@@ -16,7 +16,7 @@ es_meta_plugin {
   name = 'x-pack'
   description = 'Elasticsearch Expanded Pack Plugin'
   plugins = ['core', 'deprecation', 'graph', 'logstash',
-             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql']
+             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql', 'rollup']
 }
 
 dependencies {
@@ -158,5 +158,6 @@ run {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.enabled', 'true'
   setting 'xpack.sql.enabled', 'true'
+  setting 'xpack.rollup.enabled', 'true'
   keystoreSetting 'bootstrap.password', 'password'
 }

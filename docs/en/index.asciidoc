@@ -20,6 +20,9 @@ include::sql/index.asciidoc[]
 include::monitoring/index.asciidoc[]
 
 :edit_url!:
+include::rollup/index.asciidoc[]
+
+:edit_url!:
 include::rest-api/index.asciidoc[]
 
 :edit_url!:

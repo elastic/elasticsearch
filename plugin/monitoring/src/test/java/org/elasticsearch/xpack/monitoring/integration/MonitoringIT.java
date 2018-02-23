@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.integration;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -78,6 +79,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4027")
 public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override

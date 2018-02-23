@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring.integration;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -138,6 +137,8 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             // Wait for the monitoring index to be created
             assertBusy(() -> {
+                // Monitoring uses auto_expand_replicas, so it should be green even without replicas
+                ensureGreen(monitoringIndex);
                 assertThat(client().admin().indices().prepareRefresh(monitoringIndex).get().getStatus(), is(RestStatus.OK));
 
                 final SearchResponse response =
@@ -240,6 +241,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 }
             }
         });
+
     }
 
     /**
@@ -512,7 +514,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      */
     public void enableMonitoring() throws Exception {
         // delete anything that may happen to already exist
-        assertAcked(client().admin().indices().prepareDelete(".monitoring-*").get());
+        assertAcked(client().admin().indices().prepareDelete(".monitoring-*"));
 
         assertThat("Must be no enabled exporters before enabling monitoring", getMonitoringUsageExportersDefined(), is(true));
 
@@ -524,7 +526,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         assertBusy(() -> assertThat("[_local] exporter not enabled yet", getMonitoringUsageExportersDefined(), is(false)));
+
         assertBusy(() -> {
+            // Monitoring uses auto_expand_replicas, so it should be green even without replicas
+            ensureGreen(".monitoring-es-*");
+            assertThat(client().admin().indices().prepareRefresh(".monitoring-es-*").get().getStatus(), is(RestStatus.OK));
+
             assertThat("No monitoring documents yet",
                        client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*")
                                .setSize(0)

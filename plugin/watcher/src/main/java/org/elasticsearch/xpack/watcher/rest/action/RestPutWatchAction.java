@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,6 +52,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
         PutWatchRequest putWatchRequest =
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
         putWatchRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWatchRequest.masterNodeTimeout()));
+        putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
         return channel -> client.putWatch(putWatchRequest, new RestBuilderListener<PutWatchResponse>(channel) {
             @Override

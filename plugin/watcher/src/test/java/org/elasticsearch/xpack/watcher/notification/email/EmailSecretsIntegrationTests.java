@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTestCase {
     private EmailServer server;
@@ -119,7 +120,11 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         assertThat(watchResponse.getId(), is("_id"));
         XContentSource contentSource = watchResponse.getSource();
         value = contentSource.getValue("actions._email.email.password");
-        assertThat(value, nullValue());
+        if (encryptSensitiveData) {
+            assertThat(value.toString(), startsWith("::es_encrypted::"));
+        } else {
+            assertThat(value, is("::es_redacted::"));
+        }
 
         // now we restart, to make sure the watches and their secrets are reloaded from the index properly
         stopWatcher();

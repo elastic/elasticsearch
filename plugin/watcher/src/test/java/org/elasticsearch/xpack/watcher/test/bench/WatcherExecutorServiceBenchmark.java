@@ -85,7 +85,7 @@ public class WatcherExecutorServiceBenchmark {
                                 ScriptType.INLINE,
                                 Script.DEFAULT_SCRIPT_LANG,
                                 "ctx.payload.hits.total > 0",
-                                emptyMap()))));
+                                emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }
@@ -128,7 +128,7 @@ public class WatcherExecutorServiceBenchmark {
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
                                 .extractKeys("hits.total"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
-                        .addAction("_id", indexAction("index", "type")));
+                        .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }
@@ -175,7 +175,7 @@ public class WatcherExecutorServiceBenchmark {
                                 ScriptType.INLINE,
                                 Script.DEFAULT_SCRIPT_LANG,
                                 "ctx.payload.tagline == \"You Know, for Search\"",
-                                emptyMap()))));
+                                emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }
@@ -186,13 +186,10 @@ public class WatcherExecutorServiceBenchmark {
             for (int i = 0; i < numThreads; i++) {
                 final int begin = i * watchersPerThread;
                 final int end = (i + 1) * watchersPerThread;
-                Runnable r = new Runnable() {
-                    @Override
-                    public void run() {
-                        while (true) {
-                            for (int j = begin; j < end; j++) {
-                                scheduler.trigger("_name" + j);
-                            }
+                Runnable r = () -> {
+                    while (true) {
+                        for (int j = begin; j < end; j++) {
+                            scheduler.trigger("_name" + j);
                         }
                     }
                 };

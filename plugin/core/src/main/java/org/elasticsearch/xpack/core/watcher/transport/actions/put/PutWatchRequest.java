@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,6 +34,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
     private BytesReference source;
     private boolean active = true;
     private XContentType xContentType = XContentType.JSON;
+    private long version = Versions.MATCH_ANY;
 
     public PutWatchRequest() {
     }
@@ -105,6 +107,14 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         return xContentType;
     }
 
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -130,6 +140,11 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         } else {
             xContentType = XContentFactory.xContentType(source);
         }
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            version = in.readZLong();
+        } else {
+            version = Versions.MATCH_ANY;
+        }
     }
 
     @Override
@@ -141,6 +156,8 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeZLong(version);
+        }
     }
-
 }

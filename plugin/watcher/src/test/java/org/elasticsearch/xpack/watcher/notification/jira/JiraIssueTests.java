@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,7 +39,7 @@ public class JiraIssueTests extends ESTestCase {
         final JiraIssue issue = randomJiraIssue();
 
         try (XContentBuilder builder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
-            issue.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            issue.toXContent(builder, WatcherParams.builder().hideSecrets(false).build());
 
             Map<String, Object> parsedFields = null;
             Map<String, Object> parsedResult = null;
@@ -81,7 +80,6 @@ public class JiraIssueTests extends ESTestCase {
                 }
             }
             
-    
             assertThat(parsedAccount, equalTo(issue.getAccount()));
             assertThat(parsedFields, equalTo(issue.getFields()));
             if (issue.successful()) {
@@ -96,7 +94,7 @@ public class JiraIssueTests extends ESTestCase {
         }
     }
 
-    public void testEquals() throws Exception {
+    public void testEquals() {
         final JiraIssue issue1 = randomJiraIssue();
         final boolean equals = randomBoolean();
 
@@ -113,7 +111,7 @@ public class JiraIssueTests extends ESTestCase {
         assertThat(issue1.equals(issue2), is(equals));
     }
 
-    private static JiraIssue randomJiraIssue() throws IOException {
+    private static JiraIssue randomJiraIssue() {
         String account = "account_" + randomIntBetween(0, 100);
         Map<String, Object> fields = randomIssueDefaults();
         HttpRequest request = HttpRequest.builder(randomFrom("localhost", "internal-jira.elastic.co"), randomFrom(80, 443))

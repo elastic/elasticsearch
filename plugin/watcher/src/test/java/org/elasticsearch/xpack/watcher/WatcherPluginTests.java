@@ -89,5 +89,11 @@ public class WatcherPluginTests extends ESTestCase {
         assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 50).build()), is(50));
         assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 51).build()), is(51));
         assertThat(Watcher.getWatcherThreadPoolSize(Settings.builder().put("processors", 96).build()), is(96));
+
+        Settings noDataNodeSettings = Settings.builder()
+                .put("processors", scaledRandomIntBetween(1, 100))
+                .put("node.data", false)
+                .build();
+        assertThat(Watcher.getWatcherThreadPoolSize(noDataNodeSettings), is(1));
     }
 }

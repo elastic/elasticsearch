@@ -34,6 +34,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -464,13 +465,22 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
      * Use five times the number of processors up until 50, then stick with the
      * number of processors.
      *
+     * If the node is not a data node, we will never need so much threads, so we
+     * just return 1 here, which still allows to execute a watch locally, but
+     * there is no need of managing any more threads here
+     *
      * @param settings The current settings
      * @return A number between 5 and the number of processors
      */
     static int getWatcherThreadPoolSize(Settings settings) {
-        int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
-        long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
-        return Math.toIntExact(size);
+        boolean isDataNode = Node.NODE_DATA_SETTING.get(settings);
+        if (isDataNode) {
+            int numberOfProcessors = EsExecutors.numberOfProcessors(settings);
+            long size = Math.max(Math.min(5 * numberOfProcessors, 50), numberOfProcessors);
+            return Math.toIntExact(size);
+        } else {
+            return 1;
+        }
     }
 
     @Override

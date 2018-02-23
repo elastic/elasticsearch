@@ -66,6 +66,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
+            project.integTestCluster.distribution = 'integ-test-zip'
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
                 project.integTestCluster.module(project)

@@ -202,7 +202,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
         try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body.streamInput())) {
             KibanaReportingPayload payload = new KibanaReportingPayload();
             PAYLOAD_PARSER.parse(parser, payload, null);
             String path = payload.getPath();

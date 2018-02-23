@@ -97,7 +97,7 @@ public class AuditorTests extends ESTestCase {
 
     private AuditMessage parseAuditMessage(BytesReference msg) throws IOException {
         XContentParser parser = XContentFactory.xContent(msg)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, msg);
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, msg.streamInput());
         return AuditMessage.PARSER.apply(parser, null);
     }
 }

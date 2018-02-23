@@ -157,7 +157,8 @@ public class HttpClient {
 
     private <Response> Response fromXContent(XContentType xContentType, BytesReference bytesReference,
                                              CheckedFunction<XContentParser, Response, IOException> responseParser) {
-        try (XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, bytesReference)) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry,
+                LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())) {
             return responseParser.apply(parser);
         } catch (IOException ex) {
             throw new ClientException("Cannot parse response", ex);

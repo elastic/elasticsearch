@@ -146,7 +146,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertEquals(restRequest.content(), handlerRequest.get().content());
         Map<String, Object> original = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, handlerRequest.get().content()).map();
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, handlerRequest.get().content().streamInput()).map();
         assertEquals(2, original.size());
         assertEquals(SecuritySettingsSourceField.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
@@ -156,7 +156,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         Map<String, Object> map = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        authcServiceRequest.get().content()).map();
+                        authcServiceRequest.get().content().streamInput()).map();
         assertEquals(1, map.size());
         assertEquals("bar", map.get("foo"));
     }

@@ -145,7 +145,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         try (XContentParser parser = xContentType.xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(registry, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             return parse(name, parser);
         }
     }

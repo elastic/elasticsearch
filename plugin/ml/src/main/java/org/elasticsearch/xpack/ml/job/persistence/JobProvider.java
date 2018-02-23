@@ -475,7 +475,7 @@ public class JobProvider {
                                     Consumer<Exception> errorHandler) {
         BytesReference source = hit.getSourceRef();
         try (XContentParser parser = XContentFactory.xContent(source)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
@@ -488,7 +488,7 @@ public class JobProvider {
         BytesReference source = getResponse.getSourceAsBytesRef();
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
@@ -524,7 +524,7 @@ public class JobProvider {
                     for (SearchHit hit : hits.getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
                             Bucket bucket = Bucket.PARSER.apply(parser, null);
                             results.add(bucket);
                         } catch (IOException e) {
@@ -655,7 +655,7 @@ public class JobProvider {
                     for (SearchHit hit : hits) {
                         BytesReference source = hit.getSourceRef();
                         try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
                             CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, null);
                             results.add(categoryDefinition);
                         } catch (IOException e) {
@@ -689,7 +689,7 @@ public class JobProvider {
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
                             results.add(AnomalyRecord.PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse records", e);
@@ -737,7 +737,7 @@ public class JobProvider {
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
                         try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
                             influencers.add(Influencer.PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse influencer", e);
@@ -881,7 +881,7 @@ public class JobProvider {
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             try (XContentParser parser = XContentFactory.xContent(source)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
                 ModelPlot modelPlot = ModelPlot.PARSER.apply(parser, null);
                 results.add(modelPlot);
             } catch (IOException e) {
@@ -1216,7 +1216,8 @@ public class JobProvider {
 
                         try (XContentParser parser =
                                      XContentFactory.xContent(docSource)
-                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource)) {
+                                             .createParser(NamedXContentRegistry.EMPTY,
+                                                     LoggingDeprecationHandler.INSTANCE, docSource.streamInput())) {
                             Calendar calendar = Calendar.PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);
                         }

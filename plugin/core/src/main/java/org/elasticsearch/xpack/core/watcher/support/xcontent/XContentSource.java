@@ -106,7 +106,7 @@ public class XContentSource implements ToXContent {
     }
 
     public XContentParser parser(NamedXContentRegistry xContentRegistry) throws IOException {
-        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes);
+        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {

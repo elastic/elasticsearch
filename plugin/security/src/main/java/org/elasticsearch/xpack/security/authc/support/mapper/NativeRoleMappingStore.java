@@ -163,7 +163,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private static XContentParser getParser(BytesReference source) throws IOException {
         return XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source);
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput());
     }
 
     /**

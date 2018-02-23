@@ -220,7 +220,7 @@ public class RoleDescriptor implements ToXContentObject {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             return parse(name, parser, allow2xFormat);
         }
     }
@@ -289,7 +289,7 @@ public class RoleDescriptor implements ToXContentObject {
     public static RoleDescriptor parsePrivilegesCheck(String description, BytesReference source, XContentType xContentType)
             throws IOException {
         try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             // advance to the START_OBJECT token
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {

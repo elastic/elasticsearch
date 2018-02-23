@@ -140,7 +140,10 @@ by Java's https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html
 You can specify the locale to use with `boundary_scanner_locale`.
 
 boundary_scanner_locale:: Controls which locale is used to search for sentence
-and word boundaries.
+and word boundaries. This parameter takes a form of a language tag, e.g. `US`, `CHINA`, `JAPAN`.
+The full list can be found in the
+https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#forLanguageTag-java.lang.String-[Locale]
+documentation.
 
 encoder:: Indicates if the snippet should be HTML encoded:
 `default` (no encoding) or `html` (HTML-escape the snippet text and then
@@ -200,8 +203,13 @@ handy when you need to highlight short texts such as a title or
 address, but fragmentation is not required. If `number_of_fragments`
 is 0, `fragment_size` is ignored. Defaults to 5.
 
-order:: Sorts highlighted fragments by score when set to `score`. Only valid for
-the `unified` highlighter.
+order:: Sorts highlighted fragments by score when set to `score`.  By default,
+fragments will be output in the order they appear in the field (order: `none`).
+Setting this option to `score` will output the most relevant fragments first.
+Only `unified` highlighter truly calculates the score, other highlighters with
+order: `sort` setting, will rank fragments by the number of query words found
+in them. See a section below for more details how different highlighters find the best
+fragments.
 
 phrase_limit:: Controls the number of matching phrases in a document that are
 considered. Prevents the `fvh` highlighter from analyzing too many phrases
@@ -929,3 +937,164 @@ Response:
 If the `number_of_fragments` option is set to `0`,
 `NullFragmenter` is used which does not fragment the text at all.
 This is useful for highlighting the entire contents of a document or field.
+
+
+[[highlighter-internal-work]]
+==== How highlighters work internally
+
+Given a query and a text (the content of a document field), the goal of a
+highlighter is to find the best text fragments for the query, and highlight
+the query terms in the found fragments. For this, a highlighter needs to
+address several questions:
+
+- How break a text into fragments?
+- How to find the best fragments among all fragments?
+- How to highlight the query terms in a fragment?
+
+===== How to break a text into fragments?
+Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter,
+`boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
+
+Plain highlighter begins with analyzing the text using the given analyzer,
+and creating a token stream from it. Plain highlighter uses a very simple
+algorithm to break the token stream into fragments. It loops through terms in the token stream,
+and every time the current term's end_offset exceeds `fragment_size` multiplied by the number of
+created fragments, a new fragment is created. A little more computation is done with using `span`
+fragmenter to avoid breaking up text between highlighted terms. But overall, since the breaking is
+done only by `fragment_size`, some fragments can be quite odd, e.g. beginning
+with a punctuation mark.
+
+Unified or FVH highlighters do a better job breaking up fragments by utilizing
+Java's `BreakIterator`, that can make fragments to be valid sentences.
+
+
+===== How to find the best fragments?
+Relevant settings: `number_of_fragments`.
+
+To find the best, most relevant, fragments, a highlighter needs to score
+each fragment in respect to the given query. The goal is to score only those
+terms that participated in generating the 'hit' on the document.
+For some complex queries, this is still work in progress.
+
+The plain highlighter creates an in-memory index from the current token stream,
+and re-runs the original query criteria through Lucene's query execution planner
+to get access to low-level match information for the current text.
+For more complex queries the original query could be converted to a span query,
+as span queries can handle phrases more accurately. Then this obtained low-level match
+information is used to score each individual fragment. The scoring method of the plain
+highlighter is quite simple. Each fragment is scored by the number of unique
+query terms found in this fragment. The score of individual term is equal to its boost,
+which is by default is 1. Thus, by default, a fragment that contains one unique query term,
+will get a score of 1; and a fragment that contains two unique query terms,
+will get a score of 2 and so on. The fragments are then sorted by their scores,
+so the highest scored fragments will be output first.
+
+FVH doesn't need to analyze the text and build an in-memory index, as it uses
+pre-indexed document term vectors, and finds among them terms that correspond to the query.
+FVH scores each fragment by the number of query terms found in this fragment
+(in contrast to plain highlighter that counts only unique query terms).
+
+Unified highlighter can use pre-indexed term vectors or pre-indexed terms offsets,
+if they are available. Otherwise, similar to Plain Highlighter, it has to create
+an in-memory index from the text. Unified highlighter uses the BM25 scoring model
+to score fragments.
+
+
+===== How to highlight the query terms in a fragment?
+Relevant settings:  `pre-tags`, `post-tags`.
+
+The goal is to highlight only those terms that participated in generating the 'hit' on the document.
+For some complex queries, this is still work in progress.
+
+Plain highlighter given the token stream and the original text, recomposes the original text to
+highlight only terms from the token stream that are contained in the low-level match information
+structure from the previous step.
+
+FVH and unified highlighter use intermediate data structures to represent
+fragments in some raw form, and then populate them with actual text.
+
+A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
+
+
+===== An example of the work of the plain highlighter
+
+Let's look in more details how plain highlighter works.
+
+We index the following text into the `text` field of a
+document using `english` analyzer:
+
+    "For you I'm only a fox like a hundred thousand other foxes. But if you tame me, we'll need each other.
+    You'll be the only boy in the world for me. I'll be the only fox in the world for you."
+
+
+And we ran the following query with a highlight request:
+
+[source,js]
+--------------------------------------------------
+{
+    "query": {
+        "match_phrase" : {"text" : "only fox"}
+    },
+    "highlight": {
+        "type" : "plain",
+        "number_of_fragments" : 3,
+        "fields": {
+            "text": {"fragment_size": 50}
+        }
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Plain highlighter begins with analyzing the given text,
+using the specified `english` analyzer, and creates a token stream from it:
+
+    {"token":"you","start_offset":4,"end_offset":7,"position":1},
+    {"token":"i'm","start_offset":8,"end_offset":11,"position":2},
+    {"token":"onli","start_offset":12,"end_offset":16,"position":3},
+    {"token":"fox","start_offset":19,"end_offset":22,"position":5},
+    {"token":"like","start_offset":23,"end_offset":27,"position":6},
+    {"token":"hundr","start_offset":30,"end_offset":37,"position":8},
+    {"token":"thousand","start_offset":38,"end_offset":46,"position":9},
+    {"token":"other","start_offset":47,"end_offset":52,"position":10},
+    {"token":"fox","start_offset":53,"end_offset":58,"position":11},
+    {"token":"you","start_offset":67,"end_offset":70,"position":14},
+    {"token":"tame","start_offset":71,"end_offset":75,"position":15},
+    {"token":"me","start_offset":76,"end_offset":78,"position":16},
+    {"token":"we'll","start_offset":80,"end_offset":85,"position":17},
+    {"token":"need","start_offset":86,"end_offset":90,"position":18},
+    {"token":"each","start_offset":91,"end_offset":95,"position":19},
+    {"token":"other","start_offset":96,"end_offset":101,"position":20},
+    {"token":"you'll","start_offset":103,"end_offset":109,"position":21},
+    {"token":"onli","start_offset":117,"end_offset":121,"position":24},
+    {"token":"boi","start_offset":122,"end_offset":125,"position":25},
+    {"token":"world","start_offset":133,"end_offset":138,"position":28},
+    {"token":"me","start_offset":143,"end_offset":145,"position":30},
+    {"token":"i'll","start_offset":147,"end_offset":151,"position":31},
+    {"token":"onli","start_offset":159,"end_offset":163,"position":34},
+    {"token":"fox","start_offset":164,"end_offset":167,"position":35},
+    {"token":"world","start_offset":175,"end_offset":180,"position":38},
+    {"token":"you","start_offset":185,"end_offset":188,"position":40}
+
+After that a memory index will be created from this token stream,
+so that it would be possible to run a query on it.
+Our complex phrase query will be converted to the span query.
+From running the span query on the memory index, the highlighter will create the
+following match table (presented in a simplified version here):
+
+    onli -> positions(34, 35) weight:1
+    fox  -> positions(34, 35) weight:1
+
+The highlighter then loops through every token in the token stream,
+checking if the match table contains it along with its position.
+The tokens present in the match table will be the ones that will be
+highlighted. For example, the token
+{"token":"onli","start_offset":12,"end_offset":16,"position":3}
+will not be highlighted, because even the match table contains
+term "onli", the positions don't match. The only matched tokens will be:
+{"token":"onli","start_offset":159,"end_offset":163,"position":34},
+{"token":"fox","start_offset":164,"end_offset":167,"position":35}.
+These tokens will be highlighted, and they also happen to be
+in the same fragment. Thus, we will have only 1 fragment with the score of 2,
+as it contains two query terms.
+

@@ -45,11 +45,12 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        request.applyContentParser(parser -> RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, null));
+        request.applyContentParser(rolloverIndexRequest::fromXContent);
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
-        rolloverIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        rolloverIndexRequest.getCreateIndexRequest().waitForActiveShards(
+                ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 }

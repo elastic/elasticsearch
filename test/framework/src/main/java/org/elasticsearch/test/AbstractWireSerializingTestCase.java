@@ -58,7 +58,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      * Tests that the equals and hashcode methods are consistent and copied
      * versions of the instance have are equal.
      */
-    public void testEqualsAndHashcode() throws IOException {
+    public final void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copyInstance, this::mutateInstance);
         }
@@ -67,7 +67,7 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
     /**
      * Test serialization and deserialization of the test instance.
      */
-    public void testSerialization() throws IOException {
+    public final void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             assertSerialization(testInstance);

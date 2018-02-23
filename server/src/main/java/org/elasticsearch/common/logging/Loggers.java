@@ -43,7 +43,9 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 /**
  * A set of utilities around Logging.
  */
-public class ServerLoggers {
+public class Loggers {
+
+    public static final String SPACE = " ";
 
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Setting.Property.NodeScope);
@@ -87,6 +89,48 @@ public class ServerLoggers {
             prefixesList.addAll(asList(prefixes));
         }
         return prefixesList;
+    }
+
+    public static Logger getLogger(Logger parentLogger, String s) {
+        assert parentLogger instanceof PrefixLogger;
+        return ESLoggerFactory.getLogger(((PrefixLogger)parentLogger).prefix(), parentLogger.getName() + s);
+    }
+
+    public static Logger getLogger(String s) {
+        return ESLoggerFactory.getLogger(s);
+    }
+
+    public static Logger getLogger(Class<?> clazz) {
+        return ESLoggerFactory.getLogger(clazz);
+    }
+
+    public static Logger getLogger(Class<?> clazz, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), clazz);
+    }
+
+    public static Logger getLogger(String name, String... prefixes) {
+        return ESLoggerFactory.getLogger(formatPrefix(prefixes), name);
+    }
+
+    private static String formatPrefix(String... prefixes) {
+        String prefix = null;
+        if (prefixes != null && prefixes.length > 0) {
+            StringBuilder sb = new StringBuilder();
+            for (String prefixX : prefixes) {
+                if (prefixX != null) {
+                    if (prefixX.equals(SPACE)) {
+                        sb.append(" ");
+                    } else {
+                        sb.append("[").append(prefixX).append("]");
+                    }
+                }
+            }
+            if (sb.length() > 0) {
+                sb.append(" ");
+                prefix = sb.toString();
+            }
+        }
+        return prefix;
     }
 
     /**

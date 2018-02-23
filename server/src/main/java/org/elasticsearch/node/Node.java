@@ -67,7 +67,6 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -272,7 +271,7 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to create node environment", ex);
             }
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-            Logger logger = ServerLoggers.getLogger(Node.class, tmpSettings);
+            Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
             // this must be captured after the node name is possibly added to the settings

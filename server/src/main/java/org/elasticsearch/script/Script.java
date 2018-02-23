@@ -283,7 +283,7 @@ public final class Script implements ToXContentObject, Writeable {
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, builder.bytes()));
+                LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput()));
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]
             throw new IllegalStateException(e);

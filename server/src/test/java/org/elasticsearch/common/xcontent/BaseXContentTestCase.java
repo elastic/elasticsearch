@@ -748,7 +748,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             if (useStream) {
                 generator.writeRawField("bar", new ByteArrayInputStream(rawData));
             } else {
-                generator.writeRawField("bar", new BytesArray(rawData));
+                generator.writeRawField("bar", new BytesArray(rawData).streamInput());
             }
             generator.writeEndObject();
         }
@@ -785,7 +785,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
         XContentParser parser = xcontentType().xContent()
@@ -801,7 +801,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
             generator.writeEndObject();
         }
 
@@ -1015,7 +1015,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes());
+        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes().streamInput());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));

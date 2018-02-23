@@ -131,7 +131,6 @@ subprojects {
       minimumMasterNodes = { 2 }
       clusterName = 'rolling-upgrade'
       waitCondition = waitWithAuth
-      setting 'xpack.monitoring.collection.interval', '-1'
       setting 'xpack.monitoring.exporters._http.type', 'http'
       setting 'xpack.monitoring.exporters._http.enabled', 'false'
       setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
@@ -178,7 +177,6 @@ subprojects {
       minimumMasterNodes = { 2 }
       dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
-      setting 'xpack.monitoring.collection.interval', '-1'
       setting 'xpack.monitoring.exporters._http.type', 'http'
       setting 'xpack.monitoring.exporters._http.enabled', 'false'
       setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
@@ -219,7 +217,6 @@ subprojects {
       minimumMasterNodes = { 2 }
       dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
       waitCondition = waitWithAuth
-      setting 'xpack.monitoring.collection.interval', '-1'
       setting 'xpack.monitoring.exporters._http.type', 'http'
       setting 'xpack.monitoring.exporters._http.enabled', 'false'
       setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'

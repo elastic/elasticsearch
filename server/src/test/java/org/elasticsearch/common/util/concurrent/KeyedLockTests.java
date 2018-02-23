@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -31,6 +30,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -77,6 +77,34 @@ public class KeyedLockTests extends ESTestCase {
         assertTrue(lock.hasLockedKeys());
         foo.close();
         assertFalse(lock.hasLockedKeys());
+    }
+
+    public void testTryAcquire() throws InterruptedException {
+        KeyedLock<String> lock = new KeyedLock<>();
+        Releasable foo = lock.tryAcquire("foo");
+        Releasable second = lock.tryAcquire("foo");
+        assertTrue(lock.hasLockedKeys());
+        foo.close();
+        assertTrue(lock.hasLockedKeys());
+        second.close();
+        assertFalse(lock.hasLockedKeys());
+        // lock again
+        Releasable acquire = lock.tryAcquire("foo");
+        assertNotNull(acquire);
+        final AtomicBoolean check = new AtomicBoolean(false);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread thread = new Thread(() -> {
+            latch.countDown();
+            try (Releasable ignore = lock.acquire("foo")) {
+                assertTrue(check.get());
+            }
+        });
+        thread.start();
+        latch.await();
+        check.set(true);
+        acquire.close();
+        foo.close();
+        thread.join();
     }
 
     public void testLockIsReentrant() throws InterruptedException {
@@ -137,7 +165,24 @@ public class KeyedLockTests extends ESTestCase {
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 assert connectionLock.isHeldByCurrentThread(curName) == false;
-                try (Releasable ignored = connectionLock.acquire(curName)) {
+                Releasable lock;
+                if (randomIntBetween(0, 10) < 4) {
+                    int tries = 0;
+                    boolean stepOut = false;
+                    while ((lock = connectionLock.tryAcquire(curName)) == null) {
+                        assertFalse(connectionLock.isHeldByCurrentThread(curName));
+                        if (tries++ == 10) {
+                            stepOut = true;
+                            break;
+                        }
+                    }
+                    if (stepOut) {
+                        break;
+                    }
+                } else {
+                    lock = connectionLock.acquire(curName);
+                }
+                try (Releasable ignore = lock) {
                     assert connectionLock.isHeldByCurrentThread(curName);
                     assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     if (randomBoolean()) {

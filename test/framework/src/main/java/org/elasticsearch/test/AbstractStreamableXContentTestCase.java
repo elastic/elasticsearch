@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -36,7 +37,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      * Generic test that creates new instance from the test instance and checks
      * both for equality and asserts equality on the two queries.
      */
-    public void testFromXContent() throws IOException {
+    public final void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
@@ -44,7 +45,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
             BytesReference withRandomFields;
             if (supportsUnknownFields()) {
                 // we add a few random fields to check that parser is lenient on new fields
-                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, null, random());
+                withRandomFields = XContentTestUtils.insertRandomFields(xContentType, shuffled, getRandomFieldsExcludeFilter(), random());
             } else {
                 withRandomFields = shuffled;
             }
@@ -72,6 +73,10 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
      */
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> false;
     }
 
     private T parseInstance(XContentParser parser) throws IOException {

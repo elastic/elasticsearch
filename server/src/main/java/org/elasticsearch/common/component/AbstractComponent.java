@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 
@@ -34,7 +34,7 @@ public abstract class AbstractComponent {
     protected final Settings settings;
 
     public AbstractComponent(Settings settings) {
-        this.logger = ServerLoggers.getLogger(getClass(), settings);
+        this.logger = Loggers.getLogger(getClass(), settings);
         this.deprecationLogger = new DeprecationLogger(logger);
         this.settings = settings;
     }

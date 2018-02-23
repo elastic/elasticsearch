@@ -25,29 +25,26 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class WriteOperationTests extends ESTestCase {
+public class BytesWriteOperationTests extends ESTestCase {
 
-    private NioSocketChannel channel;
+    private SocketChannelContext channelContext;
     private BiConsumer<Void, Throwable> listener;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setFields() {
-        channel = mock(NioSocketChannel.class);
+        channelContext = mock(SocketChannelContext.class);
         listener = mock(BiConsumer.class);
 
     }
 
     public void testFullyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
 
         writeOp.incrementIndex(10);
 
@@ -56,7 +53,7 @@ public class WriteOperationTests extends ESTestCase {
 
     public void testPartiallyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
 
         writeOp.incrementIndex(5);
 
@@ -65,7 +62,7 @@ public class WriteOperationTests extends ESTestCase {
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channel, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
 
         ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 

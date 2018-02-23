@@ -50,7 +50,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -130,7 +130,7 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
-        this.logger = ServerLoggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
+        this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }

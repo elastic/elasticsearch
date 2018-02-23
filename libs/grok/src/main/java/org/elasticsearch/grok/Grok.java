@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.grok;
 
 import org.jcodings.specific.UTF8Encoding;
 import org.joni.Matcher;
@@ -28,13 +28,19 @@ import org.joni.Region;
 import org.joni.Syntax;
 import org.joni.exception.ValueException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Collections;
 
-final class Grok {
+public final class Grok {
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";
@@ -54,13 +60,24 @@ final class Grok {
             ")?" + "\\}";
     private static final Regex GROK_PATTERN_REGEX = new Regex(GROK_PATTERN.getBytes(StandardCharsets.UTF_8), 0,
             GROK_PATTERN.getBytes(StandardCharsets.UTF_8).length, Option.NONE, UTF8Encoding.INSTANCE, Syntax.DEFAULT);
+
+    private static final Map<String, String> builtinPatterns;
+
+    static {
+        try {
+            builtinPatterns = loadBuiltinPatterns();
+        } catch (IOException e) {
+            throw new UncheckedIOException("unable to load built-in grok patterns", e);
+        }
+    }
+
     private final Map<String, String> patternBank;
     private final boolean namedCaptures;
     private final Regex compiledExpression;
     private final String expression;
 
 
-    Grok(Map<String, String> patternBank, String grokPattern) {
+    public Grok(Map<String, String> patternBank, String grokPattern) {
         this(patternBank, grokPattern, true);
     }
 
@@ -176,5 +193,42 @@ final class Grok {
         }
         return null;
     }
+
+    public static Map<String, String> getBuiltinPatterns() {
+        return builtinPatterns;
+    }
+
+    private static Map<String, String> loadBuiltinPatterns() throws IOException {
+        // Code for loading built-in grok patterns packaged with the jar file:
+        String[] PATTERN_NAMES = new String[] {
+            "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
+            "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
+            "postgresql", "rails", "redis", "ruby"
+        };
+        Map<String, String> builtinPatterns = new HashMap<>();
+        for (String pattern : PATTERN_NAMES) {
+            try(InputStream is = Grok.class.getResourceAsStream("/patterns/" + pattern)) {
+                loadPatterns(builtinPatterns, is);
+            }
+        }
+        return Collections.unmodifiableMap(builtinPatterns);
+    }
+
+    private static void loadPatterns(Map<String, String> patternBank, InputStream inputStream) throws IOException {
+        String line;
+        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+        while ((line = br.readLine()) != null) {
+            String trimmedLine = line.replaceAll("^\\s+", "");
+            if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
+                continue;
+            }
+
+            String[] parts = trimmedLine.split("\\s+", 2);
+            if (parts.length == 2) {
+                patternBank.put(parts[0], parts[1]);
+            }
+        }
+    }
+
 }
 

@@ -1,8 +1,3 @@
-import groovy.json.JsonSlurper
-
-import javax.net.ssl.HttpsURLConnection
-import java.nio.charset.StandardCharsets
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -11,6 +6,9 @@ dependencies {
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
+String slackPropertyName = 'xpack.notification.slack.url'
+System.setProperty(slackPropertyName, 'https://hooks.slack.com/services/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')
+
 integTestCluster {
   plugin xpackProject('plugin').path
   setting 'xpack.security.enabled', 'false'
@@ -18,4 +16,11 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+
+  setting 'xpack.notification.slack.account.test_account.url', System.getProperty(slackPropertyName)
+}
+
+// require network access for this one, exit early instead of starting up the cluster if we dont have network
+if (!System.getProperty(slackPropertyName) || !System.getProperty('tests.network')) {
+    integTest.enabled = false
 }

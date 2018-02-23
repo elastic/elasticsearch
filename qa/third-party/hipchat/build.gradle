@@ -1,0 +1,38 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
+}
+
+String integrationAccountPropertyName = 'xpack.notification.hipchat.auth_token_integration'
+System.setProperty(integrationAccountPropertyName, 'huuS9v7ccuOy3ZBWWWr1vt8Lqu3sQnLUE81nrLZU')
+String userAccountPropertyName = 'xpack.notification.hipchat.auth_token_user'
+System.setProperty(userAccountPropertyName, '4UefsFLvKRw01EMN5vo3oyoY6BLiz7IQBQbGug8K')
+String v1AccountPropertyName = 'xpack.notification.hipchat.auth_token_v1'
+System.setProperty(v1AccountPropertyName, 'a734baf62df618b96dda55b323fc30')
+
+integTestCluster {
+  plugin xpackProject('plugin').path
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+
+  // hipchat
+  setting 'xpack.notification.hipchat.account.integration_account.profile', 'integration'
+  setting 'xpack.notification.hipchat.account.integration_account.room', 'test-watcher'
+  setting 'xpack.notification.hipchat.account.integration_account.auth_token', System.getProperty(integrationAccountPropertyName)
+  setting 'xpack.notification.hipchat.account.user_account.profile', 'user'
+  setting 'xpack.notification.hipchat.account.user_account.auth_token', System.getProperty(userAccountPropertyName)
+  setting 'xpack.notification.hipchat.account.v1_account.profile', 'v1'
+  setting 'xpack.notification.hipchat.account.v1_account.auth_token', System.getProperty(v1AccountPropertyName)
+}
+
+if (!System.getProperty(integrationAccountPropertyName) || !System.getProperty(userAccountPropertyName) ||
+    !System.getProperty(v1AccountPropertyName) || !System.getProperty('tests.network')) {
+    
+    integTest.enabled = false
+}

@@ -85,6 +85,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testNetbiosAuth() throws Exception {
         final String adUrl = randomFrom("ldap://54.213.145.20:3268", "ldaps://54.213.145.20:3269", AD_LDAP_URL);
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(adUrl, AD_DOMAIN, false), globalSettings,
@@ -117,8 +118,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms")
                 .build();
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             PlainActionFuture<List<String>> groups = new PlainActionFuture<>();
@@ -147,8 +148,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testAuthenticate() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             String userName = "hulk";
@@ -201,8 +202,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
                         "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                 .put(ActiveDirectorySessionFactorySettings.AD_GROUP_SEARCH_SCOPE_SETTING, LdapSearchScope.BASE)
                 .build();
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             String userName = "hulk";
@@ -219,8 +220,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testAuthenticateWithUserPrincipalName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             //Login with the UserPrincipalName
@@ -237,11 +238,12 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void testAuthenticateWithSAMAccountName() throws Exception {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             //login with sAMAccountName
@@ -267,8 +269,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
                 .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING,
                         "(&(objectclass=user)(userPrincipalName={0}@ad.test.elasticsearch.com))")
                 .build();
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
 
             //Login with the UserPrincipalName
@@ -408,8 +410,8 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
                 .put(LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("ssl.verification_mode", VerificationMode.FULL)
                 .build();
-        RealmConfig config =
-                new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

@@ -27,6 +27,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
     private static final String BRUCE_BANNER_DN =
             "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
+    @SuppressWarnings("unchecked")
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)

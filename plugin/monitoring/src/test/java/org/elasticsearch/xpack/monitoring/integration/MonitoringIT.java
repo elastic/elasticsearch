@@ -79,7 +79,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4027")
 public class MonitoringIT extends ESSingleNodeTestCase {
 
     @Override

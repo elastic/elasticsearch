@@ -107,6 +107,10 @@ public class MonitoringServiceTests extends ESTestCase {
         CountingExporter exporter = new CountingExporter();
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
+        assertWarnings(
+            "Setting [xpack.monitoring.collection.interval] to [-1] has been deprecated as the way to disable collection. Use " +
+            "[xpack.monitoring.collection.enabled] set to [false] instead.");
+
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
         assertFalse("interval -1 does not start the monitoring execution", monitoringService.isMonitoringActive());

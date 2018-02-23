@@ -75,10 +75,14 @@ Sets the timeout for collecting the recovery information. Defaults to `10s`.
 
 `xpack.monitoring.collection.interval`::
 
+Setting to `-1` to disable data collection has been deprecated. added[6.3.0,
+Use `xpack.monitoring.collection.enabled` set to `false` instead.]
+
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
-option in `kibana.yml` to the same value. Set to `-1` to temporarily disable
-data collection. You can update this setting through the
+option in `kibana.yml` to the same value.
++
+You can update this setting through the
 <<cluster-update-settings,Cluster Update Settings API>>.
 
 `xpack.monitoring.history.duration`::

@@ -94,7 +94,6 @@ integTestCluster {
   // Integration tests are supposed to enable/disable exporters before/after each test
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
-  setting 'xpack.monitoring.collection.interval', '-1'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.keystore.path', nodeKeystore.name

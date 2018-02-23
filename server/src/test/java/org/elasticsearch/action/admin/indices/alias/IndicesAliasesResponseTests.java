@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class IndicesAliasesResponseTests extends AbstractStreamableXContentTestCase<IndicesAliasesResponse> {
 
@@ -41,7 +40,7 @@ public class IndicesAliasesResponseTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<IndicesAliasesResponse> getMutateFunction() {
-        return response -> new IndicesAliasesResponse(response.isAcknowledged() == false);
+    protected IndicesAliasesResponse mutateInstance(IndicesAliasesResponse response) {
+        return new IndicesAliasesResponse(response.isAcknowledged() == false);
     }
 }

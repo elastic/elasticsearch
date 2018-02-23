@@ -42,7 +42,8 @@ public class ValidateJobConfigActionRequestTests extends AbstractStreamableTestC
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         XContentBuilder xContentBuilder = jobConfiguration.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContentBuilder.bytes());
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        xContentBuilder.bytes().streamInput());
 
         expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(parser));
     }

@@ -498,7 +498,7 @@ public class License implements ToXContentObject {
         }
         // EMPTY is safe here because we don't call namedObject
         final XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes);
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
         License license = null;
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {

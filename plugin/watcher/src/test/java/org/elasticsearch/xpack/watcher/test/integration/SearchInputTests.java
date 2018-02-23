@@ -166,7 +166,8 @@ public class SearchInputTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder().startObject().startObject("request")
                 .startArray("indices").value("foo").endArray().endObject().endObject();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes())) {
+                     .createParser(NamedXContentRegistry.EMPTY,
+                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
 
             parser.nextToken(); // advance past the first starting object
 

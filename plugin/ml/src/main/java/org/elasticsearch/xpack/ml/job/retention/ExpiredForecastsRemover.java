@@ -118,7 +118,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
 
         for (SearchHit hit : hits.getHits()) {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, hit.getSourceRef());
+                    NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, hit.getSourceRef().streamInput());
             ForecastRequestStats forecastRequestStats = ForecastRequestStats.PARSER.apply(parser, null);
             if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
                 forecastsToDelete.add(forecastRequestStats);

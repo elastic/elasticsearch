@@ -149,7 +149,7 @@ public class JiraIssue implements ToXContentObject {
             final List<String> errors = new ArrayList<>();
             // EMPTY is safe here because we never call namedObject
             try (XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body())) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body().streamInput())) {
                 XContentParser.Token token = parser.currentToken();
                 if (token == null) {
                     token = parser.nextToken();

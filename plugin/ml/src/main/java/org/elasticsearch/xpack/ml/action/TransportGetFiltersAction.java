@@ -83,7 +83,8 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         XContentParser parser =
                                 XContentFactory.xContent(docSource)
-                                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource);
+                                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                                                docSource.streamInput());
                         MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
                         responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
@@ -122,7 +123,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
                     try (XContentParser parser = XContentFactory.xContent(docSource).createParser(
-                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource)) {
+                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource.streamInput())) {
                         docs.add(MlFilter.PARSER.apply(parser, null).build());
                     } catch (IOException e) {
                         this.onFailure(e);

@@ -81,7 +81,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         if (contentType != null) {
             // EMPTY is safe here because we never use namedObject
             try (XContentParser parser = contentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body())) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body().streamInput())) {
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
                 } else {

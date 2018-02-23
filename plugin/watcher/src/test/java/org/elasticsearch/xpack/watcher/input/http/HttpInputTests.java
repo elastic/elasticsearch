@@ -340,7 +340,7 @@ public class HttpInputTests extends ESTestCase {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             BytesReference bytes = builder.bytes();
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes)) {
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
                 Map<String, Object> data = parser.map();
                 String reason = ObjectPath.eval("error.reason", data);
                 assertThat(reason, is("could not connect"));

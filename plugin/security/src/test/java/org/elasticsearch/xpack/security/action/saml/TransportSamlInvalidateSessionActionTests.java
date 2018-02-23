@@ -203,7 +203,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private SearchHit tokenHit(int idx, BytesReference source) {
         try {
             final Map<String, Object> sourceMap = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source).map();
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput()).map();
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
             final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), null, null);

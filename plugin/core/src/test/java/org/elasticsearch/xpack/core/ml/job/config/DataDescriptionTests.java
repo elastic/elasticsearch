@@ -201,7 +201,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     public void testInvalidDataFormat() throws Exception {
         BytesArray json = new BytesArray("{ \"format\":\"INEXISTENT_FORMAT\" }");
         XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [format]"));
@@ -215,7 +215,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     public void testInvalidFieldDelimiter() throws Exception {
         BytesArray json = new BytesArray("{ \"field_delimiter\":\",,\" }");
         XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [field_delimiter]"));
@@ -229,7 +229,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     public void testInvalidQuoteCharacter() throws Exception {
         BytesArray json = new BytesArray("{ \"quote_character\":\"''\" }");
         XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [quote_character]"));

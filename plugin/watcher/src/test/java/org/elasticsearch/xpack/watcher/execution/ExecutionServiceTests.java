@@ -1020,7 +1020,8 @@ public class ExecutionServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             UpdateRequest request = (UpdateRequest) invocation.getArguments()[0];
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request.doc().source())) {
+                    .createParser(NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request.doc().source().streamInput())) {
                 Map<String, Object> map = parser.map();
                 Map<String, String> state = ObjectPath.eval("status.state", map);
                 assertThat(state, is(nullValue()));

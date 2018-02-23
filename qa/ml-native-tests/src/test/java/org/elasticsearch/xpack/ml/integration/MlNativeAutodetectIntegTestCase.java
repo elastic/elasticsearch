@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -355,7 +356,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         assertThat(hits.getTotalHits(), equalTo(1L));
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hits.getHits()[0].getSourceRef());
+                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    hits.getHits()[0].getSourceRef().streamInput());
             return ForecastRequestStats.PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -374,7 +376,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         for (SearchHit hit : hits) {
             try {
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef());
+                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
                 forecastStats.add(ForecastRequestStats.PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
@@ -408,7 +410,8 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
         for (SearchHit hit : hits) {
             try {
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef());
+                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        hit.getSourceRef().streamInput());
                 forecasts.add(Forecast.PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);

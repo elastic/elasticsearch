@@ -309,7 +309,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (XContentParser parser = XContentFactory.xContent(bytesReference)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesReference)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())) {
             return PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);

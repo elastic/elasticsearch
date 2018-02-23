@@ -81,7 +81,7 @@ public class JiraAccount {
             builder.endObject();
             this.issueDefaults = Collections.unmodifiableMap(XContentType.JSON.xContent()
                     .createParser(new NamedXContentRegistry(Collections.emptyList()),
-                            LoggingDeprecationHandler.INSTANCE, builder.bytes()).map());
+                            LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput()).map());
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

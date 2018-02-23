@@ -32,7 +32,8 @@ public class RestRequestFilterTests extends ESTestCase {
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
+                .createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");
@@ -50,7 +51,8 @@ public class RestRequestFilterTests extends ESTestCase {
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
+                .createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");
@@ -68,7 +70,8 @@ public class RestRequestFilterTests extends ESTestCase {
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content()).map();
+                .createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
         Map<String, Object> second = (Map<String, Object>) root.get("second");

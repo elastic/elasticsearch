@@ -81,7 +81,7 @@ public class NormalizerResultHandler extends AbstractComponent {
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
         XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesRef);
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesRef.streamInput());
         NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
         normalizedResults.add(result);
     }

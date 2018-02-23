@@ -105,7 +105,7 @@ public class SentEvent implements ToXContentObject {
         try {
             // EMPTY is safe here because we never call namedObject
             XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body());
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body().streamInput());
             parser.nextToken();
 
             String message = null;

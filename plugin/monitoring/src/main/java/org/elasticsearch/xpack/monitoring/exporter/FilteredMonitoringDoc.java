@@ -60,7 +60,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
-            try (XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, out.bytes())) {
+            try (XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, out.bytes().streamInput())) {
                 return builder.copyCurrentStructure(parser);
             }
         }

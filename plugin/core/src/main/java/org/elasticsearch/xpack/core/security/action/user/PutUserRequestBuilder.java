@@ -100,7 +100,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         username(username);
         // EMPTY is ok here because we never call namedObject
         try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

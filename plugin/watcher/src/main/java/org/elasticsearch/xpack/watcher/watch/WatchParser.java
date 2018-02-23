@@ -109,7 +109,8 @@ public class WatchParser extends AbstractComponent {
         }
         // EMPTY is safe here because we never use namedObject
         try (WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, source), now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
+                    LoggingDeprecationHandler.INSTANCE, source.streamInput()),
+                        now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {

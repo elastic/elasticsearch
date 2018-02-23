@@ -141,7 +141,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
 
         final BytesReference bytes = XContentHelper.toXContent(document, xContentType, false);
         try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
             final Map<String, ?> map = parser.map();
 
             assertThat(map.get("cluster_uuid"), equalTo(cluster));

@@ -318,7 +318,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      */
-    public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
+    public static StoredScriptSource fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null).build();
     }
 

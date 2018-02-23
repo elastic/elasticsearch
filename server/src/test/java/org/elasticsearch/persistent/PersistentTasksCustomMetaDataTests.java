@@ -34,16 +34,15 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Builder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -123,17 +122,9 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     }
 
     @Override
-    protected PersistentTasksCustomMetaData doParseInstance(XContentParser parser) throws IOException {
+    protected PersistentTasksCustomMetaData doParseInstance(XContentParser parser) {
         return PersistentTasksCustomMetaData.fromXContent(parser);
     }
-
-/*
-    @Override
-    protected XContentBuilder toXContent(Custom instance, XContentType contentType) throws IOException {
-        return toXContent(instance, contentType, new ToXContent.MapParams(
-                Collections.singletonMap(MetaData.CONTEXT_MODE_PARAM, MetaData.XContentContext.API.toString())));
-    }
-*/
 
     private String addRandomTask(Builder builder) {
         String taskId = UUIDs.base64UUID();

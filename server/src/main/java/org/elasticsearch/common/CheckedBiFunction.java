@@ -16,17 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.Writeable;
+package org.elasticsearch.common;
 
-import java.io.IOException;
-
-public abstract class AbstractWireSerializingTestCase<T extends Writeable> extends AbstractWireTestCase<T> {
-
-    @Override
-    protected T copyInstance(T instance, Version version) throws IOException {
-        return copyWriteable(instance, getNamedWriteableRegistry(), instanceReader());
-    }
+/**
+ * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedBiFunction<T, U, R, E extends Exception> {
+    R apply(T t, U u) throws E;
 }

@@ -205,8 +205,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         return ALL_CONTEXTS;
     }
 
-    public static PersistentTasksCustomMetaData fromXContent(XContentParser parser) throws IOException {
-        return PERSISTENT_TASKS_PARSER.parse(parser, null).build();
+    public static PersistentTasksCustomMetaData fromXContent(XContentParser parser) {
+        return PERSISTENT_TASKS_PARSER.apply(parser, null).build();
     }
 
     @SuppressWarnings("unchecked")

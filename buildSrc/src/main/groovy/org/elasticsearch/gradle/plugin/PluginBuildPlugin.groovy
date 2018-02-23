@@ -66,7 +66,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
-            project.integTestCluster.distribution = 'integ-test-zip'
             project.tasks.run.dependsOn(project.bundlePlugin)
             if (isModule) {
                 project.integTestCluster.module(project)
@@ -107,6 +106,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
+        project.integTestCluster.distribution = 'integ-test-zip'
         project.check.dependsOn(integTest)
     }
 

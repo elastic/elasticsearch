@@ -28,14 +28,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     static Integer INDEX_TEMPLATE_VERSION = null;
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(MonitoringService.INTERVAL.getKey(), "-1");
-        return settings.build();
-    }
-
     public void testNothingToDelete() throws Exception {
         internalCluster().startNode();
 

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -290,6 +291,12 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
             valueType, field, script, missing, null, format);
+        if (config.unmapped() && field != null && config.missing() == null) {
+            // this source cannot produce any values so we refuse to build
+            // since composite buckets are not created on null values
+            throw new QueryShardException(context.getQueryShardContext(),
+                "failed to find field [" + field + "] and [missing] is not provided");
+        }
         return innerBuild(context, config);
     }
 }

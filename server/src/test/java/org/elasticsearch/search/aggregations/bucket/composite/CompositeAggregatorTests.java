@@ -29,6 +29,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -118,6 +120,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         FIELD_TYPES = null;
+    }
+
+    public void testUnmappedField() throws Exception {
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10))
+            .field("unknown");
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder("test", Collections.singletonList(terms));
+        IndexSearcher searcher = new IndexSearcher(new MultiReader());
+        QueryShardException exc =
+            expectThrows(QueryShardException.class, () -> createAggregatorFactory(builder, searcher));
+        assertThat(exc.getMessage(), containsString("failed to find field [unknown] and [missing] is not provided"));
+        // should work when missing is provided
+        terms.missing("missing");
+        createAggregatorFactory(builder, searcher);
     }
 
     public void testWithKeyword() throws Exception {

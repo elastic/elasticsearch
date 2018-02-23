@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 
 import java.io.IOException;
 import java.util.Date;
@@ -79,7 +78,7 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
         influencer.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(builder);
-        Influencer serialised = parseInstance(parser);
+        Influencer serialised = doParseInstance(parser);
         assertEquals(influencer, serialised);
     }
 }

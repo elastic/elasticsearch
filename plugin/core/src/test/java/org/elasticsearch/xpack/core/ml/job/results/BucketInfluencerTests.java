@@ -152,7 +152,7 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
         bucketInfluencer.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         XContentParser parser = createParser(builder);
-        BucketInfluencer serialised = parseInstance(parser);
+        BucketInfluencer serialised = doParseInstance(parser);
         assertEquals(bucketInfluencer, serialised);
     }
 

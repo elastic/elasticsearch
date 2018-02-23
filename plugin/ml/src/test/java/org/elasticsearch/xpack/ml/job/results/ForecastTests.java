@@ -10,16 +10,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
 public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
-
-    @Override
-    protected Forecast parseInstance(XContentParser parser) {
-        return Forecast.PARSER.apply(parser, null);
-    }
 
     @Override
     protected Forecast createTestInstance() {
@@ -65,7 +59,7 @@ public class ForecastTests extends AbstractSerializingTestCase<Forecast> {
     }
 
     @Override
-    protected Forecast doParseInstance(XContentParser parser) throws IOException {
+    protected Forecast doParseInstance(XContentParser parser) {
         return Forecast.PARSER.apply(parser, null);
     }
 

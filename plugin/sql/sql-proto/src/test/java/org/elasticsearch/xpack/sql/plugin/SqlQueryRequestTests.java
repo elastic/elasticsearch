@@ -16,7 +16,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Consumer;
 
@@ -62,12 +61,12 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     }
 
     @Override
-    protected SqlQueryRequest doParseInstance(XContentParser parser) throws IOException {
+    protected SqlQueryRequest doParseInstance(XContentParser parser) {
         return SqlQueryRequest.fromXContent(parser, testMode);
     }
 
     @Override
-    protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) throws IOException {
+    protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
                 request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(AbstractSqlRequest.Mode.values()))),

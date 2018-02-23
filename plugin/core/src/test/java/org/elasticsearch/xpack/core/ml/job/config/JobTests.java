@@ -451,7 +451,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytes = XContentHelper.toXContent(job, xContentType, false);
         try(XContentParser parser = createParser(xContentType.xContent(), bytes)) {
-            Job parsed = parseInstance(parser);
+            Job parsed = doParseInstance(parser);
             assertThat(parsed, equalTo(job));
         }
     }

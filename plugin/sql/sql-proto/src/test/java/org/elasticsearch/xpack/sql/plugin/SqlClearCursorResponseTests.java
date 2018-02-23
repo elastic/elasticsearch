@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 public class SqlClearCursorResponseTests extends AbstractStreamableXContentTestCase<SqlClearCursorResponse> {
 
@@ -22,8 +21,8 @@ public class SqlClearCursorResponseTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected MutateFunction<SqlClearCursorResponse> getMutateFunction() {
-        return response -> getCopyFunction().copy(response).setSucceeded(response.isSucceeded() == false);
+    protected SqlClearCursorResponse mutateInstance(SqlClearCursorResponse instance) {
+        return new SqlClearCursorResponse(instance.isSucceeded() == false);
     }
 
     @Override

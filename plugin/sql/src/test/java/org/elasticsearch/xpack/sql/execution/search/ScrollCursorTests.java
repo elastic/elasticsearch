@@ -58,7 +58,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
 
     @Override
     protected ScrollCursor copyInstance(ScrollCursor instance, Version version) throws IOException {
-        /* Randomly chose between internal protocol round trip and String based
+        /* Randomly choose between internal protocol round trip and String based
          * round trips used to toXContent. */
         if (randomBoolean()) {
             return super.copyInstance(instance, version);

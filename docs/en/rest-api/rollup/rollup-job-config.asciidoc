@@ -72,7 +72,7 @@ In the above example, there are several pieces of logistical configuration for t
   the job's indexer.  When the interval triggers, the indexer will attempt to rollup the data in the index pattern. The cron pattern
   is unrelated to the time interval of the data being rolled up. For example, you may wish to create hourly rollups of your document (as
   defined in the <<rollup-groups-config,grouping configuration>>) but to only run the indexer on a daily basis at midnight, as defined by the cron.
-  The cron pattern is defined just like Watcher's {xpack-ref}/watcher/trigger/schedule/cron.html[Cron Schedule].
+  The cron pattern is defined just like Watcher's Cron Schedule.
 
 `size` (required)::
   (int) The number of bucket results that should be processed on each iteration of the rollup indexer.  A larger value

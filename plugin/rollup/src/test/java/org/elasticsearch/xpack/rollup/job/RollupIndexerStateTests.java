@@ -305,8 +305,9 @@ public class RollupIndexerStateTests extends ESTestCase {
                 Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final CountDownLatch latch = new CountDownLatch(1);
         try {
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            EmptyRollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null) {
                 @Override
                 protected void onFinish() {
                     fail("Should not have called onFinish");
@@ -314,6 +315,11 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                 @Override
                 protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new IllegalStateException(e);
+                    }
                     state.set(IndexerState.ABORTING);   // <-- Set to aborting right before we return the (empty) search response
                     super.doNextSearch(request, nextPhase);
                 }
@@ -323,7 +329,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                     aborted.set(true);
                 }
             };
-            final CountDownLatch latch = indexer.newLatch();
+
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -344,6 +350,10 @@ public class RollupIndexerStateTests extends ESTestCase {
                 Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
+
+        // Don't use the indexer's latch because we completely change doNextSearch()
+        final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
+
         try {
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
                 @Override
@@ -353,6 +363,11 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                 @Override
                 protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                    try {
+                        doNextSearchLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new IllegalStateException(e);
+                    }
                     // TODO Should use InternalComposite constructor but it is package protected in core.
                     Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
                         @Override
@@ -401,12 +416,12 @@ public class RollupIndexerStateTests extends ESTestCase {
                     next.run();
                 }
             };
-            final CountDownLatch latch = indexer.newLatch();
+
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
-            latch.countDown();
+            doNextSearchLatch.countDown();
             ESTestCase.awaitBusy(() -> aborted.get());
             assertThat(indexer.getState(), equalTo(IndexerState.ABORTING));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));

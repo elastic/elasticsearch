@@ -64,7 +64,6 @@ integTestCluster {
 
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
-  distribution = 'zip' // this is important since we use the reindex module in ML
 
   setupCommand 'setupDummyUser',
           'bin/x-pack/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'

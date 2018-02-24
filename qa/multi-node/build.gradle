@@ -6,7 +6,6 @@ dependencies {
 }
 
 integTestCluster {
-  distribution = 'zip'
   numNodes = 2
   clusterName = 'multi-node'
   plugin xpackProject('plugin').path

@@ -123,11 +123,11 @@ public final class IndexSettings {
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
-     * The default maximum of 10000 characters is defensive as for highlighting larger texts,
+     * The default maximum of 1M characters is defensive as for highlighting larger texts,
      * indexing with offsets or term vectors is recommended.
      */
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
-        Setting.intSetting("index.highlight.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.highlight.max_analyzed_offset", 1000000, 1, Property.Dynamic, Property.IndexScope);
 
 
     /**

@@ -233,7 +233,7 @@ public class IndexingIT extends ESRestTestCase {
 
     public void testUpdateSnapshotStatus() throws Exception {
         Nodes nodes = buildNodeAndVersions();
-        assertThat(nodes.getNewNodes(), not(empty()));
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
 
         // Create the repository before taking the snapshot.

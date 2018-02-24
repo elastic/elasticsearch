@@ -213,7 +213,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
     private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
-    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>("requests",
+    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>("request",
             a -> new RatedRequest((String) a[0], (List<RatedDocument>) a[1], (SearchSourceBuilder) a[2], (Map<String, Object>) a[3],
                     (String) a[4]));
 

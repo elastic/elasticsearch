@@ -29,7 +29,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
+for (Version version : bwcVersions.wireCompatible) {
   String baseName = "v${version}"
 
   Task mixedClusterTest = tasks.create(name: "${baseName}#mixedClusterTest", type: RestIntegTestTask) {
@@ -41,7 +41,6 @@ for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
      the nodes has a different minor.  */
   Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
   configure(extension) {
-    distribution = 'zip'
     numNodes = 4
     numBwcNodes = 2
     bwcVersion = version
@@ -66,7 +65,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
+    for (final def version : bwcVersions.snapshotsWireCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

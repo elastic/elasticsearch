@@ -51,6 +51,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -185,6 +186,7 @@ public class RestHighLevelClient implements Closeable {
     private final CheckedConsumer<RestClient, IOException> doClose;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
+    private final ClusterClient clusterClient = new ClusterClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -221,7 +223,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
-    public RestClient getLowLevelClient() {
+    public final RestClient getLowLevelClient() {
         return client;
     }
 
@@ -237,6 +239,15 @@ public class RestHighLevelClient implements Closeable {
      */
     public final IndicesClient indices() {
         return indicesClient;
+    }
+
+    /**
+     * Provides a {@link ClusterClient} which can be used to access the Cluster API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
+     */
+    public final ClusterClient cluster() {
+        return clusterClient;
     }
 
     /**
@@ -305,7 +316,7 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
      */
-    public void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
+    public final void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, listener,
                 singleton(404), headers);
     }
@@ -637,7 +648,8 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(registry,
+            LoggingDeprecationHandler.INSTANCE, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }

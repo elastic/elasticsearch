@@ -25,7 +25,6 @@ import org.elasticsearch.painless.Definition.Cast;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.RuntimeClass;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
@@ -404,7 +403,7 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubCallInvoke() {
         Location l = new Location(getTestName(), 0);
-        RuntimeClass c = definition.getRuntimeClass(Integer.class);
+        Struct c = definition.ClassToType(Integer.class).struct;
         Method m = c.methods.get(new MethodKey("toString", 0));
         PSubCallInvoke node = new PSubCallInvoke(l, m, null, emptyList());
         node.prefix = new EVariable(l, "a");

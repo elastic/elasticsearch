@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.simple;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -39,11 +37,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -54,7 +50,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleSearchIT extends ESIntegTestCase {
 
@@ -236,7 +231,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse;
-        for (int i = 1; i <= max; i++) {
+        for (int i = 1; i < max; i++) {
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                     .setTerminateAfter(i).execute().actionGet();
@@ -424,6 +419,24 @@ public class SimpleSearchIT extends ESIntegTestCase {
             assertThat(ex.getRootCause().getMessage(),
                 containsString("Can only use regexp queries on keyword and text fields"));
         }
+    }
+
+    public void testTooLongRegexInRegexpQuery() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        int defaultMaxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY);
+        StringBuilder regexp = new StringBuilder(defaultMaxRegexLength);
+        while (regexp.length() <= defaultMaxRegexLength) {
+            regexp.append("]\\r\\\\]|\\\\.)*\\](?:(?:\\r\\n)?[\\t])*))*(?:,@(?:(?:\\r\\n)?[ \\t])*(?:[^()<>@,;:\\\\\".\\");
+        }
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", regexp.toString())).get());
+        assertThat(e.getRootCause().getMessage(), containsString("The length of regex [" +
+            regexp.length() + "] used in the Regexp Query request has exceeded " +
+            "the allowed maximum of [" + defaultMaxRegexLength + "]. " +
+            "This maximum can be set by changing the [" + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() +
+            "] index level setting."));
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {

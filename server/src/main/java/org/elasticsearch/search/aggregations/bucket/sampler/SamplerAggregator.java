@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.sampler;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -112,7 +113,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
 
         public static ExecutionMode fromString(String value) {
             for (ExecutionMode mode : values()) {
-                if (mode.parseField.match(value)) {
+                if (mode.parseField.match(value, LoggingDeprecationHandler.INSTANCE)) {
                     return mode;
                 }
             }

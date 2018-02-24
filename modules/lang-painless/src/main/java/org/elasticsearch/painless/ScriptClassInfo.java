@@ -84,8 +84,7 @@ public class ScriptClassInfo {
                 componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + baseClass.getName()
                         + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
 
-        // Look up the argument names
-        Set<String> argumentNames = new LinkedHashSet<>();
+        // Look up the argument
         List<MethodArgument> arguments = new ArrayList<>();
         String[] argumentNamesConstant = readArgumentNamesConstant(baseClass);
         Class<?>[] types = executeMethod.getParameterTypes();
@@ -95,7 +94,6 @@ public class ScriptClassInfo {
         }
         for (int arg = 0; arg < types.length; arg++) {
             arguments.add(methodArgument(definition, types[arg], argumentNamesConstant[arg]));
-            argumentNames.add(argumentNamesConstant[arg]);
         }
         this.executeArguments = unmodifiableList(arguments);
         this.needsMethods = unmodifiableList(needsMethods);
@@ -193,11 +191,10 @@ public class ScriptClassInfo {
         if (componentType == Object.class) {
             struct = definition.getType("def").struct;
         } else {
-            Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(componentType);
-            if (runtimeClass == null) {
+            if (definition.RuntimeClassToStruct(componentType) == null) {
                 throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
             }
-            struct = runtimeClass.getStruct();
+            struct = definition.RuntimeClassToStruct(componentType);
         }
         return Definition.TypeToClass(definition.getType(struct, dimensions));
     }

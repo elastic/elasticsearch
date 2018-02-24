@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -128,7 +129,8 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
-                                XContentParser bodyParser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body);
+                                XContentParser bodyParser = JsonXContent.jsonXContent
+                                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());

@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.RuntimeClass;
+import org.elasticsearch.painless.Definition.Struct;
 
 import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
@@ -185,7 +185,7 @@ public final class Def {
         Definition.MethodKey key = new Definition.MethodKey(name, arity);
         // check whitelist for matching method
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 Method method = struct.methods.get(key);
@@ -195,7 +195,7 @@ public final class Def {
             }
 
             for (Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     Method method = struct.methods.get(key);
@@ -325,7 +325,7 @@ public final class Def {
     static MethodHandle lookupReference(Definition definition, Lookup lookup, String interfaceClass,
             Class<?> receiverClass, String name) throws Throwable {
          Definition.Type interfaceType = definition.getType(interfaceClass);
-         Method interfaceMethod = interfaceType.struct.getFunctionalMethod();
+         Method interfaceMethod = interfaceType.struct.functionalMethod;
          if (interfaceMethod == null) {
              throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
          }
@@ -342,7 +342,7 @@ public final class Def {
          final FunctionRef ref;
          if ("this".equals(type)) {
              // user written method
-             Method interfaceMethod = clazz.struct.getFunctionalMethod();
+             Method interfaceMethod = clazz.struct.functionalMethod;
              if (interfaceMethod == null) {
                  throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
                                                     "to [" + clazz.name + "], not a functional interface");
@@ -415,7 +415,7 @@ public final class Def {
     static MethodHandle lookupGetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.getters.get(name);
@@ -425,7 +425,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.getters.get(name);
@@ -486,7 +486,7 @@ public final class Def {
     static MethodHandle lookupSetter(Definition definition, Class<?> receiverClass, String name) {
         // first try whitelist
         for (Class<?> clazz = receiverClass; clazz != null; clazz = clazz.getSuperclass()) {
-            RuntimeClass struct = definition.getRuntimeClass(clazz);
+            Struct struct = definition.RuntimeClassToStruct(clazz);
 
             if (struct != null) {
                 MethodHandle handle = struct.setters.get(name);
@@ -496,7 +496,7 @@ public final class Def {
             }
 
             for (final Class<?> iface : clazz.getInterfaces()) {
-                struct = definition.getRuntimeClass(iface);
+                struct = definition.RuntimeClassToStruct(iface);
 
                 if (struct != null) {
                     MethodHandle handle = struct.setters.get(name);

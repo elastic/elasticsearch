@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -111,7 +112,7 @@ public class SignificantTextAggregationBuilder extends AbstractAggregationBuilde
             PARSER.declareObject(SignificantTextAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name);
+                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
                         return significanceHeuristicParser.parse(p);
                     }, new ParseField(name));
         }

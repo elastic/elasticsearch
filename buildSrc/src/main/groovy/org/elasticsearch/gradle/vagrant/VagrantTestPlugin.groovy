@@ -317,7 +317,7 @@ class VagrantTestPlugin implements Plugin<Project> {
              */
             final String vagrantDestroy = project.getProperties().get('vagrant.destroy', 'true')
             if ("true".equals(vagrantDestroy) == false && "false".equals(vagrantDestroy) == false) {
-                throw new GradleException("vagrant.destroy must be [true] or [false] but was [" + vagrantDestroy + "]")
+                throw new GradleException("[vagrant.destroy] must be [true] or [false] but was [" + vagrantDestroy + "]")
             }
             /*
              * Some versions of Vagrant will fail destroy if the box does not exist. Therefore, check if the box exists before destroying

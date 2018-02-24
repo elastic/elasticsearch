@@ -3,6 +3,7 @@ package org.elasticsearch.gradle.vagrant
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
+import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -309,15 +310,30 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             update.mustRunAfter(setupBats)
 
+            /*
+             * Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag
+             * vagrant.destroy that defaults to true that can be used to control whether or not to destroy any test boxes before test
+             * execution.
+             */
+            final String vagrantDestroy = project.getProperties().get('vagrant.destroy', 'true')
+            if ("true".equals(vagrantDestroy) == false && "false".equals(vagrantDestroy) == false) {
+                throw new GradleException("vagrant.destroy must be [true] or [false] but was [" + vagrantDestroy + "]")
+            }
+            /*
+             * Some versions of Vagrant will fail destroy if the box does not exist. Therefore, check if the box exists before destroying
+             * the box, and only destroy the box if vagrant.destroy is true.
+             */
+            final Task destroyIfNeeded = project.tasks.create("vagrant${boxTask}#destroyIfNeeded", LoggedExec) {
+                commandLine "bash",
+                        "-c",
+                        "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" " +
+                                "|| if [ \"${vagrantDestroy}\" == \"true\" ]; then vagrant destroy ${box} --force; fi"
+            }
+
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'
                 boxName box
                 environmentVars vagrantEnvVars
-                /* Its important that we try to reprovision the box even if it already
-                  exists. That way updates to the vagrant configuration take automatically.
-                  That isn't to say that the updates will always be compatible. Its ok to
-                  just destroy the boxes if they get busted but that is a manual step
-                  because its slow-ish. */
                 /* We lock the provider to virtualbox because the Vagrantfile specifies
                   lots of boxes that only work properly in virtualbox. Virtualbox is
                   vagrant's default but its possible to change that default and folks do.
@@ -326,7 +342,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
-                dependsOn update
+                dependsOn destroyIfNeeded, update
             }
 
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {

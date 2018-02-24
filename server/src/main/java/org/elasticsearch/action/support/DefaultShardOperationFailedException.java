@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
 
     private static final String INDEX = "index";
-    private static final String SHARDID = "shard";
+    private static final String SHARD_ID = "shard";
     private static final String REASON = "reason";
 
     private static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
@@ -48,7 +48,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(INDEX));
-        PARSER.declareInt(constructorArg(), new ParseField(SHARDID));
+        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
         PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
     }
 

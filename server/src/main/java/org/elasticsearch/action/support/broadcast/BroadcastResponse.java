@@ -149,7 +149,6 @@ public class BroadcastResponse extends ActionResponse implements ToXContentFragm
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO: move BroadcastResponse building codes from RestActions to itself here
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, -1, failedShards, shardFailures);
         return builder;
     }

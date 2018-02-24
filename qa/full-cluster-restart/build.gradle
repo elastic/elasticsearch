@@ -141,7 +141,6 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       plugin xpackProject('plugin').path
-      distribution = 'zip'
       bwcVersion = version
       numBwcNodes = 2
       numNodes = 2
@@ -192,7 +191,6 @@ subprojects {
           "${baseName}#oldClusterTestCluster#node0.stop",
           "${baseName}#oldClusterTestCluster#node1.stop"
       plugin xpackProject('plugin').path
-      distribution = 'zip'
       numNodes = 2
       clusterName = 'full-cluster-restart'
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }

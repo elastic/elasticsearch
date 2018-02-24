@@ -10,6 +10,5 @@ integTestCluster {
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     numNodes = 1
-    distribution = 'zip'
     plugin xpackProject('plugin').path
 }

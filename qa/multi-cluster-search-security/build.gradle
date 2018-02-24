@@ -12,7 +12,6 @@ task remoteClusterTest(type: RestIntegTestTask) {
 }
 
 remoteClusterTestCluster {
-  distribution = 'zip'
   numNodes = 2
   clusterName = 'remote-cluster'
   setting 'search.remote.connect', false
@@ -60,7 +59,6 @@ mixedClusterTestCluster {
             retries: 10)
     return tmpFile.exists()
   }
-  distribution = 'zip'
   setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
   setting 'search.remote.connections_per_cluster', 1
   setting 'search.remote.connect', true

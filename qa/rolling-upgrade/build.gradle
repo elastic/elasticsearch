@@ -124,7 +124,6 @@ subprojects {
       dependsOn copyTestNodeKeystore
       plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      distribution = 'zip'
       bwcVersion = version
       numBwcNodes = 2
       numNodes = 2
@@ -171,7 +170,6 @@ subprojects {
       dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
       plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }
@@ -211,7 +209,6 @@ subprojects {
       dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
       plugin xpackProject('plugin').path
       setupCommand 'setupTestUser', 'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
-      distribution = 'zip'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }

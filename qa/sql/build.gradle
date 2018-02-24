@@ -103,7 +103,6 @@ subprojects {
     }
 
     integTestCluster {
-      distribution = 'zip'
       plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
@@ -118,7 +117,6 @@ subprojects {
     }
 
     task runqa(type: RunTask) {
-      distribution = 'zip'
       plugin xpackProject('plugin').path
       setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'

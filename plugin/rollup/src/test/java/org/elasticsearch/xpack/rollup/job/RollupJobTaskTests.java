@@ -590,7 +590,7 @@ public class RollupJobTaskTests extends ESTestCase {
             @Override
             public void onResponse(StopRollupJobAction.Response response) {
                 assertTrue(response.isStopped());
-                latch.countDown();
+                latch2.countDown();
             }
 
             @Override

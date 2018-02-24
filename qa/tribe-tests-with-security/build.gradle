@@ -42,7 +42,6 @@ configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
 configOne.setting('xpack.license.self_generated.type', 'trial')
 configOne.plugin(xpackProject('plugin').path)
-configOne.module(project.project(':modules:analysis-common'))
 configOne.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
@@ -65,7 +64,6 @@ configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
 configTwo.setting('xpack.license.self_generated.type', 'trial')
 configTwo.plugin(xpackProject('plugin').path)
-configTwo.module(project.project(':modules:analysis-common'))
 configTwo.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->

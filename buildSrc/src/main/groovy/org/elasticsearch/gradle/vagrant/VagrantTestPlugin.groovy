@@ -315,20 +315,25 @@ class VagrantTestPlugin implements Plugin<Project> {
              * vagrant.destroy that defaults to true that can be used to control whether or not to destroy any test boxes before test
              * execution.
              */
-            final String vagrantDestroy = project.getProperties().get('vagrant.destroy', 'true')
-            if ("true".equals(vagrantDestroy) == false && "false".equals(vagrantDestroy) == false) {
-                throw new GradleException("[vagrant.destroy] must be [true] or [false] but was [" + vagrantDestroy + "]")
+            final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
+            final boolean vagrantDestroy
+            if ("true".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = true;
+            } else if ("false".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = false
+            } else {
+                throw new GradleException("[vagrant.destroy] must be [true] or [false] but was [" + vagrantDestroyProperty + "]")
             }
             /*
-             * Some versions of Vagrant will fail destroy if the box does not exist. Therefore, check if the box exists before destroying
-             * the box, and only destroy the box if vagrant.destroy is true.
+             * Some versions of Vagrant will fail destroy if the box does not exist. Therefore we check if the box exists before attempting
+             * to destroy the box
              */
-            final Task destroyIfNeeded = project.tasks.create("vagrant${boxTask}#destroyIfNeeded", LoggedExec) {
+            final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
                 commandLine "bash",
                         "-c",
-                        "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" " +
-                                "|| if [ \"${vagrantDestroy}\" == \"true\" ]; then vagrant destroy ${box} --force; fi"
+                        "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
             }
+            destroy.onlyIf { vagrantDestroy }
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'
@@ -342,7 +347,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
-                dependsOn destroyIfNeeded, update
+                dependsOn destroy, update
             }
 
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {

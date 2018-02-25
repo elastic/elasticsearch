@@ -332,6 +332,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
             }
             destroy.onlyIf { vagrantDestroy }
+            update.mustRunAfter(destroy)
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'

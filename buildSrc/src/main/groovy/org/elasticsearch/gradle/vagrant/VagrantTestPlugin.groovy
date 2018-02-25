@@ -330,6 +330,7 @@ class VagrantTestPlugin implements Plugin<Project> {
              */
             final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
                 commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
+                workingDir project.rootProject.rootDir
             }
             destroy.onlyIf { vagrantDestroy }
             update.mustRunAfter(destroy)

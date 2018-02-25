@@ -326,7 +326,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             /*
              * Some versions of Vagrant will fail destroy if the box does not exist. Therefore we check if the box exists before attempting
-             * to destroy the box
+             * to destroy the box.
              */
             final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
                 commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"

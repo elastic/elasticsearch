@@ -583,6 +583,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, Task.Status status) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
+            JobTaskStatus jobStateStatus = (JobTaskStatus) status;
+            // If the job is failed then the Persistent Task Service will
+            // try to restart it on a node restart. Exiting here leaves the
+            // job in the failed state and it must be force closed.
+            if (jobStateStatus != null && jobStateStatus.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
+                return;
+            }
+
             autodetectProcessManager.openJob(jobTask, e2 -> {
                 if (e2 == null) {
                     task.markAsCompleted();

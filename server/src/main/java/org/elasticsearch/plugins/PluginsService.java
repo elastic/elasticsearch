@@ -140,15 +140,12 @@ public class PluginsService extends AbstractComponent {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     checkForFailedPluginRemovals(pluginsDirectory);
-                    List<BundleCollection> plugins = getPluginBundleCollections(pluginsDirectory);
-                    for (final BundleCollection plugin : plugins) {
-                        final Collection<Bundle> bundles = plugin.bundles();
-                        for (final Bundle bundle : bundles) {
-                            pluginsList.add(bundle.plugin);
-                        }
-                        seenBundles.addAll(bundles);
-                        pluginsNames.add(plugin.name());
+                    Set<Bundle> plugins = findBundles(pluginsDirectory, "plugin");
+                    for (final Bundle bundle : plugins) {
+                        pluginsList.add(bundle.plugin);
+                        pluginsNames.add(bundle.plugin.getName());
                     }
+                    seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
@@ -400,25 +397,6 @@ public class PluginsService extends AbstractComponent {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
-    // similar in impl to getPluginBundles, but DO NOT try to make them share code.
-    // we don't need to inherit all the leniency, and things are different enough.
-    static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
-        // damn leniency
-        if (Files.notExists(modulesDirectory)) {
-            return Collections.emptySet();
-        }
-        Set<Bundle> bundles = new LinkedHashSet<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
-            for (Path module : stream) {
-                PluginInfo info = PluginInfo.readFromProperties(module);
-                if (bundles.add(new Bundle(info, module)) == false) {
-                    throw new IllegalStateException("duplicate module: " + info);
-                }
-            }
-        }
-        return bundles;
-    }
-
     static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
         /*
          * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
@@ -440,50 +418,50 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    /**
-     * Get the plugin bundles from the specified directory.
-     *
-     * @param pluginsDirectory the directory
-     * @return the set of plugin bundles in the specified directory
-     * @throws IOException if an I/O exception occurs reading the plugin bundles
-     */
-    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
-        return getPluginBundleCollections(pluginsDirectory).stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
+    /** Get bundles for plugins installed in the given modules directory. */
+    static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
+        return findBundles(modulesDirectory, "module");
     }
 
-    private static List<BundleCollection> getPluginBundleCollections(final Path pluginsDirectory) throws IOException {
+    /** Get bundles for plugins installed in the given plugins directory. */
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+        return findBundles(pluginsDirectory, "plugin");
+    }
+
+    // searches subdirectories under the given directory for plugin directories
+    private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
         final List<BundleCollection> bundles = new ArrayList<>();
         final Set<Bundle> seenBundles = new HashSet<>();
-        final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(pluginsDirectory);
+        final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(directory);
         for (final Path plugin : groupedPluginDirs.v1()) {
-            final Bundle bundle = bundle(seenBundles, plugin);
+            final Bundle bundle = readPluginBundle(seenBundles, plugin, type);
             bundles.add(bundle);
         }
         for (final Map.Entry<String, List<Path>> metaPlugin : groupedPluginDirs.v2().entrySet()) {
             final List<Bundle> metaPluginBundles = new ArrayList<>();
             for (final Path metaPluginPlugin : metaPlugin.getValue()) {
-                final Bundle bundle = bundle(seenBundles, metaPluginPlugin);
+                final Bundle bundle = readPluginBundle(seenBundles, metaPluginPlugin, type);
                 metaPluginBundles.add(bundle);
             }
             final MetaBundle metaBundle = new MetaBundle(metaPlugin.getKey(), metaPluginBundles);
             bundles.add(metaBundle);
         }
 
-        return bundles;
+        return bundles.stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
     }
 
-    private static Bundle bundle(final Set<Bundle> bundles, final Path plugin) throws IOException {
-        Loggers.getLogger(PluginsService.class).trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+    // get a bundle for a single plugin dir
+    private static Bundle readPluginBundle(final Set<Bundle> bundles, final Path plugin, String type) throws IOException {
+        Loggers.getLogger(PluginsService.class).trace("--- adding [{}] [{}]", type, plugin.toAbsolutePath());
         final PluginInfo info;
         try {
             info = PluginInfo.readFromProperties(plugin);
         } catch (final IOException e) {
-            throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+            throw new IllegalStateException("Could not load plugin descriptor for " + type + " directory " + plugin.toString(), e);
         }
         final Bundle bundle = new Bundle(info, plugin);
         if (bundles.add(bundle) == false) {
-            throw new IllegalStateException("duplicate plugin: " + info);
+            throw new IllegalStateException("duplicate " + type + ": " + info);
         }
         return bundle;
     }

@@ -153,6 +153,13 @@ public class AutodetectProcessManager extends AbstractComponent {
                     .setFinish(true)
                     .setReason(reason)
                     .kill();
+        } else {
+            // If the process is missing but the task exists this is most likely
+            // because the job went into the failed state then the node restarted
+            // causing the task to be recreated but the failed process wasn't.
+            // We still need to remove the task from the TaskManager (which
+            // is what the kill would do)
+            jobTask.markAsCompleted();
         }
     }
 

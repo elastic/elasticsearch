@@ -529,6 +529,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(communicator).killProcess(false, false);
     }
 
+    public void testKillingAMissingJobFinishesTheTask() throws IOException {
+        AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
+        AutodetectProcessManager manager = createManager(communicator);
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+
+        manager.killProcess(jobTask, false, null);
+
+        verify(jobTask).markAsCompleted();
+    }
+
     public void testProcessData_GivenStateNotOpened() {
         AutodetectCommunicator communicator = mock(AutodetectCommunicator.class);
         doAnswer(invocationOnMock -> {

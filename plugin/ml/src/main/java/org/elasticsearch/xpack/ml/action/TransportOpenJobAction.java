@@ -89,342 +89,23 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProces
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, OpenJobAction.Response> {
 
-        private final XPackLicenseState licenseState;
-        private final PersistentTasksService persistentTasksService;
-        private final Client client;
-        private final JobProvider jobProvider;
+    private final XPackLicenseState licenseState;
+    private final PersistentTasksService persistentTasksService;
+    private final Client client;
+    private final JobProvider jobProvider;
 
-        @Inject
-        public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                      XPackLicenseState licenseState, ClusterService clusterService,
-                                      PersistentTasksService persistentTasksService, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                      JobProvider jobProvider) {
-            super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    indexNameExpressionResolver, OpenJobAction.Request::new);
-            this.licenseState = licenseState;
-            this.persistentTasksService = persistentTasksService;
-            this.client = client;
-            this.jobProvider = jobProvider;
-        }
-
-        @Override
-        protected String executor() {
-            // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
-            // so we can do this on the network thread
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        protected OpenJobAction.Response newResponse() {
-            return new OpenJobAction.Response();
-        }
-
-        @Override
-        protected ClusterBlockException checkBlock(OpenJobAction.Request request, ClusterState state) {
-            // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
-            // then delegating to PersistentTasksService doesn't make a whole lot of sense,
-            // because PersistentTasksService will then fail.
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-        }
-
-        @Override
-        protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
-            OpenJobAction.JobParams jobParams = request.getJobParams();
-            if (licenseState.isMachineLearningAllowed()) {
-                // Step 5. Wait for job to be started and respond
-                ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> finalListener =
-                        new ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> task) {
-                        waitForJobStarted(task.getId(), jobParams, listener);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (e instanceof ResourceAlreadyExistsException) {
-                            e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
-                                    "] because it has already been opened", RestStatus.CONFLICT, e);
-                        }
-                        listener.onFailure(e);
-                    }
-                };
-
-                // Step 4. Start job task
-                ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
-                        response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.getJobId()),
-                                OpenJobAction.TASK_NAME, jobParams, finalListener),
-                        listener::onFailure
-                );
-
-                // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
-                ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
-                        response -> {
-                            MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
-                            Job job = mlMetadata.getJobs().get(jobParams.getJobId());
-                            if (job != null) {
-                                Version jobVersion = job.getJobVersion();
-                                Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
-                                if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
-                                        && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
-                                    jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
-                                        if (establishedModelMemory != null && establishedModelMemory > 0) {
-                                            JobUpdate update = new JobUpdate.Builder(job.getId())
-                                                    .setEstablishedModelMemory(establishedModelMemory).build();
-                                            UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
-
-                                            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                                                    establishedMemoryUpdateListener);
-                                        } else {
-                                            establishedMemoryUpdateListener.onResponse(null);
-                                        }
-                                    }, listener::onFailure);
-                                } else {
-                                    establishedMemoryUpdateListener.onResponse(null);
-                                }
-                            } else {
-                                establishedMemoryUpdateListener.onResponse(null);
-                            }
-                        }, listener::onFailure
-                );
-
-                // Step 2. Try adding state doc mapping
-                ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
-                        response -> {
-                            addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
-                                    state, missingMappingsListener);
-                        }, listener::onFailure
-                );
-
-                // Step 1. Try adding results doc mapping
-                addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobParams.getJobId()), ElasticsearchMappings::docMapping,
-                        state, resultsPutMappingHandler);
-            } else {
-                listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
-            }
-        }
-
-        void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
-            JobPredicate predicate = new JobPredicate();
-            persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, jobParams.getTimeout(),
-                    new PersistentTasksService.WaitForPersistentTaskStatusListener<OpenJobAction.JobParams>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
-                            if (predicate.exception != null) {
-                                listener.onFailure(predicate.exception);
-                            } else {
-                                listener.onResponse(new OpenJobAction.Response(predicate.opened));
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            listener.onFailure(new ElasticsearchException("Opening job ["
-                                    + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
-                        }
-                    });
-        }
-
-        private void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier, ClusterState state,
-                                            ActionListener<Boolean> listener) {
-            AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
-            if (aliasOrIndex == null) {
-                // The index has never been created yet
-                listener.onResponse(true);
-                return;
-            }
-            String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
-                    .toArray(String[]::new);
-
-            String[] indicesThatRequireAnUpdate;
-            try {
-                indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
-            } catch (IOException e) {
-                listener.onFailure(e);
-                return;
-            }
-
-            if (indicesThatRequireAnUpdate.length > 0) {
-                try (XContentBuilder mapping = mappingSupplier.get()) {
-                    PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
-                    putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
-                    putMappingRequest.source(mapping);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
-                            ActionListener.wrap(response -> {
-                                if (response.isAcknowledged()) {
-                                    listener.onResponse(true);
-                                } else {
-                                    listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
-                                            + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
-                                }
-                            }, listener::onFailure));
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                }
-            } else {
-                logger.trace("Mappings are uptodate.");
-                listener.onResponse(true);
-            }
-        }
-
-    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
-
-        private final String jobId;
-        protected volatile AutodetectProcessManager autodetectProcessManager;
-
-        JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
-            super(id, type, action, "job-" + jobId, parentTask, headers);
-            this.jobId = jobId;
-        }
-
-        public String getJobId() {
-            return jobId;
-        }
-
-        @Override
-        protected void onCancelled() {
-            String reason = getReasonCancelled();
-            killJob(reason);
-        }
-
-        void killJob(String reason) {
-            autodetectProcessManager.killProcess(this, false, reason);
-        }
-
-        void closeJob(String reason) {
-            autodetectProcessManager.closeJob(this, false, reason);
-        }
-
-        static boolean match(Task task, String expectedJobId) {
-            String expectedDescription = "job-" + expectedJobId;
-            return task instanceof JobTask && expectedDescription.equals(task.getDescription());
-        }
-
-    }
-
-    /**
-         * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
-         * of endpoints waiting for a condition tested by this predicate would never get a response.
-         */
-        private class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
-
-            private volatile boolean opened;
-            private volatile Exception exception;
-
-            @Override
-            public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                JobState jobState = JobState.CLOSED;
-                if (persistentTask != null) {
-                    JobTaskStatus jobStateStatus = (JobTaskStatus) persistentTask.getStatus();
-                    jobState = jobStateStatus == null ? JobState.OPENING : jobStateStatus.getState();
-                }
-                switch (jobState) {
-                    case OPENING:
-                    case CLOSED:
-                        return false;
-                    case OPENED:
-                        opened = true;
-                        return true;
-                    case CLOSING:
-                        exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
-                                + JobState.OPENED);
-                        return true;
-                    case FAILED:
-                    default:
-                        exception = ExceptionsHelper.serverError("Unexpected job state [" + jobState
-                                + "] while waiting for job to be " + JobState.OPENED);
-                        return true;
-                }
-            }
-        }
-
-
-    public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<OpenJobAction.JobParams> {
-
-        private final AutodetectProcessManager autodetectProcessManager;
-
-        /**
-         * The maximum number of open jobs can be different on each node.  However, nodes on older versions
-         * won't add their setting to the cluster state, so for backwards compatibility with these nodes we
-         * assume the older node's setting is the same as that of the node running this code.
-         * TODO: remove this member in 7.0
-         */
-        private final int fallbackMaxNumberOfOpenJobs;
-        private volatile int maxConcurrentJobAllocations;
-        private volatile int maxMachineMemoryPercent;
-
-        public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
-                                              AutodetectProcessManager autodetectProcessManager) {
-            super(settings, OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
-            this.autodetectProcessManager = autodetectProcessManager;
-            this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
-            this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
-            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-            clusterService.getClusterSettings()
-                    .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
-            clusterService.getClusterSettings()
-                    .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
-        }
-
-        @Override
-        public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
-            return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs,
-                    maxMachineMemoryPercent, logger);
-        }
-
-        @Override
-        public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
-            // If we already know that we can't find an ml node because all ml nodes are running at capacity or
-            // simply because there are no ml nodes in the cluster then we fail quickly here:
-            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
-            TransportOpenJobAction.validate(params.getJobId(), mlMetadata);
-            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
-                    clusterState, maxConcurrentJobAllocations,
-                    fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
-            if (assignment.getExecutorNode() == null) {
-                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
-                        + assignment.getExplanation() + "]";
-                logger.warn("[{}] {}", params.getJobId(), msg);
-                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
-            }
-        }
-
-        @Override
-        protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, Task.Status status) {
-            TransportOpenJobAction.JobTask jobTask = (TransportOpenJobAction.JobTask) task;
-            jobTask.autodetectProcessManager = autodetectProcessManager;
-            autodetectProcessManager.openJob(jobTask, e2 -> {
-                if (e2 == null) {
-                    task.markAsCompleted();
-                } else {
-                    task.markAsFailed(e2);
-                }
-            });
-        }
-
-        @Override
-        protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                     PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
-                                                     Map<String, String> headers) {
-            return new TransportOpenJobAction.JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
-        }
-
-        void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
-            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(),
-                    this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);
-            this.maxConcurrentJobAllocations = maxConcurrentJobAllocations;
-        }
-
-        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
-            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(),
-                    this.maxMachineMemoryPercent, maxMachineMemoryPercent);
-            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
-        }
+    @Inject
+    public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                                  XPackLicenseState licenseState, ClusterService clusterService,
+                                  PersistentTasksService persistentTasksService, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+                                  JobProvider jobProvider) {
+        super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                indexNameExpressionResolver, OpenJobAction.Request::new);
+        this.licenseState = licenseState;
+        this.persistentTasksService = persistentTasksService;
+        this.client = client;
+        this.jobProvider = jobProvider;
     }
 
     /**
@@ -684,5 +365,325 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
         }
         return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
+    }
+
+    @Override
+    protected String executor() {
+        // This api doesn't do heavy or blocking operations (just delegates PersistentTasksService),
+        // so we can do this on the network thread
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected OpenJobAction.Response newResponse() {
+        return new OpenJobAction.Response();
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(OpenJobAction.Request request, ClusterState state) {
+        // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
+        // then delegating to PersistentTasksService doesn't make a whole lot of sense,
+        // because PersistentTasksService will then fail.
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected void masterOperation(OpenJobAction.Request request, ClusterState state, ActionListener<OpenJobAction.Response> listener) {
+        OpenJobAction.JobParams jobParams = request.getJobParams();
+        if (licenseState.isMachineLearningAllowed()) {
+            // Step 5. Wait for job to be started and respond
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>> finalListener =
+                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams>>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> task) {
+                    waitForJobStarted(task.getId(), jobParams, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        e = new ElasticsearchStatusException("Cannot open job [" + jobParams.getJobId() +
+                                "] because it has already been opened", RestStatus.CONFLICT, e);
+                    }
+                    listener.onFailure(e);
+                }
+            };
+
+            // Step 4. Start job task
+            ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
+                    response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.getJobId()),
+                            OpenJobAction.TASK_NAME, jobParams, finalListener),
+                    listener::onFailure
+            );
+
+            // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
+            ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
+                    response -> {
+                        MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
+                        Job job = mlMetadata.getJobs().get(jobParams.getJobId());
+                        if (job != null) {
+                            Version jobVersion = job.getJobVersion();
+                            Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
+                            if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
+                                    && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
+                                jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
+                                    if (establishedModelMemory != null && establishedModelMemory > 0) {
+                                        JobUpdate update = new JobUpdate.Builder(job.getId())
+                                                .setEstablishedModelMemory(establishedModelMemory).build();
+                                        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
+
+                                        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                                establishedMemoryUpdateListener);
+                                    } else {
+                                        establishedMemoryUpdateListener.onResponse(null);
+                                    }
+                                }, listener::onFailure);
+                            } else {
+                                establishedMemoryUpdateListener.onResponse(null);
+                            }
+                        } else {
+                            establishedMemoryUpdateListener.onResponse(null);
+                        }
+                    }, listener::onFailure
+            );
+
+            // Step 2. Try adding state doc mapping
+            ActionListener<Boolean> resultsPutMappingHandler = ActionListener.wrap(
+                    response -> {
+                        addDocMappingIfMissing(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings::stateMapping,
+                                state, missingMappingsListener);
+                    }, listener::onFailure
+            );
+
+            // Step 1. Try adding results doc mapping
+            addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobParams.getJobId()), ElasticsearchMappings::docMapping,
+                    state, resultsPutMappingHandler);
+        } else {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+        }
+    }
+
+    void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
+        JobPredicate predicate = new JobPredicate();
+        persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, jobParams.getTimeout(),
+                new PersistentTasksService.WaitForPersistentTaskStatusListener<OpenJobAction.JobParams>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
+                if (predicate.exception != null) {
+                    listener.onFailure(predicate.exception);
+                } else {
+                    listener.onResponse(new OpenJobAction.Response(predicate.opened));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                listener.onFailure(new ElasticsearchException("Opening job ["
+                        + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
+            }
+        });
+    }
+
+    private void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier, ClusterState state,
+                                        ActionListener<Boolean> listener) {
+        AliasOrIndex aliasOrIndex = state.metaData().getAliasAndIndexLookup().get(alias);
+        if (aliasOrIndex == null) {
+            // The index has never been created yet
+            listener.onResponse(true);
+            return;
+        }
+        String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
+                .toArray(String[]::new);
+
+        String[] indicesThatRequireAnUpdate;
+        try {
+            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT, logger);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        if (indicesThatRequireAnUpdate.length > 0) {
+            try (XContentBuilder mapping = mappingSupplier.get()) {
+                PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
+                putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
+                putMappingRequest.source(mapping);
+                executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
+                        ActionListener.wrap(response -> {
+                            if (response.isAcknowledged()) {
+                                listener.onResponse(true);
+                            } else {
+                                listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
+                                        + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
+                            }
+                        }, listener::onFailure));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        } else {
+            logger.trace("Mappings are uptodate.");
+            listener.onResponse(true);
+        }
+    }
+
+    public static class OpenJobPersistentTasksExecutor extends PersistentTasksExecutor<OpenJobAction.JobParams> {
+
+        private final AutodetectProcessManager autodetectProcessManager;
+
+        /**
+         * The maximum number of open jobs can be different on each node.  However, nodes on older versions
+         * won't add their setting to the cluster state, so for backwards compatibility with these nodes we
+         * assume the older node's setting is the same as that of the node running this code.
+         * TODO: remove this member in 7.0
+         */
+        private final int fallbackMaxNumberOfOpenJobs;
+        private volatile int maxConcurrentJobAllocations;
+        private volatile int maxMachineMemoryPercent;
+
+        public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
+                                              AutodetectProcessManager autodetectProcessManager) {
+            super(settings, OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            this.autodetectProcessManager = autodetectProcessManager;
+            this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
+            this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
+            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
+            clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
+            clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
+        }
+
+        @Override
+        public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
+            return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs,
+                    maxMachineMemoryPercent, logger);
+        }
+
+        @Override
+        public void validate(OpenJobAction.JobParams params, ClusterState clusterState) {
+            // If we already know that we can't find an ml node because all ml nodes are running at capacity or
+            // simply because there are no ml nodes in the cluster then we fail quickly here:
+            MlMetadata mlMetadata = clusterState.metaData().custom(MLMetadataField.TYPE);
+            TransportOpenJobAction.validate(params.getJobId(), mlMetadata);
+            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
+                    maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
+            if (assignment.getExecutorNode() == null) {
+                String msg = "Could not open job because no suitable nodes were found, allocation explanation ["
+                        + assignment.getExplanation() + "]";
+                logger.warn("[{}] {}", params.getJobId(), msg);
+                throw new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
+            }
+        }
+
+        @Override
+        protected void nodeOperation(AllocatedPersistentTask task, OpenJobAction.JobParams params, Task.Status status) {
+            JobTask jobTask = (JobTask) task;
+            jobTask.autodetectProcessManager = autodetectProcessManager;
+            JobTaskStatus jobStateStatus = (JobTaskStatus) status;
+            // If the job is failed then the Persistent Task Service will
+            // try to restart it on a node restart. Exiting here leaves the
+            // job in the failed state and it must be force closed.
+            if (jobStateStatus != null && jobStateStatus.getState().isAnyOf(JobState.FAILED, JobState.CLOSING)) {
+                return;
+            }
+
+            autodetectProcessManager.openJob(jobTask, e2 -> {
+                if (e2 == null) {
+                    task.markAsCompleted();
+                } else {
+                    task.markAsFailed(e2);
+                }
+            });
+        }
+
+        @Override
+        protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+                                                     PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask,
+                                                     Map<String, String> headers) {
+             return new JobTask(persistentTask.getParams().getJobId(), id, type, action, parentTaskId, headers);
+        }
+
+        void setMaxConcurrentJobAllocations(int maxConcurrentJobAllocations) {
+            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(),
+                    this.maxConcurrentJobAllocations, maxConcurrentJobAllocations);
+            this.maxConcurrentJobAllocations = maxConcurrentJobAllocations;
+        }
+
+        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
+            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(),
+                    this.maxMachineMemoryPercent, maxMachineMemoryPercent);
+            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
+        }
+    }
+
+    public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
+
+        private final String jobId;
+        private volatile AutodetectProcessManager autodetectProcessManager;
+
+        JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
+            super(id, type, action, "job-" + jobId, parentTask, headers);
+            this.jobId = jobId;
+        }
+
+        public String getJobId() {
+            return jobId;
+        }
+
+        @Override
+        protected void onCancelled() {
+            String reason = getReasonCancelled();
+            killJob(reason);
+        }
+
+        void killJob(String reason) {
+            autodetectProcessManager.killProcess(this, false, reason);
+        }
+
+        void closeJob(String reason) {
+            autodetectProcessManager.closeJob(this, false, reason);
+        }
+
+    }
+
+    /**
+     * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
+     * of endpoints waiting for a condition tested by this predicate would never get a response.
+     */
+    private class JobPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+
+        private volatile boolean opened;
+        private volatile Exception exception;
+
+        @Override
+        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            JobState jobState = JobState.CLOSED;
+            if (persistentTask != null) {
+                JobTaskStatus jobStateStatus = (JobTaskStatus) persistentTask.getStatus();
+                jobState = jobStateStatus == null ? JobState.OPENING : jobStateStatus.getState();
+            }
+            switch (jobState) {
+                case OPENING:
+                case CLOSED:
+                    return false;
+                case OPENED:
+                    opened = true;
+                    return true;
+                case CLOSING:
+                    exception = ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
+                            + JobState.OPENED);
+                    return true;
+                case FAILED:
+                default:
+                    exception = ExceptionsHelper.serverError("Unexpected job state [" + jobState
+                            + "] while waiting for job to be " + JobState.OPENED);
+                    return true;
+            }
+        }
     }
 }

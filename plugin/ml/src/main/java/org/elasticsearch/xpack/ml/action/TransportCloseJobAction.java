@@ -170,7 +170,6 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
      *     <li>If the job is opening</li>
      * </ul>
      *
-     * If the job is already closed an empty Optional is returned.
      * @param jobId Job Id
      * @param mlMetadata ML MetaData
      * @param tasks Persistent tasks

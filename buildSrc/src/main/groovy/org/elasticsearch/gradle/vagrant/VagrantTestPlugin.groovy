@@ -258,6 +258,9 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void createVagrantBoxesTasks(Project project) {
         assert project.extensions.esvagrant.boxes != null
 
+        final Task clean = project.tasks.clean
+        assert clean != null
+
         assert project.tasks.stop != null
         Task stop = project.tasks.stop
 
@@ -334,6 +337,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             destroy.onlyIf { vagrantDestroy }
             update.mustRunAfter(destroy)
+            clean.dependsOn(destroy)
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'

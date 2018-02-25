@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -49,16 +50,15 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -144,11 +144,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     @SuppressWarnings("unchecked")
-    private static <E extends Expression> E resolveExpression(E expression, LogicalPlan plan, boolean lenient) {
+    private static <E extends Expression> E resolveExpression(E expression, LogicalPlan plan) {
         return (E) expression.transformUp(e -> {
             if (e instanceof UnresolvedAttribute) {
                 UnresolvedAttribute ua = (UnresolvedAttribute) e;
-                Attribute a = resolveAgainstList(ua, plan.output(), lenient);
+                Attribute a = resolveAgainstList(ua, plan.output());
                 return a != null ? a : e;
             }
             return e;
@@ -159,17 +159,21 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // Shared methods around the analyzer rules
     //
 
-    private static Attribute resolveAgainstList(UnresolvedAttribute u, List<Attribute> attrList, boolean lenient) {
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, List<Attribute> attrList) {
         List<Attribute> matches = new ArrayList<>();
 
-        // first try the qualified version
+        // first take into account the qualified version
         boolean qualified = u.qualifier() != null;
 
         for (Attribute attribute : attrList) {
             if (!attribute.synthetic()) {
                 boolean match = qualified ?
                         Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
-                        Objects.equals(u.name(), attribute.name());
+                        // if the field is unqualified
+                        // first check the names directly
+                        (Objects.equals(u.name(), attribute.name())
+                             // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
+                             || Objects.equals(u.name(), attribute.qualifiedName()));
                 if (match) {
                     matches.add(attribute.withLocation(u.location()));
                 }
@@ -185,15 +189,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return matches.get(0);
         }
 
-        // too many references - should it be ignored?
-        // TODO: move away from exceptions inside the analyzer
-        if (!lenient) {
-            throw new AnalysisException(u, "Reference %s is ambiguous, matches any of %s", u.nodeString(), matches);
-        }
-
-        return null;
+        return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
+                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " + 
+                 matches.stream()
+                 .map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"")
+                 .sorted()
+                 .collect(toList())
+                );
     }
-
+    
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {
@@ -304,7 +308,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     for (int i = 0; i < groupings.size(); i++) {
                         Expression grouping = groupings.get(i);
                         if (grouping instanceof UnresolvedAttribute) {
-                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved, true);
+                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved);
                             if (maybeResolved != null) {
                                 changed = true;
                                 // use the matched expression (not its attribute)
@@ -330,7 +334,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 OrderBy o = (OrderBy) plan;
                 if (!o.resolved()) {
                     List<Order> resolvedOrder = o.order().stream()
-                            .map(or -> resolveExpression(or, o.child(), true))
+                            .map(or -> resolveExpression(or, o.child()))
                             .collect(toList());
                     return new OrderBy(o.location(), o.child(), resolvedOrder);
                 }
@@ -347,7 +351,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     for (LogicalPlan child : plan.children()) {
                         childrenOutput.addAll(child.output());
                     }
-                    NamedExpression named = resolveAgainstList(u, childrenOutput, false);
+                    NamedExpression named = resolveAgainstList(u, childrenOutput);
                     // if resolved, return it; otherwise keep it in place to be resolved later
                     if (named != null) {
                         // if it's a object/compound type, keep it unresolved with a nice error message
@@ -403,7 +407,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             if (us.qualifier() != null) {
                 // resolve the so-called qualifier first
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
-                Attribute q = resolveAgainstList(us.qualifier(), output, false);
+                Attribute q = resolveAgainstList(us.qualifier(), output);
 
                 // now use the resolved 'qualifier' to match
                 for (Attribute attr : output) {
@@ -648,7 +652,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         static <E extends Expression> E tryResolveExpression(E exp, LogicalPlan plan) {
-            E resolved = resolveExpression(exp, plan, true);
+            E resolved = resolveExpression(exp, plan);
             if (!resolved.resolved()) {
                 // look at unary trees but ignore subqueries
                 if (plan.children().size() == 1 && !(plan instanceof SubQueryAlias)) {

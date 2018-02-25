@@ -57,6 +57,26 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     private FieldAttribute attribute(String fieldName) {
+        // test multiple version of the attribute name
+        // to make sure all match the same thing
+
+        // NB: the equality is done on the same since each plan bumps the expression counter
+
+        // unqualified
+        FieldAttribute unqualified = parseQueryFor(fieldName);
+        // unquoted qualifier
+        FieldAttribute unquotedQualifier = parseQueryFor("test." + fieldName);
+        assertEquals(unqualified.name(), unquotedQualifier.name());
+        assertEquals(unqualified.qualifiedName(), unquotedQualifier.qualifiedName());
+        // quoted qualifier
+        FieldAttribute quotedQualifier = parseQueryFor("\"test\"." + fieldName);
+        assertEquals(unqualified.name(), quotedQualifier.name());
+        assertEquals(unqualified.qualifiedName(), quotedQualifier.qualifiedName());
+
+        return randomFrom(unqualified, unquotedQualifier, quotedQualifier);
+    }
+
+    private FieldAttribute parseQueryFor(String fieldName) {
         LogicalPlan plan = plan("SELECT " + fieldName + " FROM test");
         assertThat(plan, instanceOf(Project.class));
         Project p = (Project) plan;
@@ -139,5 +159,39 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(names, not(hasItem("some.dotted")));
         assertThat(names, not(hasItem("unsupported")));
         assertThat(names, hasItems("bool", "text", "keyword", "int"));
+    }
+
+    public void testFieldAmbiguity() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-dotted-field.json");
+
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(functionRegistry, getIndexResult, DateTimeZone.UTC);
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
+        assertEquals(
+                "Found 1 problem(s)\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
+                        + "matches any of [\"test\".\"bar\", \"test\".\"test.bar\"]",
+                ex.getMessage());
+
+        ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
+        assertEquals(
+                "Found 1 problem(s)\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
+                        + "matches any of [\"test\".\"test\", \"test\".\"test.test\"]",
+                ex.getMessage());
+
+        LogicalPlan plan = plan("SELECT test.test FROM test AS x");
+        assertThat(plan, instanceOf(Project.class));
+
+        plan = plan("SELECT \"test\".test.test FROM test");
+        assertThat(plan, instanceOf(Project.class));
+
+        Project p = (Project) plan;
+        List<? extends NamedExpression> projections = p.projections();
+        assertThat(projections, hasSize(1));
+        Attribute attribute = projections.get(0).toAttribute();
+        assertThat(attribute, instanceOf(FieldAttribute.class));
+        assertThat(attribute.qualifier(), is("test"));
+        assertThat(attribute.name(), is("test.test"));
     }
 }

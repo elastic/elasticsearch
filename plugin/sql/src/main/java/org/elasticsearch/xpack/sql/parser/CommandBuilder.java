@@ -160,7 +160,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitSysColumns(SysColumnsContext ctx) {
-        return new SysColumns(source(ctx), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+        return new SysColumns(source(ctx), string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
     }
 
     @Override

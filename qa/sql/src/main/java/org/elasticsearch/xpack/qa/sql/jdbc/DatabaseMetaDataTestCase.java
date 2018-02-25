@@ -84,7 +84,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
             h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_columns.sql'");
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
-            assertResultSets(expected, es.getMetaData().getColumns("%", "%", "%", null));
+            assertResultSets(expected, es.getMetaData().getColumns(null, "%", "%", null));
         }
     }
 }

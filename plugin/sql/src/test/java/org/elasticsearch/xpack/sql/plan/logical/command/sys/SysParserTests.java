@@ -75,6 +75,24 @@ public class SysParserTests extends ESTestCase {
         runSysColumns("SYS COLUMNS");
     }
 
+    public void testSysColumnEmptyCatalog() throws Exception {
+        Tuple<Command, SqlSession> sql = sql("SYS COLUMNS CATALOG '' TABLE LIKE '%' LIKE '%'");
+
+        sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
+            assertEquals(24, r.columnCount());
+            assertEquals(22, r.size());
+        }, ex -> fail(ex.getMessage())));
+    }
+
+    public void testSysColsTableOnlyCatalog() throws Exception {
+        Tuple<Command, SqlSession> sql = sql("SYS COLUMNS CATALOG 'catalog'");
+
+        sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
+            assertEquals(24, r.columnCount());
+            assertEquals(0, r.size());
+        }, ex -> fail(ex.getMessage())));
+    }
+
     public void testSysColsTableOnlyPattern() throws Exception {
         runSysColumns("SYS COLUMNS TABLE LIKE 'test'");
     }

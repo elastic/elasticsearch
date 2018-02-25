@@ -59,7 +59,8 @@ statement
     | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)? 
                  (LIKE? tablePattern=pattern)?
                  (TYPE STRING (',' STRING)* )?                                                            #sysTables
-    | SYS COLUMNS (TABLE LIKE? indexPattern=pattern)?                                                     
+    | SYS COLUMNS (CATALOG cluster=STRING)?
+                  (TABLE LIKE? indexPattern=pattern)?                  
                   (LIKE? columnPattern=pattern)?                                                          #sysColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
@@ -286,7 +287,9 @@ ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
 CAST: 'CAST';
-CATALOG: 'CATALOG';CATALOGS: 'CATALOGS';COLUMNS: 'COLUMNS';
+CATALOG: 'CATALOG';
+CATALOGS: 'CATALOGS';
+COLUMNS: 'COLUMNS';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';

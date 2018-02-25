@@ -759,9 +759,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        PreparedStatement ps = con.prepareStatement("SYS COLUMNS TABLE LIKE ? LIKE ?");
-        ps.setString(1, tableNamePattern != null ? tableNamePattern.trim() : "%");
-        ps.setString(2, columnNamePattern != null ? columnNamePattern.trim() : "%");
+        PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
+        // TODO: until passing null works, pass an empty string
+        ps.setString(1, catalog != null ? catalog.trim() : "");
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : "%");
         return ps.executeQuery();
     }
 

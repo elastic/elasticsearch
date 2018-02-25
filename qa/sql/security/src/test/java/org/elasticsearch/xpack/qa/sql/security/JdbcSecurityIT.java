@@ -286,9 +286,9 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         createUser("full_access", "cli_or_jdbc_minimal");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getColumns("%", "%", "%t", "%"),
+                con -> con.getMetaData().getColumns(null, "%", "%t", "%"),
             "full_access",
-            con -> con.getMetaData().getColumns("%", "%", "%", "%"));
+                con -> con.getMetaData().getColumns(null, "%", "%", "%"));
     }
 
     public void testMetaDataGetColumnsWithNoAccess() throws Exception {
@@ -301,18 +301,18 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         createUser("wrong_access", "read_something_else");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getColumns("%", "%", "not_created", "%"),
+                con -> con.getMetaData().getColumns(null, "%", "not_created", "%"),
             "wrong_access",
-            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+                con -> con.getMetaData().getColumns(null, "%", "test", "%"));
     }
 
     public void testMetaDataGetColumnsSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getColumns("%", "%", "test", "a"),
+                con -> con.getMetaData().getColumns(null, "%", "test", "a"),
             "only_a",
-            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+                con -> con.getMetaData().getColumns(null, "%", "test", "%"));
     }
 
     public void testMetaDataGetColumnsSingleFieldExcepted() throws Exception {
@@ -322,7 +322,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
          * both 'a' and 'b' we'll have to roll our own assertion here, but we
          * are intentionally much less restrictive then the tests elsewhere. */
         try (Connection con = es(userProperties("not_c"))) {
-            ResultSet result = con.getMetaData().getColumns("%", "%", "test", "%");
+            ResultSet result = con.getMetaData().getColumns(null, "%", "test", "%");
             assertTrue(result.next());
             String columnName = result.getString(4);
             assertEquals("a", columnName);
@@ -337,8 +337,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         createUser("no_3s", "read_test_without_c_3");
 
         expectActionMatchesAdmin(
-            con -> con.getMetaData().getColumns("%", "%", "test", "%"),
+            con -> con.getMetaData().getColumns(null, "%", "test", "%"),
             "no_3s",
-            con -> con.getMetaData().getColumns("%", "%", "test", "%"));
+            con -> con.getMetaData().getColumns(null, "%", "test", "%"));
     }
 }

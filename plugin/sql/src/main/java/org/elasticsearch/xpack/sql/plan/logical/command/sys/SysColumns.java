@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
@@ -37,26 +38,20 @@ import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
  */
 public class SysColumns extends Command {
 
+    private final String catalog;
     private final LikePattern indexPattern;
     private final LikePattern columnPattern;
 
-    public SysColumns(Location location, LikePattern indexPattern, LikePattern columnPattern) {
+    public SysColumns(Location location, String catalog, LikePattern indexPattern, LikePattern columnPattern) {
         super(location);
+        this.catalog = catalog;
         this.indexPattern = indexPattern;
         this.columnPattern = columnPattern;
     }
 
-    public LikePattern indexPattern() {
-        return indexPattern;
-    }
-
-    public LikePattern columnPattern() {
-        return columnPattern;
-    }
-
     @Override
     protected NodeInfo<SysColumns> info() {
-        return NodeInfo.create(this, SysColumns::new, indexPattern, columnPattern);
+        return NodeInfo.create(this, SysColumns::new, catalog, indexPattern, columnPattern);
     }
 
     @Override
@@ -91,12 +86,18 @@ public class SysColumns extends Command {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+        String cluster = session.indexResolver().clusterName();
+
+        // bail-out early if the catalog is present but differs
+        if (Strings.hasText(catalog) && !cluster.equals(catalog)) {
+            listener.onResponse(Rows.empty(output()));
+            return;
+        }
+
         String index = indexPattern != null ? indexPattern.asIndexNameWildcard() : "*";
         String regex = indexPattern != null ? indexPattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
-        
-        String cluster = session.indexResolver().clusterName();
 
         session.indexResolver().resolveAsSeparateMappings(index, regex, ActionListener.wrap(esIndices -> {
             List<List<?>> rows = new ArrayList<>();
@@ -168,7 +169,7 @@ public class SysColumns extends Command {
     
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, columnPattern);
+        return Objects.hash(catalog, indexPattern, columnPattern);
     }
 
     @Override
@@ -182,7 +183,8 @@ public class SysColumns extends Command {
         }
 
         SysColumns other = (SysColumns) obj;
-        return Objects.equals(indexPattern, other.indexPattern)
+        return Objects.equals(catalog, other.catalog)
+                && Objects.equals(indexPattern, other.indexPattern)
                 && Objects.equals(columnPattern, other.columnPattern);
     }
 }

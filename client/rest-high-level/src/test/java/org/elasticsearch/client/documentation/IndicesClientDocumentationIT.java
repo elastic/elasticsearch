@@ -66,8 +66,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class is used to generate the Java Indices API documentation.
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  *
  * Where example is your tag name.
  *
@@ -76,6 +76,10 @@ import java.util.concurrent.TimeUnit;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
+ *
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -207,7 +211,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-listener
-            ActionListener<DeleteIndexResponse> listener = new ActionListener<DeleteIndexResponse>() {
+            ActionListener<DeleteIndexResponse> listener =
+                    new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -378,7 +383,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CreateIndexRequest request = new CreateIndexRequest("twitter");
 
             // tag::create-index-execute-listener
-            ActionListener<CreateIndexResponse> listener = new ActionListener<CreateIndexResponse>() {
+            ActionListener<CreateIndexResponse> listener =
+                    new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -507,7 +513,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
 
             // tag::put-mapping-execute-listener
-            ActionListener<PutMappingResponse> listener = new ActionListener<PutMappingResponse>() {
+            ActionListener<PutMappingResponse> listener =
+                    new ActionListener<PutMappingResponse>() {
                 @Override
                 public void onResponse(PutMappingResponse putMappingResponse) {
                     // <1>
@@ -574,7 +581,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(shardsAcked);
 
             // tag::open-index-execute-listener
-            ActionListener<OpenIndexResponse> listener = new ActionListener<OpenIndexResponse>() {
+            ActionListener<OpenIndexResponse> listener =
+                    new ActionListener<OpenIndexResponse>() {
                 @Override
                 public void onResponse(OpenIndexResponse openIndexResponse) {
                     // <1>
@@ -648,7 +656,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<CloseIndexResponse> listener = new ActionListener<CloseIndexResponse>() {
+            ActionListener<CloseIndexResponse> listener =
+                    new ActionListener<CloseIndexResponse>() {
                 @Override
                 public void onResponse(CloseIndexResponse closeIndexResponse) {
                     // <1>
@@ -686,7 +695,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::exists-alias-request
             GetAliasesRequest request = new GetAliasesRequest();
             GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
-            GetAliasesRequest requestWithAliases = new GetAliasesRequest(new String[]{"alias1", "alias2"});
+            GetAliasesRequest requestWithAliases =
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
             // end::exists-alias-request
 
             // tag::exists-alias-request-alias
@@ -860,7 +870,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 2)); // <1>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -929,7 +940,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::split-index-request-waitForActiveShards
         // tag::split-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::split-index-request-settings
         // tag::split-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1001,7 +1013,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.getCreateIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::rollover-request-waitForActiveShards
         // tag::rollover-request-settings
-        request.getCreateIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getCreateIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::rollover-request-settings
         // tag::rollover-request-mapping
         request.getCreateIndexRequest().mapping("type", "field", "type=keyword"); // <1>

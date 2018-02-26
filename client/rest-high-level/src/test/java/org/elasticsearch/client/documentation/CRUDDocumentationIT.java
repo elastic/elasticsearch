@@ -284,7 +284,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request-with-inline-script
             Map<String, Object> parameters = singletonMap("count", 4); // <1>
 
-            Script inline = new Script(ScriptType.INLINE, "painless", "ctx._source.field += params.count", parameters);  // <2>
+            Script inline = new Script(ScriptType.INLINE, "painless",
+                    "ctx._source.field += params.count", parameters);  // <2>
             request.script(inline);  // <3>
             //end::update-request-with-inline-script
             UpdateResponse updateResponse = client.update(request);
@@ -393,7 +394,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-docnotfound
-            UpdateRequest request = new UpdateRequest("posts", "type", "does_not_exist").doc("field", "value");
+            UpdateRequest request = new UpdateRequest("posts", "type", "does_not_exist")
+                    .doc("field", "value");
             try {
                 UpdateResponse updateResponse = client.update(request);
             } catch (ElasticsearchException e) {
@@ -813,7 +815,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request-source-include
             String[] includes = new String[]{"message", "*Date"};
             String[] excludes = Strings.EMPTY_ARRAY;
-            FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+            FetchSourceContext fetchSourceContext =
+                    new FetchSourceContext(true, includes, excludes);
             request.fetchSourceContext(fetchSourceContext); // <1>
             //end::get-request-source-include
             GetResponse getResponse = client.get(request);
@@ -827,7 +830,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"message"};
-            FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+            FetchSourceContext fetchSourceContext =
+                    new FetchSourceContext(true, includes, excludes);
             request.fetchSourceContext(fetchSourceContext); // <1>
             //end::get-request-source-exclude
             GetResponse getResponse = client.get(request);
@@ -935,7 +939,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        BulkResponse response) {
                     // <3>
                 }
 
@@ -945,17 +950,21 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             };
 
-            BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulkAsync, listener).build(); // <5>
+            BulkProcessor bulkProcessor =
+                    BulkProcessor.builder(client::bulkAsync, listener).build(); // <5>
             // end::bulk-processor-init
             assertNotNull(bulkProcessor);
 
             // tag::bulk-processor-add
             IndexRequest one = new IndexRequest("posts", "doc", "1").
-                    source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?");
+                    source(XContentType.JSON, "title",
+                            "In which order are my Elasticsearch queries executed?");
             IndexRequest two = new IndexRequest("posts", "doc", "2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch");
+                    .source(XContentType.JSON, "title",
+                            "Current status and upcoming changes in Elasticsearch");
             IndexRequest three = new IndexRequest("posts", "doc", "3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch");
+                    .source(XContentType.JSON, "title",
+                            "The Future of Federated Search in Elasticsearch");
 
             bulkProcessor.add(one);
             bulkProcessor.add(two);
@@ -977,15 +986,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 @Override
                 public void beforeBulk(long executionId, BulkRequest request) {
                     int numberOfActions = request.numberOfActions(); // <1>
-                    logger.debug("Executing bulk [{}] with {} requests", executionId, numberOfActions);
+                    logger.debug("Executing bulk [{}] with {} requests",
+                            executionId, numberOfActions);
                 }
 
                 @Override
-                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                public void afterBulk(long executionId, BulkRequest request,
+                        BulkResponse response) {
                     if (response.hasFailures()) { // <2>
                         logger.warn("Bulk [{}] executed with failures", executionId);
                     } else {
-                        logger.debug("Bulk [{}] completed in {} milliseconds", executionId, response.getTook().getMillis());
+                        logger.debug("Bulk [{}] completed in {} milliseconds",
+                                executionId, response.getTook().getMillis());
                     }
                 }
 
@@ -1002,7 +1014,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
             builder.setFlushInterval(TimeValue.timeValueSeconds(10L)); // <4>
-            builder.setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
+            builder.setBackoffPolicy(BackoffPolicy
+                    .constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
             // end::bulk-processor-options
         }
     }

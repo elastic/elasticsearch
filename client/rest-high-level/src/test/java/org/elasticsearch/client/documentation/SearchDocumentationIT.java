@@ -242,7 +242,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 Map<String, Object> sourceAsMap = hit.getSourceAsMap();
                 String documentTitle = (String) sourceAsMap.get("title");
                 List<Object> users = (List<Object>) sourceAsMap.get("user");
-                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject");
+                Map<String, Object> innerObject =
+                        (Map<String, Object>) sourceAsMap.get("innerObject");
                 // end::search-hits-singleHit-source
             }
             assertEquals(3, totalHits);
@@ -483,8 +484,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults = searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) {  // <2>
+            Map<String, ProfileShardResult> profilingResults =
+                    searchResponse.getProfileResults(); // <1>
+            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
                 ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
@@ -494,7 +496,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
-            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults(); // <1>
+            List<QueryProfileShardResult> queryProfileShardResults =
+                    profileShardResult.getQueryProfileResults(); // <1>
             for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) { // <2>
 
             }
@@ -519,7 +522,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             }
 
             // tag::search-request-profiling-aggs
-            AggregationProfileShardResult aggsProfileResults = profileShardResult.getAggregationProfileResults(); // <1>
+            AggregationProfileShardResult aggsProfileResults =
+                    profileShardResult.getAggregationProfileResults(); // <1>
             for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
                 String aggName = profileResult.getQueryName(); // <3>
                 long aggTimeInMillis = profileResult.getTime(); // <4>
@@ -530,7 +534,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testScroll() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -602,7 +605,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3L, searchResponse.getHits().getTotalHits());
 
             // tag::search-scroll-execute-listener
-            ActionListener<SearchResponse> scrollListener =  new ActionListener<SearchResponse>() {
+            ActionListener<SearchResponse> scrollListener =
+                    new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // <1>
@@ -652,7 +656,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(released, greaterThan(0));
 
             // tag::clear-scroll-execute-listener
-            ActionListener<ClearScrollResponse> listener =new ActionListener<ClearScrollResponse>() {
+            ActionListener<ClearScrollResponse> listener =
+                    new ActionListener<ClearScrollResponse>() {
                 @Override
                 public void onResponse(ClearScrollResponse clearScrollResponse) {
                     // <1>

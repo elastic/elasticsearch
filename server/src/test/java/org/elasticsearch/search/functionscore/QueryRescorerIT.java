@@ -30,7 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -69,7 +72,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class QueryRescorerIT extends ESIntegTestCase {
     public void testEnforceWindowSize() {
@@ -762,7 +770,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         );
 
         indexDocument(1, "value", "a");
-        indexDocument(2, "one value", "a");
+        indexDocument(2, "one one value", "a");
         indexDocument(3, "one one two value", "b");
         // should be highest on rescore, but filtered out during collapse
         indexDocument(4, "one two two value", "b");
@@ -772,7 +780,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setTypes("type1")
             .setQuery(new MatchQueryBuilder("name", "one"))
-            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "the")))
+            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "two")))
             .setCollapse(new CollapseBuilder("group"))
             .execute()
             .actionGet();

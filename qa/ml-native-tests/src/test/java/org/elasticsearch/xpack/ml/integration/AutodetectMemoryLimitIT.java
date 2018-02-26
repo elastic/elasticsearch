@@ -37,6 +37,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4033")
     public void testTooManyPartitions() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
@@ -91,6 +92,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4033")
     public void testTooManyByFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");

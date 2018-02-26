@@ -59,7 +59,8 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
                 // intercept the promise and pass a different promise back to the rest of the pipeline.
 
                 try {
-                    // TODO: Ensure release on failure
+                    // TODO: Ensure release on failure. I'm sure it is necessary here as it might be done
+                    // TODO: in NioHttpChannel.
                     ByteBuf message = (ByteBuf) msg;
                     BytesReference bytesReference = ByteBufBytesReference.toBytesReference(message);
                     promise.addListener((f) -> message.release());

@@ -53,7 +53,7 @@ public final class Netty4CorsConfig {
     private final boolean shortCircuit;
 
     Netty4CorsConfig(final Netty4CorsConfigBuilder builder) {
-        origins = builder.origins.map(s -> new LinkedHashSet<>(s));
+        origins = builder.origins.map(LinkedHashSet::new);
         pattern = builder.pattern;
         anyOrigin = builder.anyOrigin;
         enabled = builder.enabled;

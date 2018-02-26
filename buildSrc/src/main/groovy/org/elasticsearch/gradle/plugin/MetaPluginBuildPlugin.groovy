@@ -58,11 +58,9 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
 
         // create the actual bundle task, which zips up all the files for the plugin
         Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [buildProperties]) {
-            into('elasticsearch') {
-                from(buildProperties.descriptorOutput.parentFile) {
-                    // plugin properties file
-                    include(buildProperties.descriptorOutput.name)
-                }
+            from(buildProperties.descriptorOutput.parentFile) {
+                // plugin properties file
+                include(buildProperties.descriptorOutput.name)
             }
             // due to how the renames work for each bundled plugin, we must exclude empty dirs or every subdir
             // within bundled plugin zips will show up at the root as an empty dir
@@ -85,10 +83,8 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {
                             eachFile { FileCopyDetails details ->
-                                // paths in the individual plugins begin with elasticsearch, and we want to add in the
-                                // bundled plugin name between that and each filename
-                                details.relativePath = new RelativePath(true, 'elasticsearch', bundledPluginProjectName,
-                                                                        details.relativePath.toString().replace('elasticsearch/', ''))
+                                // we want each path to have the plugin name interjected
+                                details.relativePath = new RelativePath(true, bundledPluginProjectName, details.relativePath.toString())
                             }
                         }
                     }

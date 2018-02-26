@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -242,7 +243,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @return        The parsed {@link StoredScriptSource}.
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
+        try (XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, content.streamInput())) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {
@@ -316,7 +318,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      */
-    public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
+    public static StoredScriptSource fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null).build();
     }
 

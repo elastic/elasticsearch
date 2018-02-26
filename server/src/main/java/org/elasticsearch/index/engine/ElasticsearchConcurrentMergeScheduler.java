@@ -25,7 +25,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.OneMergeHelper;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +71,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
-        this.logger = ServerLoggers.getLogger(getClass(), this.indexSettings, shardId);
+        this.logger = Loggers.getLogger(getClass(), this.indexSettings, shardId);
         refreshConfig();
     }
 

@@ -23,12 +23,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -37,137 +35,171 @@ import static org.mockito.Mockito.when;
 
 public class SocketEventHandlerTests extends ESTestCase {
 
-    private BiConsumer<NioSocketChannel, Exception> exceptionHandler;
+    private Consumer<Exception> exceptionHandler;
 
     private SocketEventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
+    private DoNotRegisterContext context;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
-        exceptionHandler = mock(BiConsumer.class);
-        SocketSelector socketSelector = mock(SocketSelector.class);
+        exceptionHandler = mock(Consumer.class);
+        SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
-        channel = new DoNotRegisterChannel(rawChannel, socketSelector);
+        channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-        channel.setContext(new BytesChannelContext(channel, exceptionHandler, mock(SocketChannelContext.ReadConsumer.class), buffer));
-        channel.register();
-        channel.finishConnect();
+        context = new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0));
+        channel.setContext(context);
+        handler.handleRegistration(context);
 
-        when(socketSelector.isOnCurrentThread()).thenReturn(true);
+        when(selector.isOnCurrentThread()).thenReturn(true);
     }
 
     public void testRegisterCallsContext() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         SocketChannelContext channelContext = mock(SocketChannelContext.class);
         when(channel.getContext()).thenReturn(channelContext);
-        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-        handler.handleRegistration(channel);
-        verify(channelContext).channelRegistered();
+        when(channelContext.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleRegistration(channelContext);
+        verify(channelContext).register();
     }
 
     public void testRegisterAddsOP_CONNECTAndOP_READInterest() throws IOException {
-        handler.handleRegistration(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, channel.getSelectionKey().interestOps());
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleRegistration(context);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT, context.getSelectionKey().interestOps());
+    }
+
+    public void testRegisterAddsAttachment() throws IOException {
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(0));
+        handler.handleRegistration(context);
+        assertEquals(context, context.getSelectionKey().attachment());
     }
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
         channel.getContext().queueWriteOperation(mock(BytesWriteOperation.class));
-        handler.handleRegistration(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
+        handler.handleRegistration(context);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
     }
 
     public void testRegistrationExceptionCallsExceptionHandler() throws IOException {
         CancelledKeyException exception = new CancelledKeyException();
-        handler.registrationException(channel, exception);
-        verify(exceptionHandler).accept(channel, exception);
+        handler.registrationException(context, exception);
+        verify(exceptionHandler).accept(exception);
     }
 
-    public void testConnectRemovesOP_CONNECTInterest() throws IOException {
-        SelectionKeyUtils.setConnectAndReadInterested(channel);
-        handler.handleConnect(channel);
-        assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
+    public void testConnectDoesNotRemoveOP_CONNECTInterestIfIncomplete() throws IOException {
+        SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
+        handler.handleConnect(context);
+        assertEquals(SelectionKey.OP_READ, context.getSelectionKey().interestOps());
+    }
+
+    public void testConnectRemovesOP_CONNECTInterestIfComplete() throws IOException {
+        SelectionKeyUtils.setConnectAndReadInterested(context.getSelectionKey());
+        handler.handleConnect(context);
+        assertEquals(SelectionKey.OP_READ, context.getSelectionKey().interestOps());
     }
 
     public void testConnectExceptionCallsExceptionHandler() throws IOException {
         IOException exception = new IOException();
-        handler.connectException(channel, exception);
-        verify(exceptionHandler).accept(channel, exception);
+        handler.connectException(context, exception);
+        verify(exceptionHandler).accept(exception);
     }
 
     public void testHandleReadDelegatesToContext() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
+        NioSocketChannel channel = new NioSocketChannel(rawChannel);
         SocketChannelContext context = mock(SocketChannelContext.class);
         channel.setContext(context);
 
         when(context.read()).thenReturn(1);
-        handler.handleRead(channel);
+        handler.handleRead(context);
         verify(context).read();
     }
 
     public void testReadExceptionCallsExceptionHandler() {
         IOException exception = new IOException();
-        handler.readException(channel, exception);
-        verify(exceptionHandler).accept(channel, exception);
+        handler.readException(context, exception);
+        verify(exceptionHandler).accept(exception);
     }
 
     public void testWriteExceptionCallsExceptionHandler() {
         IOException exception = new IOException();
-        handler.writeException(channel, exception);
-        verify(exceptionHandler).accept(channel, exception);
+        handler.writeException(context, exception);
+        verify(exceptionHandler).accept(exception);
     }
 
     public void testPostHandlingCallWillCloseTheChannelIfReady() throws IOException {
         NioSocketChannel channel = mock(NioSocketChannel.class);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
 
         when(channel.getContext()).thenReturn(context);
         when(context.selectorShouldClose()).thenReturn(true);
-        handler.postHandling(channel);
+        handler.postHandling(context);
 
         verify(context).closeFromSelector();
     }
 
     public void testPostHandlingCallWillNotCloseTheChannelIfNotReady() throws IOException {
-        NioSocketChannel channel = mock(NioSocketChannel.class);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        when(channel.getSelectionKey()).thenReturn(new TestSelectionKey(0));
-
-        when(channel.getContext()).thenReturn(context);
+        when(context.getSelectionKey()).thenReturn(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
         when(context.selectorShouldClose()).thenReturn(false);
-        handler.postHandling(channel);
 
-        verify(channel, times(0)).closeFromSelector();
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        when(channel.getContext()).thenReturn(context);
+
+        handler.postHandling(context);
+
+        verify(context, times(0)).closeFromSelector();
     }
 
     public void testPostHandlingWillAddWriteIfNecessary() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
-        channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ));
+        TestSelectionKey selectionKey = new TestSelectionKey(SelectionKey.OP_READ);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        channel.setContext(context);
-
+        when(context.getSelectionKey()).thenReturn(selectionKey);
         when(context.hasQueuedWriteOps()).thenReturn(true);
 
-        assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
-        handler.postHandling(channel);
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        when(channel.getContext()).thenReturn(context);
+
+        assertEquals(SelectionKey.OP_READ, selectionKey.interestOps());
+        handler.postHandling(context);
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
     }
 
     public void testPostHandlingWillRemoveWriteIfNecessary() throws IOException {
-        NioSocketChannel channel = new DoNotRegisterChannel(rawChannel, mock(SocketSelector.class));
-        channel.setSelectionKey(new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE));
+        TestSelectionKey key = new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        channel.setContext(context);
-
+        when(context.getSelectionKey()).thenReturn(key);
         when(context.hasQueuedWriteOps()).thenReturn(false);
 
-        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, channel.getSelectionKey().interestOps());
-        handler.postHandling(channel);
-        assertEquals(SelectionKey.OP_READ, channel.getSelectionKey().interestOps());
+        NioSocketChannel channel = mock(NioSocketChannel.class);
+        when(channel.getContext()).thenReturn(context);
+
+
+        assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, key.interestOps());
+        handler.postHandling(context);
+        assertEquals(SelectionKey.OP_READ, key.interestOps());
+    }
+
+    private class DoNotRegisterContext extends BytesChannelContext {
+
+        private final TestSelectionKey selectionKey;
+
+        DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+                             TestSelectionKey selectionKey) {
+            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), InboundChannelBuffer.allocatingInstance());
+            this.selectionKey = selectionKey;
+        }
+
+        @Override
+        public void register() {
+            setSelectionKey(selectionKey);
+        }
     }
 }

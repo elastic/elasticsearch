@@ -65,25 +65,25 @@ public abstract class EventHandler {
     /**
      * This method handles the closing of an NioChannel
      *
-     * @param channel that should be closed
+     * @param context that should be closed
      */
-    protected void handleClose(NioChannel channel) {
+    protected void handleClose(ChannelContext<?> context) {
         try {
-            channel.getContext().closeFromSelector();
+            context.closeFromSelector();
         } catch (IOException e) {
-            closeException(channel, e);
+            closeException(context, e);
         }
-        assert channel.isOpen() == false : "Should always be done as we are on the selector thread";
+        assert context.isOpen() == false : "Should always be done as we are on the selector thread";
     }
 
     /**
      * This method is called when an attempt to close a channel throws an exception.
      *
-     * @param channel that was being closed
+     * @param context that was being closed
      * @param exception that occurred
      */
-    protected void closeException(NioChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), exception);
+    protected void closeException(ChannelContext<?> context, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", context.getChannel()), exception);
     }
 
     /**
@@ -94,7 +94,7 @@ public abstract class EventHandler {
      * @param channel that caused the exception
      * @param exception that was thrown
      */
-    protected void genericChannelException(NioChannel channel, Exception exception) {
-        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel), exception);
+    protected void genericChannelException(ChannelContext<?> channel, Exception exception) {
+        logger.debug(() -> new ParameterizedMessage("exception while handling event for channel: {}", channel.getChannel()), exception);
     }
 }

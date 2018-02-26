@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
@@ -34,6 +35,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -54,6 +57,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -62,6 +66,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -99,16 +104,19 @@ public class PluginsService extends AbstractComponent {
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
+        // we need to build a List of plugins for checking mandatory plugins
+        final List<String> pluginsNames = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA",
+            PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
                                                    pluginClass.getName(), Collections.emptyList(), false, false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
             pluginsList.add(pluginInfo);
+            pluginsNames.add(pluginInfo.getName());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
@@ -132,11 +140,15 @@ public class PluginsService extends AbstractComponent {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<Bundle> plugins = getPluginBundles(pluginsDirectory);
-                    for (Bundle bundle : plugins) {
-                        pluginsList.add(bundle.plugin);
+                    List<BundleCollection> plugins = getPluginBundleCollections(pluginsDirectory);
+                    for (final BundleCollection plugin : plugins) {
+                        final Collection<Bundle> bundles = plugin.bundles();
+                        for (final Bundle bundle : bundles) {
+                            pluginsList.add(bundle.plugin);
+                        }
+                        seenBundles.addAll(bundles);
+                        pluginsNames.add(plugin.name());
                     }
-                    seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
@@ -149,12 +161,6 @@ public class PluginsService extends AbstractComponent {
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
 
-        // We need to build a List of plugins for checking mandatory plugins
-        Set<String> pluginsNames = new HashSet<>();
-        for (Tuple<PluginInfo, Plugin> tuple : this.plugins) {
-            pluginsNames.add(tuple.v1().getName());
-        }
-
         // Checking expected plugins
         List<String> mandatoryPlugins = MANDATORY_SETTING.get(settings);
         if (mandatoryPlugins.isEmpty() == false) {
@@ -165,7 +171,11 @@ public class PluginsService extends AbstractComponent {
                 }
             }
             if (!missingPlugins.isEmpty()) {
-                throw new ElasticsearchException("Missing mandatory plugins [" + Strings.collectionToDelimitedString(missingPlugins, ", ") + "]");
+                final String message = String.format(
+                        Locale.ROOT,
+                        "missing mandatory plugins [%s]",
+                        Strings.collectionToDelimitedString(missingPlugins, ", "));
+                throw new IllegalStateException(message);
             }
         }
 
@@ -241,9 +251,17 @@ public class PluginsService extends AbstractComponent {
         return info;
     }
 
+    /**
+     * An abstraction over a single plugin and meta-plugins.
+     */
+    interface BundleCollection {
+        String name();
+        Collection<Bundle> bundles();
+    }
+
     // a "bundle" is a group of plugins in a single classloader
     // really should be 1-1, but we are not so fortunate
-    static class Bundle {
+    static class Bundle implements BundleCollection {
         final PluginInfo plugin;
         final Set<URL> urls;
 
@@ -264,6 +282,16 @@ public class PluginsService extends AbstractComponent {
         }
 
         @Override
+        public String name() {
+            return plugin.getName();
+        }
+
+        @Override
+        public Collection<Bundle> bundles() {
+            return Collections.singletonList(this);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -275,6 +303,101 @@ public class PluginsService extends AbstractComponent {
         public int hashCode() {
             return Objects.hash(plugin);
         }
+    }
+
+    /**
+     * Represents a meta-plugin and the {@link Bundle}s corresponding to its constituents.
+     */
+    static class MetaBundle implements BundleCollection {
+        private final String name;
+        private final List<Bundle> bundles;
+
+        MetaBundle(final String name, final List<Bundle> bundles) {
+            this.name = name;
+            this.bundles = bundles;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public Collection<Bundle> bundles() {
+            return bundles;
+        }
+        
+    }
+
+    /**
+     * Extracts all installed plugin directories from the provided {@code rootPath} expanding meta-plugins if needed.
+     *
+     * @param rootPath the path where the plugins are installed
+     * @return a list of all plugin paths installed in the {@code rootPath}
+     * @throws IOException if an I/O exception occurred reading the directories
+     */
+    public static List<Path> findPluginDirs(final Path rootPath) throws IOException {
+        final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(rootPath);
+        return Stream.concat(
+                groupedPluginDirs.v1().stream(),
+                groupedPluginDirs.v2().values().stream().flatMap(Collection::stream))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Extracts all installed plugin directories from the provided {@code rootPath} expanding meta-plugins if needed. The plugins are
+     * grouped into plugins and meta-plugins. The meta-plugins are keyed by the meta-plugin name.
+     *
+     * @param rootPath the path where the plugins are installed
+     * @return a tuple of plugins as the first component and meta-plugins keyed by meta-plugin name as the second component
+     * @throws IOException if an I/O exception occurred reading the directories
+     */
+    private static Tuple<List<Path>, Map<String, List<Path>>> findGroupedPluginDirs(final Path rootPath) throws IOException {
+        final List<Path> plugins = new ArrayList<>();
+        final Map<String, List<Path>> metaPlugins = new LinkedHashMap<>();
+        final Set<String> seen = new HashSet<>();
+        if (Files.exists(rootPath)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
+                for (Path plugin : stream) {
+                    if (FileSystemUtils.isDesktopServicesStore(plugin) ||
+                            plugin.getFileName().toString().startsWith(".removing-")) {
+                        continue;
+                    }
+                    if (seen.add(plugin.getFileName().toString()) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
+                    if (MetaPluginInfo.isMetaPlugin(plugin)) {
+                        final String name = plugin.getFileName().toString();
+                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
+                            for (Path subPlugin : subStream) {
+                                if (MetaPluginInfo.isPropertiesFile(subPlugin) ||
+                                        FileSystemUtils.isDesktopServicesStore(subPlugin)) {
+                                    continue;
+                                }
+                                if (seen.add(subPlugin.getFileName().toString()) == false) {
+                                    throw new IllegalStateException("duplicate plugin: " + subPlugin);
+                                }
+                                metaPlugins.computeIfAbsent(name, n -> new ArrayList<>()).add(subPlugin);
+                            }
+                        }
+                    } else {
+                        plugins.add(plugin);
+                    }
+                }
+            }
+        }
+        return Tuple.tuple(plugins, metaPlugins);
+    }
+
+    /**
+     * Verify the given plugin is compatible with the current Elasticsearch installation.
+     */
+    static void verifyCompatibility(PluginInfo info) {
+        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+            throw new IllegalArgumentException("Plugin [" + info.getName() + "] was built for Elasticsearch version "
+                + info.getElasticsearchVersion() + " but version " + Version.CURRENT + " is running");
+        }
+        JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
     // similar in impl to getPluginBundles, but DO NOT try to make them share code.
@@ -317,25 +440,52 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
-        Logger logger = Loggers.getLogger(PluginsService.class);
-        Set<Bundle> bundles = new LinkedHashSet<>();
+    /**
+     * Get the plugin bundles from the specified directory.
+     *
+     * @param pluginsDirectory the directory
+     * @return the set of plugin bundles in the specified directory
+     * @throws IOException if an I/O exception occurs reading the plugin bundles
+     */
+    static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+        return getPluginBundleCollections(pluginsDirectory).stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
+    }
 
-        List<Path> infos = PluginInfo.extractAllPlugins(pluginsDirectory);
-        for (Path plugin : infos) {
-            logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-            final PluginInfo info;
-            try {
-                info = PluginInfo.readFromProperties(plugin);
-            } catch (IOException e) {
-                throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
-                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
-            }
-            if (bundles.add(new Bundle(info, plugin)) == false) {
-                throw new IllegalStateException("duplicate plugin: " + info);
-            }
+    private static List<BundleCollection> getPluginBundleCollections(final Path pluginsDirectory) throws IOException {
+        final List<BundleCollection> bundles = new ArrayList<>();
+        final Set<Bundle> seenBundles = new HashSet<>();
+        final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(pluginsDirectory);
+        for (final Path plugin : groupedPluginDirs.v1()) {
+            final Bundle bundle = bundle(seenBundles, plugin);
+            bundles.add(bundle);
         }
+        for (final Map.Entry<String, List<Path>> metaPlugin : groupedPluginDirs.v2().entrySet()) {
+            final List<Bundle> metaPluginBundles = new ArrayList<>();
+            for (final Path metaPluginPlugin : metaPlugin.getValue()) {
+                final Bundle bundle = bundle(seenBundles, metaPluginPlugin);
+                metaPluginBundles.add(bundle);
+            }
+            final MetaBundle metaBundle = new MetaBundle(metaPlugin.getKey(), metaPluginBundles);
+            bundles.add(metaBundle);
+        }
+
         return bundles;
+    }
+
+    private static Bundle bundle(final Set<Bundle> bundles, final Path plugin) throws IOException {
+        Loggers.getLogger(PluginsService.class).trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+        final PluginInfo info;
+        try {
+            info = PluginInfo.readFromProperties(plugin);
+        } catch (final IOException e) {
+            throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
+                    + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
+        }
+        final Bundle bundle = new Bundle(info, plugin);
+        if (bundles.add(bundle) == false) {
+            throw new IllegalStateException("duplicate plugin: " + info);
+        }
+        return bundle;
     }
 
     /**
@@ -413,6 +563,7 @@ public class PluginsService extends AbstractComponent {
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
         try {
+            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
@@ -433,11 +584,11 @@ public class PluginsService extends AbstractComponent {
                 }
 
                 urls.addAll(pluginUrls);
-                JarHell.checkJarHell(urls); // check jarhell as we add each extended plugin's urls
+                JarHell.checkJarHell(urls, logger::debug); // check jarhell as we add each extended plugin's urls
             }
 
             urls.addAll(bundle.urls);
-            JarHell.checkJarHell(urls); // check jarhell of each extended plugin against this plugin
+            JarHell.checkJarHell(urls, logger::debug); // check jarhell of each extended plugin against this plugin
             transitiveUrls.put(bundle.plugin.getName(), urls);
 
             Set<URL> classpath = JarHell.parseClassPath();
@@ -450,7 +601,7 @@ public class PluginsService extends AbstractComponent {
             // check we don't have conflicting classes
             Set<URL> union = new HashSet<>(classpath);
             union.addAll(bundle.urls);
-            JarHell.checkJarHell(union);
+            JarHell.checkJarHell(union, logger::debug);
         } catch (Exception e) {
             throw new IllegalStateException("failed to load plugin " + bundle.plugin.getName() + " due to jar hell", e);
         }
@@ -458,6 +609,8 @@ public class PluginsService extends AbstractComponent {
 
     private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
         String name = bundle.plugin.getName();
+
+        verifyCompatibility(bundle.plugin);
 
         // collect loaders of extended plugins
         List<ClassLoader> extendedLoaders = new ArrayList<>();

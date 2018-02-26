@@ -529,11 +529,19 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             return numDocs;
         }
 
+        boolean includeNumDocs(Version version) {
+            if (version.major == Version.V_5_6_8.major) {
+                return version.onOrAfter(Version.V_5_6_8);
+            } else {
+                return version.onOrAfter(Version.V_6_2_2);
+            }
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (includeNumDocs(in.getVersion())) {
                 numDocs = in.readInt();
             } else {
                 numDocs = UNKNOWN_NUM_DOCS;
@@ -544,7 +552,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (includeNumDocs(out.getVersion())) {
                 out.writeInt(numDocs);
             }
         }

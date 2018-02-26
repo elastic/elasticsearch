@@ -775,7 +775,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                             e);
                                                 }
                                             }),
-                                    ThreadPool.Names.SAME);
+                                    ThreadPool.Names.SAME, "background global checkpoint sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }

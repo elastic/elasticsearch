@@ -103,11 +103,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                     this.collector = hitCountCollector;
                     this.hitCountSupplier = hitCountCollector::getTotalHits;
                 } else {
-                    this.collector = new EarlyTerminatingCollector(hitCountCollector, 0);
+                    this.collector = new EarlyTerminatingCollector(hitCountCollector, 0, false);
                     this.hitCountSupplier = () -> hitCount;
                 }
             } else {
-                this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0);
+                this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
                 this.hitCountSupplier = () -> 0;
             }

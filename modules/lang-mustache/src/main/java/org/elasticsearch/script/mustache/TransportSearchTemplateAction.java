@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -108,7 +109,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             return null;
         }
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser);
             builder.explain(searchTemplateRequest.isExplain());

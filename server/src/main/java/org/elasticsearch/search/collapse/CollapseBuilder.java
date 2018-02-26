@@ -121,9 +121,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
        }
     }
 
-    public static CollapseBuilder fromXContent(XContentParser parser) throws IOException {
-        CollapseBuilder builder = PARSER.parse(parser, new CollapseBuilder(), null);
-        return builder;
+    public static CollapseBuilder fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     // for object parser only

@@ -24,6 +24,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 /**
  * Selector implementation that handles {@link NioServerSocketChannel}. It's main piece of functionality is
@@ -46,12 +47,12 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void processKey(SelectionKey selectionKey) {
-        NioServerSocketChannel serverChannel = (NioServerSocketChannel) selectionKey.attachment();
+        ServerChannelContext channelContext = (ServerChannelContext) selectionKey.attachment();
         if (selectionKey.isAcceptable()) {
             try {
-                eventHandler.acceptChannel(serverChannel);
+                eventHandler.acceptChannel(channelContext);
             } catch (IOException e) {
-                eventHandler.acceptException(serverChannel, e);
+                eventHandler.acceptException(channelContext, e);
             }
         }
     }
@@ -63,7 +64,7 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        channelsToClose.addAll(newChannels);
+        channelsToClose.addAll(newChannels.stream().map(NioServerSocketChannel::getContext).collect(Collectors.toList()));
     }
 
     /**
@@ -81,18 +82,16 @@ public class AcceptingSelector extends ESSelector {
     private void setUpNewServerChannels() {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+            ServerChannelContext context = newChannel.getContext();
+            assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
             try {
-                if (newChannel.isOpen()) {
-                    newChannel.register();
-                    SelectionKey selectionKey = newChannel.getSelectionKey();
-                    selectionKey.attach(newChannel);
-                    eventHandler.serverChannelRegistered(newChannel);
+                if (context.isOpen()) {
+                    eventHandler.handleRegistration(context);
                 } else {
-                    eventHandler.registrationException(newChannel, new ClosedChannelException());
+                    eventHandler.registrationException(context, new ClosedChannelException());
                 }
-            } catch (IOException e) {
-                eventHandler.registrationException(newChannel, e);
+            } catch (Exception e) {
+                eventHandler.registrationException(context, e);
             }
         }
     }

@@ -80,7 +80,7 @@ public class TranslogHandler implements EngineConfig.TranslogRecoveryRunner {
                 Engine.Index engineIndex = (Engine.Index) operation;
                 Mapping update = engineIndex.parsedDoc().dynamicMappingsUpdate();
                 if (engineIndex.parsedDoc().dynamicMappingsUpdate() != null) {
-                    recoveredTypes.compute(engineIndex.type(), (k, mapping) -> mapping == null ? update : mapping.merge(update, false));
+                    recoveredTypes.compute(engineIndex.type(), (k, mapping) -> mapping == null ? update : mapping.merge(update));
                 }
                 engine.index(engineIndex);
                 break;

@@ -434,7 +434,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
             .field("language", "tr")
             .field("strength", "primary")
             .endObject().endObject().endObject().endObject().string();
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
@@ -443,7 +443,7 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject().endObject().string();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("type",
-                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertEquals("Can't merge because of conflicts: [Cannot update language setting for [" + FIELD_TYPE
             + "], Cannot update strength setting for [" + FIELD_TYPE + "]]", e.getMessage());
     }

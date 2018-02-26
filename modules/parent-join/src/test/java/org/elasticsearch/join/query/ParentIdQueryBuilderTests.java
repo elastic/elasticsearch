@@ -104,7 +104,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override

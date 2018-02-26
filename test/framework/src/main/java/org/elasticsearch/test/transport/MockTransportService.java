@@ -111,16 +111,16 @@ public final class MockTransportService extends TransportService {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-        return createNewService(settings, transport, version, threadPool, clusterSettings);
+        return createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings) {
+                                                        @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress ->
                 new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), UUIDs.randomBase64UUID(), boundAddress.publishAddress(),
                     Node.NODE_ATTRIBUTES.getAsMap(settings), DiscoveryNode.getRolesFromSettings(settings), version),
-            clusterSettings);
+            clusterSettings, taskHeaders);
     }
 
     private final Transport original;
@@ -135,7 +135,7 @@ public final class MockTransportService extends TransportService {
                                 @Nullable ClusterSettings clusterSettings) {
         this(settings, transport, threadPool, interceptor, (boundAddress) ->
             DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), settings.get(Node.NODE_NAME_SETTING.getKey(),
-                UUIDs.randomBase64UUID())), clusterSettings);
+                UUIDs.randomBase64UUID())), clusterSettings, Collections.emptySet());
     }
 
     /**
@@ -146,8 +146,9 @@ public final class MockTransportService extends TransportService {
      */
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor interceptor,
                                 Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                @Nullable ClusterSettings clusterSettings) {
-        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings);
+                                @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+        super(settings, new LookupTestTransport(transport), threadPool, interceptor, localNodeFactory, clusterSettings,
+            taskHeaders);
         this.original = transport;
     }
 
@@ -160,11 +161,11 @@ public final class MockTransportService extends TransportService {
     }
 
     @Override
-    protected TaskManager createTaskManager() {
+    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
-            return new MockTaskManager(settings);
+            return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager();
+            return super.createTaskManager(settings, threadPool, taskHeaders);
         }
     }
 

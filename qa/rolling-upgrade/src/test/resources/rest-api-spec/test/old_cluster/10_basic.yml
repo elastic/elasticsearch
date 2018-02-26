@@ -212,3 +212,44 @@
                 field3: value
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
+
+---
+"Create a task result record in the old cluster":
+  - do:
+      indices.create:
+        index: reindexed_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "1"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "2"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "3"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "4"}'
+          - '{"index": {"_index": "reindexed_index", "_type": "doc"}}'
+          - '{"f1": "5"}'
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        body:
+          source:
+            index: reindexed_index
+            size: 1
+          dest:
+            index: reindexed_index_copy
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task

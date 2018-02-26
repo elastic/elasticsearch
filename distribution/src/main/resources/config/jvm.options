@@ -94,3 +94,6 @@ ${heap.dump.path}
 
 # JDK 9+ GC logging
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
+# due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise
+# time/date parsing will break in an incompatible way for some date patterns and locals
+9-:-Djava.locale.providers=COMPAT

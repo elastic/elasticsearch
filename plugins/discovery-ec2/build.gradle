@@ -83,5 +83,8 @@ thirdPartyAudit.excludes = [
 ]
 
 if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += ['javax.xml.bind.DatatypeConverter']
+  thirdPartyAudit.excludes += [
+    'javax.xml.bind.DatatypeConverter',
+    'javax.xml.bind.JAXBContext'
+  ]
 }

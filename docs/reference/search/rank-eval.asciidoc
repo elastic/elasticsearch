@@ -283,11 +283,13 @@ that shows potential errors of individual queries. The response has the followin
                     }, [...]
                 ],
                 "metric_details": { <6>
-                    "relevant_docs_retrieved": 6,
-                    "docs_retrieved": 10
+                    "precision" : {
+                        "relevant_docs_retrieved": 6,
+                        "docs_retrieved": 10
+                    }
                 }
             },
-            "my_query_id2 : { [...]} 
+            "my_query_id2" : { [...] }
         },
         "failures": { [...] }
     }

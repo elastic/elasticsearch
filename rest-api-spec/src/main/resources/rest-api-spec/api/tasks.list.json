@@ -34,7 +34,7 @@
         "group_by": {
           "type" : "enum",
           "description": "Group tasks by nodes or parent/child relationships",
-          "options" : ["nodes", "parents"],
+          "options" : ["nodes", "parents", "none"],
           "default" : "nodes"
         }
 

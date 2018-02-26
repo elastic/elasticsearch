@@ -32,7 +32,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -62,6 +61,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -910,17 +911,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        return ensureColor(ClusterHealthStatus.GREEN, timeout, indices);
+        return ensureColor(ClusterHealthStatus.GREEN, timeout, false, indices);
     }
 
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
     public ClusterHealthStatus ensureYellow(String... indices) {
-        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), indices);
+        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), false, indices);
     }
 
-    private ClusterHealthStatus ensureColor(ClusterHealthStatus clusterHealthStatus, TimeValue timeout, String... indices) {
+    /**
+     * Ensures the cluster has a yellow state via the cluster health API and ensures the that cluster has no initializing shards
+     * for the given indices
+     */
+    public ClusterHealthStatus ensureYellowAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), true, indices);
+    }
+
+    private ClusterHealthStatus ensureColor(ClusterHealthStatus clusterHealthStatus, TimeValue timeout, boolean waitForNoInitializingShards,
+                                            String... indices) {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
@@ -929,6 +939,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
             // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
             // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
@@ -1275,7 +1286,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final FlushResponse flush(String... indices) {
         waitForRelocation();
         FlushResponse actionGet = client().admin().indices().prepareFlush(indices).execute().actionGet();
-        for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
+        for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
         return actionGet;

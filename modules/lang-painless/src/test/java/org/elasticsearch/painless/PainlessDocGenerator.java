@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.api.Augmentation;
+import org.elasticsearch.painless.spi.Whitelist;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -44,12 +44,12 @@ import java.util.function.Consumer;
 
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.painless.Definition.DEFINITION;
 
 /**
  * Generates an API reference from the method and type whitelists in {@link Definition}.
  */
 public class PainlessDocGenerator {
+    private static final Definition definition = new Definition(Whitelist.BASE_WHITELISTS);
     private static final Logger logger = ESLoggerFactory.getLogger(PainlessDocGenerator.class);
     private static final Comparator<Field> FIELD_NAME = comparing(f -> f.name);
     private static final Comparator<Method> METHOD_NAME = comparing(m -> m.name);
@@ -68,7 +68,7 @@ public class PainlessDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
             emitGeneratedWarning(indexStream);
-            List<Type> types = DEFINITION.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
+            List<Type> types = definition.allSimpleTypes().stream().sorted(comparing(t -> t.name)).collect(toList());
             for (Type type : types) {
                 if (type.clazz.isPrimitive()) {
                     // Primitives don't have methods to reference
@@ -139,7 +139,7 @@ public class PainlessDocGenerator {
             stream.print("static ");
         }
 
-        emitType(stream, field.type);
+        emitType(stream, definition.ClassToType(field.clazz));
         stream.print(' ');
 
         String javadocRoot = javadocRoot(field);
@@ -170,7 +170,7 @@ public class PainlessDocGenerator {
         }
 
         if (false == method.name.equals("<init>")) {
-            emitType(stream, method.rtn);
+            emitType(stream, definition.ClassToType(method.rtn));
             stream.print(' ');
         }
 
@@ -182,13 +182,13 @@ public class PainlessDocGenerator {
 
         stream.print("](");
         boolean first = true;
-        for (Type arg : method.arguments) {
+        for (Class<?> arg : method.arguments) {
             if (first) {
                 first = false;
             } else {
                 stream.print(", ");
             }
-            emitType(stream, arg);
+            emitType(stream, definition.ClassToType(arg));
         }
         stream.print(")++");
 
@@ -278,7 +278,8 @@ public class PainlessDocGenerator {
             first = false;
             stream.print(method.owner.clazz.getName());
         }
-        for (Type arg: method.arguments) {
+        for (Class<?> clazz: method.arguments) {
+            Type arg = definition.ClassToType(clazz);
             if (first) {
                 first = false;
             } else {

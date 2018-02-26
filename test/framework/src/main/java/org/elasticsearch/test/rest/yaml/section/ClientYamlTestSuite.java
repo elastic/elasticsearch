@@ -19,6 +19,8 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
@@ -63,7 +65,7 @@ public class ClientYamlTestSuite {
         }
 
         try (XContentParser parser = YamlXContent.yamlXContent.createParser(ExecutableSection.XCONTENT_REGISTRY,
-                Files.newInputStream(file))) {
+            LoggingDeprecationHandler.INSTANCE, Files.newInputStream(file))) {
             return parse(api, filename, parser);
         } catch(Exception e) {
             throw new IOException("Error parsing " + api + "/" + filename, e);

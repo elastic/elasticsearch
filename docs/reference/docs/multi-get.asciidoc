@@ -2,10 +2,14 @@
 == Multi Get API
 
 Multi GET API allows to get multiple documents based on an index, type
-(optional) and id (and possibly routing). The response includes a `docs`
-array with all the fetched documents, each element similar in structure
-to a document provided by the <<docs-get,get>>
-API. Here is an example:
+(optional) and id (and possibly routing). The response includes a `docs` array
+with all the fetched documents in order corresponding to the original multi-get
+request (if there was a failure for a specific get, an object containing this
+error is included in place in the response instead). The structure of a
+successful get is similar in structure to a document provided by the
+<<docs-get,get>> API.
+
+Here is an example:
 
 [source,js]
 --------------------------------------------------

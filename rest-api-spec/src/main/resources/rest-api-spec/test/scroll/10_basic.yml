@@ -218,8 +218,8 @@
 ---
 "Scroll with size 0":
   - skip:
-      version: " - 6.99.99"
-      reason:  the error message has been added in v7.0.0
+      version: " - 6.1.99"
+      reason:  the error message has been added in v6.2.0
   - do:
       indices.create:
         index: test_scroll

@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -100,8 +102,8 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
                 assertVersionSerializable(request);
                 sender.sendRequest(connection, action, request, options, new TransportResponseHandler<T>() {
                     @Override
-                    public T newInstance() {
-                        return handler.newInstance();
+                    public T read(StreamInput in) throws IOException {
+                        return handler.read(in);
                     }
 
                     @Override

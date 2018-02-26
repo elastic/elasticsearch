@@ -49,3 +49,12 @@ removed.
 
 * 	`levenstein` - replaced by `levenshtein`
 * 	`jarowinkler` - replaced by `jaro_winkler`
+
+
+==== Limiting the number of terms that can be used in a Terms Query request
+
+Executing a Terms Query with a lot of terms may degrade the cluster performance,
+as each additional term demands extra processing and memory.
+To safeguard against this, the maximum number of terms that can be used in a
+Terms Query request has been limited to 65536. This default maximum can be changed
+for a particular index with the index setting `index.max_terms_count`.

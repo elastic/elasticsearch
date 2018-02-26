@@ -198,6 +198,17 @@ specific index module:
     The maximum number of tokens that can be produced using _analyze API.
     Defaults to `10000`.
 
+ `index.highlight.max_analyzed_offset`::
+
+     The maximum number of characters that will be analyzed for a highlight request.
+     This setting is only applicable when highlighting is requested on a text that was indexed without offsets or term vectors.
+     Defaults to `10000`.
+
+ `index.max_terms_count`::
+
+    The maximum number of terms that can be used in Terms Query.
+    Defaults to `65536`.
+
 
 [float]
 === Settings in other index modules

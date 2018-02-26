@@ -171,7 +171,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), 10E-14);
 
         // test that a different window size k affects the result
         metric = new DiscountedCumulativeGain(false, null, 3);
@@ -182,7 +182,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         builder.setRankEvalSpec(task);
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        assertEquals(12.392789260714371, response.getEvaluationResult(), Double.MIN_VALUE);
+        assertEquals(12.39278926071437, response.getEvaluationResult(), 10E-14);
     }
 
     public void testMRRRequest() {
@@ -205,7 +205,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // the expected reciprocal rank for the amsterdam_query is 1/5
         // the expected reciprocal rank for the berlin_query is 1/1
         // dividing by 2 to get the average
-        double expectedMRR = (1.0 / 1.0 + 1.0 / 5.0) / 2.0;
+        double expectedMRR = (1.0 + 1.0 / 5.0) / 2.0;
         assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
 
         // test that a different window size k affects the result
@@ -220,7 +220,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // limiting to top 3 results, the amsterdam_query has no relevant document in it
         // the reciprocal rank for the berlin_query is 1/1
         // dividing by 2 to get the average
-        expectedMRR = (1.0/ 1.0) / 2.0;
+        expectedMRR = 1.0 / 2.0;
         assertEquals(expectedMRR, response.getEvaluationResult(), 0.0);
     }
 

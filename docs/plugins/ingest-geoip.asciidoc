@@ -5,7 +5,7 @@ The GeoIP processor adds information about the geographical location of IP addre
 This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
 IPv6 addresses.
 
-The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Country geoip2 databases from Maxmind made available
+The ingest-geoip plugin ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN geoip2 databases from Maxmind made available
 under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
 The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory,
@@ -36,7 +36,11 @@ include::install_remove.asciidoc[]
 `country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
 and `location`. The fields actually added depend on what has been found and which properties were configured in `properties`.
 * If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties were configured in `properties`.
+`country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties
+were configured in `properties`.
+* If the GeoLite2 ASN database is used, then the following fields may be added under the `target_field`: `ip`,
+`asn`, and `organization_name`. The fields actually added depend on what has been found and which properties were configured
+in `properties`.
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 

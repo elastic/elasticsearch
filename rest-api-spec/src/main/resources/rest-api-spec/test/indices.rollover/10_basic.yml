@@ -1,5 +1,7 @@
 ---
 "Rollover index via API":
+
+
   # create index with alias
   - do:
       indices.create:

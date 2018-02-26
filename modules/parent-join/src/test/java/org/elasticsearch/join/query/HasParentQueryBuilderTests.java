@@ -112,7 +112,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

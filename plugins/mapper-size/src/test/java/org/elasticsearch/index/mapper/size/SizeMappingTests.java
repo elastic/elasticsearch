@@ -110,7 +110,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
             .startObject("_size").field("enabled", false).endObject()
             .endObject().endObject().string();
         docMapper = service.mapperService().merge("type", new CompressedXContent(disabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE, false);
+            MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }

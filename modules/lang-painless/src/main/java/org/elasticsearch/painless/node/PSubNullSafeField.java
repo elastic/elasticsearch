@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -52,7 +51,7 @@ public class PSubNullSafeField extends AStoreable {
         guarded.read = read;
         guarded.analyze(locals);
         actual = guarded.actual;
-        if (actual.clazz.isPrimitive()) {
+        if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");
         }
     }
@@ -69,7 +68,7 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         guarded.updateActual(actual);
     }
 

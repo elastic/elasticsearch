@@ -200,7 +200,8 @@ POST twitter/_update_by_query?pipeline=set-foo
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`
+and `scroll`.
 
 Sending the `refresh` will update all shards in the index being updated when
 the request completes. This is different than the Index API's `refresh`
@@ -218,7 +219,9 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the request. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>.
+<<docs-bulk,Bulk API>>. As `_update_by_query` uses scroll search, you can also specify
+the `scroll` parameter to control how long it keeps the "search context" alive,
+eg `?scroll=10m`, by default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
 `1000`, etc) and throttles rate at which `_update_by_query` issues batches of

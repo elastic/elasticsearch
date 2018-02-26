@@ -58,19 +58,17 @@ public final class ENewObj extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        final Type type;
-
         try {
-            type = locals.getDefinition().getType(this.type);
+            actual = Definition.TypeToClass(locals.getDefinition().getType(this.type));
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        Struct struct = type.struct;
+        Struct struct = locals.getDefinition().ClassToType(actual).struct;
         constructor = struct.constructors.get(new Definition.MethodKey("<init>", arguments.size()));
 
         if (constructor != null) {
-            Type[] types = new Type[constructor.arguments.size()];
+            Class<?>[] types = new Class<?>[constructor.arguments.size()];
             constructor.arguments.toArray(types);
 
             if (constructor.arguments.size() != arguments.size()) {
@@ -88,7 +86,6 @@ public final class ENewObj extends AExpression {
             }
 
             statement = true;
-            actual = type;
         } else {
             throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
         }
@@ -98,7 +95,7 @@ public final class ENewObj extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.newInstance(actual.type);
+        writer.newInstance(MethodWriter.getType(actual));
 
         if (read) {
             writer.dup();

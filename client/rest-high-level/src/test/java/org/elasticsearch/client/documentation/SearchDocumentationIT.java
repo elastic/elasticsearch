@@ -88,8 +88,8 @@ import static org.hamcrest.Matchers.greaterThan;
  * This class is used to generate the Java High Level REST Client Search API documentation.
  * <p>
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  * <p>
  * Where example is your tag name.
  * <p>
@@ -98,6 +98,10 @@ import static org.hamcrest.Matchers.greaterThan;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/SearchDocumentationIT.java[example]
  * --------------------------------------------------
+ * <p>
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 

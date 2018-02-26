@@ -74,8 +74,8 @@ import static java.util.Collections.singletonMap;
 /**
  * This class is used to generate the Java CRUD API documentation.
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  *
  * Where example is your tag name.
  *
@@ -84,6 +84,10 @@ import static java.util.Collections.singletonMap;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
  * --------------------------------------------------
+ *
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 

@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.client.shared.ClientException;
 import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.shared.Version;
-
+import org.jline.terminal.TerminalBuilder;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.util.Arrays;
@@ -36,22 +36,6 @@ public class Cli extends LoggingAwareCommand {
     private final OptionSpec<Boolean> checkOption;
     private final OptionSpec<String> connectionString;
 
-    private Cli() {
-        super("Elasticsearch SQL CLI");
-        parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
-        this.keystoreLocation = parser.acceptsAll(
-                    Arrays.asList("k", "keystore_location"),
-                    "Location of a keystore to use when setting up SSL. "
-                    + "If specified then the CLI will prompt for a keystore password. "
-                    + "If specified when the uri isn't https then an error is thrown.")
-                .withRequiredArg().ofType(String.class);
-        this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"),
-                "Enable initial connection check on startup")
-                .withRequiredArg().ofType(Boolean.class)
-                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
-        this.connectionString = parser.nonOptions("uri");
-    }
-
     /**
      * Use this VM Options to run in IntelliJ or Eclipse:
      * -Dorg.jline.terminal.type=xterm-256color
@@ -61,7 +45,7 @@ public class Cli extends LoggingAwareCommand {
      * -Dorg.jline.terminal.dumb=true
      */
     public static void main(String[] args) throws Exception {
-        final Cli cli = new Cli();
+        final Cli cli = new Cli(new JLineTerminal(TerminalBuilder.builder().build(), true));
         configureJLineLogging();
         int status = cli.main(args, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
@@ -77,6 +61,28 @@ public class Cli extends LoggingAwareCommand {
         } catch (IOException ex) {
             throw new RuntimeException("cannot setup logging", ex);
         }
+    }
+
+    private final CliTerminal cliTerminal;
+
+    /**
+     * Build the CLI.
+     */
+    public Cli(CliTerminal cliTerminal) {
+        super("Elasticsearch SQL CLI");
+        this.cliTerminal = cliTerminal;
+        parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
+        this.keystoreLocation = parser.acceptsAll(
+                    Arrays.asList("k", "keystore_location"),
+                    "Location of a keystore to use when setting up SSL. "
+                    + "If specified then the CLI will prompt for a keystore password. "
+                    + "If specified when the uri isn't https then an error is thrown.")
+                .withRequiredArg().ofType(String.class);
+        this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"),
+                "Enable initial connection check on startup")
+                .withRequiredArg().ofType(Boolean.class)
+                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
+        this.connectionString = parser.nonOptions("uri");
     }
 
     @Override
@@ -105,7 +111,7 @@ public class Cli extends LoggingAwareCommand {
                 new ServerInfoCliCommand(),
                 new ServerQueryCliCommand()
         );
-        try (CliTerminal cliTerminal = new JLineTerminal()) {
+        try {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
             ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation);
             CliSession cliSession = new CliSession(new HttpClient(con));
@@ -114,6 +120,8 @@ public class Cli extends LoggingAwareCommand {
                 checkConnection(cliSession, cliTerminal, con);
             }
             new CliRepl(cliTerminal, cliSession, cliCommand).execute();
+        } finally {
+            cliTerminal.close();
         }
     }
 
@@ -138,6 +146,5 @@ public class Cli extends LoggingAwareCommand {
                                 ". This version of CLI only works with Elasticsearch version " + Version.CURRENT.toString());
             }
         }
-
     }
 }

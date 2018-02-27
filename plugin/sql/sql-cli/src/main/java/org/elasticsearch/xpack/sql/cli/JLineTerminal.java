@@ -10,12 +10,10 @@ import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
 import org.jline.utils.InfoCmp;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 
 import static org.jline.utils.AttributedStyle.BOLD;
@@ -32,15 +30,30 @@ public class JLineTerminal implements CliTerminal {
     private Terminal terminal;
     private LineReader reader;
 
-    protected JLineTerminal() {
-        try {
-            this.terminal = TerminalBuilder.builder().build();
-            reader = LineReaderBuilder.builder()
-                    .terminal(terminal)
-                    .completer(Completers.INSTANCE)
-                    .build();
-        } catch (IOException ex) {
-            throw new FatalCliException("Cannot use terminal", ex);
+    /**
+     * Build the terminal.
+     * @param terminal the jLine terminal to work with
+     * @param enableMatchBracket should jLine bounce the cursor to matching brackets?
+     *      this is disabled in tests because it very difficult to predict and
+     *      enabled in production because it is fairly nice.
+     */
+    public JLineTerminal(Terminal terminal, boolean enableMatchBracket) {
+        this(terminal,
+            LineReaderBuilder.builder()
+                .terminal(terminal)
+                .completer(Completers.INSTANCE)
+                .build(),
+            enableMatchBracket);
+    }
+
+    /**
+     * Constructor for tests.
+     */
+    JLineTerminal(Terminal terminal, LineReader reader, boolean enableMatchBracket) {
+        this.terminal = terminal;
+        this.reader = reader;
+        if (false == enableMatchBracket) {
+            reader.setVariable(LineReader.BLINK_MATCHING_PAREN, 0L);
         }
     }
 
@@ -91,23 +104,26 @@ public class JLineTerminal implements CliTerminal {
 
     @Override
     public String readPassword(String prompt) {
-        terminal.writer().print(prompt);
-        terminal.writer().flush();
-        terminal.echo(false);
-        try {
-            return new BufferedReader(terminal.reader()).readLine();
-        } catch (IOException ex) {
-            throw new FatalCliException("Error reading password", ex);
-        } finally {
-            terminal.echo(true);
+        String line = readLine(prompt, (char) 0);
+        if (line == null) {
+            throw new FatalCliException("Error reading password, terminal is closed");
         }
+        return line;
     }
 
     @Override
     public String readLine(String prompt) {
+        String attributedString = new AttributedString(prompt, DEFAULT.foreground(YELLOW)).toAnsi(terminal);
+        return readLine(attributedString, null);
+    }
+
+    private String readLine(String prompt, Character mask) {
         try {
-            String attributedString = new AttributedString(prompt, DEFAULT.foreground(YELLOW)).toAnsi(terminal);
-            return reader.readLine(attributedString);
+            String line = reader.readLine(prompt, null, mask, null);
+            if (line == null) {
+                throw new FatalCliException("Error reading password, terminal is closed");
+            }
+            return line;
         } catch (UserInterruptException ex) {
             return "";
         } catch (EndOfFileException ex) {

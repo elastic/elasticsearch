@@ -62,7 +62,8 @@ public class BroadcastResponse extends ActionResponse implements ToXContentFragm
         shardsParser.declareInt(constructorArg(), TOTAL_FIELD);
         shardsParser.declareInt(constructorArg(), SUCCESSFUL_FIELD);
         shardsParser.declareInt(constructorArg(), FAILED_FIELD);
-        shardsParser.declareObjectArray(optionalConstructorArg(), (p, c) -> DefaultShardOperationFailedException.fromXContent(p), FAILURES_FIELD);
+        shardsParser.declareObjectArray(optionalConstructorArg(),
+            (p, c) -> DefaultShardOperationFailedException.fromXContent(p), FAILURES_FIELD);
         PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
     }
 

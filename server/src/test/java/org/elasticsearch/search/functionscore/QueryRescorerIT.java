@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -760,30 +759,31 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .addMapping(
                 "type1",
                 jsonBuilder()
-                .startObject()
-                .startObject("properties")
-                .startObject("group")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject())
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("group")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject())
         );
 
-        indexDocument(1, "value", "a");
-        indexDocument(2, "one one value", "a");
-        indexDocument(3, "one one two value", "b");
+        ensureGreen("test");
+
+        indexDocument(1, "miss", "a", 1, 10);
+        indexDocument(2, "name", "a", 2, 20);
+        indexDocument(3, "name", "b", 2, 30);
         // should be highest on rescore, but filtered out during collapse
-        indexDocument(4, "one two two value", "b");
+        indexDocument(4, "name", "b", 1, 40);
 
         refresh("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setTypes("type1")
-            .setQuery(new MatchQueryBuilder("name", "one"))
-            .addRescorer(new QueryRescorerBuilder(new MatchQueryBuilder("name", "two")))
+            .setQuery(staticScoreQuery("static_score"))
+            .addRescorer(new QueryRescorerBuilder(staticScoreQuery("static_rescore")))
             .setCollapse(new CollapseBuilder("group"))
-            .execute()
-            .actionGet();
+            .get();
 
         assertThat(searchResponse.getHits().totalHits, equalTo(3L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
@@ -793,16 +793,24 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
 
         assertThat(collapsedHits.keySet(), containsInAnyOrder("2", "3"));
-        assertThat(collapsedHits.get("3"), greaterThan(collapsedHits.get("2")));
+        assertThat(collapsedHits.get("2"), equalTo(22F));
+        assertThat(collapsedHits.get("3"), equalTo(32F));
     }
 
-    private void indexDocument(int id, String name, String group) throws IOException {
+    private QueryBuilder staticScoreQuery(String scoreField) {
+        return functionScoreQuery(termQuery("name", "name"), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField))
+            .boostMode(CombineFunction.REPLACE);
+    }
+
+    private void indexDocument(int id, String name, String group, int score, int rescore) throws IOException {
         XContentBuilder docBuilder =jsonBuilder()
             .startObject()
             .field("name", name)
             .field("group", group)
+            .field("static_score", score)
+            .field("static_rescore", rescore)
             .endObject();
 
-        client().prepareIndex("test", "type1", Integer.toString(id)).setSource(docBuilder).execute().actionGet();
+        client().prepareIndex("test", "type1", Integer.toString(id)).setSource(docBuilder).get();
     }
 }

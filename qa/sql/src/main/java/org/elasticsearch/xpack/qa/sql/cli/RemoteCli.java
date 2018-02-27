@@ -6,16 +6,25 @@
 package org.elasticsearch.xpack.qa.sql.cli;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.xpack.sql.cli.Cli;
+import org.elasticsearch.xpack.sql.cli.CliTerminal;
+import org.elasticsearch.xpack.sql.cli.JLineTerminal;
+import org.jline.terminal.impl.ExternalTerminal;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -24,7 +33,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -34,101 +49,128 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
+/**
+ * Wraps a CLI in as "real" a way as it can get without forking the CLI
+ * subprocess with the goal being integration testing of the CLI without
+ * breaking out security model by forking. We test the script that starts
+ * the CLI using packaging tests which is super "real" but not super fast
+ * and doesn't run super frequently.
+ */
 public class RemoteCli implements Closeable {
+    // TODO rename this class to EmbeddedCli very soon
     private static final Logger logger = Loggers.getLogger(RemoteCli.class);
 
-    private static final InetAddress CLI_FIXTURE_ADDRESS;
-    private static final int CLI_FIXTURE_PORT;
-    static {
-        String addressAndPort = System.getProperty("tests.cli.fixture");
-        if (addressAndPort == null) {
-            throw new IllegalArgumentException("Must set the [tests.cli.fixture] property. Gradle handles this for you "
-                    + " in regular tests. In embedded mode the easiest thing to do is run "
-                    + "`gradle :x-pack-elasticsearch:qa:sql:no-security:run` and to set the property to the contents of "
-                    + "`qa/sql/no-security/build/fixtures/cliFixture/ports`");
-        }
-        int split = addressAndPort.lastIndexOf(':');
-        try {
-            CLI_FIXTURE_ADDRESS = InetAddress.getByName(addressAndPort.substring(0, split));
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
-        }
-        CLI_FIXTURE_PORT = Integer.parseInt(addressAndPort.substring(split + 1));
-    }
-
-    private final Socket socket;
-    private final PrintWriter out;
+    private final Thread exec;
+    private final Cli cli;
+    private final AtomicInteger returnCode = new AtomicInteger(Integer.MIN_VALUE);
+    private final AtomicReference<Exception> failure = new AtomicReference<>();
+    private final BufferedWriter out;
     private final BufferedReader in;
+    /**
+     * Has the client already been closed?
+     */
+    private boolean closed = false;
 
     public RemoteCli(String elasticsearchAddress, boolean checkConnectionOnStartup,
             @Nullable SecurityConfig security) throws IOException {
-        // Connect
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        logger.info("connecting to the cli fixture at {}:{}", CLI_FIXTURE_ADDRESS, CLI_FIXTURE_PORT);
-        socket = AccessController.doPrivileged(new PrivilegedAction<Socket>() {
+        PipedOutputStream outgoing = new PipedOutputStream();
+        PipedInputStream cliIn = new PipedInputStream(outgoing);
+        PipedInputStream incoming = new PipedInputStream();
+        PipedOutputStream cliOut = new PipedOutputStream(incoming);
+        CliTerminal cliTerminal = new JLineTerminal(
+            new ExternalTerminal("test", "xterm-256color", cliIn, cliOut, StandardCharsets.UTF_8),
+            false);
+        cli = new Cli(cliTerminal) {
             @Override
-            public Socket run() {
-                try {
-                    return new Socket(CLI_FIXTURE_ADDRESS, CLI_FIXTURE_PORT);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        };
+        out = new BufferedWriter(new OutputStreamWriter(outgoing, StandardCharsets.UTF_8));
+        in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));
+
+        List<String> args = new ArrayList<>();
+        if (security == null) {
+            args.add(elasticsearchAddress);
+        } else {
+            String address = security.user + "@" + elasticsearchAddress;
+            if (security.https) {
+                address = "https://" + address;
+            } else if (randomBoolean()) {
+                address = "http://" + address;
+            }
+            args.add(address);
+            if (security.keystoreLocation != null) {
+                args.add("-keystore_location");
+                args.add(security.keystoreLocation);
+            }
+        }
+        if (false == checkConnectionOnStartup) {
+            args.add("-check");
+            args.add("false");
+        }
+        args.add("-debug");
+        exec = new Thread(() -> {
+            try {
+                /*
+                 * We don't really interact with the terminal because we're
+                 * trying to test our interaction with jLine which doesn't
+                 * support Elasticsearch's Terminal abstraction.
+                 */
+                Terminal terminal = new MockTerminal();
+                int exitCode = cli.main(args.toArray(new String[0]), terminal);
+                returnCode.set(exitCode);
+                logger.info("cli exited with code [{}]", exitCode);
+            } catch (Exception e) {
+                failure.set(e);
             }
         });
-        logger.info("connected");
-        socket.setSoTimeout(10000);
-        out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
-        in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+        exec.start();
 
         try {
-            // Start the CLI
-            String command;
-            if (security == null) {
-                command = elasticsearchAddress;
-            } else {
-                command = security.user + "@" + elasticsearchAddress;
-                if (security.https) {
-                    command = "https://" + command;
-                } else if (randomBoolean()) {
-                    command = "http://" + command;
-                }
-                if (security.keystoreLocation != null) {
-                    command = command + " -keystore_location " + security.keystoreLocation;
-                }
-            }
-            if (false == checkConnectionOnStartup) {
-                command += " -check false";
-            }
-            /* Don't use println because it emits \r\n on windows but we put the
-            * terminal in unix mode to make the tests consistent. */
-            out.print(command + "\n");
-            out.flush();
-
             // Feed it passwords if needed
-            if (security != null && security.keystoreLocation != null) {
-                assertEquals("keystore password: ", readUntil(s -> s.endsWith(": ")));
-                out.print(security.keystorePassword + "\n");
-                out.flush();
-            }
             if (security != null) {
-                assertEquals("password: ", readUntil(s -> s.endsWith(": ")));
-                out.print(security.password + "\n");
+                String passwordPrompt = "[?1h=[?2004hpassword: ";
+                if (security.keystoreLocation != null) {
+                    assertEquals("[?1h=[?2004hkeystore password: ", readUntil(s -> s.endsWith(": ")));
+                    out.write(security.keystorePassword + "\n");
+                    out.flush();
+                    logger.info("out: {}", security.keystorePassword);
+                    // Read the newline echoed after the password prompt
+                    assertEquals("", readLine());
+                    /*
+                     * And for some reason jLine adds a second one so
+                     * consume that too. I'm not sure why it does this
+                     * but it looks right when a use runs the cli.
+                     */
+                    assertEquals("", readLine());
+                    /*
+                     * If we read the keystore password the console will
+                     * emit some state reset escape sequences before the
+                     * prompt for the password.
+                     */
+                    passwordPrompt = "[?1l>[?1000l[?2004l[?1h=[?2004hpassword: ";
+                }
+                assertEquals(passwordPrompt, readUntil(s -> s.endsWith(": ")));
+                out.write(security.password + "\n");
                 out.flush();
+                logger.info("out: {}", security.password);
+                // Read the newline echoed after the password prompt
+                assertEquals("", readLine());
             }
 
-            // Throw out the logo and warnings about making a dumb terminal
+            // Throw out the logo
             while (false == readLine().contains("SQL"));
-
             assertConnectionTest();
-        } catch (AssertionError | Exception e) {
-            /* If there is an error during connection then try and
-             * force the socket shut. */
-            forceClose();
-            throw e;
+        } catch (IOException e) {
+            try {
+                forceClose();
+            } catch (Exception closeException) {
+                e.addSuppressed(closeException);
+                throw e;
+            }
         }
     }
 
@@ -147,15 +189,33 @@ public class RemoteCli implements Closeable {
      */
     @Override
     public void close() throws IOException {
+        if (closed) {
+            return;
+        }
         try {
             // Try and shutdown the client normally
-            /* Don't use println because it enits \r\n on windows but we put the
-            * terminal in unix mode to make the tests consistent. */
-            out.print("quit;\n");
+
+            /*
+             * Don't use command here because we want want
+             * to collect all the responses and report them
+             * as failures if there is a problem rather than
+             * failing on the first bad response.
+             */
+            out.write("quit;\n");
             out.flush();
             List<String> nonQuit = new ArrayList<>();
             String line;
-            while (false == (line = readLine()).startsWith("[?1h=[33msql> [0mquit;[90mBye![0m")) {
+            while (true) {
+                line = readLine();
+                if (line == null) {
+                    fail("got EOF before [Bye!]. Extras " + nonQuit);
+                }
+                if (line.contains("quit;")) {
+                    continue;
+                }
+                if (line.contains("Bye!")) {
+                    break;
+                }
                 if (false == line.isEmpty()) {
                     nonQuit.add(line);
                 }
@@ -164,6 +224,7 @@ public class RemoteCli implements Closeable {
         } finally {
             forceClose();
         }
+        assertEquals(0, returnCode.get());
     }
 
     /**
@@ -171,10 +232,18 @@ public class RemoteCli implements Closeable {
      * the remote down in an orderly way.
      */
     public void forceClose() throws IOException {
-        out.close();
-        in.close();
-        // Most importantly, close the socket so the next test can use the fixture
-        socket.close();
+        closed = true;
+        IOUtils.close(out, in, cli);
+        try {
+            exec.join(TimeUnit.SECONDS.toMillis(10));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        Exception e = failure.get();
+        if (e != null) {
+            throw new RuntimeException("CLI thread failed", e);
+        }
     }
 
     /**
@@ -183,22 +252,42 @@ public class RemoteCli implements Closeable {
     public String command(String command) throws IOException {
         assertThat("; automatically added", command, not(endsWith(";")));
         logger.info("out: {};", command);
-        /* Don't use println because it emits \r\n on windows but we put the
-         * terminal in unix mode to make the tests consistent. */
-        out.print(command + ";\n");
+        out.write(command + ";\n");
         out.flush();
-        final String firstResponse = "[?1h=[33msql> [0m" +
-                Strings.collectionToDelimitedString(Strings.splitSmart(command, "\n", false), "[?1h=[33m   | [0m") + ";";
-        String firstLine = readLine();
-        assertThat(firstLine, startsWith(firstResponse));
-        return firstLine.substring(firstResponse.length());
+        for (String echo : expectedCommandEchos(command)) {
+            assertEquals(echo, readLine());
+        }
+        return readLine();
+    }
+    /**
+     * Create the "echo" that we expect jLine to send to the terminal
+     * while we're typing a command.
+     */
+    private List<String> expectedCommandEchos(String command) {
+        List<String> commandLines = Strings.splitSmart(command, "\n", false);
+        List<String> result = new ArrayList<>(commandLines.size() * 2);
+        result.add("[?1h=[?2004h[33msql> [0m" + commandLines.get(0));
+        // Every line gets an extra new line because, I dunno, but it looks right in the CLI
+        result.add("");
+        for (int i = 1; i < commandLines.size(); i++) {
+            result.add("[?1l>[?1000l[?2004l[?1h=[?2004h[33m   | [0m" + commandLines.get(i));
+            // Every line gets an extra new line because, I dunno, but it looks right in the CLI
+            result.add("");
+        }
+        result.set(result.size() - 2, result.get(result.size() - 2) + ";");
+        return result;
     }
 
     public String readLine() throws IOException {
-        /* Since we can't *see* esc in the error messages we just
+        /*
+         * Since we can't *see* esc in the error messages we just
          * remove it here and pretend it isn't required. Hopefully
-         * `[` is enough for us to assert on. */
-        String line = in.readLine().replace("\u001B", "");
+         * `[` is enough for us to assert on.
+         *
+         * `null` means EOF so we should just pass that back through.
+         */
+        String line = in.readLine();
+        line = line == null ? null : line.replace("\u001B", "");
         logger.info("in : {}", line);
         return line;
     }
@@ -206,14 +295,25 @@ public class RemoteCli implements Closeable {
     private String readUntil(Predicate<String> end) throws IOException {
         StringBuilder b = new StringBuilder();
         String result;
-        do {
+        while (true) {
             int c = in.read();
             if (c == -1) {
                 throw new IOException("got eof before end");
             }
+            if (c == '\u001B') {
+                /*
+                 * Since we can't *see* esc in the error messages we just
+                 * remove it here and pretend it isn't required. Hopefully
+                 * `[` is enough for us to assert on.
+                 */
+                continue;
+            }
             b.append((char) c);
             result = b.toString();
-        } while (false == end.test(result));
+            if (end.test(result)) {
+                break;
+            }
+        }
         logger.info("in : {}", result);
         return result;
     }

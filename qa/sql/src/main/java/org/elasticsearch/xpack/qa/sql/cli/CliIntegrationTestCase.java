@@ -70,6 +70,11 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         return cli.command(command);
     }
 
+    /**
+     * Read a line produced by the CLI.
+     * Note that these lines will contain {@code xterm-256color}
+     * escape sequences.
+     */
     public String readLine() throws IOException {
         return cli.readLine();
     }

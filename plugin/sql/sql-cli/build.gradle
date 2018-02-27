@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.build'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    compile "org.jline:jline:3.3.1"
+    compile "org.jline:jline:3.6.0"
     compile xpackProject('plugin:sql:sql-shared-client')
     compile xpackProject('plugin:sql:sql-proto')
     compile "org.elasticsearch:elasticsearch-cli:${version}"
@@ -38,19 +38,38 @@ dependencyLicenses {
     ignoreSha 'sql-shared-client'
 }
 
+/*
+ * Bundle all dependencies into the main jar and mark it as executable it
+ * can be easilly shipped around and used.
+ */
 jar {
-    // Bundle all dependencies into the jar.
     from {
         configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
         configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
     }
-    // Make the jar "executable" with `java -jar`
     manifest {
         attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
     }
 }
 
+/*
+ * Build a jar that doesn't include the dependencies bundled that we can
+ * include with QA tests along side Elasticsearch without breaking
+ * jarhell.
+ */
+configurations {
+    nodeps
+}
+task nodepsJar(type: Jar) {
+    appendix 'nodeps'
+    from sourceSets.main.output
+}
+artifacts  {
+    nodeps nodepsJar
+}
+
 thirdPartyAudit.excludes = [
+    // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',
     'org.apache.sshd.client.auth.keyboard.UserInteraction',
     'org.apache.sshd.client.channel.ChannelShell',
@@ -75,7 +94,9 @@ thirdPartyAudit.excludes = [
     'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
     'org.apache.sshd.server.session.ServerSession',
     'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
-    'org.mozilla.universalchardet.UniversalDetector'
+    'org.mozilla.universalchardet.UniversalDetector',
+    'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
+    'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
 ]
 
 task runcli {

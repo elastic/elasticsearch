@@ -8,17 +8,13 @@ archivesBaseName = 'qa-sql'
 dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
-// TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
-    testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  // JDBC testing dependencies
+  // TODO: Restore shading when https://github.com/elastic/elasticsearch/issues/28504 is fixed
   compile xpackProject('plugin:sql:jdbc')
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
-  runtime "com.h2database:h2:1.4.194"
-  // used for running debug tests
-  runtime 'org.antlr:antlr4-runtime:4.5.3'
 
-  /* There are *no* CLI testing dependencies because we
-   * communicate with a fixture to fork a new CLI process
-   * when we need it. */
+  compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+  compile "org.jline:jline:3.6.0"
 }
 
 /* disable unit tests because these are all integration tests used
@@ -34,30 +30,50 @@ forbiddenApisMain {
 }
 
 thirdPartyAudit.excludes = [
-      // H2 dependencies that we don't actually use....
-      'javax.servlet.ServletConfig',
-      'javax.servlet.ServletContext',
-      'javax.servlet.ServletContextEvent',
-      'javax.servlet.ServletContextListener',
-      'javax.servlet.ServletOutputStream',
-      'javax.servlet.http.HttpServlet',
-      'javax.servlet.http.HttpServletRequest',
-      'javax.servlet.http.HttpServletResponse',
-      'org.apache.lucene.document.Field$Index',
-      'org.apache.lucene.queryParser.QueryParser',
-      'org.osgi.framework.BundleActivator',
-      'org.osgi.framework.BundleContext',
-      'org.osgi.service.jdbc.DataSourceFactory',
-      'org.slf4j.Logger',
-      'org.slf4j.LoggerFactory',
-    ]
+    // jLine's optional dependencies
+    'org.apache.sshd.client.SshClient',
+    'org.apache.sshd.client.auth.keyboard.UserInteraction',
+    'org.apache.sshd.client.channel.ChannelShell',
+    'org.apache.sshd.client.channel.ClientChannel',
+    'org.apache.sshd.client.channel.ClientChannelEvent',
+    'org.apache.sshd.client.future.AuthFuture',
+    'org.apache.sshd.client.future.ConnectFuture',
+    'org.apache.sshd.client.future.OpenFuture',
+    'org.apache.sshd.client.session.ClientSession',
+    'org.apache.sshd.common.Factory',
+    'org.apache.sshd.common.channel.PtyMode',
+    'org.apache.sshd.common.config.keys.FilePasswordProvider',
+    'org.apache.sshd.common.util.io.NoCloseInputStream',
+    'org.apache.sshd.common.util.io.NoCloseOutputStream',
+    'org.apache.sshd.server.Command',
+    'org.apache.sshd.server.Environment',
+    'org.apache.sshd.server.ExitCallback',
+    'org.apache.sshd.server.SessionAware',
+    'org.apache.sshd.server.Signal',
+    'org.apache.sshd.server.SshServer',
+    'org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider',
+    'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
+    'org.apache.sshd.server.session.ServerSession',
+    'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
+    'org.fusesource.jansi.Ansi',
+    'org.fusesource.jansi.internal.CLibrary$Termios',
+    'org.fusesource.jansi.internal.CLibrary$WinSize',
+    'org.fusesource.jansi.internal.CLibrary',
+    'org.fusesource.jansi.internal.Kernel32$CHAR_INFO',
+    'org.fusesource.jansi.internal.Kernel32$CONSOLE_SCREEN_BUFFER_INFO',
+    'org.fusesource.jansi.internal.Kernel32$COORD',
+    'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
+    'org.fusesource.jansi.internal.Kernel32$INPUT_RECORD',
+    'org.fusesource.jansi.internal.Kernel32$KEY_EVENT_RECORD',
+    'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
+    'org.fusesource.jansi.internal.Kernel32$SMALL_RECT',
+    'org.fusesource.jansi.internal.Kernel32',
+    'org.fusesource.jansi.internal.WindowsSupport',
+    'org.mozilla.universalchardet.UniversalDetector',
+]
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
-  configurations {
-    cliFixture
-    cliJar
-  }
   dependencies {
     /* Since we're a standalone rest test we actually get transitive
      * dependencies but we don't really want them because they cause
@@ -69,38 +85,27 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime(xpackProject('plugin:sql:jdbc'))
-    // TODO: Restore shading when https://github.com/elastic/elasticsearch/pull/27955 gets in
+    // TODO: Restore shading when https://github.com/elastic/elasticsearch/issues/28504 is fixed
+    testRuntime xpackProject('plugin:sql:jdbc')
     testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false
     }
     testRuntime("com.h2database:h2:1.4.194") {
       transitive = false
     }
+
+    // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {
       transitive = false
     }
 
-    cliFixture xpackProject('test:sql-cli-fixture')
-    cliJar(xpackProject('plugin:sql:sql-cli')) {
-      // We only need the jar file because it bundles all of its dependencies
-      transitive = false
-    }
+    testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
+    testRuntime "org.jline:jline:3.6.0"
   }
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
     apply plugin: 'elasticsearch.rest-test'
-
-    task cliFixture(type: org.elasticsearch.gradle.test.AntFixture) {
-      Project cli = xpackProject('plugin:sql:sql-cli')
-      dependsOn project.configurations.cliFixture
-      dependsOn project.configurations.cliJar
-      executable = new File(project.runtimeJavaHome, 'bin/java')
-      env 'CLASSPATH', "${ -> project.configurations.cliFixture.asPath }"
-      args 'org.elasticsearch.xpack.sql.cli.fixture.CliFixture',
-          baseDir, "${ -> project.configurations.cliJar.singleFile}"
-    }
 
     integTestCluster {
       plugin xpackProject('plugin').path
@@ -108,12 +113,6 @@ subprojects {
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'script.max_compilations_rate', '1000/1m'
-      dependsOn cliFixture
-    }
-
-    integTestRunner {
-      systemProperty 'tests.cli.fixture', "${ -> cliFixture.addressAndPort }"
-      finalizedBy cliFixture.stopTask
     }
 
     task runqa(type: RunTask) {
@@ -122,8 +121,6 @@ subprojects {
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'script.max_compilations_rate', '1000/1m'
-      dependsOn cliFixture
     }
-    runqa.finalizedBy cliFixture.stopTask
   }
 }

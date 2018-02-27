@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
 import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
 import java.io.IOException;
@@ -82,8 +83,8 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception {
             expectMatchesAdmin(adminSql, user, userSql, cli -> {
-                assertEquals("fetch size set to [90m1[0m", cli.command("fetch size = 1"));
-                assertEquals("fetch separator set to \"[90m -- fetch sep -- [0m\"",
+                assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m1[0m", cli.command("fetch size = 1"));
+                assertEquals("[?1l>[?1000l[?2004lfetch separator set to \"[90m -- fetch sep -- [0m\"",
                         cli.command("fetch separator = \" -- fetch sep -- \""));
             });
         }
@@ -157,7 +158,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectUnknownIndex(String user, String sql) throws Exception {
             try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
-                assertThat(cli.command(sql), containsString("Bad request"));
+                ErrorsTestCase.assertFoundOneProblem(cli.command(sql));
                 assertThat(cli.readLine(), containsString("Unknown index"));
             }
         }
@@ -176,13 +177,14 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
             try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
-                assertThat(cli.command(sql), containsString("[1;31mBad request"));
-                assertThat(cli.readLine(), containsString("Unknown column [" + column + "][1;23;31m][0m"));
+                ErrorsTestCase.assertFoundOneProblem(cli.command(sql));
+                assertThat(cli.readLine(), containsString("Unknown column [" + column + "]" + ErrorsTestCase.END));
             }
         }
 
         @Override
         public void checkNoMonitorMain(String user) throws Exception {
+            // Building the cli will attempt the connection and run the assertion
             @SuppressWarnings("resource")  // forceClose will close it
             RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user)) {
                 @Override

@@ -68,6 +68,10 @@ public class ConnectionBuilder {
             Path p = Paths.get(keystoreLocation);
             checkIfExists("keystore file", p);
             String keystorePassword = cliTerminal.readPassword("keystore password: ");
+            if (keystorePassword == null) {
+                throw new FatalCliException("readPassword shouldn't ever return null but ["
+                    + cliTerminal + "#readPassword] did!");
+            }
 
             /*
              * Set both the keystore and truststore settings which is required
@@ -87,6 +91,10 @@ public class ConnectionBuilder {
         if (user != null) {
             if (password == null) {
                 password = cliTerminal.readPassword("password: ");
+                if (password == null) {
+                    throw new FatalCliException("readPassword shouldn't ever return null but ["
+                        + cliTerminal + "#readPassword] did!");
+                }
             }
             properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
             properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);

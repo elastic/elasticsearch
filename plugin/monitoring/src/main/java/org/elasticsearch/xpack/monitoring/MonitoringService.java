@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -41,24 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MonitoringService extends AbstractLifecycleComponent {
 
     /**
-     * Log a deprecation warning if {@code value} is -1.
-     * <p>
-     * This should be removed in 7.0.
-     *
-     * @param value The value being set for the collection interval.
-     */
-    private static void deprecateMinusOne(final TimeValue value) {
-        if (TimeValue.MINUS_ONE.equals(value)) {
-            final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MonitoringService.class));
-
-            deprecationLogger.deprecated(
-                "Setting [xpack.monitoring.collection.interval] to [-1] has been deprecated as the way to disable collection. Use " +
-                "[xpack.monitoring.collection.enabled] set to [false] instead."
-            );
-        }
-    }
-
-    /**
      * Minimum value for sampling interval (1 second)
      */
     public static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
@@ -73,17 +53,9 @@ public class MonitoringService extends AbstractLifecycleComponent {
     /**
      * Sampling interval between two collections (default to 10s)
      */
-    public static final Setting<TimeValue> INTERVAL = new Setting<>("xpack.monitoring.collection.interval", "10s",
-            (s) -> {
-                TimeValue value = TimeValue.parseTimeValue(s, null, "xpack.monitoring.collection.interval");
-                if (TimeValue.MINUS_ONE.equals(value) || value.millis() >= MIN_INTERVAL.millis()) {
-                    deprecateMinusOne(value);
-
-                    return value;
-                }
-                throw new IllegalArgumentException("Failed to parse monitoring interval [" + s + "], value must be >= " + MIN_INTERVAL);
-            },
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> INTERVAL =
+            Setting.timeSetting("xpack.monitoring.collection.interval", TimeValue.timeValueSeconds(10), MIN_INTERVAL,
+                                Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     /** State of the monitoring service, either started or stopped **/
     private final AtomicBoolean started = new AtomicBoolean(false);
@@ -129,10 +101,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     }
 
     public boolean isMonitoringActive() {
-        return isStarted()
-                && enabled
-                && interval != null
-                && interval.millis() >= MIN_INTERVAL.millis();
+        return isStarted() && enabled;
     }
 
     private String threadPoolName() {

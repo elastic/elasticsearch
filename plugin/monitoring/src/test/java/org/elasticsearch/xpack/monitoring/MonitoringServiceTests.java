@@ -78,12 +78,6 @@ public class MonitoringServiceTests extends ESTestCase {
         monitoringService.setMonitoringActive(true);
         assertTrue(monitoringService.isMonitoringActive());
 
-        monitoringService.setInterval(TimeValue.MINUS_ONE);
-        assertFalse(monitoringService.isMonitoringActive());
-
-        monitoringService.setInterval(TimeValue.timeValueSeconds(10));
-        assertTrue(monitoringService.isMonitoringActive());
-
         monitoringService.stop();
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
@@ -100,31 +94,25 @@ public class MonitoringServiceTests extends ESTestCase {
     public void testInterval() throws Exception {
         final Settings settings =
                 Settings.builder()
-                        .put(MonitoringService.ENABLED.getKey(), true)
-                        .put(MonitoringService.INTERVAL.getKey(), TimeValue.MINUS_ONE)
+                        .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
                         .build();
 
         CountingExporter exporter = new CountingExporter();
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);
 
-        assertWarnings(
-            "Setting [xpack.monitoring.collection.interval] to [-1] has been deprecated as the way to disable collection. Use " +
-            "[xpack.monitoring.collection.enabled] set to [false] instead.");
-
         monitoringService.start();
         assertBusy(() -> assertTrue(monitoringService.isStarted()));
-        assertFalse("interval -1 does not start the monitoring execution", monitoringService.isMonitoringActive());
+        assertFalse("interval does not start the monitoring execution", monitoringService.isMonitoringActive());
         assertEquals(0, exporter.getExportsCount());
 
-        monitoringService.setInterval(TimeValue.timeValueSeconds(1));
+        monitoringService.setMonitoringActive(true);
         assertTrue(monitoringService.isMonitoringActive());
+
+        // now the interval should take place
         assertBusy(() -> assertThat(exporter.getExportsCount(), greaterThan(0)));
 
-        monitoringService.setInterval(TimeValue.timeValueMillis(100));
-        assertFalse(monitoringService.isMonitoringActive());
-
-        monitoringService.setInterval(TimeValue.MINUS_ONE);
-        assertFalse(monitoringService.isMonitoringActive());
+        // take down threads
+        monitoringService.setMonitoringActive(false);
     }
 
     public void testSkipExecution() throws Exception {
@@ -132,8 +120,8 @@ public class MonitoringServiceTests extends ESTestCase {
         final BlockingExporter exporter = new BlockingExporter(latch);
         final Settings settings =
                 Settings.builder()
-                        .put(MonitoringService.ENABLED.getKey(), true)
-                        .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
+                        .put("xpack.monitoring.collection.enabled", true)
+                        .put("xpack.monitoring.collection.interval", MonitoringService.MIN_INTERVAL)
                         .build();
 
         monitoringService = new MonitoringService(settings, clusterService, threadPool, emptySet(), exporter);

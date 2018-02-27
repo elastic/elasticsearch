@@ -171,12 +171,8 @@ public class JobManager extends AbstractComponent {
      */
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
-        // In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
-        // 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
-        // breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
-        // submitted
-        request.getJobBuilder().validateModelMemoryLimit(maxModelMemoryLimit);
 
+        request.getJobBuilder().validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
         request.getJobBuilder().validateCategorizationAnalyzer(analysisRegistry, environment);
 
         Job job = request.getJobBuilder().build(new Date());

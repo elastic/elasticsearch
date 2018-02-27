@@ -775,8 +775,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
+        public AnalysisLimits getAnalysisLimits() {
+             return analysisLimits;
+        }
+
         public Builder setAnalysisLimits(AnalysisLimits analysisLimits) {
-            this.analysisLimits = analysisLimits;
+            this.analysisLimits = ExceptionsHelper.requireNonNull(analysisLimits, ANALYSIS_LIMITS.getPreferredName());
             return this;
         }
 
@@ -1065,39 +1069,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
 
         /**
-         * In 6.1 we want to make the model memory size limit more prominent, and also reduce the default from
-         * 4GB to 1GB.  However, changing the meaning of a null model memory limit for existing jobs would be a
-         * breaking change, so instead we add an explicit limit to newly created jobs that didn't have one when
-         * submitted.
-         * Additionally the MAX_MODEL_MEM setting limits the value, an exception is thrown if the max limit
-         * is exceeded.
+         * This is meant to be called when a new job is created.
+         * It will optionally validate the model memory limit against the max limit
+         * and it will set the current version defaults to missing values.
          */
-        public void validateModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
-
-            boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
-            Long categorizationExampleLimit = null;
-            long modelMemoryLimit;
-            if (maxModelMemoryIsSet) {
-                modelMemoryLimit = Math.min(maxModelMemoryLimit.getMb(), AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
-            } else {
-                modelMemoryLimit = AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB;
-            }
-
-            if (analysisLimits != null) {
-                categorizationExampleLimit = analysisLimits.getCategorizationExamplesLimit();
-
-                if (analysisLimits.getModelMemoryLimit() != null) {
-                    modelMemoryLimit = analysisLimits.getModelMemoryLimit();
-
-                    if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
-                        throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                                new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
-                                maxModelMemoryLimit));
-                    }
-                }
-            }
-
-            analysisLimits = new AnalysisLimits(modelMemoryLimit, categorizationExampleLimit);
+        public void validateAnalysisLimitsAndSetDefaults(@Nullable ByteSizeValue maxModelMemoryLimit) {
+            analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
+                    AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
         }
 
         /**
@@ -1146,6 +1124,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
          * @return The job
          */
         public Job build() {
+
+            // If at the build stage there are missing values from analysis limits,
+            // it means we are reading a pre 6.3 job. Since 6.1, the model_memory_limit
+            // is always populated. So, if the value is missing, we fill with the pre 6.1
+            // default. We do not need to check against the max limit here so we pass null.
+            analysisLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, null,
+                    AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB);
 
             validateInputFields();
 

@@ -354,6 +354,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setModelPlotConfig(modelPlotConfig);
         }
         if (analysisLimits != null) {
+            AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
+                    AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
+
             Long oldMemoryLimit;
             if (source.getAnalysisLimits() != null) {
                 oldMemoryLimit = source.getAnalysisLimits().getModelMemoryLimit() != null ?
@@ -363,28 +366,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 oldMemoryLimit = UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT;
             }
 
-            Long newMemoryLimit = analysisLimits.getModelMemoryLimit() != null ?
-                    analysisLimits.getModelMemoryLimit()
-                    : oldMemoryLimit;
-
-            if (newMemoryLimit < oldMemoryLimit) {
+            if (validatedLimits.getModelMemoryLimit() < oldMemoryLimit) {
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
                                 new ByteSizeValue(oldMemoryLimit, ByteSizeUnit.MB),
-                                new ByteSizeValue(newMemoryLimit, ByteSizeUnit.MB)));
+                                new ByteSizeValue(validatedLimits.getModelMemoryLimit(), ByteSizeUnit.MB)));
             }
 
-            boolean maxModelMemoryLimitIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
-            if (maxModelMemoryLimitIsSet) {
-                Long modelMemoryLimit = analysisLimits.getModelMemoryLimit();
-                if (modelMemoryLimit != null && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                            new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
-                            maxModelMemoryLimit));
-                }
-            }
-
-            builder.setAnalysisLimits(analysisLimits);
+            builder.setAnalysisLimits(validatedLimits);
         }
         if (renormalizationWindowDays != null) {
             builder.setRenormalizationWindowDays(renormalizationWindowDays);

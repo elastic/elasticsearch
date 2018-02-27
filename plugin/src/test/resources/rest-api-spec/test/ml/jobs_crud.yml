@@ -53,6 +53,7 @@
           }
   - match: { job_id: "job-crud-test-apis" }
   - match: { analysis_limits.model_memory_limit: "1024mb" }
+  - match: { analysis_limits.categorization_examples_limit: 4 }
 
   - do:
       xpack.ml.get_jobs:

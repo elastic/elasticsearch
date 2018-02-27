@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -26,20 +27,21 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Analysis limits for autodetect
- * <p>
- * If an option has not been set it shouldn't be used so the default value is picked up instead.
+ * Analysis limits for autodetect. In particular,
+ * this is a collection of parameters that allow limiting
+ * the resources used by the job.
  */
 public class AnalysisLimits implements ToXContentObject, Writeable {
 
     /**
      * Prior to 6.1 the default model memory size limit was 4GB, and defined in the C++ code.  The default
-     * is now 1GB and defined here in the Java code.  However, changing the meaning of a null model memory
-     * limit for existing jobs would be a breaking change, so instead the meaning of <code>null</code> is
-     * still to use the default from the C++ code, but newly created jobs will have this explicit setting
-     * added if none is provided.
+     * is now 1GB and defined here in the Java code.  Prior to 6.3, a value of <code>null</code> means that
+     * the old default value should be used. From 6.3 onwards, the value will always be explicit.
      */
     static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
+    static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
+
+    static final long DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT = 4;
 
     /**
      * Serialisation field names
@@ -49,7 +51,9 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<AnalysisLimits, Void> METADATA_PARSER = new ConstructingObjectParser<>(
-            "analysis_limits", true, a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
+            "analysis_limits", true, a -> new AnalysisLimits(
+                    a[0] == null ? PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : (Long) a[0],
+                    a[1] == null ? DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT : (Long) a[1]));
     public static final ConstructingObjectParser<AnalysisLimits, Void> CONFIG_PARSER = new ConstructingObjectParser<>(
             "analysis_limits", false, a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
     public static final Map<MlParserType, ConstructingObjectParser<AnalysisLimits, Void>> PARSERS =
@@ -111,9 +115,52 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     }
 
     /**
+     * Creates a new {@code AnalysisLimits} object after validating it against external limitations
+     * and filling missing values with their defaults. Validations:
+     *
+     * <ul>
+     *   <li>check model memory limit doesn't exceed the MAX_MODEL_MEM setting</li>
+     * </ul>
+     *
+     * @param source an optional {@code AnalysisLimits} whose explicit values will be copied
+     * @param maxModelMemoryLimit the max allowed model memory limit
+     * @param defaultModelMemoryLimit the default model memory limit to be used if an explicit value is missing
+     * @return a new {@code AnalysisLimits} that is validated and has no missing values
+     */
+    public static AnalysisLimits validateAndSetDefaults(@Nullable AnalysisLimits source, @Nullable ByteSizeValue maxModelMemoryLimit,
+                                                        long defaultModelMemoryLimit) {
+
+        boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
+
+        long modelMemoryLimit = defaultModelMemoryLimit;
+        if (maxModelMemoryIsSet) {
+            modelMemoryLimit = Math.min(maxModelMemoryLimit.getMb(), modelMemoryLimit);
+        }
+
+        long categorizationExamplesLimit = DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT;
+
+        if (source != null) {
+            if (source.getModelMemoryLimit() != null) {
+                modelMemoryLimit = source.getModelMemoryLimit();
+            }
+            if (source.getCategorizationExamplesLimit() != null) {
+                categorizationExamplesLimit = source.getCategorizationExamplesLimit();
+            }
+        }
+
+        if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
+                    new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
+                    maxModelMemoryLimit));
+        }
+
+        return new AnalysisLimits(modelMemoryLimit, categorizationExamplesLimit);
+    }
+
+    /**
      * Maximum size of the model in MB before the anomaly detector
      * will drop new samples to prevent the model using any more
-     * memory
+     * memory.
      *
      * @return The set memory limit or <code>null</code> if not set
      */

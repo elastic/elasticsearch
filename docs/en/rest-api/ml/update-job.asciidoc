@@ -141,7 +141,8 @@ information, including the updated property values. For example:
     "influencers": []
   },
   "analysis_limits": {
-    "model_memory_limit": "1024mb"
+    "model_memory_limit": "1024mb",
+    "categorization_examples_limit": 4
   },
   "data_description": {
     "time_field": "timestamp",

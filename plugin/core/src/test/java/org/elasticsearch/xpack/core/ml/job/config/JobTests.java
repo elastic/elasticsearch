@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -95,7 +96,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals("foo", job.getId());
         assertNotNull(job.getCreateTime());
         assertNotNull(job.getAnalysisConfig());
-        assertNull(job.getAnalysisLimits());
+        assertNotNull(job.getAnalysisLimits());
         assertNull(job.getCustomSettings());
         assertNotNull(job.getDataDescription());
         assertNull(job.getDescription());
@@ -116,42 +117,41 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testEnsureModelMemoryLimitSet() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setAnalysisLimits(null);
-        builder.validateModelMemoryLimit(new ByteSizeValue(0L));
+        builder.setAnalysisLimits(new AnalysisLimits(null, null));
+        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(0L));
         Job job = builder.build();
         assertEquals("foo", job.getId());
         assertNotNull(job.getAnalysisLimits());
         assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
-        assertNull(job.getAnalysisLimits().getCategorizationExamplesLimit());
+        assertThat(job.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
 
-        builder.setAnalysisLimits(new AnalysisLimits(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB * 2, 4L));
-        builder.validateModelMemoryLimit(null);
+        builder.setAnalysisLimits(new AnalysisLimits(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB * 2, 5L));
+        builder.validateAnalysisLimitsAndSetDefaults(null);
         job = builder.build();
         assertNotNull(job.getAnalysisLimits());
         assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB * 2));
-        assertThat(job.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
+        assertThat(job.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
     }
 
-    public void testValidateModelMemoryLimit_whenMaxIsLessThanTheDefault() {
+    public void testValidateAnalysisLimitsAndSetDefaults_whenMaxIsLessThanTheDefault() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setAnalysisLimits(null);
-        builder.validateModelMemoryLimit(new ByteSizeValue(512L, ByteSizeUnit.MB));
+        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(512L, ByteSizeUnit.MB));
 
         Job job = builder.build();
         assertNotNull(job.getAnalysisLimits());
         assertThat(job.getAnalysisLimits().getModelMemoryLimit(), equalTo(512L));
-        assertNull(job.getAnalysisLimits().getCategorizationExamplesLimit());
+        assertThat(job.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(4L));
     }
 
-    public void testValidateModelMemoryLimit_throwsWhenMaxLimitIsExceeded() {
+    public void testValidateAnalysisLimitsAndSetDefaults_throwsWhenMaxLimitIsExceeded() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setAnalysisLimits(new AnalysisLimits(4096L, null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> builder.validateModelMemoryLimit(new ByteSizeValue(1000L, ByteSizeUnit.MB)));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(1000L, ByteSizeUnit.MB)));
         assertEquals("model_memory_limit [4gb] must be less than the value of the " +
                 MachineLearningField.MAX_MODEL_MEMORY_LIMIT.getKey() + " setting [1000mb]", e.getMessage());
 
-        builder.validateModelMemoryLimit(new ByteSizeValue(8192L, ByteSizeUnit.MB));
+        builder.validateAnalysisLimitsAndSetDefaults(new ByteSizeValue(8192L, ByteSizeUnit.MB));
     }
 
     public void testEquals_GivenDifferentClass() {
@@ -633,7 +633,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setEstablishedModelMemory(randomNonNegativeLong());
         }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
-        builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
+        builder.setAnalysisLimits(AnalysisLimits.validateAndSetDefaults(AnalysisLimitsTests.createRandomized(), null,
+                AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));

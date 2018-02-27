@@ -20,6 +20,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
@@ -227,16 +228,18 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setAnalysisConfig(ac);
         jobBuilder.setDataDescription(new DataDescription.Builder());
         jobBuilder.setCreateTime(new Date());
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(null);
 
-        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(null, null)).build();
+        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, 5L)).build();
         Job updated = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
-        assertNull(updated.getAnalysisLimits().getModelMemoryLimit());
+        assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
+        assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
 
-        JobUpdate updateWithLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, null)).build();
+        JobUpdate updateWithDecreasedLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(1023L, null)).build();
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> updateWithLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(8000L, ByteSizeUnit.MB)));
-        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 4gb, update had 2gb",
+                () -> updateWithDecreasedLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(8000L, ByteSizeUnit.MB)));
+        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 1gb, update had 1023mb",
                 e.getMessage());
 
         JobUpdate updateAboveMaxLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(8000L, null)).build();

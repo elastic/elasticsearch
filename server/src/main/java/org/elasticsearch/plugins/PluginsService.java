@@ -326,7 +326,7 @@ public class PluginsService extends AbstractComponent {
         public Collection<Bundle> bundles() {
             return bundles;
         }
-        
+
     }
 
     /**
@@ -356,6 +356,12 @@ public class PluginsService extends AbstractComponent {
         final List<Path> plugins = new ArrayList<>();
         final Map<String, List<Path>> metaPlugins = new LinkedHashMap<>();
         final Set<String> seen = new HashSet<>();
+        DirectoryStream.Filter<Path> dirFilter =
+            new DirectoryStream.Filter<Path>() {
+                public boolean accept(Path path) {
+                    return Files.isDirectory(path);
+                }
+            };
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
@@ -368,12 +374,8 @@ public class PluginsService extends AbstractComponent {
                     }
                     if (MetaPluginInfo.isMetaPlugin(plugin)) {
                         final String name = plugin.getFileName().toString();
-                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin)) {
+                        try (DirectoryStream<Path> subStream = Files.newDirectoryStream(plugin, dirFilter)) {
                             for (Path subPlugin : subStream) {
-                                if (MetaPluginInfo.isPropertiesFile(subPlugin) ||
-                                        FileSystemUtils.isDesktopServicesStore(subPlugin)) {
-                                    continue;
-                                }
                                 if (seen.add(subPlugin.getFileName().toString()) == false) {
                                     throw new IllegalStateException("duplicate plugin: " + subPlugin);
                                 }

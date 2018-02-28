@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.qa.sql.security;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
-import org.elasticsearch.xpack.qa.sql.cli.RemoteCli;
-import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli;
+import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -66,7 +66,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void queryWorksAsAdmin() throws Exception {
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, adminSecurityConfig())) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, adminSecurityConfig())) {
                 assertThat(cli.command("SELECT * FROM test ORDER BY a"), containsString("a       |       b       |       c"));
                 assertEquals("---------------+---------------+---------------", cli.readLine());
                 assertThat(cli.readLine(), containsString("1              |2              |3"));
@@ -90,9 +90,9 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         }
 
         public void expectMatchesAdmin(String adminSql, String user, String userSql,
-                CheckedConsumer<RemoteCli, Exception> customizer) throws Exception {
+                CheckedConsumer<EmbeddedCli, Exception> customizer) throws Exception {
             List<String> adminResult = new ArrayList<>();
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, adminSecurityConfig())) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, adminSecurityConfig())) {
                 customizer.accept(cli);
                 adminResult.add(cli.command(adminSql));
                 String line;
@@ -104,7 +104,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
             }
 
             Iterator<String> expected = adminResult.iterator();
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 customizer.accept(cli);
                 assertTrue(expected.hasNext());
                 assertEquals(expected.next(), cli.command(userSql));
@@ -122,7 +122,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectDescribe(Map<String, String> columns, String user) throws Exception {
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 assertThat(cli.command("DESCRIBE test"), containsString("column     |     type"));
                 assertEquals("---------------+---------------", cli.readLine());
                 for (Map.Entry<String, String> column : columns.entrySet()) {
@@ -134,7 +134,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectShowTables(List<String> tables, String user) throws Exception {
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 String tablesOutput = cli.command("SHOW TABLES");
                 assertThat(tablesOutput, containsString("name"));
                 assertThat(tablesOutput, containsString("type"));
@@ -157,7 +157,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
 
         @Override
         public void expectUnknownIndex(String user, String sql) throws Exception {
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 ErrorsTestCase.assertFoundOneProblem(cli.command(sql));
                 assertThat(cli.readLine(), containsString("Unknown index"));
             }
@@ -169,14 +169,14 @@ public class CliSecurityIT extends SqlSecurityTestCase {
              * Cause the CLI to skip its connection test on startup so we
              * can get a forbidden exception when we run the query.
              */
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), false, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), false, userSecurity(user))) {
                 assertThat(cli.command(sql), containsString("is unauthorized for user [" + user + "]"));
             }
         }
 
         @Override
         public void expectUnknownColumn(String user, String sql, String column) throws Exception {
-            try (RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user))) {
+            try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
                 ErrorsTestCase.assertFoundOneProblem(cli.command(sql));
                 assertThat(cli.readLine(), containsString("Unknown column [" + column + "]" + ErrorsTestCase.END));
             }
@@ -186,7 +186,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         public void checkNoMonitorMain(String user) throws Exception {
             // Building the cli will attempt the connection and run the assertion
             @SuppressWarnings("resource")  // forceClose will close it
-            RemoteCli cli = new RemoteCli(elasticsearchAddress(), true, userSecurity(user)) {
+            EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user)) {
                 @Override
                 protected void assertConnectionTest() throws IOException {
                     assertThat(readLine(), containsString("action [cluster:monitor/main] is unauthorized for user [" + user + "]"));

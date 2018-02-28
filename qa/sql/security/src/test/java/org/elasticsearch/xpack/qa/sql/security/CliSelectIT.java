@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.qa.sql.cli.SelectTestCase;
 
 public class CliSelectIT extends SelectTestCase {

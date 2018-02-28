@@ -58,9 +58,8 @@ import static org.junit.Assert.fail;
  * the CLI using packaging tests which is super "real" but not super fast
  * and doesn't run super frequently.
  */
-public class RemoteCli implements Closeable {
-    // TODO rename this class to EmbeddedCli very soon
-    private static final Logger logger = Loggers.getLogger(RemoteCli.class);
+public class EmbeddedCli implements Closeable {
+    private static final Logger logger = Loggers.getLogger(EmbeddedCli.class);
 
     private final Thread exec;
     private final Cli cli;
@@ -73,7 +72,7 @@ public class RemoteCli implements Closeable {
      */
     private boolean closed = false;
 
-    public RemoteCli(String elasticsearchAddress, boolean checkConnectionOnStartup,
+    public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup,
             @Nullable SecurityConfig security) throws IOException {
         PipedOutputStream outgoing = new PipedOutputStream();
         PipedInputStream cliIn = new PipedInputStream(outgoing);

@@ -70,10 +70,10 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[refresh-response]
 --------------------------------------------------
-<1> total number of shards hit by the refresh request
-<2> number of shards where the refresh has succeeded
-<3> number of shards where the refresh has failed
-<4> a list of failures if the operation failed on one or more shards
+<1> Total number of shards hit by the refresh request
+<2> Number of shards where the refresh has succeeded
+<3> Number of shards where the refresh has failed
+<4> A list of failures if the operation failed on one or more shards
 
 By default, if the indices were not found, an `ElasticsearchException` will be thrown:
 

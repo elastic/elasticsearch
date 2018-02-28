@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.cli.FetchSizeTestCase;
-import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
 
 public class CliFetchSizeIT extends FetchSizeTestCase {
     @Override

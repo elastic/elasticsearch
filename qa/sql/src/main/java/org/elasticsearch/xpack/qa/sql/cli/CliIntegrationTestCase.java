@@ -12,7 +12,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.qa.sql.cli.RemoteCli.SecurityConfig;
+import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
 import org.junit.After;
 import org.junit.Before;
 
@@ -31,14 +31,14 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         return cluster.split(",")[0];
     }
 
-    private RemoteCli cli;
+    private EmbeddedCli cli;
 
     /**
      * Asks the CLI Fixture to start a CLI instance.
      */
     @Before
     public void startCli() throws IOException {
-        cli = new RemoteCli(CliIntegrationTestCase.elasticsearchAddress(), true, securityConfig());
+        cli = new EmbeddedCli(CliIntegrationTestCase.elasticsearchAddress(), true, securityConfig());
     }
 
     @After

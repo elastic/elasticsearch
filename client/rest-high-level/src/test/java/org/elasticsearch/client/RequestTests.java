@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -533,6 +534,21 @@ public class RequestTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
+    }
+
+    public void testRefresh() {
+        String[] indices = randomIndicesNames(1, 5);
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(refreshRequest::indicesOptions, refreshRequest::indicesOptions, expectedParams);
+
+        Request request = Request.refresh(refreshRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_refresh");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
     }
 
     public void testUpdate() throws IOException {
@@ -1058,7 +1074,7 @@ public class RequestTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
         assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
     }
-    
+
     public void testRankEval() throws Exception {
         RankEvalSpec spec = new RankEvalSpec(
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),
@@ -1130,7 +1146,7 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(resizeRequest, request.getEntity());
     }
-    
+
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();

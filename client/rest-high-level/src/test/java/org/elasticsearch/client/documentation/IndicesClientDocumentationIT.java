@@ -38,12 +38,15 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -617,6 +620,74 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::open-index-notfound
+        }
+    }
+
+    public void testRefreshIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::refresh-request
+            RefreshRequest request = new RefreshRequest("index1"); // <1>
+            RefreshRequest requestMultiple = new RefreshRequest("index1", "index2"); // <2>
+            RefreshRequest requestAll = new RefreshRequest(); // <3>
+            // end::refresh-request
+
+            // tag::refresh-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::refresh-request-indicesOptions
+
+            // tag::refresh-execute
+            RefreshResponse refreshResponse = client.indices().refresh(request);
+            // end::refresh-execute
+
+            // tag::refresh-response
+            int totalShards = refreshResponse.getTotalShards(); // <1>
+            int successfulShards = refreshResponse.getSuccessfulShards(); // <2>
+            int failedShards = refreshResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = refreshResponse.getShardFailures(); // <4>
+            // end::refresh-response
+
+            // tag::refresh-execute-listener
+            ActionListener<RefreshResponse> listener = new ActionListener<RefreshResponse>() {
+                @Override
+                public void onResponse(RefreshResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::refresh-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::refresh-execute-async
+            client.indices().refreshAsync(request, listener); // <1>
+            // end::refresh-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::refresh-notfound
+            try {
+                RefreshRequest request = new RefreshRequest("does_not_exist");
+                client.indices().refresh(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::refresh-notfound
         }
     }
 

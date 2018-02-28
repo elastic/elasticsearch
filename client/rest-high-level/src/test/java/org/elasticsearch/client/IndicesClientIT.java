@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -406,6 +408,32 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             RefreshRequest refreshRequest = new RefreshRequest(nonExistentIndex);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+    public void testFlush() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            FlushRequest flushRequest = new FlushRequest(index);
+            FlushResponse flushResponse =
+                    execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync);
+            assertThat(flushResponse.getTotalShards(), equalTo(1));
+            assertThat(flushResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(flushResponse.getFailedShards(), equalTo(0));
+            assertThat(flushResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            FlushRequest refreshRequest = new FlushRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(refreshRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }

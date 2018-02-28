@@ -35,11 +35,11 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-... will be splitted in `new york city` and `big apple` and each part is then
+... will be split into `new york city` and `big apple` and each part is then
 analyzed independently by the analyzer configured for the field.
 
-WARNING: Whitespaces are not considered as operators, this means that `new york city`
-will be pass "as is" to the analyzer configured for the field. If the field is a `keyword`
+WARNING: Whitespaces are not considered operators, this means that `new york city`
+will be passed "as is" to the analyzer configured for the field. If the field is a `keyword`
 field the analyzer will create a single term `new york city` and the query builder will
 use this term in the query. If you want to query each term separately you need to add explicit
 operators around the terms (e.g. `new AND york AND city`).

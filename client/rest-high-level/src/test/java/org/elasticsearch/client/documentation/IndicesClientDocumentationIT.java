@@ -38,12 +38,15 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -66,8 +69,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class is used to generate the Java Indices API documentation.
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  *
  * Where example is your tag name.
  *
@@ -76,6 +79,10 @@ import java.util.concurrent.TimeUnit;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
+ *
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -207,7 +214,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-listener
-            ActionListener<DeleteIndexResponse> listener = new ActionListener<DeleteIndexResponse>() {
+            ActionListener<DeleteIndexResponse> listener =
+                    new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -378,7 +386,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CreateIndexRequest request = new CreateIndexRequest("twitter");
 
             // tag::create-index-execute-listener
-            ActionListener<CreateIndexResponse> listener = new ActionListener<CreateIndexResponse>() {
+            ActionListener<CreateIndexResponse> listener =
+                    new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -507,7 +516,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
 
             // tag::put-mapping-execute-listener
-            ActionListener<PutMappingResponse> listener = new ActionListener<PutMappingResponse>() {
+            ActionListener<PutMappingResponse> listener =
+                    new ActionListener<PutMappingResponse>() {
                 @Override
                 public void onResponse(PutMappingResponse putMappingResponse) {
                     // <1>
@@ -574,7 +584,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(shardsAcked);
 
             // tag::open-index-execute-listener
-            ActionListener<OpenIndexResponse> listener = new ActionListener<OpenIndexResponse>() {
+            ActionListener<OpenIndexResponse> listener =
+                    new ActionListener<OpenIndexResponse>() {
                 @Override
                 public void onResponse(OpenIndexResponse openIndexResponse) {
                     // <1>
@@ -609,6 +620,74 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::open-index-notfound
+        }
+    }
+
+    public void testRefreshIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::refresh-request
+            RefreshRequest request = new RefreshRequest("index1"); // <1>
+            RefreshRequest requestMultiple = new RefreshRequest("index1", "index2"); // <2>
+            RefreshRequest requestAll = new RefreshRequest(); // <3>
+            // end::refresh-request
+
+            // tag::refresh-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::refresh-request-indicesOptions
+
+            // tag::refresh-execute
+            RefreshResponse refreshResponse = client.indices().refresh(request);
+            // end::refresh-execute
+
+            // tag::refresh-response
+            int totalShards = refreshResponse.getTotalShards(); // <1>
+            int successfulShards = refreshResponse.getSuccessfulShards(); // <2>
+            int failedShards = refreshResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = refreshResponse.getShardFailures(); // <4>
+            // end::refresh-response
+
+            // tag::refresh-execute-listener
+            ActionListener<RefreshResponse> listener = new ActionListener<RefreshResponse>() {
+                @Override
+                public void onResponse(RefreshResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::refresh-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::refresh-execute-async
+            client.indices().refreshAsync(request, listener); // <1>
+            // end::refresh-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::refresh-notfound
+            try {
+                RefreshRequest request = new RefreshRequest("does_not_exist");
+                client.indices().refresh(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::refresh-notfound
         }
     }
 
@@ -648,7 +727,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<CloseIndexResponse> listener = new ActionListener<CloseIndexResponse>() {
+            ActionListener<CloseIndexResponse> listener =
+                    new ActionListener<CloseIndexResponse>() {
                 @Override
                 public void onResponse(CloseIndexResponse closeIndexResponse) {
                     // <1>
@@ -686,7 +766,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::exists-alias-request
             GetAliasesRequest request = new GetAliasesRequest();
             GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
-            GetAliasesRequest requestWithAliases = new GetAliasesRequest(new String[]{"alias1", "alias2"});
+            GetAliasesRequest requestWithAliases =
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
             // end::exists-alias-request
 
             // tag::exists-alias-request-alias
@@ -860,7 +941,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 2)); // <1>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -929,7 +1011,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::split-index-request-waitForActiveShards
         // tag::split-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::split-index-request-settings
         // tag::split-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1001,7 +1084,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.getCreateIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::rollover-request-waitForActiveShards
         // tag::rollover-request-settings
-        request.getCreateIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getCreateIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::rollover-request-settings
         // tag::rollover-request-mapping
         request.getCreateIndexRequest().mapping("type", "field", "type=keyword"); // <1>

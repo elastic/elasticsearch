@@ -23,6 +23,18 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-request-indi
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-request-wait]
+--------------------------------------------------
+<1> Set the `wait_if_ongoing` flag to `true`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-request-force]
+--------------------------------------------------
+<1> Set the `force` flag to `true`
+
 [[java-rest-high-flush-sync]]
 ==== Synchronous Execution
 

@@ -711,6 +711,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
             // end::flush-request-indicesOptions
 
+            // tag::flush-request-wait
+            request.waitIfOngoing(true); // <1>
+            // end::flush-request-wait
+
+            // tag::flush-request-force
+            request.force(true); // <1>
+            // end::flush-request-force
+
             // tag::flush-execute
             FlushResponse flushResponse = client.indices().flush(request);
             // end::flush-execute

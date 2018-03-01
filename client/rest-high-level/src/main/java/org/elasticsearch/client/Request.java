@@ -35,6 +35,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -219,10 +220,17 @@ public final class Request {
 
     static Request refresh(RefreshRequest refreshRequest) {
         String endpoint = endpoint(refreshRequest.indices(), "_refresh");
-
         Params parameters = Params.builder();
         parameters.withIndicesOptions(refreshRequest.indicesOptions());
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
 
+    static Request flush(FlushRequest flushRequest) {
+        String endpoint = endpoint(flushRequest.indices(), "_flush");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(flushRequest.indicesOptions());
+        parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
+        parameters.putParam("force", Boolean.toString(flushRequest.force()));
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 

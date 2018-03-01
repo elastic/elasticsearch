@@ -10,6 +10,11 @@ This call will block until the merge is complete. If the http connection is
 lost, the request will continue in the background, and any new requests will
 block until the previous force merge is complete.
 
+WARNING: Force merge should only be called against *read-only indices*. Running 
+force merge against a read-write index can cause very large segments to be produced 
+(>5Gb per segment), and the merge policy will never consider it for merging again until 
+it mostly consists of deleted docs. This can cause very large segments to remain in the shards.
+
 [source,js]
 --------------------------------------------------
 POST /twitter/_forcemerge

@@ -27,16 +27,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * REST handler to report on index recoveries.
@@ -61,17 +59,13 @@ public class RestRecoveryAction extends BaseRestHandler {
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        return channel -> client.admin().indices().recoveries(recoveryRequest, new RestBuilderListener<RecoveryResponse>(channel) {
+        return channel -> client.admin().indices().recoveries(recoveryRequest, new RestToXContentListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(RecoveryResponse response, XContentBuilder builder) throws Exception {
                 response.detailed(recoveryRequest.detailed());
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return super.buildResponse(response, builder);
             }
         });
-
     }
 }
 

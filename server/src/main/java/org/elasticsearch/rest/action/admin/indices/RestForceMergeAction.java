@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -58,14 +59,6 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
-        return channel -> client.admin().indices().forceMerge(mergeRequest, new RestBuilderListener<ForceMergeResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ForceMergeResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
     }
 }

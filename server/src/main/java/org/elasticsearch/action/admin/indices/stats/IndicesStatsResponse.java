@@ -24,9 +24,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ import java.util.Set;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class IndicesStatsResponse extends BroadcastResponse implements ToXContentFragment {
+public class IndicesStatsResponse extends BroadcastResponse {
 
     private ShardStats[] shards;
 
@@ -154,7 +154,8 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
             throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
 
-
+        builder.startObject();
+        RestActions.buildBroadcastShardsHeader(builder, params, this);
         builder.startObject("_all");
 
         builder.startObject("primaries");
@@ -197,7 +198,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
             }
             builder.endObject();
         }
-
+        builder.endObject();
         return builder;
     }
 

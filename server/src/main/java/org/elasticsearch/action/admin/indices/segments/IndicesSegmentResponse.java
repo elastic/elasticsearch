@@ -29,9 +29,9 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class IndicesSegmentResponse extends BroadcastResponse implements ToXContentFragment {
+public class IndicesSegmentResponse extends BroadcastResponse {
 
     private ShardSegments[] shards;
 
@@ -104,6 +104,8 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        RestActions.buildBroadcastShardsHeader(builder, params, this);
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
@@ -172,6 +174,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
             builder.endObject();
         }
 
+        builder.endObject();
         builder.endObject();
         return builder;
     }

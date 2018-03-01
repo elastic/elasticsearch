@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
@@ -37,7 +36,7 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BroadcastResponse implements ToXContentFragment {
+public class RecoveryResponse extends BroadcastResponse {
 
     private boolean detailed = false;
     private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
@@ -87,6 +86,7 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
                 if (recoveryStates == null || recoveryStates.size() == 0) {
                     continue;
                 }
+                builder.startObject();
                 builder.startObject(index);
                 builder.startArray("shards");
                 for (RecoveryState recoveryState : recoveryStates) {
@@ -95,6 +95,7 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
                     builder.endObject();
                 }
                 builder.endArray();
+                builder.endObject();
                 builder.endObject();
             }
         }

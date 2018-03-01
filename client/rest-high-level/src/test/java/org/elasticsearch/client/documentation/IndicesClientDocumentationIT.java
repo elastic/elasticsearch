@@ -33,6 +33,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -688,6 +690,82 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::refresh-notfound
+        }
+    }
+
+    public void testFlushIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::flush-request
+            FlushRequest request = new FlushRequest("index1"); // <1>
+            FlushRequest requestMultiple = new FlushRequest("index1", "index2"); // <2>
+            FlushRequest requestAll = new FlushRequest(); // <3>
+            // end::flush-request
+
+            // tag::flush-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::flush-request-indicesOptions
+
+            // tag::flush-request-wait
+            request.waitIfOngoing(true); // <1>
+            // end::flush-request-wait
+
+            // tag::flush-request-force
+            request.force(true); // <1>
+            // end::flush-request-force
+
+            // tag::flush-execute
+            FlushResponse flushResponse = client.indices().flush(request);
+            // end::flush-execute
+
+            // tag::flush-response
+            int totalShards = flushResponse.getTotalShards(); // <1>
+            int successfulShards = flushResponse.getSuccessfulShards(); // <2>
+            int failedShards = flushResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = flushResponse.getShardFailures(); // <4>
+            // end::flush-response
+
+            // tag::flush-execute-listener
+            ActionListener<FlushResponse> listener = new ActionListener<FlushResponse>() {
+                @Override
+                public void onResponse(FlushResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::flush-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::flush-execute-async
+            client.indices().flushAsync(request, listener); // <1>
+            // end::flush-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::flush-notfound
+            try {
+                FlushRequest request = new FlushRequest("does_not_exist");
+                client.indices().flush(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::flush-notfound
         }
     }
 

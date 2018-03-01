@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.refresh;
+package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
@@ -25,16 +25,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.List;
 
-public class RefreshResponseTests extends AbstractBroadcastResponseTestCase<RefreshResponse> {
+public class FlushResponseTests extends AbstractBroadcastResponseTestCase<FlushResponse> {
 
     @Override
-    protected RefreshResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                 List<DefaultShardOperationFailedException> failures) {
-        return new RefreshResponse(totalShards, successfulShards, failedShards, failures);
+    protected FlushResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
+                                               List<DefaultShardOperationFailedException> failures) {
+        return new FlushResponse(totalShards, successfulShards, failedShards, failures);
     }
 
     @Override
-    protected RefreshResponse doParseInstance(XContentParser parser) {
-        return RefreshResponse.fromXContent(parser);
+    protected FlushResponse doParseInstance(XContentParser parser) {
+        return FlushResponse.fromXContent(parser);
     }
 }

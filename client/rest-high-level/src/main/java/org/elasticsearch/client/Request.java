@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -231,6 +232,17 @@ public final class Request {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest) {
+        String endpoint = endpoint(clearIndicesCacheRequest.indices(), "_cache", "clear");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(clearIndicesCacheRequest.indicesOptions());
+        parameters.putParam("query", Boolean.toString(clearIndicesCacheRequest.queryCache()));
+        parameters.putParam("fielddata", Boolean.toString(clearIndicesCacheRequest.fieldDataCache()));
+        parameters.putParam("request", Boolean.toString(clearIndicesCacheRequest.requestCache()));
+        parameters.putParam("fields", String.join(",", clearIndicesCacheRequest.fields()));
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 

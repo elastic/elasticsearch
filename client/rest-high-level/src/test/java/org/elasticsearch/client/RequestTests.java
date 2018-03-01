@@ -34,6 +34,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -574,6 +575,40 @@ public class RequestTests extends ESTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testClearCache() {
+        String[] indices = randomIndicesNames(0, 5);
+        ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(clearIndicesCacheRequest::indicesOptions, clearIndicesCacheRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            clearIndicesCacheRequest.queryCache(randomBoolean());
+        }
+        expectedParams.put("query", Boolean.toString(clearIndicesCacheRequest.queryCache()));
+        if (randomBoolean()) {
+            clearIndicesCacheRequest.fieldDataCache(randomBoolean());
+        }
+        expectedParams.put("fielddata", Boolean.toString(clearIndicesCacheRequest.fieldDataCache()));
+        if (randomBoolean()) {
+            clearIndicesCacheRequest.requestCache(randomBoolean());
+        }
+        expectedParams.put("request", Boolean.toString(clearIndicesCacheRequest.requestCache()));
+        if (randomBoolean()) {
+            clearIndicesCacheRequest.fields(randomIndicesNames(1, 5));
+            expectedParams.put("fields", String.join(",", clearIndicesCacheRequest.fields()));
+        }
+
+        Request request = Request.clearCache(clearIndicesCacheRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_cache/clear");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());

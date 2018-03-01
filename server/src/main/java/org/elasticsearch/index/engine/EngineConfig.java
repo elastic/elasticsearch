@@ -26,7 +26,10 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -52,6 +55,8 @@ import java.util.function.LongSupplier;
  * object will affect the {@link Engine} instance.
  */
 public final class EngineConfig {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(EngineConfig.class));
+
     private final ShardId shardId;
     private final String allocationId;
     private final IndexSettings indexSettings;
@@ -109,6 +114,7 @@ public final class EngineConfig {
      * this setting won't be reflected re-enabled optimization until the engine is restarted or the index is closed and reopened.
      * The default is <code>true</code>
      */
+    @Deprecated
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
         Property.IndexScope, Property.Dynamic);
 
@@ -130,6 +136,11 @@ public final class EngineConfig {
                         LongSupplier globalCheckpointSupplier) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_rc1)
+            && INDEX_OPTIMIZE_AUTO_GENERATED_IDS.exists(indexSettings.getSettings())) {
+            DEPRECATION_LOGGER.deprecated(
+                "Setting [" + INDEX_OPTIMIZE_AUTO_GENERATED_IDS.getKey() + "] has been deprecated in favor of the auto-ID optimization");
         }
         this.shardId = shardId;
         this.allocationId = allocationId;

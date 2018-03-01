@@ -31,7 +31,7 @@ import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -74,7 +74,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     // Use only for testing
     static MockGoogleCredential.Builder newMockCredentialBuilder() {
         // TODO: figure out why GCE is so bad like this
-        return Access.doPrivileged(MockGoogleCredential.Builder::new);
+        return SocketAccess.doPrivileged(MockGoogleCredential.Builder::new);
     }
 
     @Override

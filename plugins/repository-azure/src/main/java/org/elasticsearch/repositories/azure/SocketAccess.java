@@ -35,29 +35,12 @@ import java.security.PrivilegedExceptionAction;
  * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-public final class SocketAccess {
+final class SocketAccess extends org.elasticsearch.common.SocketAccess {
 
     private SocketAccess() {}
 
-    public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(operation);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
-    }
-
-    public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException, URISyntaxException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(operation);
-        } catch (PrivilegedActionException e) {
-            throw (StorageException) e.getCause();
-        }
-    }
-
-    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
+    // parent class can't handle multiple unrelated exceptions.
+    static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
@@ -75,7 +58,7 @@ public final class SocketAccess {
     }
 
     @FunctionalInterface
-    public interface StorageRunnable {
+    interface StorageRunnable {
         void executeCouldThrow() throws StorageException, URISyntaxException, IOException;
     }
 

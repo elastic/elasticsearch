@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -98,9 +99,9 @@ class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            URLConnection urlConnection = SocketAccess.doPrivilegedException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
-            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+            in = SocketAccess.doPrivilegedException(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
             String metadataResult = urlReader.readLine();

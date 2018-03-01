@@ -28,7 +28,7 @@ import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
-import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -64,7 +64,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        Access.doPrivilegedVoid( () -> ClassInfo.of(HttpHeaders.class, true));
+        SocketAccess.doPrivilegedVoid( () -> ClassInfo.of(HttpHeaders.class, true));
     }
 
     public GceDiscoveryPlugin(Settings settings) {

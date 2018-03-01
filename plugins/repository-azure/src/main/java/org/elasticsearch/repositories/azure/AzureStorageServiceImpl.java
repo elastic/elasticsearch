@@ -35,6 +35,7 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+// import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -244,8 +245,9 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            SocketAccess.doPrivilegedVoidException(() -> azureBlob.delete(DeleteSnapshotsOption.NONE, null, null,
-                generateOperationContext(account)));
+            SocketAccess.doPrivilegedVoidException(
+                () -> azureBlob.delete(DeleteSnapshotsOption.NONE, null, null,
+                    generateOperationContext(account)));
         }
     }
 

@@ -30,6 +30,7 @@ import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.Objects;
 import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -99,7 +100,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     boolean doesBucketExist(String bucketName) {
         try {
-            return SocketAccess.doPrivilegedIOException(() -> {
+            return SocketAccess.<Boolean, IOException>doPrivilegedException(() -> {
                 try {
                     Bucket bucket = client.buckets().get(bucketName).execute();
                     if (bucket != null) {
@@ -126,7 +127,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobs(String path) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> listBlobsByPath(bucket, path, path));
+        return SocketAccess.doPrivilegedException(() -> listBlobsByPath(bucket, path, path));
     }
 
     /**
@@ -137,7 +138,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
-        return SocketAccess.doPrivilegedIOException(() -> listBlobsByPath(bucket, buildKey(path, prefix), path));
+        return SocketAccess.doPrivilegedException(() -> listBlobsByPath(bucket, buildKey(path, prefix), path));
     }
 
     /**
@@ -162,7 +163,9 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     boolean blobExists(String blobName) throws IOException {
         try {
-            StorageObject blob = SocketAccess.doPrivilegedIOException(() -> client.objects().get(bucket, blobName).execute());
+            StorageObject blob = SocketAccess.<StorageObject, IOException>doPrivilegedException(
+                () -> client.objects().get(bucket, blobName).execute()
+            );
             if (blob != null) {
                 return Strings.hasText(blob.getId());
             }
@@ -184,7 +187,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     InputStream readBlob(String blobName) throws IOException {
         try {
-            return SocketAccess.doPrivilegedIOException(() -> {
+            return SocketAccess.<InputStream, IOException>doPrivilegedException(() -> {
                 Storage.Objects.Get object = client.objects().get(bucket, blobName);
                 return object.executeMediaAsInputStream();
             });
@@ -204,7 +207,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobSize    expected size of the blob to be written
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
-        SocketAccess.doPrivilegedVoidIOException(() -> {
+        SocketAccess.doPrivilegedVoidException(() -> {
             InputStreamContent stream = new InputStreamContent(null, inputStream);
             stream.setLength(blobSize);
 
@@ -223,7 +226,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         if (!blobExists(blobName)) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
-        SocketAccess.doPrivilegedIOException(() -> client.objects().delete(bucket, blobName).execute());
+        SocketAccess.doPrivilegedException(() -> client.objects().delete(bucket, blobName).execute());
     }
 
     /**
@@ -252,7 +255,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         final List<Storage.Objects.Delete> deletions = new ArrayList<>(Math.min(MAX_BATCHING_REQUESTS, blobNames.size()));
         final Iterator<String> blobs = blobNames.iterator();
 
-        SocketAccess.doPrivilegedVoidIOException(() -> {
+        SocketAccess.doPrivilegedVoidException(() -> {
             while (blobs.hasNext()) {
                 // Create a delete request for each blob to delete
                 deletions.add(client.objects().delete(bucket, blobs.next()));
@@ -301,7 +304,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param targetBlob new name of the blob in the target bucket
      */
     void moveBlob(String sourceBlob, String targetBlob) throws IOException {
-        SocketAccess.doPrivilegedIOException(() -> {
+        SocketAccess.doPrivilegedException(() -> {
             // There's no atomic "move" in GCS so we need to copy and delete
             client.objects().copy(bucket, sourceBlob, bucket, targetBlob, null).execute();
             client.objects().delete(bucket, sourceBlob).execute();
@@ -343,7 +346,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         private final Storage.Objects.List list;
 
         StorageObjectsSpliterator(Storage client, String bucketName, String prefix, long pageSize) throws IOException {
-            list = SocketAccess.doPrivilegedIOException(() -> client.objects().list(bucketName));
+            list = SocketAccess.doPrivilegedException(() -> client.objects().list(bucketName));
             list.setMaxResults(pageSize);
             if (prefix != null) {
                 list.setPrefix(prefix);
@@ -354,7 +357,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         public boolean tryAdvance(Consumer<? super StorageObject> action) {
             try {
                 // Retrieves the next page of items
-                Objects objects = SocketAccess.doPrivilegedIOException(list::execute);
+                Objects objects = SocketAccess.doPrivilegedException(list::execute);
 
                 if ((objects == null) || (objects.getItems() == null) || (objects.getItems().isEmpty())) {
                     return false;

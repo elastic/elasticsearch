@@ -37,6 +37,7 @@ import com.amazonaws.services.s3.model.UploadPartResult;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -100,7 +101,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("Blob [" + blobName + "] already exists, cannot overwrite");
         }
 
-        SocketAccess.doPrivilegedIOException(() -> {
+        SocketAccess.doPrivilegedException(() -> {
             if (blobSize <= blobStore.bufferSizeInBytes()) {
                 executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             } else {

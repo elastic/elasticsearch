@@ -22,10 +22,7 @@ package org.elasticsearch.cloud.gce;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedExceptionAction;
 import java.util.function.Function;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
@@ -33,8 +30,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -72,12 +68,12 @@ public class GceMetadataService extends AbstractLifecycleComponent {
         try {
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            headers = Access.doPrivileged(HttpHeaders::new);
-            GenericUrl genericUrl = Access.doPrivileged(() -> new GenericUrl(urlMetadataNetwork));
+            headers = SocketAccess.doPrivileged(HttpHeaders::new);
+            GenericUrl genericUrl = SocketAccess.doPrivileged(() -> new GenericUrl(urlMetadataNetwork));
 
             // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
             headers.put("Metadata-Flavor", "Google");
-            HttpResponse response = Access.doPrivilegedIOException(() ->
+            HttpResponse response = SocketAccess.doPrivilegedException(() ->
                 getGceHttpTransport().createRequestFactory()
                     .buildGetRequest(genericUrl)
                     .setHeaders(headers)

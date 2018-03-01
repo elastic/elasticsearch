@@ -83,10 +83,10 @@ Examples:
 --------------------------------------------------
 # get the IP address from network interface 1
 network.host: _gce:privateIp:1_
-# shortcut for _gce:privateIp:0_
-network.host: _gce_
-# Using GCE internal hostname (recommended)
+# Using GCE internal hostname
 network.host: _gce:hostname_
+# shortcut for _gce:privateIp:0_ (recommended)
+network.host: _gce_
 --------------------------------------------------
 
 [[discovery-gce-usage-short]]

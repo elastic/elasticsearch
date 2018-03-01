@@ -103,6 +103,8 @@ public class MatchQuery {
     public enum ZeroTermsQuery implements Writeable {
         NONE(0),
         ALL(1),
+        // this is used internally to make sure that query_string and simple_query_string
+        // ignores query part that removes all tokens.
         NULL(2);
 
         private final int ordinal;

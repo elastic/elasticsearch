@@ -491,7 +491,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
                     return;
                 }
             }
-            fail();
+            fail("We expect a generic thread");
         });
     }
 

@@ -183,7 +183,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                         if (((CancellableTask) task).isCancelled()) {
                             throw new TaskCancelledException("Cancelled");
                         }
-                        fail();
+                        fail("It should have thrown an exception");
                     });
                     fail("It should have thrown an exception");
                 } catch (InterruptedException ex) {

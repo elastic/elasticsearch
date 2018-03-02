@@ -51,7 +51,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -216,17 +215,12 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
     private static void assertShardStatesMatch(final IndexShardStateChangeListener stateChangeListener, final int numShards, final IndexShardState... shardStates)
             throws Exception {
         CheckedRunnable<Exception> waitPredicate = () -> {
-            if (stateChangeListener.shardStates.size() != numShards) {
-                fail();
-            }
+            assertEquals(numShards, stateChangeListener.shardStates.size());
             for (List<IndexShardState> indexShardStates : stateChangeListener.shardStates.values()) {
-                if (indexShardStates == null || indexShardStates.size() != shardStates.length) {
-                    fail();
-                }
+                assertNotEquals(null, indexShardStates);
+                assertEquals(indexShardStates.size(), shardStates.length);
                 for (int i = 0; i < shardStates.length; i++) {
-                    if (indexShardStates.get(i) != shardStates[i]) {
-                        fail();
-                    }
+                    assertEquals(indexShardStates.get(i), shardStates[i]);
                 }
             }
         };

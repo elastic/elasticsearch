@@ -137,7 +137,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -1068,13 +1070,9 @@ public final class InternalTestCluster extends TestCluster {
         try {
             assertBusy(() -> {
                 DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
-                if (discoveryNodes.getSize() != expectedNodes.size()) {
-                    fail();
-                }
+                assertEquals(expectedNodes.size(), discoveryNodes.getSize());
                 for (DiscoveryNode expectedNode : expectedNodes) {
-                    if (discoveryNodes.nodeExists(expectedNode) == false) {
-                        fail();
-                    }
+                    assertTrue(discoveryNodes.nodeExists(expectedNode));
                 }
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {

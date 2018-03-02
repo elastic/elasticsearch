@@ -58,6 +58,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -67,6 +68,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static java.lang.Thread.sleep;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -147,13 +149,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                 .get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
-        assertThat(waitForShardDeletion(node_1, index, 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_1, index), equalTo(false));
+        waitForShardDeletion(node_1, index, 0, Assert::assertFalse);
+        waitForIndexDeletion(node_1, index, Assert::assertFalse);
         assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(true));
-
     }
 
     /**
@@ -258,12 +259,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // it must still delete the shard, even if it cannot find it anymore in indicesservice
         client().admin().indices().prepareDelete("test").get();
 
-        assertThat(waitForShardDeletion(node_1, index, 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_1, index), equalTo(false));
+        waitForShardDeletion(node_1, index, 0, Assert::assertFalse);
+        waitForIndexDeletion(node_1, index, Assert::assertFalse);
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(false));
         assertThat(Files.exists(indexDirectory(node_1, index)), equalTo(false));
-        assertThat(waitForShardDeletion(node_2, index, 0), equalTo(false));
-        assertThat(waitForIndexDeletion(node_2, index), equalTo(false));
+        waitForShardDeletion(node_2, index, 0, Assert::assertFalse);
+        waitForIndexDeletion(node_2, index, Assert::assertFalse);
         assertThat(Files.exists(shardDirectory(node_2, index, 0)), equalTo(false));
         assertThat(Files.exists(indexDirectory(node_2, index)), equalTo(false));
     }
@@ -295,8 +296,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         logger.info("--> making sure that shard is not allocated on server3");
-        assertThat(waitForShardDeletion(node_3, index, 0), equalTo(false));
-
+        waitForShardDeletion(node_3, index, 0, Assert::assertFalse);
         Path server2Shard = shardDirectory(node_2, index, 0);
         logger.info("--> stopping node {}", node_2);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_2));
@@ -326,7 +326,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> making sure that shard and its replica are allocated on server1 and server3 but not on server2");
         assertThat(Files.exists(shardDirectory(node_1, index, 0)), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
-        assertThat(waitForShardDeletion(node_4, index, 0), equalTo(false));
+        waitForShardDeletion(node_4, index, 0, Assert::assertFalse);
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
@@ -462,7 +462,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
-            assertTrue(waitForShardDeletion(nonMasterNode, index, shard));
+            waitForShardDeletion(nonMasterNode, index, shard, Assert::assertTrue);
         }
     }
 
@@ -480,19 +480,19 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         return paths[0];
     }
 
-    private boolean waitForShardDeletion(final String server, final Index index, final int shard) throws Exception {
+    private void waitForShardDeletion(final String server, final Index index, final int shard, Consumer<Boolean> consumer) throws Exception {
         try {
             assertBusy(() -> assertFalse(Files.exists(shardDirectory(server, index, shard))));
         } catch (AssertionError ignore) {
         }
-        return Files.exists(shardDirectory(server, index, shard));
+        consumer.accept(Files.exists(shardDirectory(server, index, shard)));
     }
 
-    private boolean waitForIndexDeletion(final String server, final Index index) throws Exception {
+    private void waitForIndexDeletion(final String server, final Index index, Consumer<Boolean> consumer) throws Exception {
         try {
             assertBusy(() -> assertFalse(Files.exists(indexDirectory(server, index))));
         } catch (AssertionError ignore) {
         }
-        return Files.exists(indexDirectory(server, index));
+        consumer.accept(Files.exists(indexDirectory(server, index)));
     }
 }

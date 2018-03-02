@@ -76,9 +76,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertBusy(() -> {
                 logger.info("--> waiting for no relocation");
                 ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForNoRelocatingShards(true).get();
-                if (clusterHealth.isTimedOut()) {
-                    fail();
-                }
+                assertFalse(clusterHealth.isTimedOut());
 
                 logger.info("--> checking current state");
                 ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();

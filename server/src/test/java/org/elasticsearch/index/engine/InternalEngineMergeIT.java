@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -75,7 +74,8 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
                     segments.getCount(), merge.getTotal(), merge.getCurrent());
                 long current = merge.getCurrent();
                 long count = segments.getCount();
-                assertTrue(count < upperNumberSegments && current == 0);
+                assertTrue(count < upperNumberSegments);
+                assertEquals(0, current);
             });
         } catch (Exception e) {
             throw new RuntimeException(e);

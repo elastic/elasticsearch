@@ -35,6 +35,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -192,8 +193,9 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(FORMAT).createParser(namedXContentRegistry,
-                            new InputStreamIndexInput(slice, contentSize))) {
+                    try (XContentParser parser = XContentFactory.xContent(FORMAT)
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
+                                new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -307,7 +309,8 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {

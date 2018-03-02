@@ -1,0 +1,316 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ */
+
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+
+/*****************************************************************************
+ *                         Deb and rpm configuration                         *
+ *****************************************************************************
+ *
+ * The general strategy here is to build a directory on disk that contains
+ * stuff that needs to be copied into the distributions. This is
+ * important for two reasons:
+ * 1. ospackage wants to copy the directory permissions that it sees off of the
+ *    filesystem. If you ask it to create a directory that doesn't already
+ *    exist on disk it petulantly creates it with 0755 permissions, no matter
+ *    how hard you try to convince it otherwise.
+ * 2. Convincing ospackage to pick up an empty directory as part of a set of
+ *    directories on disk is reasonably easy. Convincing it to just create an
+ *    empty directory requires more wits than I have.
+ * 3. ospackage really wants to suck up some of the debian control scripts
+ *    directly from the filesystem. It doesn't want to process them through
+ *    MavenFilteringHack or any other copy-style action.
+ *
+ * The following commands are useful when it comes to check the user/group
+ * and files permissions set within the RPM and DEB packages:
+ *
+ *    rpm -qlp --dump path/to/elasticsearch.rpm
+ *    dpkg -c path/to/elasticsearch.deb
+ */
+
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.7.1'
+  }
+}
+
+void addProcessFilesTask(String type) {
+  String packagingFiles = "build/packaging/${type}"
+
+  task("process${type.capitalize()}Files", type: Copy) {
+    from 'src/common'
+    from "src/${type}"
+    into packagingFiles
+
+    into('config') {
+      from '../src/config'
+    }
+
+    MavenFilteringHack.filter(it, expansionsForDistribution(type))
+
+    doLast {
+      // create empty dirs, we set the permissions when configuring the packages
+      mkdir "${packagingFiles}/var/run/elasticsearch"
+      mkdir "${packagingFiles}/var/log/elasticsearch"
+      mkdir "${packagingFiles}/var/lib/elasticsearch"
+      mkdir "${packagingFiles}/usr/share/elasticsearch/plugins"
+    }
+  }
+}
+addProcessFilesTask('deb')
+addProcessFilesTask('rpm')
+
+// Common configuration that is package dependent. This can't go in ospackage
+// since we have different templated files that need to be consumed, but the structure
+// is the same
+Closure commonPackageConfig(String type) {
+  return {
+    // Follow elasticsearch's file naming convention
+    archiveName "elasticsearch-${project.version}.${type}"
+
+    destinationDir = file("${type}/build/distributions")
+    String packagingFiles = "build/packaging/${type}"
+
+    String scripts = "${packagingFiles}/scripts"
+    preInstall file("${scripts}/preinst")
+    postInstall file("${scripts}/postinst")
+    preUninstall file("${scripts}/prerm")
+    postUninstall file("${scripts}/postrm")
+
+    // top level "into" directive is not inherited from ospackage for some reason, so we must
+    // specify it again explicitly for copying common files
+    into('/usr/share/elasticsearch') {
+      into('bin') {
+        with binFiles(type)
+      }
+      with copySpec {
+        with commonFiles
+        if (type == 'deb') {
+          // Deb gets a copyright file instead.
+          exclude 'LICENSE.txt'
+        }
+      }
+    }
+
+    // ========= config files =========
+    configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/jvm.options'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
+    into('/etc/elasticsearch') {
+      //dirMode 0750
+      fileMode 0660
+      permissionGroup 'elasticsearch'
+      includeEmptyDirs true
+      createDirectoryEntry true
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/config"
+    }
+    String envFile = expansionsForDistribution(type)['path.env']
+    configurationFile envFile
+    into(new File(envFile).getParent()) {
+      fileType CONFIG | NOREPLACE
+      fileMode 0660
+      from "${packagingFiles}/env/elasticsearch"
+    }
+
+    // ========= systemd =========
+    configurationFile '/usr/lib/systemd/system/elasticsearch.service'
+    into('/usr/lib/tmpfiles.d') {
+      from "${packagingFiles}/systemd/elasticsearch.conf"
+    }
+    into('/usr/lib/systemd/system') {
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/systemd/elasticsearch.service"
+    }
+    into('/usr/lib/sysctl.d') {
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
+    }
+
+    // ========= sysV init =========
+    configurationFile '/etc/init.d/elasticsearch'
+    into('/etc/init.d') {
+      fileMode 0750
+      fileType CONFIG | NOREPLACE
+      from "${packagingFiles}/init.d/elasticsearch"
+    }
+
+    // ========= empty dirs =========
+    // NOTE: these are created under packagingFiles as empty, but the permissions are set here
+    Closure copyEmptyDir = { path, u, g, mode ->
+      File file = new File(path)
+      into(file.parent) {
+        from "${packagingFiles}/${file.parent}"
+        include file.name
+        includeEmptyDirs true
+        createDirectoryEntry true
+        user u
+        permissionGroup g
+        dirMode mode
+      }
+    }
+    copyEmptyDir('/var/run/elasticsearch', 'elasticsearch', 'elasticsearch', 0755)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
+    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+  }
+}
+
+apply plugin: 'nebula.ospackage-base'
+
+// this is package indepdendent configuration
+ospackage {
+  packageName 'elasticsearch'
+  maintainer 'Elasticsearch Team <info@elastic.co>'
+  summary '''
+    Elasticsearch is a distributed RESTful search engine built for the cloud.
+    Reference documentation can be found at
+    https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+    and the 'Elasticsearch: The Definitive Guide' book can be found at
+    https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
+    '''.stripIndent().replace('\n', ' ').trim()
+  url 'https://www.elastic.co/'
+
+  // signing setup
+  if (project.hasProperty('signing.password') && System.getProperty('build.snapshot', 'true') == 'false') {
+    signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
+    signingKeyPassphrase = project.property('signing.password')
+    signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?
+                         project.file(project.property('signing.secretKeyRingFile')) :
+                         new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
+  }
+
+  requires('coreutils')
+
+  fileMode 0644
+  dirMode 0755
+  user 'root'
+  permissionGroup 'root'
+
+  into '/usr/share/elasticsearch'
+  with libFiles
+  with modulesFiles
+  with noticeFile
+}
+
+task buildDeb(type: Deb) {
+  dependsOn processDebFiles
+  configure(commonPackageConfig('deb'))
+
+  version = project.version
+  packageGroup 'web'
+  requires 'bash'
+  requires 'libc6'
+  requires 'adduser'
+
+  into('/usr/share/lintian/overrides') {
+    from('src/deb/lintian/elasticsearch')
+  }
+  into('/usr/share/doc/elasticsearch') {
+    from 'src/deb/copyright'
+    fileMode 0644
+  }
+}
+
+// task that sanity checks if the Deb archive can be extracted
+task checkDeb(type: LoggedExec) {
+  dependsOn buildDeb
+  onlyIf { new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
+  final File debExtracted = new File("${buildDir}", 'deb-extracted')
+  commandLine 'dpkg-deb', '-x', "deb/build/distributions/elasticsearch-${project.version}.deb", debExtracted
+  doFirst {
+    debExtracted.deleteDir()
+  }
+}
+
+task buildRpm(type: Rpm) {
+  dependsOn processRpmFiles
+  configure(commonPackageConfig('rpm'))
+
+  packageGroup 'Application/Internet'
+  requires '/bin/bash'
+
+  prefix '/usr'
+  packager 'Elasticsearch'
+  version = project.version.replace('-', '_')
+  release = '1'
+  arch 'NOARCH'
+  os 'LINUX'
+  license '2009'
+  distribution 'Elasticsearch'
+  vendor 'Elasticsearch'
+  // TODO ospackage doesn't support icon but we used to have one
+
+  // without this the rpm will have parent dirs of any files we copy in, eg /etc/elasticsearch
+  addParentDirs false
+
+  // Declare the folders so that the RPM package manager removes
+  // them when upgrading or removing the package
+  directory('/usr/share/elasticsearch/bin', 0755)
+  directory('/usr/share/elasticsearch/lib', 0755)
+  directory('/usr/share/elasticsearch/modules', 0755)
+  modulesFiles.eachFile { FileCopyDetails fcp ->
+    if (fcp.name == "plugin-descriptor.properties") {
+      directory('/usr/share/elasticsearch/modules/' + fcp.file.parentFile.name, 0755)
+    }
+  }
+}
+
+// task that sanity checks if the RPM archive can be extracted
+task checkRpm(type: LoggedExec) {
+  dependsOn buildRpm
+  onlyIf { new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
+  final File rpmDatabase = new File("${buildDir}", 'rpm-database')
+  final File rpmExtracted = new File("${buildDir}", 'rpm-extracted')
+  commandLine 'rpm',
+          '--badreloc',
+          '--nodeps',
+          '--noscripts',
+          '--notriggers',
+          '--dbpath',
+          rpmDatabase,
+          '--relocate',
+          "/=${rpmExtracted}",
+          '-i',
+          "rpm/build/distributions/elasticsearch-${project.version}.rpm"
+  doFirst {
+    rpmDatabase.deleteDir()
+    rpmExtracted.deleteDir()
+  }
+}
+
+// This configures the default artifact for the distribution specific
+// subprojects. We have subprojects because Gradle project substitutions
+// can only bind to the default configuration of a project
+subprojects {
+  apply plugin: 'distribution'
+
+  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
+  ext.buildDist = parent.tasks.getByName(buildTask)
+  artifacts {
+    'default' buildDist
+  }
+}
+
+check.dependsOn checkDeb, checkRpm
+

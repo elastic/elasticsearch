@@ -183,7 +183,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.indexDocs(nonFlushedDocs);
 
             IndexShard replica = shards.getReplicas().get(0);
-            final String translogUUID = replica.getTranslog().getTranslogUUID();
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = replica.getTranslog().getGeneration();
             shards.removeReplica(replica);

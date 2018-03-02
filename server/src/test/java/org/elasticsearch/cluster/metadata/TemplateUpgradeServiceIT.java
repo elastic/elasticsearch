@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -63,7 +63,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         protected final Settings settings;
 
         public TestPlugin(Settings settings) {
-            this.logger = ServerLoggers.getLogger(getClass(), settings);
+            this.logger = Loggers.getLogger(getClass(), settings);
             this.settings = settings;
         }
 

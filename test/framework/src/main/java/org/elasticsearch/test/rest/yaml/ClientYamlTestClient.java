@@ -19,7 +19,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -85,9 +84,9 @@ public class ClientYamlTestClient {
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
 
-        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+        Set<String> apiRequiredPathParts = restApi.getPathParts().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
                 .collect(Collectors.toSet());
-        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(e -> e.getValue() == true).map(Entry::getKey)
+        Set<String> apiRequiredParameters = restApi.getParams().entrySet().stream().filter(Entry::getValue).map(Entry::getKey)
                 .collect(Collectors.toSet());
 
         for (Map.Entry<String, String> entry : params.entrySet()) {
@@ -151,7 +150,7 @@ public class ClientYamlTestClient {
             for (String pathPart : restPath.getPathParts()) {
                 try {
                     finalPath.append('/');
-                    // We append "/" to the path part to handle parts that start with - or other invalid characters
+                    // We prepend "/" to the path part to handle parts that start with - or other invalid characters
                     URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
                     //manually escape any slash that each part may contain
                     finalPath.append(uri.getRawPath().substring(1).replaceAll("/", "%2F"));

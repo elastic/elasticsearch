@@ -323,7 +323,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(new BytesArray(source), XContentType.JSON);
+            builder.rawValue(new BytesArray(source).streamInput(), XContentType.JSON);
         } else {
             builder.startObject().endObject();
         }

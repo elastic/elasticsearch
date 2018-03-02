@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cloud.gce;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -39,7 +38,6 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -48,7 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
-public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService, Closeable {
+public class GceInstancesServiceImpl extends AbstractComponent implements GceInstancesService {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =

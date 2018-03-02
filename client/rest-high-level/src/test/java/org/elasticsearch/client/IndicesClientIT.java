@@ -39,11 +39,21 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -167,7 +177,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index
@@ -375,6 +384,32 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
+    public void testRefresh() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(index, settings);
+            RefreshRequest refreshRequest = new RefreshRequest(index);
+            RefreshResponse refreshResponse =
+                execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync);
+            assertThat(refreshResponse.getTotalShards(), equalTo(1));
+            assertThat(refreshResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(refreshResponse.getFailedShards(), equalTo(0));
+            assertThat(refreshResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            RefreshRequest refreshRequest = new RefreshRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
     public void testExistsAlias() throws IOException {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
         assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
@@ -435,5 +470,58 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("0", indexSettings.get("number_of_replicas"));
         Map<String, Object> aliasData = (Map<String, Object>)XContentMapValues.extractValue("target.aliases.alias", getIndexResponse);
         assertNotNull(aliasData);
+    }
+
+    public void testRollover() throws IOException {
+        highLevelClient().indices().create(new CreateIndexRequest("test").alias(new Alias("alias")));
+        RolloverRequest rolloverRequest = new RolloverRequest("alias", "test_new");
+        rolloverRequest.addMaxIndexDocsCondition(1);
+
+        {
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertFalse(rolloverResponse.isRolledOver());
+            assertFalse(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(1, conditionStatus.size());
+            assertFalse(conditionStatus.get("[max_docs: 1]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+
+        highLevelClient().index(new IndexRequest("test", "type", "1").source("field", "value"));
+        highLevelClient().index(new IndexRequest("test", "type", "2").source("field", "value")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL));
+        //without the refresh the rollover may not happen as the number of docs seen may be off
+
+        {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(1));
+            rolloverRequest.dryRun(true);
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertFalse(rolloverResponse.isRolledOver());
+            assertTrue(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(2, conditionStatus.size());
+            assertTrue(conditionStatus.get("[max_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+        {
+            rolloverRequest.dryRun(false);
+            rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
+            RolloverResponse rolloverResponse = execute(rolloverRequest, highLevelClient().indices()::rollover,
+                    highLevelClient().indices()::rolloverAsync);
+            assertTrue(rolloverResponse.isRolledOver());
+            assertFalse(rolloverResponse.isDryRun());
+            Map<String, Boolean> conditionStatus = rolloverResponse.getConditionStatus();
+            assertEquals(3, conditionStatus.size());
+            assertTrue(conditionStatus.get("[max_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_age: 1ms]"));
+            assertFalse(conditionStatus.get("[max_size: 1mb]"));
+            assertEquals("test", rolloverResponse.getOldIndex());
+            assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
     }
 }

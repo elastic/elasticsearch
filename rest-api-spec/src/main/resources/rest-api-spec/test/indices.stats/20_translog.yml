@@ -65,3 +65,20 @@ setup:
   - match: { indices.test.primaries.translog.operations: 0 }
   - lte: { indices.test.primaries.translog.uncommitted_size_in_bytes: $creation_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 0 }
+
+---
+"Translog last modified age stats":
+  - skip:
+      version: " - 6.2.99"
+      reason: translog last modified age stats was added in 6.3.0
+  - do:
+      index:
+        index: test
+        type:  bar
+        id:    1
+        body:  { "foo": "bar" }
+
+  - do:
+      indices.stats:
+        metric: [ translog ]
+  - gte: { indices.test.primaries.translog.earliest_last_modified_age: 0 }

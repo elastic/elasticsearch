@@ -37,6 +37,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -336,7 +338,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             final XContentType mainRequestXContentType = mainRequest.getDestination().getContentType();
             if (mainRequestXContentType != null && doc.getXContentType() != mainRequestXContentType) {
                 // we need to convert
-                try (XContentParser parser = sourceXContentType.xContent().createParser(NamedXContentRegistry.EMPTY, doc.getSource());
+                try (XContentParser parser = sourceXContentType.xContent()
+                        .createParser(NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, doc.getSource().streamInput());
                      XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);

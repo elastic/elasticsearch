@@ -19,51 +19,62 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
-public final class RolloverResponse extends ActionResponse implements ToXContentObject {
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-    private static final String NEW_INDEX = "new_index";
-    private static final String OLD_INDEX = "old_index";
-    private static final String DRY_RUN = "dry_run";
-    private static final String ROLLED_OVER = "rolled_over";
-    private static final String CONDITIONS = "conditions";
-    private static final String ACKNOWLEDGED = "acknowledged";
-    private static final String SHARDS_ACKED = "shards_acknowledged";
+public final class RolloverResponse extends ShardsAcknowledgedResponse implements ToXContentObject {
+
+    private static final ParseField NEW_INDEX = new ParseField("new_index");
+    private static final ParseField OLD_INDEX = new ParseField("old_index");
+    private static final ParseField DRY_RUN = new ParseField("dry_run");
+    private static final ParseField ROLLED_OVER = new ParseField("rolled_over");
+    private static final ParseField CONDITIONS = new ParseField("conditions");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>("rollover",
+            true, args -> new RolloverResponse((String) args[0], (String) args[1], (Map<String,Boolean>) args[2],
+            (Boolean)args[3], (Boolean)args[4], (Boolean) args[5], (Boolean) args[6]));
+
+    static {
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), OLD_INDEX, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), NEW_INDEX, ObjectParser.ValueType.STRING);
+        PARSER.declareObject(constructorArg(), (parser, context) -> parser.map(), CONDITIONS);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), DRY_RUN, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ROLLED_OVER, ObjectParser.ValueType.BOOLEAN);
+        declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
+    }
 
     private String oldIndex;
     private String newIndex;
-    private Set<Map.Entry<String, Boolean>> conditionStatus;
+    private Map<String, Boolean> conditionStatus;
     private boolean dryRun;
     private boolean rolledOver;
-    private boolean acknowledged;
-    private boolean shardsAcknowledged;
 
     RolloverResponse() {
     }
 
-    RolloverResponse(String oldIndex, String newIndex, Set<Condition.Result> conditionResults,
-                     boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+    RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
+                             boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+        super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
         this.dryRun = dryRun;
         this.rolledOver = rolledOver;
-        this.acknowledged = acknowledged;
-        this.shardsAcknowledged = shardsAcknowledged;
-        this.conditionStatus = conditionResults.stream()
-            .map(result -> new AbstractMap.SimpleEntry<>(result.condition.toString(), result.matched))
-            .collect(Collectors.toSet());
+        this.conditionStatus = conditionResults;
     }
 
     /**
@@ -83,7 +94,7 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
     /**
      * Returns the statuses of all the request conditions
      */
-    public Set<Map.Entry<String, Boolean>> getConditionStatus() {
+    public Map<String, Boolean> getConditionStatus() {
         return conditionStatus;
     }
 
@@ -101,42 +112,20 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         return rolledOver;
     }
 
-    /**
-     * Returns true if the creation of the new rollover index and switching of the
-     * alias to the newly created index was successful, and returns false otherwise.
-     * If {@link #isDryRun()} is true, then this will also return false. If this
-     * returns false, then {@link #isShardsAcknowledged()} will also return false.
-     */
-    public boolean isAcknowledged() {
-        return acknowledged;
-    }
-
-    /**
-     * Returns true if the requisite number of shards were started in the newly
-     * created rollover index before returning. If {@link #isAcknowledged()} is
-     * false, then this will also return false.
-     */
-    public boolean isShardsAcknowledged() {
-        return shardsAcknowledged;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
-        Set<Map.Entry<String, Boolean>> conditions = new HashSet<>(conditionSize);
+        conditionStatus = new HashMap<>(conditionSize);
         for (int i = 0; i < conditionSize; i++) {
-            String condition = in.readString();
-            boolean satisfied = in.readBoolean();
-            conditions.add(new AbstractMap.SimpleEntry<>(condition, satisfied));
+            conditionStatus.put(in.readString(), in.readBoolean());
         }
-        conditionStatus = conditions;
         dryRun = in.readBoolean();
         rolledOver = in.readBoolean();
-        acknowledged = in.readBoolean();
-        shardsAcknowledged = in.readBoolean();
+        readAcknowledged(in);
+        readShardsAcknowledged(in);
     }
 
     @Override
@@ -145,31 +134,49 @@ public final class RolloverResponse extends ActionResponse implements ToXContent
         out.writeString(oldIndex);
         out.writeString(newIndex);
         out.writeVInt(conditionStatus.size());
-        for (Map.Entry<String, Boolean> entry : conditionStatus) {
+        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             out.writeString(entry.getKey());
             out.writeBoolean(entry.getValue());
         }
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
-        out.writeBoolean(acknowledged);
-        out.writeBoolean(shardsAcknowledged);
+        writeAcknowledged(out);
+        writeShardsAcknowledged(out);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(OLD_INDEX, oldIndex);
-        builder.field(NEW_INDEX, newIndex);
-        builder.field(ROLLED_OVER, rolledOver);
-        builder.field(DRY_RUN, dryRun);
-        builder.field(ACKNOWLEDGED, acknowledged);
-        builder.field(SHARDS_ACKED, shardsAcknowledged);
-        builder.startObject(CONDITIONS);
-        for (Map.Entry<String, Boolean> entry : conditionStatus) {
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
+        builder.field(OLD_INDEX.getPreferredName(), oldIndex);
+        builder.field(NEW_INDEX.getPreferredName(), newIndex);
+        builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
+        builder.field(DRY_RUN.getPreferredName(), dryRun);
+        builder.startObject(CONDITIONS.getPreferredName());
+        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-        builder.endObject();
-        return builder;
+    }
+
+    public static RolloverResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            RolloverResponse that = (RolloverResponse) o;
+            return dryRun == that.dryRun &&
+                    rolledOver == that.rolledOver &&
+                    Objects.equals(oldIndex, that.oldIndex) &&
+                    Objects.equals(newIndex, that.newIndex) &&
+                    Objects.equals(conditionStatus, that.conditionStatus);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

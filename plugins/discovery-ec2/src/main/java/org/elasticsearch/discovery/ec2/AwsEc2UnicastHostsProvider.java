@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
-import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
@@ -113,7 +112,10 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
             // NOTE: we don't filter by security group during the describe instances request for two reasons:
             // 1. differences in VPCs require different parameters during query (ID vs Name)
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
-            descInstances = SocketAccess.doPrivileged(() -> client.describeInstances(buildDescribeInstancesRequest()));
+            descInstances = Ec2AccessControllerUtil.doPrivileged(
+                () -> client.describeInstances(buildDescribeInstancesRequest()),
+                Ec2AccessControllerUtil.ctx
+            );
         } catch (AmazonClientException e) {
             logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
             logger.debug("Full exception:", e);

@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
@@ -68,17 +67,23 @@ public interface AzureStorageService {
         return new InputStream() {
             @Override
             public int read() throws IOException {
-                return SocketAccess.doPrivilegedException(stream::read);
+                return AzureAccessControllerUtil.doPrivilegedException(stream::read, AzureAccessControllerUtil.ctx);
             }
 
             @Override
             public int read(byte[] b) throws IOException {
-                return SocketAccess.doPrivilegedException(() -> stream.read(b));
+                return AzureAccessControllerUtil.doPrivilegedException(
+                    () -> stream.read(b),
+                    AzureAccessControllerUtil.ctx
+                );
             }
 
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
-                return SocketAccess.doPrivilegedException(() -> stream.read(b, off, len));
+                return AzureAccessControllerUtil.doPrivilegedException(
+                    () -> stream.read(b, off, len),
+                    AzureAccessControllerUtil.ctx
+                );
             }
         };
     }

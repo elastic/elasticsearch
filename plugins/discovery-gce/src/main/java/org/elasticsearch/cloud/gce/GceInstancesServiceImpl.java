@@ -39,7 +39,7 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.SocketAccess;
+import org.elasticsearch.cloud.gce.util.GCEAccessControllerUtil;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -65,10 +65,11 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = SocketAccess.<InstanceList, IOException>doPrivilegedException(() -> {
-                    Compute.Instances.List list = client().instances().list(project, zoneId);
-                    return list.execute();
-                });
+                InstanceList instanceList = GCEAccessControllerUtil.<InstanceList, IOException>doPrivilegedException(
+                    () -> {
+                        Compute.Instances.List list = client().instances().list(project, zoneId);
+                        return list.execute();
+                    }, GCEAccessControllerUtil.ctx);
                 // assist type inference
                 return instanceList.isEmpty() || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
@@ -146,7 +147,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            SocketAccess.doPrivilegedException(credential::refreshToken);
+            GCEAccessControllerUtil.doPrivilegedException(credential::refreshToken, GCEAccessControllerUtil.ctx);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

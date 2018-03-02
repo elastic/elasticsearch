@@ -29,7 +29,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -147,14 +146,18 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = SocketAccess.doPrivilegedException(url::openConnection);
+            urlConnection = Ec2AccessControllerUtil.doPrivilegedException(
+                url::openConnection,
+                Ec2AccessControllerUtil.ctx);
             urlConnection.setConnectTimeout(2000);
         } catch (IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
         }
 
-        try (InputStream in = SocketAccess.doPrivilegedException(urlConnection::getInputStream);
+        try (InputStream in = Ec2AccessControllerUtil.doPrivilegedException(
+            urlConnection::getInputStream,
+            Ec2AccessControllerUtil.ctx);
              BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
             String metadataResult = urlReader.readLine();

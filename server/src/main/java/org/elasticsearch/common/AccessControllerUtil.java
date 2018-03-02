@@ -32,25 +32,20 @@ import java.security.PrivilegedExceptionAction;
  * This class wraps the operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-public class SocketAccess {
+public class AccessControllerUtil {
 
-    protected SocketAccess() {}
+    protected AccessControllerUtil() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> action, AccessControlContext ctx, Permission... perms) {
         SpecialPermission.check();
-        return AccessController.doPrivileged(action,ctx, perms);
-    }
-
-    public static <T> T doPrivileged(PrivilegedAction<T> action, Permission... perms) {
         if (perms == null || perms.length == 0) {
-            SpecialPermission.check();
-            return AccessController.doPrivileged(action);
+            return AccessController.doPrivileged(action,ctx);
         } else {
-            return doPrivileged(action, AccessController.getContext(), perms);
+            return AccessController.doPrivileged(action,ctx, perms);
         }
     }
 
-    private static void doPrivilegedVoid(Runnable action, AccessControlContext ctx, Permission... perms) {
+    public static void doPrivilegedVoid(Runnable action, AccessControlContext ctx, Permission... perms) {
         doPrivileged((PrivilegedAction<Void>) () -> {
             action.run();
             return null;
@@ -58,19 +53,6 @@ public class SocketAccess {
             ctx,
             perms
         );
-    }
-
-    public static void doPrivilegedVoid(Runnable action, Permission... perms) {
-        if (perms == null || perms.length == 0) {
-            SpecialPermission.check();
-            // TODO: Code redundance. Can we make this more elegant?
-            doPrivileged((PrivilegedAction<Void>) () -> {
-                action.run();
-                return null;
-            });
-        } else {
-            doPrivilegedVoid(action, AccessController.getContext(), perms);
-        }
     }
 
     /**
@@ -92,29 +74,13 @@ public class SocketAccess {
         Permission... perms) throws E {
         SpecialPermission.check();
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) action::run, ctx, perms);
-        } catch (PrivilegedActionException e) {
-            // Since we use an CheckedRunnable the explicitly thrown exception can only be E
-            throw (E) e.getCause();
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T, E extends  Exception> T doPrivilegedException(
-        CheckedRunnableWithReturn<T, E> action,
-        Permission... perms) throws E {
-        try {
             if (perms == null || perms.length == 0) {
-                SpecialPermission.check();
-                return AccessController.doPrivileged((PrivilegedExceptionAction<T>) action::run);
+                return AccessController.doPrivileged((PrivilegedExceptionAction<T>) action::run, ctx);
             } else {
-                return doPrivilegedException(
-                    action,
-                    AccessController.getContext(),
-                    perms);
+                return AccessController.doPrivileged((PrivilegedExceptionAction<T>) action::run, ctx, perms);
             }
         } catch (PrivilegedActionException e) {
-            // Since we use a CheckedRunnable the thrown exception can only be E
+            // Since we use a CheckedRunnable the explicitly thrown exception can only be E
             throw (E) e.getCause();
         }
     }
@@ -132,24 +98,6 @@ public class SocketAccess {
             action.run();
             return null;
         }, ctx, perms);
-    }
-
-    /**
-     * Same as {@link #doPrivilegedException} but returns void
-     * @param action
-     * @throws E
-     */
-    public static <E extends Exception> void doPrivilegedVoidException(
-        CheckedRunnable<E> action,
-        Permission... perms) throws E {
-        if (perms == null || perms.length == 0) {
-            doPrivilegedException(() -> {
-                action.run();
-                return null;
-            });
-        } else {
-            doPrivilegedVoidException(action, AccessController.getContext(), perms);
-        }
     }
 
 }

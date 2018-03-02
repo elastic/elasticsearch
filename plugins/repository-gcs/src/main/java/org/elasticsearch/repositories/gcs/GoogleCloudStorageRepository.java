@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.services.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
@@ -88,7 +87,10 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
 
-        Storage client = SocketAccess.doPrivilegedException(() -> storageService.createClient(clientName));
+        Storage client = GCSAccessControllerUtil.doPrivilegedException(
+            () -> storageService.createClient(clientName),
+            GCSAccessControllerUtil.ctx
+        );
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
 

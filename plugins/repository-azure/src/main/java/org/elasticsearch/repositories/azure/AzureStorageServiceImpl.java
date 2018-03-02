@@ -35,7 +35,6 @@ import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-// import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -153,7 +152,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         try {
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
-            return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)));
+            return AzureAccessControllerUtil.doPrivilegedException(
+                () -> blobContainer.exists(null, null, generateOperationContext(account)),
+                AzureAccessControllerUtil.ctx
+            );
         } catch (Exception e) {
             logger.error("can not access container [{}]", container);
         }
@@ -165,7 +167,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         logger.trace("removing container [{}]", container);
-        SocketAccess.doPrivilegedException(() -> blobContainer.deleteIfExists(null, null, generateOperationContext(account)));
+        AzureAccessControllerUtil.doPrivilegedException(
+            () -> blobContainer.deleteIfExists(null, null, generateOperationContext(account)),
+            AzureAccessControllerUtil.ctx
+        );
     }
 
     @Override
@@ -174,7 +179,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             CloudBlobClient client = this.getSelectedClient(account, mode);
             CloudBlobContainer blobContainer = client.getContainerReference(container);
             logger.trace("creating container [{}]", container);
-            SocketAccess.doPrivilegedException(() -> blobContainer.createIfNotExists(null, null, generateOperationContext(account)));
+            AzureAccessControllerUtil.doPrivilegedException(
+                () -> blobContainer.createIfNotExists(null, null, generateOperationContext(account)),
+                AzureAccessControllerUtil.ctx
+            );
         } catch (IllegalArgumentException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage(), e);
@@ -188,7 +196,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AzureAccessControllerUtil.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 // We list the blobs using a flat blob listing mode
                 for (ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
@@ -227,9 +235,14 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
+        if (AzureAccessControllerUtil.doPrivilegedException(
+            () -> blobContainer.exists(null, null, generateOperationContext(account)),
+            AzureAccessControllerUtil.ctx
+        )) {
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            return SocketAccess.doPrivilegedException(() -> azureBlob.exists(null, null, generateOperationContext(account)));
+            return AzureAccessControllerUtil.doPrivilegedException(
+                () -> azureBlob.exists(null, null, generateOperationContext(account)),
+                AzureAccessControllerUtil.ctx);
         }
 
         return false;
@@ -242,10 +255,13 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // Container name must be lower case.
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        if (SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, generateOperationContext(account)))) {
+        if (AzureAccessControllerUtil.doPrivilegedException(
+            () -> blobContainer.exists(null, null, generateOperationContext(account)),
+            AzureAccessControllerUtil.ctx
+        )) {
             logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            SocketAccess.doPrivilegedVoidException(
+            AzureAccessControllerUtil.doPrivilegedVoidException(
                 () -> azureBlob.delete(DeleteSnapshotsOption.NONE, null, null,
                     generateOperationContext(account)));
         }
@@ -257,8 +273,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         logger.trace("reading container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        BlobInputStream is = SocketAccess.doPrivilegedException(() ->
-            blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
+        BlobInputStream is = AzureAccessControllerUtil.doPrivilegedException(
+            () -> blockBlobReference.openInputStream(null, null, generateOperationContext(account)),
+            AzureAccessControllerUtil.ctx
+        );
         return AzureStorageService.giveSocketPermissionsToStream(is);
     }
 
@@ -274,7 +292,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AzureAccessControllerUtil.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
                     enumBlobListingDetails, null, generateOperationContext(account))) {
@@ -302,9 +320,12 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        if (SocketAccess.doPrivilegedException(() -> blobSource.exists(null, null, generateOperationContext(account)))) {
+        if (AzureAccessControllerUtil.doPrivilegedException(
+            () -> blobSource.exists(null, null, generateOperationContext(account)),
+            AzureAccessControllerUtil.ctx
+        )) {
             CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
-            SocketAccess.doPrivilegedVoidException(() -> {
+            AzureAccessControllerUtil.doPrivilegedVoidException(() -> {
                 blobTarget.startCopy(blobSource, null, null, null, generateOperationContext(account));
                 blobSource.delete(DeleteSnapshotsOption.NONE, null, null, generateOperationContext(account));
             });
@@ -319,7 +340,9 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
         CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
-        SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, null, null, generateOperationContext(account)));
+        AzureAccessControllerUtil.doPrivilegedVoidException(
+            () -> blob.upload(inputStream, blobSize, null, null, generateOperationContext(account))
+        );
         logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
     }
 }

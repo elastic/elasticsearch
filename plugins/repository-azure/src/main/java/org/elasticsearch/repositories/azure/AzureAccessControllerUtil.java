@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
+import java.security.AccessControlContext;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
@@ -29,15 +30,18 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import org.elasticsearch.common.AccessControllerUtil;
 
 /**
  * This plugin uses azure libraries to connect to azure storage services. For these remote calls the plugin needs
  * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-final class SocketAccess extends org.elasticsearch.common.SocketAccess {
+final class AzureAccessControllerUtil extends AccessControllerUtil {
 
-    private SocketAccess() {}
+    static final AccessControlContext ctx = AccessController.getContext();
+
+    private AzureAccessControllerUtil() {}
 
     // parent class can't handle multiple unrelated exceptions.
     static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {

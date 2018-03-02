@@ -31,7 +31,6 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SocketAccess;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
@@ -167,12 +166,12 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
 
         @Override
         public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentials::getCredentials);
+            return S3AccessControllerUtil.doPrivileged(credentials::getCredentials, S3AccessControllerUtil.ctx);
         }
 
         @Override
         public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentials::refresh);
+            S3AccessControllerUtil.doPrivilegedVoid(credentials::refresh, S3AccessControllerUtil.ctx);
         }
     }
 }

@@ -80,13 +80,13 @@ public class RecoveryResponse extends BroadcastResponse {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (hasRecoveries()) {
             for (String index : shardRecoveryStates.keySet()) {
                 List<RecoveryState> recoveryStates = shardRecoveryStates.get(index);
                 if (recoveryStates == null || recoveryStates.size() == 0) {
                     continue;
                 }
-                builder.startObject();
                 builder.startObject(index);
                 builder.startArray("shards");
                 for (RecoveryState recoveryState : recoveryStates) {
@@ -96,9 +96,9 @@ public class RecoveryResponse extends BroadcastResponse {
                 }
                 builder.endArray();
                 builder.endObject();
-                builder.endObject();
             }
         }
+        builder.endObject();
         return builder;
     }
 

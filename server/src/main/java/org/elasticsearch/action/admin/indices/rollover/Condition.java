@@ -20,30 +20,16 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 
-import java.util.Set;
+import java.util.Objects;
 
 /**
  * Base class for rollover request conditions
  */
-public abstract class Condition<T> implements NamedWriteable {
-
-    public static ObjectParser<Set<Condition>, Void> PARSER = new ObjectParser<>("conditions", null);
-    static {
-        PARSER.declareString((conditions, s) ->
-            conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-            new ParseField(MaxAgeCondition.NAME));
-        PARSER.declareLong((conditions, value) ->
-            conditions.add(new MaxDocsCondition(value)), new ParseField(MaxDocsCondition.NAME));
-        PARSER.declareString((conditions, s) ->
-                conditions.add(new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
-            new ParseField(MaxSizeCondition.NAME));
-    }
+public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 
     protected T value;
     protected final String name;
@@ -60,6 +46,24 @@ public abstract class Condition<T> implements NamedWriteable {
      */
     boolean includedInVersion(Version version) {
         return true;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Condition<?> condition = (Condition<?>) o;
+        return Objects.equals(value, condition.value) &&
+                Objects.equals(name, condition.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value, name);
     }
 
     @Override

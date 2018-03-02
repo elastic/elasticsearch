@@ -1146,12 +1146,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
 
-        if (randomBoolean() || true) { // try to serialize it to ensure values survive the serialization
-            BytesStreamOutput out = new BytesStreamOutput();
-            stats.writeTo(out);
-            StreamInput in = out.bytes().streamInput();
-            stats = ShardStats.readShardStats(in);
-        }
+        // try to serialize it to ensure values survive the serialization
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        stats = ShardStats.readShardStats(in);
+
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);
@@ -2926,9 +2926,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
                         if (randomBoolean() && searchers.size() > 1) {
                             // Close one of the searchers at random
-                            Engine.Searcher searcher = searchers.remove(0);
-                            logger.debug("--> {} closing searcher {}", threadName, searcher.source());
-                            IOUtils.close(searcher);
+                            synchronized (searchers) {
+                                // re-check because it could have decremented after the check
+                                if (searchers.size() > 1) {
+                                    Engine.Searcher searcher = searchers.remove(0);
+                                    logger.debug("--> {} closing searcher {}", threadName, searcher.source());
+                                    IOUtils.close(searcher);
+                                }
+                            }
                         }
                     } catch (Exception e) {
                         logger.warn("--> got exception: ", e);

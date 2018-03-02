@@ -36,9 +36,9 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[open-index-request-waitForActiveShards]
 --------------------------------------------------
 <1> The number of active shard copies to wait for before the open index API
-returns a response, as an `int`.
+returns a response, as an `int`
 <2> The number of active shard copies to wait for before  the open index API
-returns a response, as an `ActiveShardCount`.
+returns a response, as an `ActiveShardCount`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

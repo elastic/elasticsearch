@@ -24,6 +24,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -70,7 +71,7 @@ final class Spawner implements Closeable {
          * For each plugin, attempt to spawn the controller daemon. Silently ignore any plugin that
          * don't include a controller for the correct platform.
          */
-        List<Path> paths = PluginInfo.extractAllPlugins(pluginsFile);
+        List<Path> paths = PluginsService.findPluginDirs(pluginsFile);
         for (Path plugin : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(plugin);
             final Path spawnPath = Platforms.nativeControllerPath(plugin);

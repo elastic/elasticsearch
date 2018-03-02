@@ -1,0 +1,131 @@
+[[java-rest-high-rollover-index]]
+=== Rollover Index API
+
+[[java-rest-high-rollover-request]]
+==== Rollover Request
+
+The Rollover Index API requires a `RolloverRequest` instance.
+A `RolloverRequest` requires two string arguments at construction time, and
+one or more conditions that determine when the index has to be rolled over:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request]
+--------------------------------------------------
+<1> The alias (first argument) that points to the index to rollover, and
+optionally the name of the new index in case the rollover operation is performed
+<2> Condition on the age of the index
+<3> Condition on the number of documents in the index
+<4> Condition on the size of the index
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-dryRun]
+--------------------------------------------------
+<1> Whether the rollover should be performed (default) or only simulated
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the index is opened
+as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-waitForActiveShards]
+--------------------------------------------------
+<1> The number of active shard copies to wait for before the rollover index API
+returns a response, as an `int`
+<2> The number of active shard copies to wait for before the rollover index API
+returns a response, as an `ActiveShardCount`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-settings]
+--------------------------------------------------
+<1> Add the settings to apply to the new index, which include the number of
+shards to create for it
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-mapping]
+--------------------------------------------------
+<1> Add the mappings to associate the new index with. See <<java-rest-high-create-index-request-mappings>>
+for examples on the different ways to provide mappings
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-request-alias]
+--------------------------------------------------
+<1> Add the aliases to associate the new index with
+
+[[java-rest-high-rollover-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-execute]
+--------------------------------------------------
+
+[[java-rest-high-rollover-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a rollover request requires both the `RolloverRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-execute-async]
+--------------------------------------------------
+<1> The `RolloverRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `RolloverResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-rollover-response]]
+==== Rollover Response
+
+The returned `RolloverResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[rollover-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request
+<2> Indicates whether the requisite number of shard copies were started for
+each shard in the index before timing out
+<3> The name of the old index, eventually rolled over
+<4> The name of the new index
+<5> Whether the index has been rolled over
+<6> Whether the operation was performed or it was a dry run
+<7> The different conditions and whether they were matched or not
+
+

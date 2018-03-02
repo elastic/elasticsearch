@@ -35,8 +35,6 @@ publishing {
 }
 
 dependencies {
-    compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"

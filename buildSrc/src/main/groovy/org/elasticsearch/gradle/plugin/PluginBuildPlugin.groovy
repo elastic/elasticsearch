@@ -106,6 +106,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
+        project.integTestCluster.distribution = 'integ-test-zip'
         project.check.dependsOn(integTest)
     }
 
@@ -139,9 +140,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             from('src/main') {
                 include 'config/**'
                 include 'bin/**'
-            }
-            if (project.path.startsWith(':modules:') == false) {
-                into('elasticsearch')
             }
         }
         project.assemble.dependsOn(bundle)

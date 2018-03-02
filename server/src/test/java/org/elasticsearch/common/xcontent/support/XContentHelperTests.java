@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -93,7 +94,8 @@ public class XContentHelperTests extends ESTestCase {
             expectThrows(IOException.class, () -> XContentHelper.toXContent(toXContent, xContentType, randomBoolean()));
         } else {
             BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, randomBoolean());
-            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+            try (XContentParser parser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertTrue(parser.nextToken().isValue());

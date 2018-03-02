@@ -28,9 +28,8 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -314,7 +313,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
-            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, content)) {
+            try (XContentParser parser = XContentFactory.xContent(contentType)
+                    // It's okay to pass the throwing deprecation handler
+                    // because we should not be writing raw fields when
+                    // generating JSON
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -328,49 +331,31 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public final void writeRawField(String name, BytesReference content) throws IOException {
-        XContentType contentType = XContentFactory.xContentType(content);
-        if (contentType == null) {
-            throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
-        }
-        writeRawField(name, content, contentType);
-    }
-
-    @Override
-    public final void writeRawField(String name, BytesReference content, XContentType contentType) throws IOException {
-        if (mayWriteRawData(contentType) == false) {
-            writeFieldName(name);
-            copyRawValue(content, contentType.xContent());
-        } else {
-            writeStartRaw(name);
-            flush();
-            content.writeTo(os);
-            writeEndRaw();
-        }
-    }
-
-    @Override
-    public final void writeRawValue(BytesReference content) throws IOException {
-        XContentType contentType = XContentFactory.xContentType(content);
-        if (contentType == null) {
-            throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
-        }
-        writeRawValue(content, contentType);
-    }
-
-    @Override
-    public final void writeRawValue(BytesReference content, XContentType contentType) throws IOException {
-        if (mayWriteRawData(contentType) == false) {
-            copyRawValue(content, contentType.xContent());
+    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
+        if (mayWriteRawData(xContentType) == false) {
+            copyRawValue(stream, xContentType.xContent());
         } else {
             if (generator.getOutputContext().getCurrentName() != null) {
                 // If we've just started a field we'll need to add the separator
                 generator.writeRaw(':');
             }
             flush();
-            content.writeTo(os);
+            transfer(stream, os);
             writeEndRaw();
         }
+    }
+
+    // A basic copy of Java 9's InputStream#transferTo
+    private static long transfer(InputStream in, OutputStream out) throws IOException {
+        Objects.requireNonNull(out, "out");
+        long transferred = 0;
+        byte[] buffer = new byte[8192];
+        int read;
+        while ((read = in.read(buffer, 0, 8192)) >= 0) {
+            out.write(buffer, 0, read);
+            transferred += read;
+        }
+        return transferred;
     }
 
     private boolean mayWriteRawData(XContentType contentType) {
@@ -389,10 +374,12 @@ public class JsonXContentGenerator implements XContentGenerator {
         return true;
     }
 
-    protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
+    protected void copyRawValue(InputStream stream, XContent xContent) throws IOException {
         // EMPTY is safe here because we never call namedObject
-        try (StreamInput input = content.streamInput();
-             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
+        try (XContentParser parser = xContent
+                 // It's okay to pass the throwing deprecation handler because we
+                 // should not be writing raw fields when generating JSON
+                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
             copyCurrentStructure(parser);
         }
     }

@@ -139,12 +139,15 @@ public class GetRollupCapsActionRequestTests extends AbstractStreamableTestCase<
     public void testAllIndices() throws IOException {
         int num = randomIntBetween(1,5);
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = new ImmutableOpenMap.Builder<>(5);
+        int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
             Map<String, Object> jobs = new HashMap<>(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(10);
-                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).build());
+                String indexName = Integer.toString(indexCounter);
+                indexCounter += 1;
+                jobs.put(jobName, ConfigTestHelpers.getRollupJob(jobName).setIndexPattern(indexName).build());
             }
 
             MappingMetaData mappingMeta = new MappingMetaData(RollupField.NAME,

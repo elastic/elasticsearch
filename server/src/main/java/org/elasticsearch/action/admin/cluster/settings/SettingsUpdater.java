@@ -132,9 +132,9 @@ final class SettingsUpdater {
      * Partitions the settings into those that are known and valid versus those that are unknown or invalid. The resulting tuple contains
      * the known and valid settings in the first component and the unknown or invalid settings in the second component.
      *
-     * @param settings the settings to partition
+     * @param settings     the settings to partition
      * @param settingsType a string to identify the settings (for logging)
-     * @param logger a logger to
+     * @param logger       a logger to sending warnings to
      * @return the partitioned settings
      */
     private Tuple<Settings, Settings> partitionKnownAndValidSettings(

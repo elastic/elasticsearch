@@ -179,7 +179,7 @@ public class SettingsUpdaterTests extends ESTestCase {
         final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
         final Setting<String> invalidSetting = Setting.simpleString(
                 "invalid.setting",
-                (setting, settings) -> {
+                (value, settings) -> {
                     throw new IllegalArgumentException("invalid");
                 },
                 Property.NodeScope);

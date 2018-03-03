@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
 
 public class InnerAggregate extends AggregateFunction {
 
@@ -91,6 +92,6 @@ public class InnerAggregate extends AggregateFunction {
 
     @Override
     public String name() {
-        return "(" + inner.functionName() + "#" + inner.id() + "/" + outer.toString() + ")";
+        return inner.name();
     }
 }

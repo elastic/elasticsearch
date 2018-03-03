@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 // TODO: add retry/back-off
@@ -164,8 +165,9 @@ public class Scroller {
             }
             else if (col instanceof AggRef) {
                 Object[] arr;
+                AggRef ref = (AggRef) col;
 
-                String path = ((AggRef) col).path();
+                String path = ref.path();
                 // yup, this is instance equality to make sure we only check the path used by the code
                 if (path == TotalCountRef.PATH) {
                     arr = new Object[] { Long.valueOf(response.getHits().getTotalHits()) };
@@ -178,12 +180,24 @@ public class Scroller {
                     }
                     Object value = getAggProperty(response.getAggregations(), path);
 
-                    //                // FIXME: this can be tabular in nature
-                    //                if (ref instanceof MappedAggRef) {
-                    //                    Map<String, Object> map = (Map<String, Object>) value;
-                    // Object extractedValue = map.get(((MappedAggRef)
-                    // ref).fieldName());
-                    //                }
+                    // unwrap nested map
+                    if (ref.innerKey() != null) {
+                        // needs changing when moving to Composite
+                        if (value instanceof Object[]) {
+                            Object[] val = (Object[]) value;
+                            arr = new Object[val.length];
+                            for (int i = 0; i < arr.length; i++) {
+                                if (val[i] instanceof Map) {
+                                    arr[i] = ((Map<?, ?>) val[i]).get(ref.innerKey());
+                                }
+                            }
+                            value = arr;
+                        } else {
+                            if (value instanceof Map) {
+                                value = new Object[] { ((Map<?, ?>) value).get(ref.innerKey()) };
+                            }
+                        }
+                    }
 
                     if (formattedKey) {
                         List<? extends Bucket> buckets = ((MultiBucketsAggregation) value).getBuckets();

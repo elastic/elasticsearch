@@ -369,11 +369,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                         "Expected aggregate function inside alias; got %s", child.nodeString());
                                 Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup,
                                         (AggregateFunction) child, compoundAggMap, queryC);
-                                //FIXME: what about inner key
-                                queryC = withAgg.v1().addAggColumn(withAgg.v2().context());
-                                if (withAgg.v2().innerKey() != null) {
-                                    throw new PlanningException("innerkey/matrix stats not handled (yet)");
-                                }
+                                queryC = withAgg.v1().addAggColumn(withAgg.v2().context(), withAgg.v2().innerKey());
                             }
                         }
                     // not an Alias or Function means it's an Attribute so apply the same logic as above

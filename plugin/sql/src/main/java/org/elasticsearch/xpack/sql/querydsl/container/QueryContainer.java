@@ -302,6 +302,10 @@ public class QueryContainer {
         return with(combine(columns, new AggRef(aggPath)));
     }
 
+    public QueryContainer addAggColumn(String aggPath, String innerKey) {
+        return with(combine(columns, new AggRef(aggPath, innerKey)));
+    }
+
     public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId) {
         FieldExtraction ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
         Map<String, GroupingAgg> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);

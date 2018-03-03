@@ -55,6 +55,7 @@ Index Management::
 * <<java-rest-high-refresh>>
 * <<java-rest-high-flush>>
 * <<java-rest-high-rollover-index>>
+* <<java-rest-high-indices-put-settings>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
@@ -76,6 +77,7 @@ include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
+include::indices/put_settings.asciidoc[]
 
 == Cluster APIs
 

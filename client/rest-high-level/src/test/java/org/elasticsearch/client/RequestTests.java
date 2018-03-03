@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -1224,6 +1225,34 @@ public class RequestTests extends ESTestCase {
         }
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testIndexPutSettings() throws IOException {
+        String[] indices = randomIndicesNames(0, 2);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomFlatSettings(updateSettingsRequest::flatSettings, expectedParams);
+        setRandomMasterTimeout(updateSettingsRequest, expectedParams);
+        setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomIndicesOptions(updateSettingsRequest::indicesOptions, updateSettingsRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            updateSettingsRequest.setPreserveExisting(randomBoolean());
+            if (updateSettingsRequest.isPreserveExisting()) {
+                expectedParams.put("preserve_existing", "true");
+            }
+        }
+
+        Request request = Request.indexPutSettings(updateSettingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_settings");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }
 

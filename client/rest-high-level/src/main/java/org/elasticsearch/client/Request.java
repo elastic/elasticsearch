@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -573,6 +574,22 @@ public final class Request {
         return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
+    static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(updateSettingsRequest.timeout());
+        parameters.withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(updateSettingsRequest.indicesOptions());
+        parameters.withFlatSettings(updateSettingsRequest.flatSettings());
+        parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
+
+        String endpoint = buildEndpoint("_settings");
+        if (updateSettingsRequest.indices()!= null) {
+            endpoint = endpoint(updateSettingsRequest.indices(), "_settings");
+        }
+        HttpEntity entity = createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -821,6 +838,13 @@ public final class Request {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withPreserveExisting(boolean preserveExisting) {
+            if (preserveExisting) {
+                return putParam("preserve_existing", Boolean.TRUE.toString());
             }
             return this;
         }

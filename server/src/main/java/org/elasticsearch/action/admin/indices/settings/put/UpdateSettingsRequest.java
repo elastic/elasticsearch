@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,19 +36,21 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
+        implements IndicesRequest.Replaceable, ToXContentObject {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
+    private boolean flatSettings = false;
 
     public UpdateSettingsRequest() {
     }
@@ -65,6 +68,29 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public UpdateSettingsRequest(Settings settings, String... indices) {
         this.indices = indices;
         this.settings = settings;
+    }
+
+    /**
+     * Sets the value of "flat_settings".
+     * Used only by the high-level REST client.
+     * 
+     * @param flatSettings
+     *            value of "flat_settings" flag to be set
+     * @return this request
+     */
+    public UpdateSettingsRequest flatSettings(boolean flatSettings) {
+        this.flatSettings = flatSettings;
+        return this;
+    }
+
+    /**
+     * Return settings in flat format.
+     * Used only by the high-level REST client.
+     * 
+     * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
+     */
+    public boolean flatSettings() {
+        return flatSettings;
     }
 
     @Override
@@ -177,4 +203,13 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         writeSettingsToStream(settings, out);
         out.writeBoolean(preserveExisting);
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        settings.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
 }

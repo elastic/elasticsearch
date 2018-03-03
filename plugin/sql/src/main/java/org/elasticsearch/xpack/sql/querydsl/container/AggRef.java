@@ -12,11 +12,18 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 public class AggRef implements FieldExtraction {
     private final String path;
     private final int depth;
+    private final String innerKey;
 
     public AggRef(String path) {
+        this(path, null);
+    }
+
+    public AggRef(String path, String innerKey) {
         this.path = path;
         depth = AggPath.depth(path);
+        this.innerKey = innerKey;
     }
+
 
     @Override
     public String toString() {
@@ -30,6 +37,10 @@ public class AggRef implements FieldExtraction {
 
     public String path() {
         return path;
+    }
+
+    public String innerKey() {
+        return innerKey;
     }
 
     @Override

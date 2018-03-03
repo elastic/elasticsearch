@@ -9,15 +9,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Correlation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Covariance;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixCount;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixMean;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixVariance;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Mean;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
@@ -85,20 +79,13 @@ public class FunctionRegistry {
             def(Min.class, Min::new),
             def(Sum.class, Sum::new),
             // Statistics
-            def(Mean.class, Mean::new), // TODO can we just use Avg?
             def(StddevPop.class, StddevPop::new),
             def(VarPop.class, VarPop::new),
             def(Percentile.class, Percentile::new),
             def(PercentileRank.class, PercentileRank::new),
             def(SumOfSquares.class, SumOfSquares::new),
-            // Matrix aggs
-            def(MatrixCount.class, MatrixCount::new),
-            def(MatrixMean.class, MatrixMean::new),
-            def(MatrixVariance.class, MatrixVariance::new),
             def(Skewness.class, Skewness::new),
             def(Kurtosis.class, Kurtosis::new),
-            def(Covariance.class, Covariance::new),
-            def(Correlation.class, Correlation::new),
         // Scalar functions
             // Date
             def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),

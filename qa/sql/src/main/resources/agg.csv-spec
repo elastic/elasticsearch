@@ -75,3 +75,19 @@ SELECT SUM(salary) FROM test_emp;
 ---------------
 4824855
 ;
+
+kurtosisAndSkewnessNoGroup
+SELECT KURTOSIS(emp_no) k, SKEWNESS(salary) s FROM test_emp;
+
+k:d                  | s:d
+1.7997599759975997   | 0.2707722118423227
+;
+
+kurtosisAndSkewnessGroup
+SELECT gender, KURTOSIS(salary) k, SKEWNESS(salary) s FROM test_emp GROUP BY gender;
+
+gender:s             | k:d                  | s:d
+
+M                    | 2.259327644285826    | 0.40268950715550333
+F                    | 1.8427808415250482   | 0.04517149340491813
+;

@@ -367,14 +367,15 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
 
         AtomicBoolean started = new AtomicBoolean(false);
-        AtomicBoolean executed = new AtomicBoolean(false);
+        AtomicBoolean finished = new AtomicBoolean(false);
+        AtomicInteger counter = new AtomicInteger(0);
         CountDownLatch latch = new CountDownLatch(1);
+
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         doAnswer(invocationOnMock -> {
             assertTrue(threadContext.getHeaders().isEmpty());
-            executed.set(true);
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
             CompositeAggregation compositeAgg = mock(CompositeAggregation.class);
@@ -383,7 +384,9 @@ public class RollupJobTaskTests extends ESTestCase {
             Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
+            // Wait before progressing
             latch.await();
+
             ((ActionListener)invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(anyObject(), anyObject(), anyObject());
@@ -393,10 +396,16 @@ public class RollupJobTaskTests extends ESTestCase {
                 null, client, schedulerEngine, pool, Collections.emptyMap()) {
             @Override
             public void updatePersistentStatus(Status status, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
-                assertThat(status, instanceOf(RollupJobStatus.class));
-                assertThat(((RollupJobStatus)status).getState(), equalTo(IndexerState.STARTED));
-                listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
-                        new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
+                Integer counterValue = counter.getAndIncrement();
+                if (counterValue == 0) {
+                    assertThat(status, instanceOf(RollupJobStatus.class));
+                    assertThat(((RollupJobStatus) status).getState(), equalTo(IndexerState.STARTED));
+                    listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
+                            new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
+                } else if (counterValue == 1) {
+                    finished.set(true);
+                }
+
             }
         };
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.STOPPED));
@@ -420,8 +429,11 @@ public class RollupJobTaskTests extends ESTestCase {
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.INDEXING)); // Should still be started, not INDEXING
         assertThat(task.getStats().getNumInvocations(), equalTo(1L));
-        ESTestCase.awaitBusy(executed::get);
+        // Allow search response to return now
         latch.countDown();
+
+        // Wait for the final persistent status to finish
+        ESTestCase.awaitBusy(finished::get);
     }
 
     @SuppressWarnings("unchecked")
@@ -435,8 +447,10 @@ public class RollupJobTaskTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
 
         AtomicBoolean started = new AtomicBoolean(false);
-        AtomicBoolean executed = new AtomicBoolean(false);
+        AtomicBoolean finished = new AtomicBoolean(false);
+        AtomicInteger counter = new AtomicInteger(0);
         CountDownLatch latch = new CountDownLatch(1);
+
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -444,7 +458,6 @@ public class RollupJobTaskTests extends ESTestCase {
             assertFalse(threadContext.getHeaders().isEmpty());
             assertThat(threadContext.getHeaders().get("es-security-runas-user"), equalTo("foo"));
             assertThat(threadContext.getHeaders().get("_xpack_security_authentication"), equalTo("bar"));
-            executed.set(true);
 
             SearchResponse r = mock(SearchResponse.class);
             when(r.getShardFailures()).thenReturn(ShardSearchFailure.EMPTY_ARRAY);
@@ -454,7 +467,9 @@ public class RollupJobTaskTests extends ESTestCase {
             Aggregations aggs = new Aggregations(Collections.singletonList(compositeAgg));
             when(r.getAggregations()).thenReturn(aggs);
 
+            // Wait before progressing
             latch.await();
+
             ((ActionListener)invocationOnMock.getArguments()[2]).onResponse(r);
             return null;
         }).when(client).execute(anyObject(), anyObject(), anyObject());
@@ -464,10 +479,16 @@ public class RollupJobTaskTests extends ESTestCase {
                 null, client, schedulerEngine, pool, Collections.emptyMap()) {
             @Override
             public void updatePersistentStatus(Status status, ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> listener) {
-                assertThat(status, instanceOf(RollupJobStatus.class));
-                assertThat(((RollupJobStatus)status).getState(), equalTo(IndexerState.STARTED));
-                listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
-                        new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
+                Integer counterValue = counter.getAndIncrement();
+                if (counterValue == 0) {
+                    assertThat(status, instanceOf(RollupJobStatus.class));
+                    assertThat(((RollupJobStatus) status).getState(), equalTo(IndexerState.STARTED));
+                    listener.onResponse(new PersistentTasksCustomMetaData.PersistentTask<>("foo", RollupField.TASK_NAME, job, 1,
+                            new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
+                } else if (counterValue == 1) {
+                    finished.set(true);
+                }
+
             }
         };
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.STOPPED));
@@ -491,8 +512,11 @@ public class RollupJobTaskTests extends ESTestCase {
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.INDEXING)); // Should still be started, not INDEXING
         assertThat(task.getStats().getNumInvocations(), equalTo(1L));
-        ESTestCase.awaitBusy(executed::get);
+        // Allow search response to return now
         latch.countDown();
+
+        // Wait for the final persistent status to finish
+        ESTestCase.awaitBusy(finished::get);
     }
 
     public void testStopWhenStopped() throws InterruptedException {

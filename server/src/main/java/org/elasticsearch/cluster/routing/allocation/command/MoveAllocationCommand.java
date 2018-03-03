@@ -106,6 +106,10 @@ public class MoveAllocationCommand implements AllocationCommand {
         if (fromRoutingNode == null && !fromDiscoNode.isDataNode()) {
             throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " +  fromDiscoNode + " is not a data node.");
         }
+        RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
+        if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
+            throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " +  toDiscoNode + " is not a data node.");
+        }
 
         for (ShardRouting shardRouting : fromRoutingNode) {
             if (!shardRouting.shardId().getIndexName().equals(index)) {
@@ -126,10 +130,6 @@ public class MoveAllocationCommand implements AllocationCommand {
                         ", shard is not started (state = " + shardRouting.state() + "]");
             }
 
-            RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-            if (toRoutingNode == null && !toDiscoNode.isDataNode()) {
-                throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", from " + fromDiscoNode + ", to " + toDiscoNode + ", since its not allowed, reason: " +  toDiscoNode + " is not a data node.");
-            }
             decision = allocation.deciders().canAllocate(shardRouting, toRoutingNode, allocation);
             if (decision.type() == Decision.Type.NO) {
                 if (explain) {

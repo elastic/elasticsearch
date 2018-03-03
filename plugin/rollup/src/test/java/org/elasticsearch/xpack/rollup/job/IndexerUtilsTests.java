@@ -77,7 +77,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
         DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
@@ -144,7 +144,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
         DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();
@@ -216,7 +216,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         valueFieldType.setName(valueField);
@@ -281,7 +281,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
         DateFieldMapper.Builder builder = new DateFieldMapper.Builder(timestampField);
         DateFieldMapper.DateFieldType timestampFieldType = builder.fieldType();

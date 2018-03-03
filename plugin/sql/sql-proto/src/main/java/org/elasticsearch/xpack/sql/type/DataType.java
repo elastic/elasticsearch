@@ -128,11 +128,11 @@ public enum DataType {
     }
 
     /**
-     * Returns true if value is signed, false if it is unsigned or null if the type doesn't represent a number
+     * Returns true if value is signed, false otherwise (including if the type is not numeric)
      */
-    public Boolean isSigned() {
+    public boolean isSigned() {
         // For now all numeric values that es supports are signed
-        return isNumeric() ? true : null;
+        return isNumeric();
     }
 
     public boolean isString() {

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
@@ -62,7 +63,10 @@ public class SysParserTests extends ESTestCase {
         cmd.execute(null, ActionListener.wrap(r -> {
             assertEquals(19, r.columnCount());
             assertEquals(17, r.size());
-
+            assertFalse(r.schema().types().contains(DataType.NULL));
+            // test numeric as signed
+            assertFalse(r.column(9, Boolean.class));
+            
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));
                 r.advanceRow();

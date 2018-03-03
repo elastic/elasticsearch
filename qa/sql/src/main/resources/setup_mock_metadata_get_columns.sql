@@ -5,7 +5,7 @@ CREATE TABLE mock (
   DATA_TYPE INTEGER,
   TYPE_NAME VARCHAR,
   COLUMN_SIZE INTEGER,
-  BUFFER_LENGTH NULL,
+  BUFFER_LENGTH INTEGER,
   DECIMAL_DIGITS INTEGER,
   NUM_PREC_RADIX INTEGER,
   NULLABLE INTEGER,
@@ -23,27 +23,27 @@ CREATE TABLE mock (
   IS_AUTOINCREMENT VARCHAR,
   IS_GENERATEDCOLUMN VARCHAR
 ) AS
-SELECT null, 'test1', 'name', 12, 'TEXT', 0, null, null, null,
+SELECT null, 'test1', 'name', 12, 'TEXT', 0, 2147483647, null, null,
   1, -- columnNullable
   null, null, 12, null, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 0, null, null, null,
+SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 0, 2147483647, null, null,
   1, -- columnNullable
   null, null, 12, null, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test2', 'date', 93, 'DATE', 20, null, null, null,
+SELECT null, 'test2', 'date', 93, 'DATE', 20, 8, null, null,
   1, -- columnNullable
   null, null, 93, null, null, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test2', 'float', 7, 'FLOAT', 15, null, null, 2,
+SELECT null, 'test2', 'float', 7, 'FLOAT', 15, 4, null, 2,
   1, -- columnNullable
   null, null, 7, null, null, 2, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test2', 'number', -5, 'LONG', 20, null, null, 10,
+SELECT null, 'test2', 'number', -5, 'LONG', 20, 8, null, 10,
   1, -- columnNullable
   null, null, -5, null, null, 3, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL

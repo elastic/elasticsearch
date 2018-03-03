@@ -63,7 +63,7 @@ public class SysColumns extends Command {
                       field("DATA_TYPE", INTEGER),
                       keyword("TYPE_NAME"),
                       field("COLUMN_SIZE", INTEGER),
-                      field("BUFFER_LENGTH", NULL),
+                      field("BUFFER_LENGTH", INTEGER),
                       field("DECIMAL_DIGITS", INTEGER),
                       field("NUM_PREC_RADIX", INTEGER),
                       field("NULLABLE", INTEGER),

@@ -372,7 +372,7 @@ public class InternalEngine extends Engine {
                 maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), Long.parseLong(entry.getValue())));
             }
             if (key.equals(SequenceNumbers.MAX_SEQ_NO)) {
-                maxSeqNoOfNonAppendOnlyOperations.set(Math.max(maxSeqNoOfNonAppendOnlyOperations.get(), Long.parseLong(entry.getValue())));
+                maxSeqNoOfNonAppendOnlyOperations.set(Long.parseLong(entry.getValue()));
             }
         }
     }

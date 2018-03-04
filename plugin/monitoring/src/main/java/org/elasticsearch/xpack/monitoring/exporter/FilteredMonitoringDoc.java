@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.NamedXContentRegistry.EMPTY;
@@ -60,7 +61,8 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
             try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
-            try (XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, out.bytes().streamInput())) {
+            try (InputStream stream = out.bytes().streamInput();
+                 XContentParser parser = xContent.createParser(EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                 return builder.copyCurrentStructure(parser);
             }
         }

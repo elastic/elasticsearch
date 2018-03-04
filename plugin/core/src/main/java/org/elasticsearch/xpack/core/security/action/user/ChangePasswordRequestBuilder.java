@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.CharBuffer;
 
 /**
@@ -66,8 +67,9 @@ public class ChangePasswordRequestBuilder
      */
     public ChangePasswordRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         // EMPTY is ok here because we never call namedObject
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

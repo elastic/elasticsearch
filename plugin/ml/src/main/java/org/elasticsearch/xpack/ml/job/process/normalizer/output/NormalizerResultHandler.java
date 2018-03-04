@@ -80,10 +80,12 @@ public class NormalizerResultHandler extends AbstractComponent {
     }
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
-        XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesRef.streamInput());
-        NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
-        normalizedResults.add(result);
+        try (InputStream stream = bytesRef.streamInput();
+             XContentParser parser = xContent
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
+            normalizedResults.add(result);
+        }
     }
 
     private static int findNextMarker(byte marker, BytesReference bytesRef, int from) {

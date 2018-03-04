@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -81,15 +82,16 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                     QueryPage<MlFilter> responseBody;
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-                        XContentParser parser =
-                                XContentFactory.xContent(docSource)
-                                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                                                docSource.streamInput());
-                        MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
-                        responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
+                        try (InputStream stream = docSource.streamInput();
+                             XContentParser parser =
+                                     XContentFactory.xContent(docSource)
+                                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                            MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
+                            responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
 
-                        GetFiltersAction.Response filterResponse = new GetFiltersAction.Response(responseBody);
-                        listener.onResponse(filterResponse);
+                            GetFiltersAction.Response filterResponse = new GetFiltersAction.Response(responseBody);
+                            listener.onResponse(filterResponse);
+                        }
                     } else {
                         this.onFailure(QueryPage.emptyQueryPage(MlFilter.RESULTS_FIELD));
                     }
@@ -122,8 +124,9 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 List<MlFilter> docs = new ArrayList<>();
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
-                    try (XContentParser parser = XContentFactory.xContent(docSource).createParser(
-                            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, docSource.streamInput())) {
+                    try (InputStream stream = docSource.streamInput();
+                         XContentParser parser = XContentFactory.xContent(docSource).createParser(
+                                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                         docs.add(MlFilter.PARSER.apply(parser, null).build());
                     } catch (IOException e) {
                         this.onFailure(e);

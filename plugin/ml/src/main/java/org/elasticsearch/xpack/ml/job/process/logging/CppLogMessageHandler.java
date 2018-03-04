@@ -220,9 +220,9 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
-        try {
-            XContentParser parser = xContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesRef.streamInput());
+        try (InputStream stream = bytesRef.streamInput();
+             XContentParser parser = xContent
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
             Level level = Level.getLevel(msg.getLevel());
             if (level == null) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response,
@@ -138,7 +139,9 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.rawValue(preview.streamInput(), XContentType.JSON);
+            try (InputStream stream = preview.streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
             return builder;
         }
 

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.common.time.HaltedClock;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -109,20 +110,15 @@ public class WatchParser extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }
-        XContentParser parser = null;
-        try {
-            // EMPTY is safe here because we never use namedObject
-            parser = new WatcherXContentParser(xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput()),
-                    new HaltedClock(now), withSecrets ? cryptoService : null, allowRedactedPasswords);
+        try (InputStream stream = source.streamInput();
+             WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent()
+                     // EMPTY is safe here because we never use namedObject
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream),
+                     new HaltedClock(now), withSecrets ? cryptoService : null, allowRedactedPasswords)) {
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {
             throw ioException("could not parse watch [{}]", ioe, id);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
     }
 

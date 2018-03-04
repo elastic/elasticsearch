@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -308,8 +309,9 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
-        try (XContentParser parser = XContentFactory.xContent(bytesReference)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())) {
+        try (InputStream stream = bytesReference.streamInput();
+             XContentParser parser = XContentFactory.xContent(bytesReference)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);

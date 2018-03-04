@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -144,8 +145,9 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
             return parse(name, parser);
         }
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.watcher.common.http.Scheme;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -79,9 +81,11 @@ public class JiraAccount {
             builder.startObject();
             settings.getAsSettings(ISSUE_DEFAULTS_SETTING).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            this.issueDefaults = Collections.unmodifiableMap(XContentType.JSON.xContent()
-                    .createParser(new NamedXContentRegistry(Collections.emptyList()),
-                            LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput()).map());
+            try (InputStream stream = builder.bytes().streamInput();
+                 XContentParser parser = XContentType.JSON.xContent()
+                         .createParser(new NamedXContentRegistry(Collections.emptyList()), LoggingDeprecationHandler.INSTANCE, stream)) {
+                this.issueDefaults = Collections.unmodifiableMap(parser.map());
+            }
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

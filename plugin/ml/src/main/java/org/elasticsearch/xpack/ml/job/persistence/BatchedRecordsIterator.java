@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
@@ -27,14 +28,13 @@ class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
     @Override
     protected Result<AnomalyRecord> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, source.streamInput());
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE, stream)){
+            AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, null);
+            return new Result<>(hit.getIndex(), record);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse record", e);
         }
-        AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, null);
-        return new Result<>(hit.getIndex(), record);
     }
 }

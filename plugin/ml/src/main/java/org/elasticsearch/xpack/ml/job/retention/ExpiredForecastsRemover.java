@@ -36,6 +36,7 @@ import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -117,11 +118,13 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         }
 
         for (SearchHit hit : hits.getHits()) {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
-                    NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, hit.getSourceRef().streamInput());
-            ForecastRequestStats forecastRequestStats = ForecastRequestStats.PARSER.apply(parser, null);
-            if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
-                forecastsToDelete.add(forecastRequestStats);
+            try (InputStream stream = hit.getSourceRef().streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+                         NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                ForecastRequestStats forecastRequestStats = ForecastRequestStats.PARSER.apply(parser, null);
+                if (forecastRequestStats.getExpiryTime().toEpochMilli() < cutoffEpochMs) {
+                    forecastsToDelete.add(forecastRequestStats);
+                }
             }
         }
         return forecastsToDelete;

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedResponse extends ActionResponse {
+public abstract class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
@@ -76,8 +77,17 @@ public abstract class AcknowledgedResponse extends ActionResponse {
         out.writeBoolean(acknowledged);
     }
 
-    protected void addAcknowledgedField(XContentBuilder builder) throws IOException {
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
+        addCustomFields(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+
     }
 
     @Override

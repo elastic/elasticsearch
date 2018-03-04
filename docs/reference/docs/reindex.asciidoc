@@ -160,9 +160,9 @@ POST _reindex
 // TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
-lots of sources in one request. This will copy documents from the `tweet` and
+lots of sources in one request. This will copy documents from the `_doc` and
 `post` types in the `twitter` and `blog` index. It'd include the `post` type in
-the `twitter` index and the `tweet` type in the `blog` index. If you want to be
+the `twitter` index and the `_doc` type in the `blog` index. If you want to be
 more specific you'll need to use the `query`. It also makes no effort to handle
 ID collisions. The target index will remain valid but it's not easy to predict
 which document will survive because the iteration order isn't well defined.

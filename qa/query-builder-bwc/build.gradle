@@ -42,7 +42,6 @@ for (Version version : bwcVersions.indexCompatible) {
     }
 
     configure(extensions.findByName("${baseName}#oldQueryBuilderTestCluster")) {
-        distribution = 'zip'
         bwcVersion = version
         numBwcNodes = 1
         numNodes = 1
@@ -57,7 +56,6 @@ for (Version version : bwcVersions.indexCompatible) {
     configure(extensions.findByName("${baseName}#upgradedQueryBuilderTestCluster")) {
         dependsOn oldQueryBuilderTest,
                 "${baseName}#oldQueryBuilderTestCluster#stop"
-        distribution = 'zip'
         clusterName = 'query_builder_bwc'
         numNodes = 1
         dataDir = { nodeNum -> oldQueryBuilderTest.nodes[nodeNum].dataDir }

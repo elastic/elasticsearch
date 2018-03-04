@@ -399,7 +399,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            Object value = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+            Object value = maybeConvertToBytesRef(parser.objectBytes());
             if (value == null) {
                 throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
             }

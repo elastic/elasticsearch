@@ -162,7 +162,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public RangeQueryBuilder from(Object from, boolean includeLower) {
-        this.from = convertToBytesRefIfStringOrCharBuffer(from);
+        this.from = maybeConvertToBytesRef(from);
         this.includeLower = includeLower;
         return this;
     }
@@ -178,7 +178,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the lower range value for this query.
      */
     public Object from() {
-        return convertToStringIfBytesRefOrCharBuffer(this.from);
+        return maybeConvertToString(this.from);
     }
 
     /**
@@ -199,7 +199,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * The to part of the range query. Null indicates unbounded.
      */
     public RangeQueryBuilder to(Object to, boolean includeUpper) {
-        this.to = convertToBytesRefIfStringOrCharBuffer(to);
+        this.to = maybeConvertToBytesRef(to);
         this.includeUpper = includeUpper;
         return this;
     }
@@ -218,7 +218,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * of query to be equal regardless of whether it was created from XContent or via Java API.
      */
     public Object to() {
-        return convertToStringIfBytesRefOrCharBuffer(this.to);
+        return maybeConvertToString(this.to);
     }
 
     /**
@@ -334,8 +334,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(FROM_FIELD.getPreferredName(), convertToStringIfBytesRefOrCharBuffer(this.from));
-        builder.field(TO_FIELD.getPreferredName(), convertToStringIfBytesRefOrCharBuffer(this.to));
+        builder.field(FROM_FIELD.getPreferredName(), maybeConvertToString(this.from));
+        builder.field(TO_FIELD.getPreferredName(), maybeConvertToString(this.to));
         builder.field(INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
         builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         if (timeZone != null) {
@@ -377,9 +377,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         currentFieldName = parser.currentName();
                     } else {
                         if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (INCLUDE_LOWER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             includeLower = parser.booleanValue();
                         } else if (INCLUDE_UPPER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -387,16 +387,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else if (GT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                             includeLower = false;
                         } else if (GTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            from = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            from = maybeConvertToBytesRef(parser.objectBytes());
                             includeLower = true;
                         } else if (LT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                             includeUpper = false;
                         } else if (LTE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            to = convertToBytesRefIfStringOrCharBuffer(parser.objectBytes());
+                            to = maybeConvertToBytesRef(parser.objectBytes());
                             includeUpper = true;
                         } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             timeZone = parser.text();

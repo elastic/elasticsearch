@@ -200,7 +200,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    static Object convertToBytesRefIfStringOrCharBuffer(Object obj) {
+    static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
             return BytesRefs.toBytesRef(obj);
         } else if (obj instanceof CharBuffer) {
@@ -215,7 +215,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @param obj the input object
      * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
      */
-    static Object convertToStringIfBytesRefOrCharBuffer(Object obj) {
+    static Object maybeConvertToString(Object obj) {
         if (obj instanceof BytesRef) {
             return ((BytesRef) obj).utf8ToString();
         } else if (obj instanceof CharBuffer) {

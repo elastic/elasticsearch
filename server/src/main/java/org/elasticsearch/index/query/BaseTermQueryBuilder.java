@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -117,7 +116,7 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
             throw new IllegalArgumentException("value cannot be null");
         }
         this.fieldName = fieldName;
-        this.value = convertToBytesRefIfStringOrCharBuffer(value);
+        this.value = maybeConvertToBytesRef(value);
     }
 
     /**
@@ -145,14 +144,14 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
      *  If necessary, converts internal {@link BytesRef} representation back to string.
      */
     public Object value() {
-        return convertToStringIfBytesRefOrCharBuffer(this.value);
+        return maybeConvertToString(this.value);
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.startObject(fieldName);
-        builder.field(VALUE_FIELD.getPreferredName(), convertToStringIfBytesRefOrCharBuffer(this.value));
+        builder.field(VALUE_FIELD.getPreferredName(), maybeConvertToString(this.value));
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();

@@ -96,6 +96,9 @@ class HttpExportBulk extends ExportBulk {
         } else if (payload.length != 0) {
             final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
 
+            // free the memory
+            payload = null;
+
             client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
@@ -115,9 +118,6 @@ class HttpExportBulk extends ExportBulk {
                     }
                 }
             });
-
-            // free the memory
-            payload = null;
         }
     }
 

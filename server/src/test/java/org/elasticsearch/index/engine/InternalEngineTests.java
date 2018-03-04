@@ -4588,12 +4588,11 @@ public class InternalEngineTests extends EngineTestCase {
         for (int i = 0; i < addedDocs; i++) {
             index(engine, i);
         }
-        final AtomicLong clock = new AtomicLong();
         final Set<Long> trimmedDeletes = new HashSet<>();
         final int trimmedBatch = between(10, 20);
         for (int i = 0; i < trimmedBatch; i++) {
             final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
-            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, clock.incrementAndGet()));
+            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
             trimmedDeletes.add(seqno);
         }
         final long gapSeqNo = engine.getLocalCheckpointTracker().generateSeqNo(); // Gap here.
@@ -4601,19 +4600,17 @@ public class InternalEngineTests extends EngineTestCase {
         final int rememberedBatch = between(10, 20);
         for (int i = 0; i < rememberedBatch; i++) {
             final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
-            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, clock.incrementAndGet()));
+            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
             rememberedDeletes.add(seqno);
         }
         assertThat(engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
             equalTo(Sets.union(trimmedDeletes, rememberedDeletes)));
-        engine.refresh("test");
-        // Only prune deletes below the local checkpoint.
-        engine.maybePruneDeletes();
+        engine.refresh("test"); // refresh will prune tombstones
         assertThat(engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
             equalTo(rememberedDeletes));
         // Fill the gap - should be able to prune all deletes.
         engine.index(replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false));
-        engine.maybePruneDeletes();
+        engine.refresh("test"); // refresh will prune tombstones
         assertThat(engine.getDeletedTombstones().entrySet(), empty());
     }
 }

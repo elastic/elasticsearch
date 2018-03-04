@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -474,8 +475,9 @@ public class JobProvider {
     private <T, U> T parseSearchHit(SearchHit hit, BiFunction<XContentParser, U, T> objectParser,
                                     Consumer<Exception> errorHandler) {
         BytesReference source = hit.getSourceRef();
-        try (XContentParser parser = XContentFactory.xContent(source)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(source)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + hit.getType(), e));
@@ -487,8 +489,9 @@ public class JobProvider {
                                  Consumer<Exception> errorHandler) {
         BytesReference source = getResponse.getSourceAsBytesRef();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {
             errorHandler.accept(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
@@ -523,8 +526,9 @@ public class JobProvider {
                     List<Bucket> results = new ArrayList<>();
                     for (SearchHit hit : hits.getHits()) {
                         BytesReference source = hit.getSourceRef();
-                        try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(source)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             Bucket bucket = Bucket.PARSER.apply(parser, null);
                             results.add(bucket);
                         } catch (IOException e) {
@@ -654,8 +658,9 @@ public class JobProvider {
                     List<CategoryDefinition> results = new ArrayList<>(hits.length);
                     for (SearchHit hit : hits) {
                         BytesReference source = hit.getSourceRef();
-                        try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(source)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, null);
                             results.add(categoryDefinition);
                         } catch (IOException e) {
@@ -688,8 +693,9 @@ public class JobProvider {
                     List<AnomalyRecord> results = new ArrayList<>();
                     for (SearchHit hit : searchResponse.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
-                        try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(source)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             results.add(AnomalyRecord.PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse records", e);
@@ -736,8 +742,9 @@ public class JobProvider {
                     List<Influencer> influencers = new ArrayList<>();
                     for (SearchHit hit : response.getHits().getHits()) {
                         BytesReference source = hit.getSourceRef();
-                        try (XContentParser parser = XContentFactory.xContent(source)
-                                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(source)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             influencers.add(Influencer.PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse influencer", e);
@@ -880,8 +887,9 @@ public class JobProvider {
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            try (XContentParser parser = XContentFactory.xContent(source)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(source)
+                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                 ModelPlot modelPlot = ModelPlot.PARSER.apply(parser, null);
                 results.add(modelPlot);
             } catch (IOException e) {
@@ -1214,10 +1222,11 @@ public class JobProvider {
                     if (getDocResponse.isExists()) {
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
 
-                        try (XContentParser parser =
+                        try (InputStream stream = docSource.streamInput();
+                             XContentParser parser =
                                      XContentFactory.xContent(docSource)
                                              .createParser(NamedXContentRegistry.EMPTY,
-                                                     LoggingDeprecationHandler.INSTANCE, docSource.streamInput())) {
+                                                     LoggingDeprecationHandler.INSTANCE, stream)) {
                             Calendar calendar = Calendar.PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);
                         }

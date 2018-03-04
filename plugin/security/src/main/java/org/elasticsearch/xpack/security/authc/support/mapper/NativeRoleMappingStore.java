@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRea
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -149,17 +150,14 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private ExpressionRoleMapping buildMapping(String id, BytesReference source) {
-        try (XContentParser parser = getParser(source)) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentType.JSON.xContent()
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return ExpressionRoleMapping.parse(id, parser);
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("Role mapping [{}] cannot be parsed and will be skipped", id), e);
             return null;
         }
-    }
-
-    private static XContentParser getParser(BytesReference source) throws IOException {
-        return XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput());
     }
 
     /**

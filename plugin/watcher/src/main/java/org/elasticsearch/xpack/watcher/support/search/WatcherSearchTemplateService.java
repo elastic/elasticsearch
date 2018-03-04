@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 /**
@@ -64,8 +65,9 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
-            try (XContentParser parser = XContentFactory.xContent(source)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(source)
+                         .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 sourceBuilder.parseXContent(parser);
                 searchRequest.source(sourceBuilder);
             }

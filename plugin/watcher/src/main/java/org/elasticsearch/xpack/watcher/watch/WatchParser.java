@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -108,9 +109,10 @@ public class WatchParser extends AbstractComponent {
             logger.trace("parsing watch [{}] ", source.utf8ToString());
         }
         // EMPTY is safe here because we never use namedObject
-        try (WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, source.streamInput()),
-                        now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
+        try (InputStream stream = source.streamInput();
+             WatcherXContentParser parser = new WatcherXContentParser(xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream),
+                     now, withSecrets ? cryptoService : null, allowRedactedPasswords)) {
             parser.nextToken();
             return parse(id, includeStatus, parser);
         } catch (IOException ioe) {

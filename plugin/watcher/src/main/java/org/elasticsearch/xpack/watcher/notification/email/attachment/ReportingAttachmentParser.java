@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Map;
 
@@ -201,8 +202,9 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      */
     private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
         // EMPTY is safe here becaus we never call namedObject
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body.streamInput())) {
+        try (InputStream stream = body.streamInput();
+             XContentParser parser = JsonXContent.jsonXContent
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             KibanaReportingPayload payload = new KibanaReportingPayload();
             PAYLOAD_PARSER.parse(parser, payload, null);
             String path = payload.getPath();

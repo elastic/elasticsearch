@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
     BatchedInfluencersIterator(Client client, String jobId) {
@@ -26,15 +27,13 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
     @Override
     protected Result<Influencer> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, source.streamInput());
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+            Influencer influencer = Influencer.PARSER.apply(parser, null);
+            return new Result<>(hit.getIndex(), influencer);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parser influencer", e);
         }
-
-        Influencer influencer = Influencer.PARSER.apply(parser, null);
-        return new Result<>(hit.getIndex(), influencer);
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -219,8 +220,9 @@ public class RoleDescriptor implements ToXContentObject {
             throws IOException {
         assert name != null;
         // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return parse(name, parser, allow2xFormat);
         }
     }
@@ -288,8 +290,9 @@ public class RoleDescriptor implements ToXContentObject {
 
     public static RoleDescriptor parsePrivilegesCheck(String description, BytesReference source, XContentType xContentType)
             throws IOException {
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             // advance to the START_OBJECT token
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {

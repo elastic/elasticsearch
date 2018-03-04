@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -588,8 +589,9 @@ public class RollupRequestTranslator {
             try {
                 output.writeString(metric.getType());
                 metric.writeTo(output);
-                try (NamedWriteableAwareStreamInput in =
-                             new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
+                try (StreamInput stream = output.bytes().streamInput();
+                     NamedWriteableAwareStreamInput in =
+                             new NamedWriteableAwareStreamInput(stream, registry)) {
 
                     ValuesSourceAggregationBuilder serialized
                             = ((ValuesSourceAggregationBuilder)in.readNamedWriteable(AggregationBuilder.class))

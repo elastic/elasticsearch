@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
 
@@ -27,14 +28,13 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
     @Override
     protected Result<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, source.streamInput());
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+            Bucket bucket = Bucket.PARSER.apply(parser, null);
+            return new Result<>(hit.getIndex(), bucket);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse bucket", e);
         }
-        Bucket bucket = Bucket.PARSER.apply(parser, null);
-        return new Result<>(hit.getIndex(), bucket);
     }
 }

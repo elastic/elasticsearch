@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -102,10 +103,10 @@ public class SentEvent implements ToXContentObject {
 
         // lets first try to parse the error response in the body
         // based on https://developer.pagerduty.com/documentation/rest/errors
-        try {
-            // EMPTY is safe here because we never call namedObject
-            XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.body().streamInput());
+        try (InputStream stream = response.body().streamInput();
+             XContentParser parser = JsonXContent.jsonXContent
+                     // EMPTY is safe here because we never call namedObject
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             parser.nextToken();
 
             String message = null;

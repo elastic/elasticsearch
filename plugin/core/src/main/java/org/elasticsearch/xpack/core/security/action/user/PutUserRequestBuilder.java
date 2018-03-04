@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -99,8 +100,9 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         Objects.requireNonNull(xContentType);
         username(username);
         // EMPTY is ok here because we never call namedObject
-        try (XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source.streamInput())) {
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

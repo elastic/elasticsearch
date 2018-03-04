@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -497,44 +498,47 @@ public class License implements ToXContentObject {
             throw new ElasticsearchParseException("failed to parse license - no content-type provided");
         }
         // EMPTY is safe here because we don't call namedObject
-        final XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
-        License license = null;
-        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
-            if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                String currentFieldName = parser.currentName();
-                if (Fields.LICENSES.equals(currentFieldName)) {
-                    final List<License> pre20Licenses = new ArrayList<>();
-                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            pre20Licenses.add(License.fromXContent(parser));
-                        }
-                        // take the latest issued unexpired license
-                        CollectionUtil.timSort(pre20Licenses, LATEST_ISSUE_DATE_FIRST);
-                        long now = System.currentTimeMillis();
-                        for (License oldLicense : pre20Licenses) {
-                            if (oldLicense.expiryDate() > now) {
-                                license = oldLicense;
-                                break;
+        try (InputStream byteStream = bytes.streamInput();
+             XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, byteStream))
+        {
+            License license = null;
+            if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    if (Fields.LICENSES.equals(currentFieldName)) {
+                        final List<License> pre20Licenses = new ArrayList<>();
+                        if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                pre20Licenses.add(License.fromXContent(parser));
                             }
+                            // take the latest issued unexpired license
+                            CollectionUtil.timSort(pre20Licenses, LATEST_ISSUE_DATE_FIRST);
+                            long now = System.currentTimeMillis();
+                            for (License oldLicense : pre20Licenses) {
+                                if (oldLicense.expiryDate() > now) {
+                                    license = oldLicense;
+                                    break;
+                                }
+                            }
+                            if (license == null && !pre20Licenses.isEmpty()) {
+                                license = pre20Licenses.get(0);
+                            }
+                        } else {
+                            throw new ElasticsearchParseException("failed to parse licenses expected an array of licenses");
                         }
-                        if (license == null && !pre20Licenses.isEmpty()) {
-                            license = pre20Licenses.get(0);
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse licenses expected an array of licenses");
+                    } else if (Fields.LICENSE.equals(currentFieldName)) {
+                        license = License.fromXContent(parser);
                     }
-                } else if (Fields.LICENSE.equals(currentFieldName)) {
-                    license = License.fromXContent(parser);
+                    // Ignore all other fields - might be created with new version
+                } else {
+                    throw new ElasticsearchParseException("failed to parse licenses expected field");
                 }
-                // Ignore all other fields - might be created with new version
             } else {
-                throw new ElasticsearchParseException("failed to parse licenses expected field");
+                throw new ElasticsearchParseException("failed to parse licenses expected start object");
             }
-        } else {
-            throw new ElasticsearchParseException("failed to parse licenses expected start object");
+            return license;
         }
-        return license;
     }
 
     @Override

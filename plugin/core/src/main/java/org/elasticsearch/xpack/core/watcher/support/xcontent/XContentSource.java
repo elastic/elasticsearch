@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.common.xcontent.XContentUtils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -98,15 +99,16 @@ public class XContentSource implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = parser(NamedXContentRegistry.EMPTY)) {
+        try (InputStream stream = bytes.streamInput();
+             XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
             parser.nextToken();
             XContentHelper.copyCurrentStructure(builder.generator(), parser);
             return builder;
         }
     }
 
-    public XContentParser parser(NamedXContentRegistry xContentRegistry) throws IOException {
-        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
+    public XContentParser parser(NamedXContentRegistry xContentRegistry, InputStream stream) throws IOException {
+        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
@@ -121,7 +123,8 @@ public class XContentSource implements ToXContent {
     private Object data() {
         if (data == null) {
             // EMPTY is safe here because we never use namedObject
-            try (XContentParser parser = parser(NamedXContentRegistry.EMPTY)) {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
                 data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);

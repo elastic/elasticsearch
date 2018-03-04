@@ -73,10 +73,6 @@ import static org.hamcrest.Matchers.not;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
-    static {
-        System.setProperty("tests.rest.cluster", "localhost:9200");
-    }
-
     public void testIndicesExists() throws IOException {
         // Index present
         {

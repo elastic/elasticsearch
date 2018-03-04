@@ -4642,16 +4642,21 @@ public class InternalEngineTests extends EngineTestCase {
             lookupTimes++;
         }
         // doc1 is delayed and arrived after a non-append-only op.
-        final long seqNoDoc1 = localCheckpointTracker.generateSeqNo();
-        Engine.IndexResult regularDoc = engine.index(replicaIndexForDoc(
-            testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, localCheckpointTracker.generateSeqNo(), false));
+        final long seqNoAppendOnly1 = localCheckpointTracker.generateSeqNo();
+        final long seqnoNormalOp = localCheckpointTracker.generateSeqNo();
+        if (randomBoolean()) {
+            engine.index(replicaIndexForDoc(
+                testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, seqnoNormalOp, false));
+        } else {
+            engine.delete(replicaDeleteForDoc("d", 1, seqnoNormalOp, randomNonNegativeLong()));
+        }
         lookupTimes++;
-        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes)); //
-        assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(regularDoc.getSeqNo()));
+        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
+        assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(seqnoNormalOp));
 
         // should not optimize for doc1 and process as a regular doc (eg. look up in version map)
         engine.index(appendOnlyReplica(testParsedDocument("append-only-1", null, testDocumentWithTextField(), SOURCE, null),
-            false, randomNonNegativeLong(), seqNoDoc1));
+            false, randomNonNegativeLong(), seqNoAppendOnly1));
         lookupTimes++;
         assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
 

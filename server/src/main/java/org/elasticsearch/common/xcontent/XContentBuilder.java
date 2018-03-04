@@ -987,7 +987,9 @@ public final class XContentBuilder implements Releasable, Flushable {
      */
     @Deprecated
     public XContentBuilder rawField(String name, BytesReference value) throws IOException {
-        generator.writeRawField(name, value.streamInput());
+        try (InputStream stream = value.streamInput()) {
+            generator.writeRawField(name, stream);
+        }
         return this;
     }
 
@@ -995,7 +997,9 @@ public final class XContentBuilder implements Releasable, Flushable {
      * Writes a raw field with the given bytes as the value
      */
     public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
-        generator.writeRawField(name, value.streamInput(), contentType);
+        try (InputStream stream = value.streamInput()) {
+            generator.writeRawField(name, stream, contentType);
+        }
         return this;
     }
 

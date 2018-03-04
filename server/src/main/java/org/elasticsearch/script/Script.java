@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -282,8 +283,11 @@ public final class Script implements ToXContentObject, Writeable {
             builder.startObject();
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput()));
+            try (InputStream stream = builder.bytes().streamInput();
+                 XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                return parse(parser);
+            }
         } catch (IOException e) {
             // it should not happen since we are not actually reading from a stream but an in-memory byte[]
             throw new IllegalStateException(e);

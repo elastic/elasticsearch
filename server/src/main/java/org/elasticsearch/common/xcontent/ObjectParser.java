@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * nested elements can be added via {@link #declareObject(BiConsumer, ContextParser, ParseField)} which should be satisfied where possible
  * by passing another instance of {@link ObjectParser}, this one customized for that Object.
  * <p>
- * This class works well for object that do have a constructor argument or that can be built using information available from earlier in the
+ * This class works well for object that doesn't have a constructor argument or that can be built using information available from earlier in the
  * XContent. For objects that have constructors with required arguments that are specified on the same level as other fields see
  * {@link ConstructingObjectParser}.
  * </p>

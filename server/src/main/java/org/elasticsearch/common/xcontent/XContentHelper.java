@@ -106,10 +106,8 @@ public class XContentHelper {
                 input = bytes.streamInput();
             }
             contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            try {
-                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), input, ordered));
-            } finally {
-                input.close();
+            try (InputStream stream = input) {
+                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

@@ -42,11 +42,13 @@ import org.elasticsearch.transport.RemoteTransportException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -195,6 +197,58 @@ public class BytesRestResponseTests extends ESTestCase {
         assertThat(content, containsString("\"type\":\"illegal_argument_exception\""));
         assertThat(content, containsString("\"reason\":\"partial escape sequence at end of string: %a\""));
         assertThat(content, containsString("\"status\":" + 400));
+    }
+
+    public void testResponseWhenParametersEncodingError() throws IOException {
+        parametersEncodingError("path?param=value%", "unterminated escape sequence at end of string: value%");
+        parametersEncodingError("path?param%=value%", "unterminated escape sequence at end of string: param%");
+        parametersEncodingError("path?param=value%a", "partial escape sequence at end of string: value%a");
+        parametersEncodingError("path?param%a=value%a", "partial escape sequence at end of string: param%a");
+        parametersEncodingError("path?param%aZ=value%a", "invalid escape sequence `%aZ' at index 5 of: param%aZ");
+    }
+
+    private void parametersEncodingError(String uri, String errorString) throws IOException {
+        final RestRequest request = new TestParamsRequest(NamedXContentRegistry.EMPTY, uri, Collections.emptyMap());
+        assertThat(request.getException().getClass(), equalTo(IllegalArgumentException.class));
+        assertThat(request.getException().getMessage(), equalTo(errorString));
+
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        final BytesRestResponse response = new BytesRestResponse(channel, request.getException());
+        assertNotNull(response.content());
+        final String content = response.content().utf8ToString();
+        assertThat(content, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(content, containsString("\"reason\":\"" + errorString + "\""));
+        assertThat(content, containsString("\"status\":" + 400));
+    }
+
+    private class TestParamsRequest extends RestRequest {
+
+        private final String uri;
+
+        TestParamsRequest(NamedXContentRegistry xContentRegistry, String uri, Map<String, List<String>> headers) {
+            super(xContentRegistry, uri, headers);
+            this.uri = uri;
+        }
+
+        @Override
+        public Method method() {
+            return null;
+        }
+
+        @Override
+        public String uri() {
+            return uri;
+        }
+
+        @Override
+        public boolean hasContent() {
+            return false;
+        }
+
+        @Override
+        public BytesReference content() {
+            return null;
+        }
     }
 
     public void testResponseWhenInternalServerError() throws IOException {

@@ -151,7 +151,14 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         RestActions.buildBroadcastShardsHeader(builder, params, this);
+        addCustomXContentFields(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    /**
+     * Override in subclass to add custom fields following the common `_shards` field
+     */
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
     }
 }

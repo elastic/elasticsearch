@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,9 +102,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, params, this);
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
@@ -175,11 +172,9 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
 
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
-    static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
+    private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
         builder.startArray("sort");
         for (SortField field : sort.getSort()) {
             builder.startObject();
@@ -198,7 +193,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         builder.endArray();
     }
 
-    static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
+    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
         builder.startObject();
         builder.field(Fields.DESCRIPTION, tree.toString());
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));

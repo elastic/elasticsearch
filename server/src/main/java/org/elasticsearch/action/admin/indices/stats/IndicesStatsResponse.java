@@ -22,11 +22,10 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,7 +145,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         final String level = params.param("level", "indices");
         final boolean isLevelValid =
             "cluster".equalsIgnoreCase(level) || "indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level);
@@ -154,8 +153,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
             throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
 
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, params, this);
         builder.startObject("_all");
 
         builder.startObject("primaries");
@@ -198,8 +195,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
             }
             builder.endObject();
         }
-        builder.endObject();
-        return builder;
     }
 
     static final class Fields {
@@ -209,14 +204,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this::toXContent, true, false);
     }
 }

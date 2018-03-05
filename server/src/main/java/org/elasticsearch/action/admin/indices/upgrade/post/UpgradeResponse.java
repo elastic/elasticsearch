@@ -26,7 +26,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -77,9 +76,7 @@ public class UpgradeResponse extends BroadcastResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        RestActions.buildBroadcastShardsHeader(builder, params, this);
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("upgraded_indices");
         for (Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
             builder.startObject(entry.getKey());
@@ -88,8 +85,6 @@ public class UpgradeResponse extends BroadcastResponse {
             builder.endObject();
         }
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     /**

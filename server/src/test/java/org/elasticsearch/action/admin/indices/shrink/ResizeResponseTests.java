@@ -20,17 +20,10 @@
 package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
-
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-
-public class ResizeResponseTests extends ESTestCase {
+public class ResizeResponseTests extends AbstractStreamableXContentTestCase<ResizeResponse> {
 
     public void testToXContent() {
         ResizeResponse response = new ResizeResponse(true, false, "index_name");
@@ -38,49 +31,39 @@ public class ResizeResponseTests extends ESTestCase {
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 
-    public void testToAndFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected ResizeResponse doParseInstance(XContentParser parser) {
+        return ResizeResponse.fromXContent(parser);
     }
 
-    /**
-     * This test adds random fields and objects to the xContent rendered out to
-     * ensure we can parse it back to be forward compatible with additions to
-     * the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
-    }
-
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-
-        final ResizeResponse resizeResponse = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(resizeResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
-        ResizeResponse parsedResizeResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedResizeResponse = ResizeResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertEquals(resizeResponse.index(), parsedResizeResponse.index());
-        assertEquals(resizeResponse.isShardsAcknowledged(), parsedResizeResponse.isShardsAcknowledged());
-        assertEquals(resizeResponse.isAcknowledged(), parsedResizeResponse.isAcknowledged());
-    }
-
-    private static ResizeResponse createTestItem() {
+    @Override
+    protected ResizeResponse createTestInstance() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
         String index = randomAlphaOfLength(5);
-
         return new ResizeResponse(acknowledged, shardsAcknowledged, index);
+    }
+
+    @Override
+    protected ResizeResponse createBlankInstance() {
+        return new ResizeResponse();
+    }
+
+    @Override
+    protected ResizeResponse mutateInstance(ResizeResponse response) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                boolean acknowledged = response.isAcknowledged() == false;
+                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
+                return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
+            } else {
+                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
+                return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
+            }
+        } else {
+            return new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
+                    response.index() + randomAlphaOfLengthBetween(2, 5));
+        }
     }
 }

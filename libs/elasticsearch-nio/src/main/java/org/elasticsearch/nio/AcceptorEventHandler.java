@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
 import java.util.function.Supplier;
 
 /**
@@ -38,46 +39,46 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     /**
-     * This method is called when a NioServerSocketChannel is successfully registered. It should only be
-     * called once per channel.
+     * This method is called when a NioServerSocketChannel is being registered with the selector. It should
+     * only be called once per channel.
      *
-     * @param nioServerSocketChannel that was registered
+     * @param context that was registered
      */
-    protected void serverChannelRegistered(NioServerSocketChannel nioServerSocketChannel) {
-        SelectionKeyUtils.setAcceptInterested(nioServerSocketChannel);
+    protected void handleRegistration(ServerChannelContext context) throws IOException {
+        context.register();
+        SelectionKey selectionKey = context.getSelectionKey();
+        selectionKey.attach(context);
+        SelectionKeyUtils.setAcceptInterested(selectionKey);
     }
 
     /**
      * This method is called when an attempt to register a server channel throws an exception.
      *
-     * @param channel that was registered
+     * @param context that was registered
      * @param exception that occurred
      */
-    protected void registrationException(NioServerSocketChannel channel, Exception exception) {
-        logger.error(new ParameterizedMessage("failed to register server channel: {}", channel), exception);
+    protected void registrationException(ServerChannelContext context, Exception exception) {
+        logger.error(new ParameterizedMessage("failed to register server channel: {}", context.getChannel()), exception);
     }
 
     /**
      * This method is called when a server channel signals it is ready to accept a connection. All of the
      * accept logic should occur in this call.
      *
-     * @param nioServerChannel that can accept a connection
+     * @param context that can accept a connection
      */
-    protected void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
-        ChannelFactory<?, ?> channelFactory = nioServerChannel.getChannelFactory();
-        SocketSelector selector = selectorSupplier.get();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector);
-        nioServerChannel.getContext().acceptChannel(nioSocketChannel);
+    protected void acceptChannel(ServerChannelContext context) throws IOException {
+        context.acceptChannels(selectorSupplier);
     }
 
     /**
      * This method is called when an attempt to accept a connection throws an exception.
      *
-     * @param nioServerChannel that accepting a connection
+     * @param context that accepting a connection
      * @param exception that occurred
      */
-    protected void acceptException(NioServerSocketChannel nioServerChannel, Exception exception) {
+    protected void acceptException(ServerChannelContext context, Exception exception) {
         logger.debug(() -> new ParameterizedMessage("exception while accepting new channel from server channel: {}",
-            nioServerChannel), exception);
+            context.getChannel()), exception);
     }
 }

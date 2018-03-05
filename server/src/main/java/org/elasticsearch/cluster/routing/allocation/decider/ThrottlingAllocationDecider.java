@@ -156,7 +156,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     return allocation.decision(THROTTLE, NAME,
                         "reached the limit of outgoing shard recoveries [%d] on the node [%s] which holds the primary, " +
                         "cluster setting [%s=%d] (can also be set via [%s])",
-                        primaryNodeOutRecoveries, node.nodeId(),
+                        primaryNodeOutRecoveries, primaryShard.currentNodeId(),
                         CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                         concurrentOutgoingRecoveries,
                         CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey());

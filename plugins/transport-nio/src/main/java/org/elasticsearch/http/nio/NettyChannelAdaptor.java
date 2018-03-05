@@ -36,7 +36,9 @@ import org.elasticsearch.nio.WriteOperation;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
 
 
@@ -44,10 +46,12 @@ import java.util.Queue;
  * This class adapts a netty channel for our usage. In particular, it captures writes at the end of the
  * pipeline and places them in a queue that can be accessed by our code.
  */
-class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, SocketChannelContext.ReadConsumer {
+class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, SocketChannelContext.ReadConsumer,
+    SocketChannelContext.WriteProducer {
 
     // TODO: Explore if this can be made more efficient by generating less garbage
-    private LinkedList<Tuple<BytesReference, ChannelPromise>> messages = new LinkedList<>();
+    private final LinkedList<BytesWriteOperation> byteOps = new LinkedList<>();
+    private final SocketChannelContext channelContext = null;
 
     NettyChannelAdaptor() {
         pipeline().addFirst("promise_captor", new ChannelOutboundHandlerAdapter() {
@@ -58,13 +62,12 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
                 // to its outbound buffer. We do not want to complete the promise until the message is sent. So we
                 // intercept the promise and pass a different promise back to the rest of the pipeline.
 
+                ByteBuf message = (ByteBuf) msg;
                 try {
-                    // TODO: Ensure release on failure. I'm sure it is necessary here as it might be done
+                    // TODO: Ensure release on failure. I'm not sure it is necessary here as it might be done
                     // TODO: in NioHttpChannel.
-                    ByteBuf message = (ByteBuf) msg;
-                    BytesReference bytesReference = ByteBufBytesReference.toBytesReference(message);
                     promise.addListener((f) -> message.release());
-                    messages.add(new Tuple<>(bytesReference, promise));
+                    byteOps.add(new BytesWriteOperation(channelContext, message.nioBuffers(), new NettyActionListener(promise)));
                 } catch (Exception e) {
                     promise.setFailure(e);
                 }
@@ -77,12 +80,8 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
         return inboundMessages();
     }
 
-    Tuple<BytesReference, ChannelPromise> popMessage() {
-        return messages.pollFirst();
-    }
-
     boolean hasMessages() {
-        return messages.size() > 0;
+        return byteOps.isEmpty() == false;
     }
 
     void closeNettyChannel() {
@@ -95,13 +94,16 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
     }
 
     @Override
+    public List<BytesWriteOperation> produceWrites(WriteOperation writeOperation) {
+        writeAndFlush(writeOperation.getObject(), (NettyActionListener) writeOperation.getListener());
+        ArrayList<BytesWriteOperation> localByteOps = new ArrayList<>(byteOps);
+        byteOps.clear();
+        return localByteOps;
+    }
+
+    @Override
     public BytesWriteOperation pollBytes() {
-        Tuple<BytesReference, ChannelPromise> message = messages.pollFirst();
-        if (message == null) {
-            return null;
-        } else {
-            return new BytesWriteOperation(null, BytesReference.toByteBuffers(message.v1()), null);
-        }
+        return byteOps.pollFirst();
     }
 
     @Override

@@ -183,4 +183,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public interface ReadConsumer {
         int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
     }
+
+    @FunctionalInterface
+    public interface WriteProducer {
+        Iterable<BytesWriteOperation> produceWrites(WriteOperation writeOperation) throws IOException;
+    }
 }

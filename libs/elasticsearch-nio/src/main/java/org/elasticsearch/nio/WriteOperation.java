@@ -31,4 +31,8 @@ public interface WriteOperation {
     BiConsumer<Void, Throwable> getListener();
 
     SocketChannelContext getChannel();
+
+    default Object getObject() {
+        return null;
+    }
 }

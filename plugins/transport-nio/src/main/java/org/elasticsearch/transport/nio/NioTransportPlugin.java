@@ -47,7 +47,8 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             NioTransport.NIO_WORKER_COUNT,
-            NioTransport.NIO_ACCEPTOR_COUNT
+            NioTransport.NIO_ACCEPTOR_COUNT,
+            NioNotEnabledBootstrapCheck.OVERRIDE_BOOTSTRAP
         );
     }
 

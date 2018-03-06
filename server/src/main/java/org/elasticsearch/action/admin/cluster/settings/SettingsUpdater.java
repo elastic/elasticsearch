@@ -55,10 +55,7 @@ final class SettingsUpdater {
     }
 
     synchronized ClusterState updateSettings(
-            final ClusterState currentState,
-            final Settings transientToApply,
-            final Settings persistentToApply,
-            final Logger logger) {
+            final ClusterState currentState, final Settings transientToApply, final Settings persistentToApply, final Logger logger) {
         boolean changed = false;
 
         /*
@@ -68,21 +65,19 @@ final class SettingsUpdater {
          * version of Elasticsearch becomes infected with a cluster state containing such settings, we need to skip validating such settings
          * and instead archive them. Consequently, for the current transient and persistent settings in the cluster state we do the
          * following:
-         *  - create a settings instance with that has archived all unknown or invalid settings
-         *  - split this settings instance into two with the known and valid settings in one, and the unknown or invalid in another
+         *  - split existing settings instance into two with the known and valid settings in one, and the unknown or invalid in another
+         *    (note that existing archived settings are included in the known and valid settings)
          *  - validate the incoming settings update combined with the existing known and valid settings
          *  - merge in the archived unknown or invalid settings
          */
         final Tuple<Settings, Settings> partitionedTransientSettings =
                 partitionKnownAndValidSettings(currentState.metaData().transientSettings(), "transient", logger);
-        final Settings.Builder transientSettings = Settings.builder();
-        transientSettings.put(partitionedTransientSettings.v1());
+        final Settings.Builder transientSettings = Settings.builder().put(partitionedTransientSettings.v1());
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
         final Tuple<Settings, Settings> partitionedPersistentSettings =
                 partitionKnownAndValidSettings(currentState.metaData().persistentSettings(), "persistent", logger);
-        final Settings.Builder persistentSettings = Settings.builder();
-        persistentSettings.put(partitionedPersistentSettings.v1());
+        final Settings.Builder persistentSettings = Settings.builder().put(partitionedPersistentSettings.v1());
         changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
         final ClusterState clusterState;
@@ -130,7 +125,8 @@ final class SettingsUpdater {
 
     /**
      * Partitions the settings into those that are known and valid versus those that are unknown or invalid. The resulting tuple contains
-     * the known and valid settings in the first component and the unknown or invalid settings in the second component.
+     * the known and valid settings in the first component and the unknown or invalid settings in the second component. Note that archived
+     * settings contained in the settings to partition are included in the first component.
      *
      * @param settings     the settings to partition
      * @param settingsType a string to identify the settings (for logging)
@@ -138,15 +134,18 @@ final class SettingsUpdater {
      * @return the partitioned settings
      */
     private Tuple<Settings, Settings> partitionKnownAndValidSettings(
-            final Settings settings,
-            final String settingsType,
-            final Logger logger) {
+            final Settings settings, final String settingsType, final Logger logger) {
+        final Settings existingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX));
+        final Settings settingsExcludingExistingArchivedSettings =
+                settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
         final Settings settingsWithUnknownOrInvalidArchived = clusterSettings.archiveUnknownOrInvalidSettings(
-                settings,
+                settingsExcludingExistingArchivedSettings,
                 e -> logUnknownSetting(settingsType, e, logger),
                 (e, ex) -> logInvalidSetting(settingsType, e, ex, logger));
         return Tuple.tuple(
-                settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false),
+                Settings.builder()
+                        .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
+                        .put(existingArchivedSettings).build(),
                 settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX)));
     }
 
@@ -155,10 +154,7 @@ final class SettingsUpdater {
     }
 
     private void logInvalidSetting(
-            final String settingType,
-            final Map.Entry<String, String> e,
-            final IllegalArgumentException ex,
-            final Logger logger) {
+            final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex, final Logger logger) {
         logger.warn(
                 (org.apache.logging.log4j.util.Supplier<?>)
                         () -> new ParameterizedMessage("ignoring existing invalid {} setting: [{}] with value [{}]; archiving",

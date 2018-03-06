@@ -582,33 +582,59 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testForceMerge() {
-        String[] indices = randomIndicesNames(0, 5);
-        ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indices);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomIndicesOptions(forceMergeRequest::indicesOptions, forceMergeRequest::indicesOptions, expectedParams);
-        if (randomBoolean()) {
-            forceMergeRequest.maxNumSegments(randomInt());
-        }
-        expectedParams.put("max_num_segments", Integer.toString(forceMergeRequest.maxNumSegments()));
-        if (randomBoolean()) {
-            forceMergeRequest.onlyExpungeDeletes(randomBoolean());
-        }
-        expectedParams.put("only_expunge_deletes", Boolean.toString(forceMergeRequest.onlyExpungeDeletes()));
-        if (randomBoolean()) {
-            forceMergeRequest.flush(randomBoolean());
-        }
-        expectedParams.put("flush", Boolean.toString(forceMergeRequest.flush()));
+        {
+            String[] indices = randomIndicesNames(0, 5);
+            ForceMergeRequest forceMergeRequest = new ForceMergeRequest(indices);
+            Map<String, String> expectedParams = new HashMap<>();
+            setRandomIndicesOptions(forceMergeRequest::indicesOptions, forceMergeRequest::indicesOptions, expectedParams);
+            if (randomBoolean()) {
+                forceMergeRequest.maxNumSegments(randomInt());
+            }
+            expectedParams.put("max_num_segments", Integer.toString(forceMergeRequest.maxNumSegments()));
+            if (randomBoolean()) {
+                forceMergeRequest.onlyExpungeDeletes(randomBoolean());
+            }
+            expectedParams.put("only_expunge_deletes", Boolean.toString(forceMergeRequest.onlyExpungeDeletes()));
+            if (randomBoolean()) {
+                forceMergeRequest.flush(randomBoolean());
+            }
+            expectedParams.put("flush", Boolean.toString(forceMergeRequest.flush()));
 
-        Request request = Request.forceMerge(forceMergeRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices.length > 0) {
-            endpoint.add(String.join(",", indices));
+            Request request = Request.forceMerge(forceMergeRequest);
+            StringJoiner endpoint = new StringJoiner("/", "/", "");
+            if (indices.length > 0) {
+                endpoint.add(String.join(",", indices));
+            }
+            endpoint.add("_forcemerge");
+            assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+            assertThat(request.getParameters(), equalTo(expectedParams));
+            assertThat(request.getEntity(), nullValue());
+            assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         }
-        endpoint.add("_forcemerge");
-        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-        assertThat(request.getEntity(), nullValue());
-        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        {
+            ForceMergeRequest forceMergeRequestAll = new ForceMergeRequest();
+            Map<String, String> expectedParams = new HashMap<>();
+            setRandomIndicesOptions(forceMergeRequestAll::indicesOptions, forceMergeRequestAll::indicesOptions, expectedParams);
+            if (randomBoolean()) {
+                forceMergeRequestAll.maxNumSegments(randomInt());
+            }
+            expectedParams.put("max_num_segments", Integer.toString(forceMergeRequestAll.maxNumSegments()));
+            if (randomBoolean()) {
+                forceMergeRequestAll.onlyExpungeDeletes(randomBoolean());
+            }
+            expectedParams.put("only_expunge_deletes", Boolean.toString(forceMergeRequestAll.onlyExpungeDeletes()));
+            if (randomBoolean()) {
+                forceMergeRequestAll.flush(randomBoolean());
+            }
+            expectedParams.put("flush", Boolean.toString(forceMergeRequestAll.flush()));
+
+            Request request = Request.forceMerge(forceMergeRequestAll);
+            String endpoint = "/_forcemerge";
+            assertThat(request.getEndpoint(), equalTo(endpoint));
+            assertThat(request.getParameters(), equalTo(expectedParams));
+            assertThat(request.getEntity(), nullValue());
+            assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        }
     }
 
     public void testUpdate() throws IOException {

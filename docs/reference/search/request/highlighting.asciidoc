@@ -107,7 +107,7 @@ needs highlighting. The `plain` highlighter always uses plain highlighting.
 [WARNING]
 Plain highlighting for large texts may require substantial amount of time and memory.
 To protect against this, the maximum number of text characters to be analyzed will be
-limited to 10000 in the next major Elastic version. The default limit is not set for this version,
+limited to 1000000 in the next major Elastic version. The default limit is not set for this version,
 but can be set for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
 [[highlighting-settings]]

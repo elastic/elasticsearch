@@ -79,7 +79,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
         CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(searcher, analyzer, null,
                 new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), locale,
-                breakIterator, rawValue, noMatchSize, -1);
+                breakIterator, rawValue, noMatchSize);
         highlighter.setFieldMatcher((name) -> "text".equals(name));
         final Snippet[] snippets =
             highlighter.highlightField("text", query, topDocs.scoreDocs[0].doc, expectedPassages.length);

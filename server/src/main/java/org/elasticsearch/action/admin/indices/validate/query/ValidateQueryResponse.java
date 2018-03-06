@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,10 +106,8 @@ public class ValidateQueryResponse extends BroadcastResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(VALID_FIELD, isValid());
-        RestActions.buildBroadcastShardsHeader(builder, params, this);
         if (getQueryExplanation() != null && !getQueryExplanation().isEmpty()) {
             builder.startArray(EXPLANATIONS_FIELD);
             for (QueryExplanation explanation : getQueryExplanation()) {
@@ -132,7 +129,5 @@ public class ValidateQueryResponse extends BroadcastResponse {
             }
             builder.endArray();
         }
-        builder.endObject();
-        return builder;
     }
 }

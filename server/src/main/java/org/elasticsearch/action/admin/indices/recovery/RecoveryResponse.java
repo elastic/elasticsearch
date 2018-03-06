@@ -38,7 +38,6 @@ import java.util.Map;
  */
 public class RecoveryResponse extends BroadcastResponse {
 
-    private boolean detailed = false;
     private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
 
     public RecoveryResponse() { }
@@ -50,28 +49,17 @@ public class RecoveryResponse extends BroadcastResponse {
      * @param totalShards       Total count of shards seen
      * @param successfulShards  Count of shards successfully processed
      * @param failedShards      Count of shards which failed to process
-     * @param detailed          Display detailed metrics
      * @param shardRecoveryStates    Map of indices to shard recovery information
      * @param shardFailures     List of failures processing shards
      */
-    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, boolean detailed,
-                            Map<String, List<RecoveryState>> shardRecoveryStates,
+    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, Map<String, List<RecoveryState>> shardRecoveryStates,
                             List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shardRecoveryStates = shardRecoveryStates;
-        this.detailed = detailed;
     }
 
     public boolean hasRecoveries() {
         return shardRecoveryStates.size() > 0;
-    }
-
-    public boolean detailed() {
-        return detailed;
-    }
-
-    public void detailed(boolean detailed) {
-        this.detailed = detailed;
     }
 
     public Map<String, List<RecoveryState>> shardRecoveryStates() {

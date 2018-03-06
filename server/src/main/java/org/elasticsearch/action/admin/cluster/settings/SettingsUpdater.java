@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -72,12 +73,16 @@ final class SettingsUpdater {
          */
         final Tuple<Settings, Settings> partitionedTransientSettings =
                 partitionKnownAndValidSettings(currentState.metaData().transientSettings(), "transient", logger);
-        final Settings.Builder transientSettings = Settings.builder().put(partitionedTransientSettings.v1());
+        final Settings knownAndValidTransientSettings = partitionedTransientSettings.v1();
+        final Settings unknownOrInvalidTransientSettings = partitionedTransientSettings.v2();
+        final Settings.Builder transientSettings = Settings.builder().put(knownAndValidTransientSettings);
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
         final Tuple<Settings, Settings> partitionedPersistentSettings =
                 partitionKnownAndValidSettings(currentState.metaData().persistentSettings(), "persistent", logger);
-        final Settings.Builder persistentSettings = Settings.builder().put(partitionedPersistentSettings.v1());
+        final Settings knownAndValidPersistentSettings = partitionedPersistentSettings.v1();
+        final Settings unknownOrInvalidPersistentSettings = partitionedPersistentSettings.v2();
+        final Settings.Builder persistentSettings = Settings.builder().put(knownAndValidPersistentSettings);
         changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
         final ClusterState clusterState;
@@ -90,8 +95,8 @@ final class SettingsUpdater {
             clusterSettings.validate(persistentFinalSettings, true);
 
             MetaData.Builder metaData = MetaData.builder(currentState.metaData())
-                    .persistentSettings(Settings.builder().put(persistentFinalSettings).put(partitionedPersistentSettings.v2()).build())
-                    .transientSettings(Settings.builder().put(transientFinalSettings).put(partitionedTransientSettings.v2()).build());
+                    .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
+                    .persistentSettings(Settings.builder().put(persistentFinalSettings).put(unknownOrInvalidPersistentSettings).build());
 
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
             boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings())
@@ -157,7 +162,7 @@ final class SettingsUpdater {
     private void logInvalidSetting(
             final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex, final Logger logger) {
         logger.warn(
-                (org.apache.logging.log4j.util.Supplier<?>)
+                (Supplier<?>)
                         () -> new ParameterizedMessage("ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
                                 settingType,
                                 e.getKey(),

@@ -9,8 +9,6 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
-
-
 STOP_REQUIRED=false
 REMOVE_SERVICE=false
 
@@ -80,6 +78,5 @@ if [ "$REMOVE_SERVICE" = "true" ]; then
         update-rc.d elasticsearch remove >/dev/null || true
     fi
 fi
-
 
 ${scripts.footer}

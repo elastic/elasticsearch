@@ -225,9 +225,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (context.searchAfter() != null) {
             throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
         }
-        if (context.rescore() != null && context.rescore().isEmpty() == false) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
-        }
 
         MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);
         if (fieldType == null) {

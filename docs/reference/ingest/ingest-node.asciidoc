@@ -563,7 +563,7 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
-Dynamic field names are also supported. This example sets the field named after the 
+Dynamic field names are also supported. This example sets the field named after the
 value of `service` to the value of the field `code`:
 
 [source,js]
@@ -1829,7 +1829,10 @@ PUT _ingest/pipeline/my_index
     "processors": [
       {
         "script": {
-          "source": " ctx._index = 'my_index'; ctx._type = '_doc' "
+          "source": """
+            ctx._index = 'my_index';
+            ctx._type = '_doc';
+          """
         }
       }
     ]

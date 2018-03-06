@@ -22,14 +22,13 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class NioNotEnabledBootstrapCheck implements BootstrapCheck {
 
     public static final Setting<Boolean> OVERRIDE_BOOTSTRAP =
-        boolSetting("transport.nio.override_nio_bootstrap_check", false, Setting.Property.NodeScope);
+        boolSetting("bootstrap.ignore_transport_nio_bootstrap_checks", false, Setting.Property.NodeScope);
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {

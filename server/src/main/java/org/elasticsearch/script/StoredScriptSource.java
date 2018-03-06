@@ -68,6 +68,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public static final ParseField TEMPLATE_PARSE_FIELD = new ParseField("template");
 
     /**
+     * Standard {@link ParseField} for query on the inner field.
+     */
+    public static final ParseField TEMPLATE_NO_WRAPPER_PARSE_FIELD = new ParseField("query");
+
+    /**
      * Standard {@link ParseField} for lang on the inner level.
      */
     public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
@@ -160,6 +165,19 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setSource, parser -> parser, SOURCE_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
+    }
+
+    private static StoredScriptSource parseRemaining(Token token, XContentParser parser) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            if (token != Token.START_OBJECT) {
+                builder.startObject();
+                builder.copyCurrentStructure(parser);
+                builder.endObject();
+            } else {
+                builder.copyCurrentStructure(parser);
+            }
+            return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, Strings.toString(builder), Collections.emptyMap());
+        }
     }
 
     /**
@@ -275,26 +293,24 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "], expected [{, <source>]");
                 }
+            } else if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
+
+                token = parser.nextToken();
+                if (token == Token.VALUE_STRING) {
+                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, parser.text(), Collections.emptyMap());
+                } else {
+                    return parseRemaining(token, parser);
+                }
+            } else if (TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName().equals(name)) {
+                return parseRemaining(token, parser);
             } else {
-                if (TEMPLATE_PARSE_FIELD.getPreferredName().equals(name)) {
-                    token = parser.nextToken();
-
-                    if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, parser.text(), Collections.emptyMap());
-                    }
-                }
-
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    if (token != Token.START_OBJECT) {
-                        builder.startObject();
-                        builder.copyCurrentStructure(parser);
-                        builder.endObject();
-                    } else {
-                        builder.copyCurrentStructure(parser);
-                    }
-
-                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, Strings.toString(builder), Collections.emptyMap());
-                }
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "unexpected token [" + name + "], expected [{}, {}, {}]",
+                    SCRIPT_PARSE_FIELD.getPreferredName(),
+                    TEMPLATE_PARSE_FIELD.getPreferredName(),
+                    TEMPLATE_NO_WRAPPER_PARSE_FIELD.getPreferredName()
+                );
             }
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);

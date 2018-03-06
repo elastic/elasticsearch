@@ -1938,10 +1938,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> start relocations");
         allowNodes("test-idx", internalCluster().numDataNodes());
 
-        logger.info("--> wait for relocations to start");
-
-        waitForRelocationsToStart("test-idx", TimeValue.timeValueMillis(300));
-
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -2524,12 +2520,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private void waitForIndex(final String index, TimeValue timeout) throws Exception {
         assertBusy(() -> assertTrue(client().admin().indices().prepareExists(index).execute().actionGet().isExists()),
-            timeout.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    private void waitForRelocationsToStart(final String index, TimeValue timeout) throws Exception {
-        assertBusy(() -> assertThat(
-            client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards(), greaterThan(0)),
             timeout.millis(), TimeUnit.MILLISECONDS);
     }
 

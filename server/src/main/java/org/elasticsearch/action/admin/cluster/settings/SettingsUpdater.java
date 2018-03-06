@@ -145,7 +145,8 @@ final class SettingsUpdater {
         return Tuple.tuple(
                 Settings.builder()
                         .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
-                        .put(existingArchivedSettings).build(),
+                        .put(existingArchivedSettings)
+                        .build(),
                 settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX)));
     }
 

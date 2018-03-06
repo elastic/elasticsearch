@@ -9,6 +9,7 @@ directly to configure and access {xpack} features.
 
 * <<info-api, Info API>>
 * <<graph-explore-api, Graph Explore API>>
+* <<licensing-apis>>
 * <<ml-apis, Machine Learning APIs>>
 * <<security-api,Security APIs>>
 * <<watcher-api, Watcher APIs>>
@@ -19,9 +20,10 @@ directly to configure and access {xpack} features.
 
 include::info.asciidoc[]
 include::graph/explore.asciidoc[]
+include::licensing.asciidoc[]
+include::migration.asciidoc[]
 include::ml-api.asciidoc[]
+include::rollup-api.asciidoc[]
 include::security.asciidoc[]
 include::watcher.asciidoc[]
-include::rollup-api.asciidoc[]
-include::migration.asciidoc[]
 include::defs.asciidoc[]

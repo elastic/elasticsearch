@@ -1,13 +1,13 @@
 [role="xpack"]
 [[migration-api-deprecation]]
-== Deprecation Info APIs
+=== Deprecation Info APIs
 
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
 be removed or changed in the next major version.
 
 [float]
-=== Request
+==== Request
 
 `GET /_xpack/migration/deprecations` +
 
@@ -16,7 +16,7 @@ be removed or changed in the next major version.
 //=== Description
 
 [float]
-=== Path Parameters
+==== Path Parameters
 
 `index_name`::
   (string) Identifier for the index. It can be an index name or a wildcard
@@ -28,7 +28,7 @@ be removed or changed in the next major version.
 //=== Authorization
 
 [float]
-=== Examples
+==== Examples
 
 To see the list of offenders in your cluster, submit a GET request to the
 `_xpack/migration/deprecations` endpoint:

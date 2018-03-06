@@ -33,18 +33,18 @@ class RestTestFromSnippetsTaskTest extends GroovyTestCase {
 
     void testSimpleBlockQuote() {
         assertEquals("\"foo\": \"bort baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""))
+            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\""));
     }
 
     void testMultipleBlockQuotes() {
         assertEquals("\"foo\": \"bort baz\", \"bar\": \"other\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\""))
+            replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\""));
     }
 
     void testEscapingInBlockQuote() {
         assertEquals("\"foo\": \"bort\\\" baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""))
+            replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
         assertEquals("\"foo\": \"bort\\n baz\"",
-            replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""))
+            replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
     }
 }

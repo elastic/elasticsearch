@@ -37,15 +37,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * An abstract class that builds a rollup index incrementally. A background job can be launched using
- * {@link this#maybeTriggerAsyncJob(long)}, it will create the rollup index from the source index up to the last complete
- * bucket that is allowed to be built (based on the current time and the delay set on the rollup job).
- * Only one background job can run simultaneously and {@link this#onFinish()} is called when the job finishes.
- * {@link this#onFailure(Exception)} is called if the job fails with an exception and {@link this#onAbort()}
- * is called if the indexer is aborted while a job is running.
- * The indexer must be started ({@link this#start()} to allow a background job to run when {@link this#maybeTriggerAsyncJob(long)}
- * is called.
- * {@link this#stop()} can be used to stop the background job without aborting the indexer.
+ * An abstract class that builds a rollup index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
+ * it will create the rollup index from the source index up to the last complete bucket that is allowed to be built (based on the current
+ * time and the delay set on the rollup job). Only one background job can run simultaneously and {@link #onFinish()} is called when the job
+ * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
+ * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
+ * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
  */
 public abstract class RollupIndexer {
     private static final Logger logger = Logger.getLogger(RollupIndexer.class.getName());
@@ -144,8 +141,8 @@ public abstract class RollupIndexer {
     }
 
     /**
-     * Sets the internal state to {@link IndexerState#STARTED} if the previous state was {@link IndexerState#STOPPED}.
-     * Setting the state to STARTED allows a job to run in the background when {@link this#maybeTriggerAsyncJob(long)} is called.
+     * Sets the internal state to {@link IndexerState#STARTED} if the previous state was {@link IndexerState#STOPPED}. Setting the state to
+     * STARTED allows a job to run in the background when {@link #maybeTriggerAsyncJob(long)} is called.
      * @return The new state for the indexer (STARTED, INDEXING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState start() {
@@ -154,12 +151,9 @@ public abstract class RollupIndexer {
     }
 
     /**
-     * Sets the internal state to {@link IndexerState#STOPPING} if an async job is running
-     * in the background and in such case {@link this#onFinish()} will be called
-     * as soon as the background job detects that the indexer is stopped.
-     * If there is no job running when this function is called, the state is directly set
-     * to {@link IndexerState#STOPPED} and {@link this#onFinish()} will never
-     * be called.
+     * Sets the internal state to {@link IndexerState#STOPPING} if an async job is running in the background and in such case
+     * {@link #onFinish()} will be called as soon as the background job detects that the indexer is stopped. If there is no job running when
+     * this function is called, the state is directly set to {@link IndexerState#STOPPED} and {@link #onFinish()} will never be called.
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState stop() {
@@ -176,11 +170,9 @@ public abstract class RollupIndexer {
     }
 
     /**
-     * Sets the internal state to {@link IndexerState#ABORTING}.
-     * It returns false if an async job is running in the background and in such case {@link this#onAbort}
-     * will be called as soon as the background job detects that the indexer is aborted.
-     * If there is no job running when this function is called, it returns true and {@link this#onAbort}
-     * will never be called.
+     * Sets the internal state to {@link IndexerState#ABORTING}. It returns false if an async job is running in the background and in such
+     * case {@link #onAbort} will be called as soon as the background job detects that the indexer is aborted. If there is no job running
+     * when this function is called, it returns true and {@link #onAbort()} will never be called.
      * @return true if the indexer is aborted, false if a background job is running and abort is delayed.
      */
     public synchronized boolean abort() {
@@ -411,9 +403,8 @@ public abstract class RollupIndexer {
     }
 
     /**
-     * Creates the range query that limits the search to documents that appear
-     * before the maximum allowed time (see {@link this#maxBoundary} and on or after the last
-     * processed time.
+     * Creates the range query that limits the search to documents that appear before the maximum allowed time (see {@link this#maxBoundary}
+     * and on or after the last processed time.
      * @param position The current position of the pagination
      * @return The range query to execute
      */

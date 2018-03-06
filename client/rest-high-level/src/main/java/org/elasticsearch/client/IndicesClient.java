@@ -265,7 +265,7 @@ public final class IndicesClient {
      * Clears the cache of one or more indices using the Clear Cache API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
-     *     Clear Cache API on elastic.co</a>
+     * Clear Cache API on elastic.co</a>
      */
     public ClearIndicesCacheResponse clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(clearIndicesCacheRequest, Request::clearCache,
@@ -276,7 +276,7 @@ public final class IndicesClient {
      * Asynchronously clears the cache of one or more indices using the Clear Cache API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
-     *     Clear Cache API on elastic.co</a>
+     * Clear Cache API on elastic.co</a>
      */
     public void clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, ActionListener<ClearIndicesCacheResponse> listener,
                            Header... headers) {

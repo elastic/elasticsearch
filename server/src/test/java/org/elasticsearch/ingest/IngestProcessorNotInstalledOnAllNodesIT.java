@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
@@ -106,8 +105,8 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
         pipeline = internalCluster().getInstance(NodeService.class, node2).getIngestService().getPipelineStore().get("_id");
 
         assertNotNull(pipeline);
-        assertThat(pipeline.getId(), equalTo("invalid__id"));
-        assertThat(pipeline.getDescription(), equalTo("No processor type exists with name [test]"));
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("this is a place holder pipeline, because pipeline with id [_id] could not be loaded"));
     }
 
 }

@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -90,6 +94,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
 
+
         internalCluster().stopCurrentMasterNode();
         internalCluster().startNode(Settings.builder().put("script.allowed_types", "none"));
 
@@ -102,15 +107,22 @@ public class IngestRestartIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> client().prepareIndex("index", "doc", "2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get());
-        assertThat(exception.getMessage(),
-            equalTo("pipeline with id [" + pipelineIdWithScript + "] was not parsed successfully." +
-                " java.lang.IllegalArgumentException: cannot execute [inline] scripts"));
+        assertThat(exception.getHeaderKeys(), equalTo(Sets.newHashSet("processor_type")));
+        assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
+        assertThat(exception.getRootCause().getMessage(),
+            equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
+                "[ElasticsearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
+                "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
+                "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
+                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
+                "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
+                "cannot execute [inline] scripts]"));
 
         Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));

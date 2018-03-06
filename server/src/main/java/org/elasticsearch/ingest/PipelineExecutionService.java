@@ -199,9 +199,6 @@ public class PipelineExecutionService implements ClusterStateApplier {
         Pipeline pipeline = store.get(pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
-        } else if (pipeline.getId().equals("invalid_" + pipelineId)) {
-            throw new IllegalArgumentException(
-                "pipeline with id [" + pipelineId + "] was not parsed successfully. " + pipeline.getDescription());
         }
         return pipeline;
     }

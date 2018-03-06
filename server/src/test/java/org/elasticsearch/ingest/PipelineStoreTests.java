@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -166,8 +165,12 @@ public class PipelineStoreTests extends ESTestCase {
         }
         pipeline = store.get(id);
         assertNotNull(pipeline);
-        assertThat(pipeline.getId(), equalTo("invalid__id"));
-        assertThat(pipeline.getDescription(), equalTo("[processors] required property is missing"));
+        assertThat(pipeline.getId(), equalTo("_id"));
+        assertThat(pipeline.getDescription(), equalTo("this is a place holder pipeline, because pipeline with" +
+            " id [_id] could not be loaded"));
+        assertThat(pipeline.getProcessors().size(), equalTo(1));
+        assertNull(pipeline.getProcessors().get(0).getTag());
+        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("unknown"));
     }
 
     public void testDelete() {

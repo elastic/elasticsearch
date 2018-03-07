@@ -36,13 +36,17 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -67,6 +71,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -747,5 +752,65 @@ public class QueryRescorerIT extends ESIntegTestCase {
         for (SearchHit hit : resp.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(101f));
         }
+    }
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping(
+                "type1",
+                jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
+                    .startObject("group")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject())
+        );
+
+        ensureGreen("test");
+
+        indexDocument(1, "miss", "a", 1, 10);
+        indexDocument(2, "name", "a", 2, 20);
+        indexDocument(3, "name", "b", 2, 30);
+        // should be highest on rescore, but filtered out during collapse
+        indexDocument(4, "name", "b", 1, 40);
+
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setTypes("type1")
+            .setQuery(staticScoreQuery("static_score"))
+            .addRescorer(new QueryRescorerBuilder(staticScoreQuery("static_rescore")))
+            .setCollapse(new CollapseBuilder("group"))
+            .get();
+
+        assertThat(searchResponse.getHits().totalHits, equalTo(3L));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+
+        Map<String, Float> collapsedHits = Arrays
+            .stream(searchResponse.getHits().getHits())
+            .collect(Collectors.toMap(SearchHit::getId, SearchHit::getScore));
+
+        assertThat(collapsedHits.keySet(), containsInAnyOrder("2", "3"));
+        assertThat(collapsedHits.get("2"), equalTo(22F));
+        assertThat(collapsedHits.get("3"), equalTo(32F));
+    }
+
+    private QueryBuilder staticScoreQuery(String scoreField) {
+        return functionScoreQuery(termQuery("name", "name"), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField))
+            .boostMode(CombineFunction.REPLACE);
+    }
+
+    private void indexDocument(int id, String name, String group, int score, int rescore) throws IOException {
+        XContentBuilder docBuilder =jsonBuilder()
+            .startObject()
+            .field("name", name)
+            .field("group", group)
+            .field("static_score", score)
+            .field("static_rescore", rescore)
+            .endObject();
+
+        client().prepareIndex("test", "type1", Integer.toString(id)).setSource(docBuilder).get();
     }
 }

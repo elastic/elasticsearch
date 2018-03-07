@@ -754,6 +754,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/28932")
     public void testRescoreAfterCollapse() throws Exception {
         assertAcked(prepareCreate("test")
             .addMapping(

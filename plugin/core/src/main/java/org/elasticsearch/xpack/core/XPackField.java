@@ -28,6 +28,8 @@ public final class XPackField {
     public static final String SETTINGS_NAME = "xpack";
     /** Name constant for the sql feature. */
     public static final String SQL = "sql";
+    /** Name constant for the rollup feature. */
+    public static final String ROLLUP = "rollup";
 
     private XPackField() {}
 

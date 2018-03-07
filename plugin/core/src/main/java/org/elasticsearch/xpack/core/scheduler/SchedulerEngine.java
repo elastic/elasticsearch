@@ -17,6 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 public class SchedulerEngine {
@@ -94,11 +95,15 @@ public class SchedulerEngine {
 
     public SchedulerEngine(Clock clock) {
         this.clock = clock;
-        this.scheduler = Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
+        this.scheduler = Executors.newScheduledThreadPool(1,  EsExecutors.daemonThreadFactory("trigger_engine_scheduler"));
     }
 
     public void register(Listener listener) {
         listeners.add(listener);
+    }
+
+    public void unregister(Listener listener) {
+        listeners.remove(listener);
     }
 
     public void start(Collection<Job> jobs) {

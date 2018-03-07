@@ -14,7 +14,8 @@
     - match:  { nodes.$master.plugins.3.name: x-pack-logstash  }
     - match:  { nodes.$master.plugins.4.name: x-pack-ml  }
     - match:  { nodes.$master.plugins.5.name: x-pack-monitoring  }
-    - match:  { nodes.$master.plugins.6.name: x-pack-security  }
-    - match:  { nodes.$master.plugins.7.name: x-pack-sql  }
-    - match:  { nodes.$master.plugins.8.name: x-pack-upgrade  }
-    - match:  { nodes.$master.plugins.9.name: x-pack-watcher  }
+    - match:  { nodes.$master.plugins.6.name: x-pack-rollup }
+    - match:  { nodes.$master.plugins.7.name: x-pack-security  }
+    - match:  { nodes.$master.plugins.8.name: x-pack-sql  }
+    - match:  { nodes.$master.plugins.9.name: x-pack-upgrade  }
+    - match:  { nodes.$master.plugins.10.name: x-pack-watcher  }

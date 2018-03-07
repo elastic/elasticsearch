@@ -108,6 +108,10 @@ public class ReservedRolesStore {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
                                 .privileges("create", "delete", "index", "manage", "read").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("rollup_user", new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" },
+                        null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("rollup_admin", new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" },
+                        null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
     }
 

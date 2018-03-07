@@ -31,6 +31,7 @@ public final class ClientHelper {
     public static final String MONITORING_ORIGIN = "monitoring";
     public static final String DEPRECATION_ORIGIN = "deprecation";
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
+    public static final String ROLLUP_ORIGIN = "rollup";
 
     private ClientHelper() {}
 

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
@@ -145,13 +146,13 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public BytesRef utf8BytesOrNull() throws IOException {
-        return parser.utf8BytesOrNull();
+    public CharBuffer charBufferOrNull() throws IOException {
+        return parser.charBufferOrNull();
     }
 
     @Override
-    public BytesRef utf8Bytes() throws IOException {
-        return parser.utf8Bytes();
+    public CharBuffer charBuffer() throws IOException {
+        return parser.charBuffer();
     }
 
     @Override

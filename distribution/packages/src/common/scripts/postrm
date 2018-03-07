@@ -45,30 +45,30 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 
     if [ -d /var/log/elasticsearch ]; then
         echo -n "Deleting log directory..."
-        rm -rf "$LOG_DIR"
+        rm -rf /var/log/elasticsearch
         echo " OK"
     fi
 
     if [ -d /usr/share/elasticsearch/plugins ]; then
         echo -n "Deleting plugins directory..."
-        rm -rf "$PLUGINS_DIR"
+        rm -rf /usr/share/elasticsearch/plugins
         echo " OK"
     fi
 
     if [ -d /var/run/elasticsearch ]; then
         echo -n "Deleting PID directory..."
-        rm -rf "$PID_DIR"
+        rm -rf /var/run/elasticsearch
         echo " OK"
     fi
 
     # Delete the data directory if and only if empty
     if [ -d /var/lib/elasticsearch ]; then
-        rmdir --ignore-fail-on-non-empty "$DATA_DIR"
+        rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
     fi
 
     # delete the conf directory if and only if empty
     if [ -d /etc/elasticsearch ]; then
-        rmdir --ignore-fail-on-non-empty "$ES_PATH_CONF"
+        rmdir --ignore-fail-on-non-empty /etc/elasticsearch
     fi
 
 fi

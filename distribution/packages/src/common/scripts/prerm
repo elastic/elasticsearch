@@ -73,8 +73,8 @@ if [ "$STOP_REQUIRED" = "true" ]; then
 fi
 
 if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ]; then
-  if md5sum --status -c "$ES_PATH_CONF"/elasticsearch.keystore.md5sum; then
-    rm "$ES_PATH_CONF"/elasticsearch.keystore "$ES_PATH_CONF"/elasticsearch.keystore.md5sum
+  if md5sum --status -c "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum; then
+    rm "$ES_PATH_CONF"/elasticsearch.keystore "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum
   fi
 fi
 

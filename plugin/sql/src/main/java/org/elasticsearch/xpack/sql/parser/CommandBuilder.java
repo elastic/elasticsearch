@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
@@ -32,17 +33,18 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
-    protected CommandBuilder(DateTimeZone timeZone) {
-        super(timeZone);
+    protected CommandBuilder(Map<Token, SqlTypedParamValue> params) {
+        super(params);
     }
 
     @Override
@@ -160,7 +162,8 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
     @Override
     public Object visitSysColumns(SysColumnsContext ctx) {
-        return new SysColumns(source(ctx), string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+        Location loc = source(ctx);
+        return new SysColumns(loc, stringOrParam(ctx.cluster, loc), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
     }
 
     @Override
@@ -168,7 +171,6 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         return new SysTypes(source(ctx));
     }
 
-    @Override
     public Object visitSysTableTypes(SysTableTypesContext ctx) {
         return new SysTableTypes(source(ctx));
     }

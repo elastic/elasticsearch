@@ -719,6 +719,18 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitStringLiteral(SqlBaseParser.StringLiteralContext ctx);
   /**
+   * Enter a parse tree produced by the {@code param}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void enterParam(SqlBaseParser.ParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code param}
+   * labeled alternative in {@link SqlBaseParser#constant}.
+   * @param ctx the parse tree
+   */
+  void exitParam(SqlBaseParser.ParamContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
    */

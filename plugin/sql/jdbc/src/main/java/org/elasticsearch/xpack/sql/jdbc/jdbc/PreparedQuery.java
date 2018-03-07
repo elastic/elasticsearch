@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.JDBCType;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 class PreparedQuery {
 
@@ -25,12 +27,12 @@ class PreparedQuery {
         }
     }
 
-    private final List<String> fragments;
-    final ParamInfo[] params;
+    private final String sql;
+    private final ParamInfo[] params;
 
-    PreparedQuery(List<String> fragments) {
-        this.fragments = fragments;
-        this.params = new ParamInfo[fragments.size() - 1];
+    private PreparedQuery(String sql, int paramCount) {
+        this.sql = sql;
+        this.params = new ParamInfo[paramCount];
         clearParams();
     }
 
@@ -59,178 +61,29 @@ class PreparedQuery {
         }
     }
 
-    String assemble() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < fragments.size(); i++) {
-            sb.append(fragments.get(i));
-            if (i < params.length) {
-                // TODO: this needs converting
-                sb.append(params[i].value);
-            }
-        }
+    /**
+     * Returns the sql statement
+     */
+    String sql() {
+        return sql;
+    }
 
-        return sb.toString();
+    /**
+     * Returns the parameters if the SQL statement is parametrized
+     */
+    List<SqlTypedParamValue> params() {
+        return Arrays.stream(this.params).map(
+                paramInfo -> new SqlTypedParamValue(paramInfo.value, DataType.fromJdbcType(paramInfo.type))
+        ).collect(Collectors.toList());
     }
 
     @Override
     public String toString() {
-        return assemble();
+        return sql() + " " + params();
     }
 
-    // Find the ? parameters for binding
-    // Additionally, throw away all JDBC escaping
+    // Creates a PreparedQuery
     static PreparedQuery prepare(String sql) throws SQLException {
-        int l = sql.length();
-
-        List<String> fragments = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-
-        for (int i = 0; i < l; i++) {
-            char c = sql.charAt(i);
-
-            switch (c) {
-                // JDBC escape syntax
-                // https://db.apache.org/derby/docs/10.5/ref/rrefjdbc1020262.html
-                case '{':
-                    jdbcEscape();
-                    break;
-                case '\'':
-                    i = string(i, sql, current, c);
-                    break;
-                case '"':
-                    i = string(i, sql, current, c);
-                    break;
-                case '?':
-                    fragments.add(current.toString());
-                    current.setLength(0);
-                    i++;
-                    break;
-                case '-':
-                    if (i + 1 < l && sql.charAt(i + 1) == '-') {
-                        i = lineComment(i, sql, current);
-                    }
-                    else {
-                        current.append(c);
-                    }
-                    break;
-                case '/':
-                    if (i + 1 < l && sql.charAt(i + 1) == '*') {
-                        i = multiLineComment(i, sql, current);
-                    }
-                    else {
-                        current.append(c);
-                    }
-                    break;
-
-                default:
-                    current.append(c);
-                    break;
-            }
-        }
-        
-        fragments.add(current.toString());
-
-        return new PreparedQuery(fragments);
-    }
-
-    private static void jdbcEscape() throws SQLException {
-        throw new SQLFeatureNotSupportedException("JDBC escaping not supported yet");
-    }
-
-
-    private static int lineComment(int i, String sql, StringBuilder current) {
-        for (; i < sql.length(); i++) {
-            char c = sql.charAt(i);
-            if (c != '\n' && c != '\r') {
-                current.append(c);
-            }
-            else {
-                return i;
-            }
-        }
-        return i;
-    }
-
-    private static int multiLineComment(int i, String sql, StringBuilder current) throws JdbcSQLException {
-        int block = 1;
-
-        for (; i < sql.length() - 1; i++) {
-            char c = sql.charAt(i);
-            if (c == '/' && sql.charAt(i + 1) == '*') {
-                current.append(c);
-                current.append(sql.charAt(++i));
-                block++;
-            }
-            else if (c == '*' && sql.charAt(i + 1) == '/') {
-                current.append(c);
-                current.append(sql.charAt(++i));
-                block--;
-            }
-            else {
-                current.append(c);
-            }
-            if (block == 0) {
-                return i;
-            }
-        }
-        throw new JdbcSQLException("Cannot parse given sql; unclosed /* comment");
-    }
-
-    private static int string(int i, String sql, StringBuilder current, char q) throws JdbcSQLException {
-        current.append(sql.charAt(i++));
-        for (; i < sql.length(); i++) {
-            char c = sql.charAt(i);
-            if (c == q) {
-                current.append(c);
-                // double quotes mean escaping
-                if (sql.charAt(i + 1) == q) {
-                    current.append(sql.charAt(++i));
-                }
-                else {
-                    return i;
-                }
-            }
-            else {
-                current.append(c);
-            }
-        }
-        throw new JdbcSQLException("Cannot parse given sql; unclosed string");
-    }
-
-    static String escapeString(String s) {
-        if (s == null) {
-            return "NULL";
-        }
-        
-        if (s.contains("'") ) {
-            s = escapeString(s, '\'');
-        }
-        if (s.contains("\"")) {
-            s = escapeString(s, '"');
-        }
-        
-        // add quotes
-        return "'" + s + "'";
-    }
-
-    private static String escapeString(String s, char sq) {
-        StringBuilder sb = new StringBuilder();
-        
-        // escape individual single quotes
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-
-            // needs escaping
-            if (c == sq) {
-                // check if it's already escaped
-                if (s.charAt(i + 1) == sq) {
-                    i++;
-                }
-                sb.append(c);
-                sb.append(c);
-            }
-        }
-        
-        return sb.toString();
+        return new PreparedQuery(sql, SqlQueryParameterAnalyzer.parametersCount(sql));
     }
 }

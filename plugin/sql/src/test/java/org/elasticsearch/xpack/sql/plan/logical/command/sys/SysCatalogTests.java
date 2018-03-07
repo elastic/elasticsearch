@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 
 public class SysCatalogTests extends ESTestCase {
 
-    private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final SqlParser parser = new SqlParser();
 
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));

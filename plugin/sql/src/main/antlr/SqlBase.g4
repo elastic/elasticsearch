@@ -56,12 +56,12 @@ statement
     | SHOW FUNCTIONS (LIKE? pattern)?                                                                     #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
     | SYS CATALOGS                                                                                        #sysCatalogs
-    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)? 
+    | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)?
                  (LIKE? tablePattern=pattern)?
                  (TYPE STRING (',' STRING)* )?                                                            #sysTables
-    | SYS COLUMNS (CATALOG cluster=STRING)?
-                  (TABLE LIKE? indexPattern=pattern)?                  
-                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
+    | SYS COLUMNS (CATALOG cluster=(STRING | PARAM))?
+                  (TABLE LIKE? indexPattern=pattern)?
+                  (LIKE? columnPattern=pattern)?                                                   #sysColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
@@ -186,6 +186,7 @@ predicate
 
 pattern
     : value=STRING (ESCAPE escape=STRING)?
+    | PARAM
     ;
 
 valueExpression
@@ -215,6 +216,7 @@ constant
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
+    | PARAM                                                                                    #param
     ;
 
 comparisonOperator
@@ -359,6 +361,7 @@ SLASH: '/';
 PERCENT: '%';
 CONCAT: '||';
 DOT: '.';
+PARAM: '?';
 
 STRING
     : '\'' ( ~'\'' | '\'\'' )* '\''

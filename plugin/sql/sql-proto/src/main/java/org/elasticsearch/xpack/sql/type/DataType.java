@@ -149,4 +149,13 @@ public enum DataType {
         }
         return jdbcToEs.get(jdbcType);
     }
+
+    /**
+     * Creates returns DataType enum coresponding to the specified es type
+     * <p>
+     * For any dataType DataType.fromEsType(dataType.esType) == dataType
+     */
+    public static DataType fromEsType(String esType) {
+        return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+    }
 }

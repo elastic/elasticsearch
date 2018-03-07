@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.function.Function;
 
 /**
@@ -65,8 +66,8 @@ public class HttpClient {
 
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, null, DateTimeZone.UTC, fetchSize,
-                TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()), ""
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, Collections.emptyList(), null,
+                DateTimeZone.UTC, fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()), ""
         );
         return query(sqlRequest);
     }
@@ -87,7 +88,7 @@ public class HttpClient {
                 SqlClearCursorResponse::fromXContent);
         return response.isSucceeded();
     }
-    
+
     private <Request extends AbstractSqlRequest, Response> Response post(String path, Request request,
             CheckedFunction<XContentParser, Response, IOException> responseParser)
             throws SQLException {

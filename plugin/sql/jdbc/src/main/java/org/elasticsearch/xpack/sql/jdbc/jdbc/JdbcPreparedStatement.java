@@ -28,6 +28,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
+import java.util.Collections;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     final PreparedQuery query;
@@ -47,7 +48,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
     @Override
     public ResultSet executeQuery() throws SQLException {
         checkOpen();
-        initResultSet(query.assemble());
+        initResultSet(query.sql(), query.params());
         return rs;
     }
 
@@ -60,7 +61,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         checkOpen();
 
         if (parameterIndex < 0 || parameterIndex > query.paramCount()) {
-            throw new SQLException("Invalid parameter [ " + parameterIndex + "; needs to be between 1 and [" + query.paramCount() + "]");
+            throw new SQLException("Invalid parameter index [ " + parameterIndex + "; needs to be between 1 and [" + query.paramCount() +
+                    "]");
         }
 
         query.setParam(parameterIndex, value, JDBCType.valueOf(type));
@@ -68,42 +70,42 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        setParam(parameterIndex, "NULL", sqlType);
+        setParam(parameterIndex, null, sqlType);
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
-        setParam(parameterIndex, Boolean.toString(x), Types.BOOLEAN);
+        setParam(parameterIndex, x, Types.BOOLEAN);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        setParam(parameterIndex, Byte.toString(x), Types.TINYINT);
+        setParam(parameterIndex, x, Types.TINYINT);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
-        setParam(parameterIndex, Short.toString(x), Types.SMALLINT);
+        setParam(parameterIndex, x, Types.SMALLINT);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
-        setParam(parameterIndex, Integer.toString(x), Types.INTEGER);
+        setParam(parameterIndex, x, Types.INTEGER);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
-        setParam(parameterIndex, Long.toString(x), Types.BIGINT);
+        setParam(parameterIndex, x, Types.BIGINT);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
-        setParam(parameterIndex, Float.toString(x), Types.REAL);
+        setParam(parameterIndex, x, Types.REAL);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
-        setParam(parameterIndex, Double.toString(x), Types.DOUBLE);
+        setParam(parameterIndex, x, Types.DOUBLE);
     }
 
     @Override
@@ -113,7 +115,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
-        setParam(parameterIndex, PreparedQuery.escapeString(x), Types.VARCHAR);
+        setParam(parameterIndex, x, Types.VARCHAR);
     }
 
     @Override

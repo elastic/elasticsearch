@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private SqlParser parser = new SqlParser();
     private Optimizer optimizer = new Optimizer();
     private Planner planner = new Planner();
 

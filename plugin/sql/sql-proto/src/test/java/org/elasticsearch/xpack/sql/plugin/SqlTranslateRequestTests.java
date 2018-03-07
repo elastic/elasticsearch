@@ -34,8 +34,8 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(testMode, randomAlphaOfLength(10), randomFilterOrNull(random()), randomDateTimeZone(),
-                between(1, Integer.MAX_VALUE), randomTV(), randomTV());
+        return new SqlTranslateRequest(testMode,  randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
+                randomDateTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV());
     }
 
     @Override
@@ -75,7 +75,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())))
         );
-        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.mode(), instance.query(), instance.filter(),
+        SqlTranslateRequest newRequest = new SqlTranslateRequest(instance.mode(), instance.query(), instance.params(), instance.filter(),
                 instance.timeZone(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout());
         mutator.accept(newRequest);
         return newRequest;

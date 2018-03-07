@@ -33,6 +33,12 @@ public class ParsingException extends ClientSqlException {
         this.charPositionInLine = nodeLocation.getColumnNumber();
     }
 
+    public ParsingException(Exception cause, Location nodeLocation, String message, Object... args) {
+        super(cause, message, args);
+        this.line = nodeLocation.getLineNumber();
+        this.charPositionInLine = nodeLocation.getColumnNumber();
+    }
+
     public int getLineNumber() {
         return line;
     }

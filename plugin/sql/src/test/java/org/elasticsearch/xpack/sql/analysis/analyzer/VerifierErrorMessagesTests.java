@@ -18,7 +18,7 @@ import org.joda.time.DateTimeZone;
 import java.util.Map;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
-    private SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private SqlParser parser = new SqlParser();
 
     private String verify(String sql) {
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");

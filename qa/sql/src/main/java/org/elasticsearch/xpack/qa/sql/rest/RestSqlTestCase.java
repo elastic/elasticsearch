@@ -380,6 +380,22 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 ContentType.APPLICATION_JSON)));
     }
 
+    public void testBasicQueryWithParameters() throws IOException {
+        String mode = randomMode();
+        index("{\"test\":\"foo\"}",
+                "{\"test\":\"bar\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(
+                columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0),
+                columnInfo(mode, "param", "integer", JDBCType.INTEGER, 11)
+        ));
+        expected.put("rows", singletonList(Arrays.asList("foo", 10)));
+        assertResponse(expected, runSql(mode, new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
+                "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]}",
+                ContentType.APPLICATION_JSON)));
+    }
+
     public void testBasicTranslateQueryWithFilter() throws IOException {
         index("{\"test\":\"foo\"}",
             "{\"test\":\"bar\"}");

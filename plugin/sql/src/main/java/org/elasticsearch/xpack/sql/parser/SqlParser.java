@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.BaseErrorListener;
+import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
@@ -14,6 +15,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenFactory;
+import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -23,11 +26,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -38,36 +44,57 @@ public class SqlParser {
      * Time zone in which the SQL is parsed. This is attached to functions
      * that deal with dates and times.
      */
-    private final DateTimeZone timeZone;
     private final boolean DEBUG = false;
 
-    public SqlParser(DateTimeZone timeZone) {
-        this.timeZone = timeZone;
+    /**
+     * Used only in tests
+     */
+    public LogicalPlan createStatement(String sql) {
+        return createStatement(sql, Collections.emptyList());
     }
 
-    public LogicalPlan createStatement(String sql) {
+    /**
+     * Parses an SQL statement into execution plan
+     * @param sql - the SQL statement
+     * @param params - a list of parameters for the statement if the statement is parametrized
+     * @return logical plan
+     */
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser("statement", sql, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
+    /**
+     * Parses an expression - used only in tests
+     */
     public Expression createExpression(String expression) {
+        return createExpression(expression, Collections.emptyList());
+    }
+
+    /**
+     * Parses an expression - Used only in tests
+     */
+    public Expression createExpression(String expression, List<SqlTypedParamValue> params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser("expression", expression, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String name, String sql, Function<SqlBaseParser, ParserRuleContext> parseFunction,
-            BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+    private <T> T invokeParser(String sql, List<SqlTypedParamValue> params, Function<SqlBaseParser, ParserRuleContext> parseFunction,
+                               BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
 
         lexer.removeErrorListeners();
         lexer.addErrorListener(ERROR_LISTENER);
 
-        CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+        Map<Token, SqlTypedParamValue> paramTokens = new HashMap<>();
+        TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+
+        CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
         SqlBaseParser parser = new SqlBaseParser(tokenStream);
 
         parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
@@ -83,9 +110,7 @@ public class SqlParser {
 
         ParserRuleContext tree = parseFunction.apply(parser);
 
-        postProcess(lexer, parser, tree);
-
-        return visitor.apply(new AstBuilder(timeZone), tree);
+        return visitor.apply(new AstBuilder(paramTokens), tree);
     }
 
     private void debug(SqlBaseParser parser) {
@@ -103,10 +128,6 @@ public class SqlParser {
             public void reportContextSensitivity(Parser recognizer, DFA dfa,
                     int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {}
         });
-    }
-
-    protected void postProcess(SqlBaseLexer lexer, SqlBaseParser parser, ParserRuleContext tree) {
-        // no-op
     }
 
     private class PostProcessor extends SqlBaseBaseListener {
@@ -178,4 +199,68 @@ public class SqlParser {
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };
+
+    /**
+     * Finds all parameter tokens (?) and associates them with actual parameter values
+     * <p>
+     * Parameters are positional and we know where parameters occurred in the original stream in order to associate them
+     * with actual values.
+     */
+    private static class ParametrizedTokenSource implements TokenSource {
+
+        private TokenSource delegate;
+        private Map<Token, SqlTypedParamValue> paramTokens;
+        private int param;
+        private List<SqlTypedParamValue> params;
+
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, SqlTypedParamValue> paramTokens, List<SqlTypedParamValue> params) {
+            this.delegate = delegate;
+            this.paramTokens = paramTokens;
+            this.params = params;
+            param = 0;
+        }
+
+        @Override
+        public Token nextToken() {
+            Token token = delegate.nextToken();
+            if (token.getType() == SqlBaseLexer.PARAM) {
+                if (param >= params.size()) {
+                    throw new ParsingException("Not enough actual parameters {} ", params.size());
+                }
+                paramTokens.put(token, params.get(param));
+                param++;
+            }
+            return token;
+        }
+
+        @Override
+        public int getLine() {
+            return delegate.getLine();
+        }
+
+        @Override
+        public int getCharPositionInLine() {
+            return delegate.getCharPositionInLine();
+        }
+
+        @Override
+        public CharStream getInputStream() {
+            return delegate.getInputStream();
+        }
+
+        @Override
+        public String getSourceName() {
+            return delegate.getSourceName();
+        }
+
+        @Override
+        public void setTokenFactory(TokenFactory<?> factory) {
+            delegate.setTokenFactory(factory);
+        }
+
+        @Override
+        public TokenFactory<?> getTokenFactory() {
+            return delegate.getTokenFactory();
+        }
+    }
 }

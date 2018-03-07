@@ -39,12 +39,11 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     @Override
     protected void doExecute(SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        String query = request.query();
 
         Configuration cfg = new Configuration(request.timeZone(), request.fetchSize(),
                 request.requestTimeout(), request.pageTimeout(), request.filter());
 
-        planExecutor.searchSource(query, cfg, ActionListener.wrap(
+        planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
                 searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
     }
 }

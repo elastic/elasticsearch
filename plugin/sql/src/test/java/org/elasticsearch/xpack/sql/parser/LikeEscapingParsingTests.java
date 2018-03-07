@@ -9,7 +9,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
-import org.joda.time.DateTimeZone;
 
 import java.util.Locale;
 
@@ -18,7 +17,7 @@ import static org.hamcrest.Matchers.is;
 
 public class LikeEscapingParsingTests extends ESTestCase {
 
-    private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final SqlParser parser = new SqlParser();
 
     private String error(String pattern) {
         ParsingException ex = expectThrows(ParsingException.class,

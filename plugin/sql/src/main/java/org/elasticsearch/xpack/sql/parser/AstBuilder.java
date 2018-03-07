@@ -5,13 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.antlr.v4.runtime.Token;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleStatementContext;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+
+import java.util.Map;
 
 class AstBuilder extends CommandBuilder {
-    AstBuilder(DateTimeZone timeZone) {
-        super(timeZone);
+    /**
+     * Create AST Builder
+     * @param params a map between '?' tokens that represent parameters and the actual parameter values
+     */
+    AstBuilder(Map<Token, SqlTypedParamValue> params) {
+        super(params);
     }
 
     @Override

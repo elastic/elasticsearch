@@ -16,11 +16,14 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+
+import java.util.List;
 
 public class PlanExecutor {
     private final Client client;
@@ -46,19 +49,19 @@ public class PlanExecutor {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, optimizer, planner);
     }
 
-    public void searchSource(String sql, Configuration settings, ActionListener<SearchSourceBuilder> listener) {
-        newSession(settings).sqlExecutable(sql, ActionListener.wrap(exec -> {
+    public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {
+        newSession(cfg).sqlExecutable(sql, params, ActionListener.wrap(exec -> {
             if (exec instanceof EsQueryExec) {
                 EsQueryExec e = (EsQueryExec) exec;
-                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), settings.filter(), settings.pageSize()));
+                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             } else {
                 listener.onFailure(new PlanningException("Cannot generate a query DSL for {}", sql));
             }
         }, listener::onFailure));
     }
 
-    public void sql(Configuration cfg, String sql, ActionListener<SchemaRowSet> listener) {
-        newSession(cfg).sql(sql, listener);
+    public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+        newSession(cfg).sql(sql, params, listener);
     }
 
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {

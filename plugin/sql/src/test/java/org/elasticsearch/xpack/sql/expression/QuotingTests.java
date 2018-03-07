@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +39,7 @@ public class QuotingTests extends ESTestCase {
 
     public void testSingleQuoteLiteral() {
         String name = "@timestamp";
-        Expression exp = new SqlParser(DateTimeZone.UTC).createExpression("'" + name + "'");
+        Expression exp = new SqlParser().createExpression("'" + name + "'");
         assertThat(exp, instanceOf(Literal.class));
         Literal l = (Literal) exp;
         assertThat(l.value(), equalTo(name));
@@ -49,7 +48,7 @@ public class QuotingTests extends ESTestCase {
     public void testMultiSingleQuotedLiteral() {
         String first = "bucket";
         String second = "head";
-        Expression exp = new SqlParser(DateTimeZone.UTC).createExpression(String.format(Locale.ROOT, "'%s' '%s'", first, second));
+        Expression exp = new SqlParser().createExpression(String.format(Locale.ROOT, "'%s' '%s'", first, second));
         assertThat(exp, instanceOf(Literal.class));
         Literal l = (Literal) exp;
         assertThat(l.value(), equalTo(first + second));
@@ -58,7 +57,7 @@ public class QuotingTests extends ESTestCase {
     public void testQuotedAttribute() {
         String quote = "\"";
         String name = "@timestamp";
-        Expression exp = new SqlParser(DateTimeZone.UTC).createExpression(quote + name + quote);
+        Expression exp = new SqlParser().createExpression(quote + name + quote);
         assertThat(exp, instanceOf(UnresolvedAttribute.class));
         UnresolvedAttribute ua = (UnresolvedAttribute) exp;
         assertThat(ua.name(), equalTo(name));
@@ -70,7 +69,7 @@ public class QuotingTests extends ESTestCase {
         String quote = "`";
         String name = "@timestamp";
         ParsingException ex = expectThrows(ParsingException.class, () ->
-            new SqlParser(DateTimeZone.UTC).createExpression(quote + name + quote));
+            new SqlParser().createExpression(quote + name + quote));
         assertThat(ex.getMessage(), equalTo("line 1:1: backquoted indetifiers not supported; please use double quotes instead"));
     }
 
@@ -78,7 +77,7 @@ public class QuotingTests extends ESTestCase {
         String quote = "\"";
         String qualifier = "table";
         String name = "@timestamp";
-        Expression exp = new SqlParser(DateTimeZone.UTC).createExpression(quote + qualifier + quote + "." + quote + name + quote);
+        Expression exp = new SqlParser().createExpression(quote + qualifier + quote + "." + quote + name + quote);
         assertThat(exp, instanceOf(UnresolvedAttribute.class));
         UnresolvedAttribute ua = (UnresolvedAttribute) exp;
         assertThat(ua.name(), equalTo(qualifier + "." + name));
@@ -92,12 +91,12 @@ public class QuotingTests extends ESTestCase {
         String qualifier = "table";
         String name = "@timestamp";
         ParsingException ex = expectThrows(ParsingException.class, () ->
-            new SqlParser(DateTimeZone.UTC).createExpression(quote + qualifier + quote + "." + quote + name + quote));
+            new SqlParser().createExpression(quote + qualifier + quote + "." + quote + name + quote));
         assertThat(ex.getMessage(), equalTo("line 1:1: backquoted indetifiers not supported; please use double quotes instead"));
     }
 
     public void testGreedyQuoting() {
-        LogicalPlan plan = new SqlParser(DateTimeZone.UTC).createStatement("SELECT * FROM \"table\" ORDER BY \"field\"");
+        LogicalPlan plan = new SqlParser().createStatement("SELECT * FROM \"table\" ORDER BY \"field\"");
         final List<LogicalPlan> plans = new ArrayList<>();
         plan.forEachDown(plans::add);
         assertThat(plans, hasSize(4));

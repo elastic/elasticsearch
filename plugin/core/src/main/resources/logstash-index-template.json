@@ -37,15 +37,6 @@
           "dynamic": false,
           "type": "object"
         },
-        "pipeline_node_group_ids": {
-          "type": "keyword",
-          "fields": {
-            "searchable": {
-              "type": "text",
-              "analyzer": "simple"
-            }
-          }
-        },
         "username":{
           "type":"keyword"
         },

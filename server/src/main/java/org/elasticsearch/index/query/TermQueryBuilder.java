@@ -100,9 +100,9 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                         currentFieldName = parser.currentName();
                     } else {
                         if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            value = parser.objectBytes();
+                            value = maybeConvertToBytesRef(parser.objectBytes());
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -116,7 +116,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             } else if (token.isValue()) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = currentFieldName;
-                value = parser.objectBytes();
+                value = maybeConvertToBytesRef(parser.objectBytes());
             } else if (token == XContentParser.Token.START_ARRAY) {
                 throw new ParsingException(parser.getTokenLocation(), "[term] query does not support array of values");
             }

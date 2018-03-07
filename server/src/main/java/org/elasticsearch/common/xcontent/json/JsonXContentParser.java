@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -88,8 +87,8 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public BytesRef utf8Bytes() throws IOException {
-        return new BytesRef(CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength()));
+    public CharBuffer charBuffer() throws IOException {
+        return CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
     }
 
     @Override
@@ -114,7 +113,7 @@ public class JsonXContentParser extends AbstractXContentParser {
     public Object objectBytes() throws IOException {
         JsonToken currentToken = parser.getCurrentToken();
         if (currentToken == JsonToken.VALUE_STRING) {
-            return utf8Bytes();
+            return charBuffer();
         } else if (currentToken == JsonToken.VALUE_NUMBER_INT || currentToken == JsonToken.VALUE_NUMBER_FLOAT) {
             return parser.getNumberValue();
         } else if (currentToken == JsonToken.VALUE_TRUE) {
@@ -124,8 +123,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         } else if (currentToken == JsonToken.VALUE_NULL) {
             return null;
         } else {
-            //TODO should this really do UTF-8 conversion?
-            return utf8Bytes();
+            return charBuffer();
         }
     }
 

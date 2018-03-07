@@ -191,4 +191,10 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(DataType.FLOAT, DataTypeConversion.commonType(DataType.FLOAT, DataType.INTEGER));
         assertEquals(DataType.DOUBLE, DataTypeConversion.commonType(DataType.DOUBLE, DataType.FLOAT));
     }
+
+    public void testEsDataTypes() {
+        for (DataType type : DataType.values()) {
+            assertEquals(type, DataType.fromEsType(type.esType));
+        }
+    }
 }

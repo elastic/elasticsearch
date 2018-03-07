@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -27,9 +28,9 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
     public SqlTranslateRequest() {
     }
 
-    public SqlTranslateRequest(Mode mode, String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
-                   TimeValue pageTimeout) {
-        super(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
+    public SqlTranslateRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, DateTimeZone timeZone,
+                               int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
+        super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {

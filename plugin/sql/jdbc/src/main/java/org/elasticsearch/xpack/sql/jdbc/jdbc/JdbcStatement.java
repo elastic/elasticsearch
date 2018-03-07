@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
 import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
 import org.elasticsearch.xpack.sql.jdbc.net.client.RequestMeta;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -14,6 +15,8 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 class JdbcStatement implements Statement, JdbcWrapper {
@@ -146,16 +149,16 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public boolean execute(String sql) throws SQLException {
         checkOpen();
-        initResultSet(sql);
+        initResultSet(sql, Collections.emptyList());
         return true;
     }
 
     // execute the query and handle the rs closing and initialization 
-    protected void initResultSet(String sql) throws SQLException {
+    protected void initResultSet(String sql, List<SqlTypedParamValue> params) throws SQLException {
         // close previous result set
         closeResultSet();
 
-        Cursor cursor = con.client.query(sql, requestMeta);
+        Cursor cursor = con.client.query(sql, params, requestMeta);
         rs = new JdbcResultSet(cfg, this, cursor);
     }
 

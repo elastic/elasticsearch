@@ -765,6 +765,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterParam(SqlBaseParser.ParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitParam(SqlBaseParser.ParamContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterComparisonOperator(SqlBaseParser.ComparisonOperatorContext ctx) { }
   /**
    * {@inheritDoc}

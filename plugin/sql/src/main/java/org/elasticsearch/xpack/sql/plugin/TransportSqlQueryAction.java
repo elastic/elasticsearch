@@ -61,7 +61,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.filter());
 
         if (Strings.hasText(request.cursor()) == false) {
-            planExecutor.sql(cfg, request.query(),
+            planExecutor.sql(cfg, request.query(), request.params(),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
         } else {
             planExecutor.nextPage(cfg, Cursor.decodeFromString(request.cursor()),

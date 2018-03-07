@@ -11,14 +11,20 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -42,15 +48,17 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     private TimeValue pageTimeout = DEFAULT_PAGE_TIMEOUT;
     @Nullable
     private QueryBuilder filter = null;
+    private List<SqlTypedParamValue> params = Collections.emptyList();
 
     public AbstractSqlQueryRequest() {
         super();
     }
 
-    public AbstractSqlQueryRequest(Mode mode, String query, QueryBuilder filter, DateTimeZone timeZone, int fetchSize,
-                                   TimeValue requestTimeout, TimeValue pageTimeout) {
+    public AbstractSqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, DateTimeZone timeZone,
+                                   int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout) {
         super(mode);
         this.query = query;
+        this.params = params;
         this.timeZone = timeZone;
         this.fetchSize = fetchSize;
         this.requestTimeout = requestTimeout;
@@ -62,6 +70,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         // TODO: convert this into ConstructingObjectParser
         ObjectParser<R, Void> parser = new ObjectParser<>("sql/query", true, supplier);
         parser.declareString(AbstractSqlQueryRequest::query, new ParseField("query"));
+        parser.declareObjectArray(AbstractSqlQueryRequest::params, (p, c) -> SqlTypedParamValue.fromXContent(p), new ParseField("params"));
         parser.declareString((request, zoneId) -> request.timeZone(DateTimeZone.forID(zoneId)), new ParseField("time_zone"));
         parser.declareInt(AbstractSqlQueryRequest::fetchSize, new ParseField("fetch_size"));
         parser.declareString(
@@ -72,10 +81,12 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                 new ParseField("page_timeout"));
         parser.declareObject(AbstractSqlQueryRequest::filter,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), new ParseField("filter"));
-
         return parser;
     }
 
+    /**
+     * Text of SQL query
+     */
     public String query() {
         return query;
     }
@@ -88,6 +99,24 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return this;
     }
 
+    /**
+     * An optional list of parameters if the SQL query is parametrized
+     */
+    public List<SqlTypedParamValue> params() {
+        return params;
+    }
+
+    public AbstractSqlQueryRequest params(List<SqlTypedParamValue> params) {
+        if (params == null) {
+            throw new IllegalArgumentException("params may not be null.");
+        }
+        this.params = params;
+        return this;
+    }
+
+    /**
+     * The client's time zone
+     */
     public DateTimeZone timeZone() {
         return timeZone;
     }
@@ -118,6 +147,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return this;
     }
 
+    /**
+     * The timeout specified on the search request
+     */
     public TimeValue requestTimeout() {
         return requestTimeout;
     }
@@ -127,7 +159,9 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         return this;
     }
 
-
+    /**
+     * The scroll timeout
+     */
     public TimeValue pageTimeout() {
         return pageTimeout;
     }
@@ -155,6 +189,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public AbstractSqlQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readString();
+        params = in.readList(SqlTypedParamValue::new);
         timeZone = DateTimeZone.forID(in.readString());
         fetchSize = in.readVInt();
         requestTimeout = new TimeValue(in);
@@ -166,6 +201,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(query);
+        out.writeList(params);
         out.writeString(timeZone.getID());
         out.writeVInt(fetchSize);
         requestTimeout.writeTo(out);
@@ -181,6 +217,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         AbstractSqlQueryRequest that = (AbstractSqlQueryRequest) o;
         return fetchSize == that.fetchSize &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(params, that.params) &&
                 Objects.equals(timeZone, that.timeZone) &&
                 Objects.equals(requestTimeout, that.requestTimeout) &&
                 Objects.equals(pageTimeout, that.pageTimeout) &&
@@ -196,6 +233,13 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (query != null) {
             builder.field("query", query);
+        }
+        if (this.params.isEmpty() == false) {
+            builder.startArray("params");
+            for (SqlTypedParamValue val : this.params) {
+                val.toXContent(builder, params);
+            }
+            builder.endArray();
         }
         if (timeZone != null) {
             builder.field("time_zone", timeZone.getID());
@@ -215,4 +259,5 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         }
         return builder;
     }
+
 }

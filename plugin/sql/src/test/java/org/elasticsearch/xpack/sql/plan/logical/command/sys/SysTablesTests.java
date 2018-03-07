@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
 
 public class SysTablesTests extends ESTestCase {
 
-    private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
     private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);

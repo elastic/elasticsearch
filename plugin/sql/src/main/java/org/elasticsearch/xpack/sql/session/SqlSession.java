@@ -21,8 +21,10 @@ import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 
+import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -81,8 +83,8 @@ public class SqlSession {
         return optimizer;
     }
 
-    private LogicalPlan doParse(String sql) {
-        return new SqlParser(settings.timeZone()).createStatement(sql);
+    private LogicalPlan doParse(String sql, List<SqlTypedParamValue> params) {
+        return new SqlParser().createStatement(sql, params);
     }
 
     public void analyzedPlan(LogicalPlan parsed, boolean verify, ActionListener<LogicalPlan> listener) {
@@ -145,13 +147,13 @@ public class SqlSession {
         optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
     }
 
-    public void sql(String sql, ActionListener<SchemaRowSet> listener) {
-        sqlExecutable(sql, wrap(e -> e.execute(this, listener), listener::onFailure));
+    public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+        sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
     }
 
-    public void sqlExecutable(String sql, ActionListener<PhysicalPlan> listener) {
+    public void sqlExecutable(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener) {
         try {
-            physicalPlan(doParse(sql), true, listener);
+            physicalPlan(doParse(sql, params), true, listener);
         } catch (Exception ex) {
             listener.onFailure(ex);
         }

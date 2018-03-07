@@ -11,6 +11,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.joda.time.DateTimeZone;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT;
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT;
@@ -22,14 +25,14 @@ import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT
 public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse,
         SqlTranslateRequestBuilder> {
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-        this(client, action, AbstractSqlRequest.Mode.PLAIN, null, null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT,
-                DEFAULT_PAGE_TIMEOUT);
+        this(client, action, AbstractSqlRequest.Mode.PLAIN, null, null, Collections.emptyList(), DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE,
+                DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT);
     }
 
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, AbstractSqlRequest.Mode mode, String query,
-                                      QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
-                                      TimeValue pageTimeout) {
-        super(client, action, new SqlTranslateRequest(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
+                                      QueryBuilder filter, List<SqlTypedParamValue> params, DateTimeZone timeZone, int fetchSize,
+                                      TimeValue requestTimeout, TimeValue pageTimeout) {
+        super(client, action, new SqlTranslateRequest(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
     }
 
     public SqlTranslateRequestBuilder query(String query) {

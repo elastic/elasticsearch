@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 public class SysParserTests extends ESTestCase {
 
-    private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -72,25 +74,29 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StarContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
-    /**
-     * Time zone that we're executing in. Set on functions that deal
-     * with dates and times for use later in the evaluation process.
-     */
-    private final DateTimeZone timeZone; // TODO remove me
+    private final Map<Token, SqlTypedParamValue> params;
 
-    protected ExpressionBuilder(DateTimeZone timeZone) {
-        this.timeZone = timeZone;
+    /**
+     * ExpressionBuilder constructor
+     *
+     * @param params   a map between '?' tokens that represent parameters and the actual parameter values
+     */
+    protected ExpressionBuilder(Map<Token, SqlTypedParamValue> params) {
+        this.params = params;
     }
 
     protected Expression expression(ParseTree ctx) {
@@ -207,6 +213,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public LikePattern visitPattern(PatternContext ctx) {
         if (ctx == null) {
             return null;
+        }
+
+        if (ctx.PARAM() != null) {
+            Object pattern = paramValue(ctx.PARAM().getSymbol(), source(ctx));
+            return new LikePattern(source(ctx), pattern.toString(), (char) 0);
         }
 
         String pattern = string(ctx.value);
@@ -438,6 +449,57 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             sb.append(unquoteString(text(node)));
         }
         return new Literal(source(ctx), sb.toString(), DataType.KEYWORD);
+    }
+
+    @Override
+    public Object visitParam(SqlBaseParser.ParamContext ctx) {
+        Token token = ctx.PARAM().getSymbol();
+        return paramValue(token, source(ctx));
+    }
+
+    private Object paramValue(Token token, Location loc) {
+        if (params.containsKey(token) == false) {
+            throw new ParsingException(loc, "Unexpected parameter");
+        }
+        SqlTypedParamValue param = params.get(token);
+        if (param.value == null) {
+            // no conversion is required for null values
+            return new Literal(loc, null, param.dataType);
+        }
+        final DataType sourceType;
+        try {
+            sourceType = DataTypes.fromJava(param.value);
+        } catch (SqlIllegalArgumentException ex) {
+            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]",
+                    param.value.getClass().getName(), param.dataType);
+        }
+        if (sourceType == param.dataType) {
+            // no conversion is required if the value is already have correct type
+            return new Literal(loc, param.value, param.dataType);
+        }
+        // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
+        try {
+            return new Literal(loc, conversionFor(sourceType, param.dataType).convert(param.value), param.dataType);
+        } catch (SqlIllegalArgumentException ex) {
+            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.dataType);
+        }
+    }
+
+    /**
+     * Extracts the actual unescaped string (literal) value of a token or a parameter value
+     */
+    public String stringOrParam(Token token, Location loc) {
+        if (token == null) {
+            return null;
+        }
+        if (token.getType() == SqlBaseLexer.PARAM) {
+            if (params.containsKey(token) == false) {
+                throw new ParsingException(loc, "Unexpected parameter");
+            }
+            SqlTypedParamValue param = params.get(token);
+            return param.value == null ? null : param.value.toString();
+        }
+        return unquoteString(token.getText());
     }
 
     @Override

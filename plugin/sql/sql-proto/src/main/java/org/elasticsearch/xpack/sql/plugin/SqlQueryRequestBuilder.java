@@ -12,6 +12,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest.Mode;
 import org.joda.time.DateTimeZone;
 
+import java.util.Collections;
+import java.util.List;
+
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT;
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT;
@@ -23,14 +26,15 @@ import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT
 public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse, SqlQueryRequestBuilder> {
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
-        this(client, action, "", null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT, DEFAULT_PAGE_TIMEOUT, "",
-                Mode.PLAIN);
+        this(client, action, "", Collections.emptyList(), null, DEFAULT_TIME_ZONE, DEFAULT_FETCH_SIZE, DEFAULT_REQUEST_TIMEOUT,
+                DEFAULT_PAGE_TIMEOUT, "", Mode.PLAIN);
     }
 
-    public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, QueryBuilder filter,
-                                  DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout,
-                                  String nextPageInfo, Mode mode) {
-        super(client, action, new SqlQueryRequest(mode, query, filter, timeZone, fetchSize, requestTimeout, pageTimeout, nextPageInfo));
+    public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
+                                  QueryBuilder filter, DateTimeZone timeZone, int fetchSize, TimeValue requestTimeout,
+                                  TimeValue pageTimeout, String nextPageInfo, Mode mode) {
+        super(client, action, new SqlQueryRequest(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout,
+                nextPageInfo));
     }
 
     public SqlQueryRequestBuilder query(String query) {

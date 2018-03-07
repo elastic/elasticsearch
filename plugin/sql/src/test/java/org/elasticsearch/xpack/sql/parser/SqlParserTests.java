@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,7 +87,7 @@ public class SqlParserTests extends ESTestCase {
     }
 
     private LogicalPlan parseStatement(String sql) {
-        return new SqlParser(DateTimeZone.UTC).createStatement(sql);
+        return new SqlParser().createStatement(sql);
     }
 
     private Project project(LogicalPlan plan) {

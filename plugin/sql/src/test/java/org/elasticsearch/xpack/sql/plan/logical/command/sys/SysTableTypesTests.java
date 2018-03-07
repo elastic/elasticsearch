@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 
 public class SysTableTypesTests extends ESTestCase {
 
-    private final SqlParser parser = new SqlParser(DateTimeZone.UTC);
+    private final SqlParser parser = new SqlParser();
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {

@@ -33,7 +33,7 @@ public class QueryTranslatorTests extends ESTestCase {
     private Analyzer analyzer;
     
     public QueryTranslatorTests() {
-        parser = new SqlParser(DateTimeZone.UTC);
+        parser = new SqlParser();
         functionRegistry = new FunctionRegistry();
 
         Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-variation.json");

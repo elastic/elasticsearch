@@ -112,12 +112,12 @@ public class XContentSource implements ToXContent {
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
-        return new XContentSource(in.readBytesReference(), XContentType.readFrom(in));
+        return new XContentSource(in.readBytesReference(), in.readEnum(XContentType.class));
     }
 
     public static void writeTo(XContentSource source, StreamOutput out) throws IOException {
         out.writeBytesReference(source.bytes);
-        source.contentType.writeTo(out);
+        out.writeEnum(source.contentType);
     }
 
     private Object data() {

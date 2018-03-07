@@ -241,7 +241,7 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
         if (in.readBoolean()) {
             watchSource = in.readBytesReference();
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType = XContentType.readFrom(in);
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 xContentType = XContentFactory.xContentType(watchSource);
             }
@@ -273,7 +273,7 @@ public class ExecuteWatchRequest extends MasterNodeReadRequest<ExecuteWatchReque
         if (watchSource != null) {
             out.writeBytesReference(watchSource);
             if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType.writeTo(out);
+                out.writeEnum(xContentType);
             }
         }
         out.writeBoolean(debug);

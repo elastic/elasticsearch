@@ -136,7 +136,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         source = in.readBytesReference();
         active = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         } else {
             xContentType = XContentFactory.xContentType(source);
         }
@@ -154,7 +154,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         out.writeBytesReference(source);
         out.writeBoolean(active);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeZLong(version);

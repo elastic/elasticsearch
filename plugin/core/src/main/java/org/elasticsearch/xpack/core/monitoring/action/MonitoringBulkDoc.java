@@ -70,7 +70,7 @@ public class MonitoringBulkDoc implements Writeable {
         final String type = in.readOptionalString();
         final String id = in.readOptionalString();
         final BytesReference source = in.readBytesReference();
-        final XContentType xContentType = (source != BytesArray.EMPTY) ? XContentType.readFrom(in) : XContentType.JSON;
+        final XContentType xContentType = (source != BytesArray.EMPTY) ? in.readEnum(XContentType.class) : XContentType.JSON;
 
         long interval = 0L;
         if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
@@ -95,7 +95,7 @@ public class MonitoringBulkDoc implements Writeable {
         out.writeOptionalString(id);
         out.writeBytesReference(source);
         if (source != BytesArray.EMPTY) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
             out.writeVLong(intervalMillis);

@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -74,8 +75,9 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), builder.bytes().streamInput())) {
+            try (InputStream stream = builder.bytes().streamInput();
+                 XContentParser innerParser = parser.contentType().xContent()
+                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
                 request.getSearchRequest().source().parseXContent(innerParser);
             }
         };

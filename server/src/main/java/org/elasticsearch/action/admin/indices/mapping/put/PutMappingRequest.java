@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -323,7 +324,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(new BytesArray(source).streamInput(), XContentType.JSON);
+            try (InputStream stream = new BytesArray(source).streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
         } else {
             builder.startObject().endObject();
         }

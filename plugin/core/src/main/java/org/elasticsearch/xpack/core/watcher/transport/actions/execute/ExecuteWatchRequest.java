@@ -69,7 +69,7 @@ public class ExecuteWatchRequest extends ActionRequest {
         }
         if (in.readBoolean()) {
             watchSource = in.readBytesReference();
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         }
         debug = in.readBoolean();
     }
@@ -96,7 +96,7 @@ public class ExecuteWatchRequest extends ActionRequest {
         out.writeBoolean(watchSource != null);
         if (watchSource != null) {
             out.writeBytesReference(watchSource);
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
         out.writeBoolean(debug);
     }

@@ -45,7 +45,7 @@ public class PutWatchRequest extends ActionRequest {
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
-        xContentType = XContentType.readFrom(in);
+        xContentType = in.readEnum(XContentType.class);
         version = in.readZLong();
     }
 
@@ -55,7 +55,7 @@ public class PutWatchRequest extends ActionRequest {
         out.writeString(id);
         out.writeBytesReference(source);
         out.writeBoolean(active);
-        xContentType.writeTo(out);
+        out.writeEnum(xContentType);
         out.writeZLong(version);
     }
 

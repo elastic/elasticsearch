@@ -293,7 +293,7 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void close() throws IOException {
         parser.close();
     }
 

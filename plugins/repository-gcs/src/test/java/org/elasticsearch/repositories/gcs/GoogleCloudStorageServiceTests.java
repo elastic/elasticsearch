@@ -31,17 +31,10 @@ import com.google.api.client.testing.http.MockHttpTransport;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageService.InternalGoogleCloudStorageService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collections;
-import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -51,34 +44,8 @@ import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
-    private InputStream getDummyCredentialStream() throws IOException {
-        return GoogleCloudStorageServiceTests.class.getResourceAsStream("/dummy-account.json");
-    }
-
-    public void testDefaultCredential() throws Exception {
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        GoogleCredential cred = GoogleCredential.fromStream(getDummyCredentialStream());
-        InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, Collections.emptyMap()) {
-            @Override
-            GoogleCredential getDefaultCredential() throws IOException {
-                return cred;
-            }
-        };
-        assertSame(cred, service.getCredential("default"));
-
-        service.new DefaultHttpRequestInitializer(cred, null, null);
-    }
-
-    public void testClientCredential() throws Exception {
-        GoogleCredential cred = GoogleCredential.fromStream(getDummyCredentialStream());
-        Map<String, GoogleCredential> credentials = singletonMap("clientname", cred);
-        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(env, credentials);
-        assertSame(cred, service.getCredential("clientname"));
-    }
-
     /**
-     * Test that the {@link InternalGoogleCloudStorageService.DefaultHttpRequestInitializer} attaches new instances
+     * Test that the {@link GoogleCloudStorageService.DefaultHttpRequestInitializer} attaches new instances
      * of {@link HttpIOExceptionHandler} and {@link HttpUnsuccessfulResponseHandler} for every HTTP requests.
      */
     public void testDefaultHttpRequestInitializer() throws IOException {
@@ -90,9 +57,13 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
         final TimeValue readTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         final TimeValue connectTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        final String endpoint = randomBoolean() ? randomAlphaOfLength(10) : null;
+        final String applicationName = randomBoolean() ? randomAlphaOfLength(10) : null;
 
-        final InternalGoogleCloudStorageService service = new InternalGoogleCloudStorageService(environment, emptyMap());
-        final HttpRequestInitializer initializer = service.new DefaultHttpRequestInitializer(credential, connectTimeout, readTimeout);
+        final GoogleCloudStorageClientSettings clientSettings =
+            new GoogleCloudStorageClientSettings(credential, endpoint, connectTimeout, readTimeout, applicationName);
+
+        final HttpRequestInitializer initializer = GoogleCloudStorageService.createRequestInitializer(clientSettings);
         final HttpRequestFactory requestFactory = new MockHttpTransport().createRequestFactory(initializer);
 
         final HttpRequest request1 = requestFactory.buildGetRequest(new GenericUrl());
@@ -116,5 +87,11 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
         request2.getUnsuccessfulResponseHandler().handleResponse(null, null, false);
         verify(credential, times(2)).handleResponse(any(HttpRequest.class), any(HttpResponse.class), anyBoolean());
+    }
+
+    public void testToTimeout() {
+        assertNull(GoogleCloudStorageService.toTimeout(null));
+        assertNull(GoogleCloudStorageService.toTimeout(TimeValue.ZERO));
+        assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
     }
 }

@@ -121,9 +121,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
        }
     }
 
-    public static CollapseBuilder fromXContent(XContentParser parser) throws IOException {
-        CollapseBuilder builder = PARSER.parse(parser, new CollapseBuilder(), null);
-        return builder;
+    public static CollapseBuilder fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     // for object parser only
@@ -225,9 +224,6 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         }
         if (context.searchAfter() != null) {
             throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
-        }
-        if (context.rescore() != null && context.rescore().isEmpty() == false) {
-            throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
         }
 
         MappedFieldType fieldType = context.getQueryShardContext().fieldMapper(field);

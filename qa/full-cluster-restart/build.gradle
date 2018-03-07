@@ -45,7 +45,6 @@ for (Version version : bwcVersions.indexCompatible) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    distribution = 'zip'
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
@@ -71,7 +70,6 @@ for (Version version : bwcVersions.indexCompatible) {
     dependsOn oldClusterTest,
         "${baseName}#oldClusterTestCluster#node0.stop",
         "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
     clusterName = 'full-cluster-restart'
 
     // some tests rely on the translog not being flushed

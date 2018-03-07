@@ -17,20 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.action.admin.indices.flush;
 
-import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.SocketChannel;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-public class DoNotRegisterChannel extends NioSocketChannel {
+import java.util.List;
 
-    public DoNotRegisterChannel(SocketChannel socketChannel, SocketSelector selector) throws IOException {
-        super(socketChannel, selector);
+public class FlushResponseTests extends AbstractBroadcastResponseTestCase<FlushResponse> {
+
+    @Override
+    protected FlushResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
+                                               List<DefaultShardOperationFailedException> failures) {
+        return new FlushResponse(totalShards, successfulShards, failedShards, failures);
     }
 
     @Override
-    public void register() throws ClosedChannelException {
-        setSelectionKey(new TestSelectionKey(0));
+    protected FlushResponse doParseInstance(XContentParser parser) {
+        return FlushResponse.fromXContent(parser);
     }
 }

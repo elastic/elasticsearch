@@ -22,16 +22,35 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DefaultShardOperationFailedException implements ShardOperationFailedException {
+
+    private static final String INDEX = "index";
+    private static final String SHARD_ID = "shard";
+    private static final String REASON = "reason";
+
+    private static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
+        "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
+
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(INDEX));
+        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
+        PARSER.declareObject(constructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), new ParseField(REASON));
+    }
 
     private String index;
 
@@ -45,8 +64,10 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
-        this.index = e.getIndex() == null ? null : e.getIndex().getName();
-        this.shardId = e.getShardId().id();
+        Index index = e.getIndex();
+        this.index = index == null ? null : index.getName();
+        ShardId shardId = e.getShardId();
+        this.shardId = shardId == null ? -1 : shardId.id();
         this.reason = e;
         this.status = e.status();
     }
@@ -123,12 +144,14 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
         builder.field("index", index());
         builder.field("status", status.name());
         if (reason != null) {
-            builder.field("reason");
-            builder.startObject();
+            builder.startObject("reason");
             ElasticsearchException.generateThrowableXContent(builder, params, reason);
             builder.endObject();
         }
         return builder;
+    }
 
+    public static DefaultShardOperationFailedException fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

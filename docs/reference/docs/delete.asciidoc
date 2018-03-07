@@ -3,8 +3,7 @@
 
 The delete API allows to delete a typed JSON document from a specific
 index based on its id. The following example deletes the JSON document
-from an index called twitter, under a type called tweet, with id valued
-1:
+from an index called `twitter`, under a type called `_doc`, with id `1`:
 
 [source,js]
 --------------------------------------------------
@@ -75,7 +74,7 @@ DELETE /twitter/_doc/1?routing=kimchy
 // CONSOLE
 // TEST[continued]
 
-The above will delete a tweet with id 1, but will be routed based on the
+The above will delete a tweet with id `1`, but will be routed based on the
 user. Note, issuing a delete without the correct routing, will cause the
 document to not be deleted.
 

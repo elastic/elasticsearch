@@ -30,9 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -210,6 +212,21 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         settings.toXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public UpdateSettingsRequest fromXContent(XContentParser parser) throws IOException {
+        Map<String, Object> settings = new HashMap<>();
+        Map<String, Object> bodySettings = parser.map();
+        Object innerBodySettings = bodySettings.get("settings");
+        // clean up in case the body is wrapped with "settings" : { ... }
+        if (innerBodySettings instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
+            settings.putAll(innerBodySettingsMap);
+        } else {
+            settings.putAll(bodySettings);
+        }
+        return this.settings(settings);
     }
 
 }

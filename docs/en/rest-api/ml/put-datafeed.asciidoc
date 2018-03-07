@@ -72,9 +72,10 @@ You must create a job before you create a {dfeed}.  You can associate only one
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types` (required)::
+`types`::
   (array) A list of types to search for within the specified indices.
-  For example: `["network","sql","kpi"]`.
+  For example: `[]`. This property is provided for backwards compatibility with
+  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
@@ -85,7 +86,6 @@ see <<ml-datafeed-resource>>.
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
 For more information, see
 {xpack-ref}/security-privileges.html[Security Privileges].
-//<<privileges-list-cluster>>.
 
 
 ==== Security Integration
@@ -103,8 +103,7 @@ The following example creates the `datafeed-total-requests` {dfeed}:
 PUT _xpack/ml/datafeeds/datafeed-total-requests
 {
   "job_id": "total-requests",
-  "indices": ["server-metrics"],
-  "types": ["metric"]
+  "indices": ["server-metrics"]
 }
 --------------------------------------------------
 // CONSOLE
@@ -120,9 +119,7 @@ When the {dfeed} is created, you receive the following results:
   "indices": [
     "server-metrics"
   ],
-  "types": [
-    "metric"
-  ],
+  "types": [],
   "query": {
     "match_all": {
       "boost": 1.0

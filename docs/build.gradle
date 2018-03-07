@@ -362,8 +362,7 @@ setups['server_metrics_datafeed'] = setups['server_metrics_job'] + '''
         body:  >
           {
           "job_id":"total-requests",
-          "indexes":"server-metrics",
-          "types":"metric"
+          "indexes":"server-metrics"
           }
 '''
 setups['server_metrics_openjob'] = setups['server_metrics_datafeed'] + '''
@@ -495,7 +494,7 @@ setups['sensor_started_rollup_job'] = '''
                   type: float
                 node:
                   type: keyword
-                  
+
   - do:
       bulk:
         index: sensor-1
@@ -652,5 +651,5 @@ setups['sensor_prefab_data'] = '''
           {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
           {"index":{}}
           {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-        
+
 '''

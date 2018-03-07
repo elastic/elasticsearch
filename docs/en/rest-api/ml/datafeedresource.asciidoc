@@ -59,8 +59,9 @@ A {dfeed} resource has the following properties:
   The default value is `1000`.
 
 `types`::
-  (array) A list of types to search for within the specified indices.
-  For example: `["network","sql","kpi"]`.
+  (array) A list of types to search for within the specified indices. For
+  example: `[]`. This property is provided for backwards compatibility with
+  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.  
 
 [[ml-datafeed-chunking-config]]
 ==== Chunking Configuration Objects

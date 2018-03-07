@@ -69,7 +69,8 @@ The following properties can be updated after the {dfeed} is created:
 
 `types`::
   (array) A list of types to search for within the specified indices.
-  For example: `["network","sql","kpi"]`.
+  For example: `[]`. This property is provided for backwards compatibility with
+  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.
 
 For more information about these properties,
 see <<ml-datafeed-resource>>.
@@ -117,7 +118,7 @@ with the updated values:
   "job_id": "total-requests",
   "query_delay": "83474ms",
   "indices": ["server-metrics"],
-  "types": ["metric"],
+  "types": [],
   "query": {
     "term": {
       "level": {

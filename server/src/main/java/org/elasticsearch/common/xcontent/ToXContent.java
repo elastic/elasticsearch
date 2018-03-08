@@ -133,8 +133,8 @@ public interface ToXContent {
 
     /**
      * Parse {@code value} with values "true", "false", or null, returning the
-     * default value if null is used. Any other input results in an
-     * {@link IllegalArgumentException} being thrown.
+     * default value if null or the empty string is used. Any other input
+     * results in an {@link IllegalArgumentException} being thrown.
      */
     static boolean parseBoolean(String value, Boolean defaultValue) {
         if (value != null && value.length() > 0) {

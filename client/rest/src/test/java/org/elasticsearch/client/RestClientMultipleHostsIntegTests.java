@@ -144,7 +144,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             Response response;
             try {
                 response = restClient.performRequest(method, "/" + statusCode);
-            } catch(ResponseException responseException) {
+            } catch (ResponseException responseException) {
                 response = responseException.getResponse();
             }
             assertEquals(method, response.getRequestLine().getMethod());

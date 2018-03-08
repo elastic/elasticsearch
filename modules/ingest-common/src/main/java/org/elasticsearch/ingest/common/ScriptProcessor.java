@@ -36,6 +36,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -97,21 +98,23 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-            XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput());
-            Script script = Script.parse(parser);
+            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                 InputStream stream = builder.bytes().streamInput();
+                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
+                     LoggingDeprecationHandler.INSTANCE, stream)) {
+                Script script = Script.parse(parser);
 
-            Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
+                Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
-            // verify script is able to be compiled before successfully creating processor.
-            try {
-                scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
-            } catch (ScriptException e) {
-                throw newConfigurationException(TYPE, processorTag, null, e);
+                // verify script is able to be compiled before successfully creating processor.
+                try {
+                    scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
+                } catch (ScriptException e) {
+                    throw newConfigurationException(TYPE, processorTag, null, e);
+                }
+
+                return new ScriptProcessor(processorTag, script, scriptService);
             }
-
-            return new ScriptProcessor(processorTag, script, scriptService);
         }
     }
 }

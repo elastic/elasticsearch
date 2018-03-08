@@ -36,6 +36,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -84,7 +85,9 @@ public class RestGetSourceAction extends BaseRestHandler {
                             return new BytesRestResponse(NOT_FOUND, builder);
                         } else {
                             final BytesReference source = response.getSourceInternal();
-                            builder.rawValue(source.streamInput(), XContentFactory.xContentType(source));
+                            try (InputStream stream = source.streamInput()) {
+                                builder.rawValue(stream, XContentFactory.xContentType(source));
+                            }
                             return new BytesRestResponse(OK, builder);
                         }
                     }

@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -537,15 +538,43 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testRefresh() {
-        String[] indices = randomIndicesNames(1, 5);
+        String[] indices = randomIndicesNames(0, 5);
         RefreshRequest refreshRequest = new RefreshRequest(indices);
-
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(refreshRequest::indicesOptions, refreshRequest::indicesOptions, expectedParams);
-
         Request request = Request.refresh(refreshRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_refresh");
-        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_refresh");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testFlush() {
+        String[] indices = randomIndicesNames(0, 5);
+        FlushRequest flushRequest = new FlushRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(flushRequest::indicesOptions, flushRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            flushRequest.force(randomBoolean());
+        }
+        expectedParams.put("force", Boolean.toString(flushRequest.force()));
+        if (randomBoolean()) {
+            flushRequest.waitIfOngoing(randomBoolean());
+        }
+        expectedParams.put("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
+
+        Request request = Request.flush(flushRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));

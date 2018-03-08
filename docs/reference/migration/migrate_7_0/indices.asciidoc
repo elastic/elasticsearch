@@ -55,3 +55,8 @@ traffic for `index.search.idle.after` seconds (defaults to `30s`). Searches
 that access a search idle shard will be "parked" until the next refresh
 happens.  Indexing requests with `wait_for_refresh` will also trigger
 a background refresh.
+
+==== `field_data` param deprecated in favor of `fielddata`.
+
+The `field_data` url parameter has been deprecated in favor of `fielddata` for
+Clear Indices Cache API.

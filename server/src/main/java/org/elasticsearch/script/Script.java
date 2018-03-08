@@ -507,7 +507,7 @@ public final class Script implements ToXContentObject, Writeable {
 
             if (in.readBoolean()) {
                 this.options = new HashMap<>();
-                XContentType contentType = XContentType.readFrom(in);
+                XContentType contentType = in.readEnum(XContentType.class);
                 this.options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
             } else if (type == ScriptType.INLINE) {
                 options = new HashMap<>();
@@ -571,7 +571,7 @@ public final class Script implements ToXContentObject, Writeable {
             if (options != null && options.containsKey(CONTENT_TYPE_OPTION)) {
                 XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(CONTENT_TYPE_OPTION));
                 out.writeBoolean(true);
-                contentType.writeTo(out);
+                out.writeEnum(contentType);
             } else {
                 out.writeBoolean(false);
             }

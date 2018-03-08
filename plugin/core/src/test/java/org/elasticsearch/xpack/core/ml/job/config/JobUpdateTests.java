@@ -179,27 +179,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertTrue(update.isAutodetectProcessUpdate());
     }
 
-    public void testUpdateAnalysisLimitWithLowerValue() {
-        Job.Builder jobBuilder = new Job.Builder("foo");
-        Detector.Builder d1 = new Detector.Builder("info_content", "domain");
-        d1.setOverFieldName("mlcategory");
-        Detector.Builder d2 = new Detector.Builder("min", "field");
-        d2.setOverFieldName("host");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
-        ac.setCategorizationFieldName("cat_field");
-        jobBuilder.setAnalysisConfig(ac);
-        jobBuilder.setDataDescription(new DataDescription.Builder());
-        jobBuilder.setCreateTime(new Date());
-        jobBuilder.setAnalysisLimits(new AnalysisLimits(42L, null));
-
-        JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(41L, null)).build();
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L)));
-        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 42mb, update had 41mb",
-                e.getMessage());
-    }
-
     public void testUpdateAnalysisLimitWithValueGreaterThanMax() {
         Job.Builder jobBuilder = new Job.Builder("foo");
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
@@ -235,16 +214,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
         assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
 
-        JobUpdate updateWithDecreasedLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(1023L, null)).build();
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> updateWithDecreasedLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(8000L, ByteSizeUnit.MB)));
-        assertEquals("Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 1gb, update had 1023mb",
-                e.getMessage());
-
         JobUpdate updateAboveMaxLimit = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(8000L, null)).build();
 
-        e = expectThrows(ElasticsearchStatusException.class,
+        Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(5000L, ByteSizeUnit.MB)));
         assertEquals("model_memory_limit [7.8gb] must be less than the value of the xpack.ml.max_model_memory_limit setting [4.8gb]",
                 e.getMessage());

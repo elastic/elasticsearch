@@ -47,10 +47,6 @@ public class TransportUpdateJobAction extends TransportMasterNodeAction<UpdateJo
 
     @Override
     protected void masterOperation(UpdateJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> listener) {
-        if (request.getJobId().equals(MetaData.ALL)) {
-            throw new IllegalArgumentException("Job Id " + MetaData.ALL + " cannot be for update");
-        }
-
         jobManager.updateJob(request, listener);
     }
 

@@ -277,7 +277,7 @@
               "terms": "foo,bar"
             },
             "analysis_limits": {
-              "model_memory_limit": 10
+              "model_memory_limit": "10mb"
             },
             "renormalization_window_days": 1,
             "background_persist_interval": "2h",
@@ -309,9 +309,6 @@
               "enabled": false,
               "terms": "foobar"
             },
-            "analysis_limits": {
-              "model_memory_limit": 20
-            },
             "renormalization_window_days": 10,
             "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
@@ -326,7 +323,6 @@
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
-  - match: { analysis_limits.model_memory_limit: "20mb" }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.rules.0.target_field_name: "airline" }
   - match: { analysis_config.detectors.0.detector_index: 0 }
@@ -338,15 +334,42 @@
   - match: { results_retention_days: 40 }
 
   - do:
-      catch: "/Invalid update value for analysis_limits: model_memory_limit cannot be decreased; existing is 20mb, update had 1mb/"
+      catch: "/Cannot update analysis_limits while the job is open/"
       xpack.ml.update_job:
         job_id: jobs-crud-update-job
         body:  >
           {
             "analysis_limits": {
-              "model_memory_limit": "1mb"
+              "model_memory_limit": "20mb"
             }
           }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: jobs-crud-update-job
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "analysis_limits": {
+              "model_memory_limit": "20mb"
+            }
+          }
+  - match: { analysis_limits.model_memory_limit: "20mb" }
+
+  - do:
+      xpack.ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "analysis_limits": {
+              "model_memory_limit": "15mb"
+            }
+          }
+  - match: { analysis_limits.model_memory_limit: "15mb" }
 
   - do:
       catch: bad_request
@@ -356,6 +379,65 @@
           {
             "description":"Can't update all description"
           }
+
+---
+"Test cannot decrease model_memory_limit below current usage":
+  - do:
+      xpack.ml.put_job:
+        job_id: jobs-crud-model-memory-limit-decrease
+        body:  >
+          {
+            "job_id":"jobs-crud-model-memory-limit-decrease",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits": {
+              "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+  - match: { job_id: "jobs-crud-model-memory-limit-decrease" }
+
+  - do:
+      index:
+        index: .ml-anomalies-shared
+        type: doc
+        id: jobs-crud-model-memory-limit-decrease_model_size_stats_1517443200000
+        body:
+          job_id: jobs-crud-model-memory-limit-decrease
+          result_type: model_size_stats
+          log_time: 1517443200000
+          timestamp: 1517443200000
+          model_bytes: 10000000
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
+      xpack.ml.update_job:
+        job_id: jobs-crud-model-memory-limit-decrease
+        body:  >
+          {
+            "analysis_limits": {
+              "model_memory_limit": "5mb"
+            }
+          }
+
+  # Decreasing over current usage works
+  - do:
+      xpack.ml.update_job:
+        job_id: jobs-crud-model-memory-limit-decrease
+        body:  >
+          {
+            "analysis_limits": {
+              "model_memory_limit": "30mb"
+            }
+          }
+  - match: { analysis_limits.model_memory_limit: "30mb" }
 
 ---
 "Test delete job that is referred by a datafeed":

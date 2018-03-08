@@ -551,8 +551,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             // will return null, but if it returns 0 we shouldn't estimate the job's memory requirement to be 0.
             builder.setEstablishedModelMemory(0L);
         }
-        assertEquals(ByteSizeUnit.MB.toBytes(JobUpdate.UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT) + Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
-                builder.build().estimateMemoryFootprint());
+        assertEquals(ByteSizeUnit.MB.toBytes(AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB)
+                        + Job.PROCESS_MEMORY_OVERHEAD.getBytes(), builder.build().estimateMemoryFootprint());
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {

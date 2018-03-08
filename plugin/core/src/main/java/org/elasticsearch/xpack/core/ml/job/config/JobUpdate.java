@@ -11,14 +11,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -52,14 +50,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
         PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
     }
-
-    /**
-     * Prior to 6.1 a default model_memory_limit was not enforced in Java.
-     * The default of 4GB was used in the C++ code.
-     * If model_memory_limit is not defined for a job then the
-     * job was created before 6.1 and a value of 4GB is assumed.
-     */
-    static final long UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT = 4096;
 
     private final String jobId;
     private final List<String> groups;
@@ -356,23 +346,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (analysisLimits != null) {
             AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
                     AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
-
-            Long oldMemoryLimit;
-            if (source.getAnalysisLimits() != null) {
-                oldMemoryLimit = source.getAnalysisLimits().getModelMemoryLimit() != null ?
-                        source.getAnalysisLimits().getModelMemoryLimit()
-                        : UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT;
-            } else {
-                oldMemoryLimit = UNDEFINED_MODEL_MEMORY_LIMIT_DEFAULT;
-            }
-
-            if (validatedLimits.getModelMemoryLimit() < oldMemoryLimit) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
-                                new ByteSizeValue(oldMemoryLimit, ByteSizeUnit.MB),
-                                new ByteSizeValue(validatedLimits.getModelMemoryLimit(), ByteSizeUnit.MB)));
-            }
-
             builder.setAnalysisLimits(validatedLimits);
         }
         if (renormalizationWindowDays != null) {

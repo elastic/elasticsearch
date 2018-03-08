@@ -19,6 +19,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -44,10 +46,12 @@ import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -233,35 +237,68 @@ public class JobManager extends AbstractComponent {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         Job job = getJobOrThrowIfUnknown(request.getJobId());
-        validate(request.getJobUpdate(), job, isValid -> {
-            if (isValid) {
-                internalJobUpdate(request, actionListener);
-            } else {
-                actionListener.onFailure(new IllegalArgumentException("Invalid update to job [" + request.getJobId() + "]"));
-            }
-        }, actionListener::onFailure);
+        validate(request.getJobUpdate(), job, ActionListener.wrap(
+                nullValue -> internalJobUpdate(request, actionListener),
+                actionListener::onFailure));
     }
 
-    private void validate(JobUpdate jobUpdate, Job job, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
-        if (jobUpdate.getModelSnapshotId() != null) {
-            jobProvider.getModelSnapshot(job.getId(), jobUpdate.getModelSnapshotId(), newModelSnapshot -> {
-                if (newModelSnapshot == null) {
-                    String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, jobUpdate.getModelSnapshotId(),
-                            job.getId());
-                    errorHandler.accept(new ResourceNotFoundException(message));
-                }
-                jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
-                    if (oldModelSnapshot != null && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
-                        String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
-                                oldModelSnapshot.result.getSnapshotId() + "]";
-                        errorHandler.accept(new IllegalArgumentException(message));
+    private void validate(JobUpdate jobUpdate, Job job, ActionListener<Void> handler) {
+        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(client.threadPool().executor(
+                MachineLearning.UTILITY_THREAD_POOL_NAME), true);
+        validateModelSnapshotIdUpdate(job, jobUpdate.getModelSnapshotId(), chainTaskExecutor);
+        validateAnalysisLimitsUpdate(job, jobUpdate.getAnalysisLimits(), chainTaskExecutor);
+        chainTaskExecutor.execute(handler);
+    }
+
+    private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, ChainTaskExecutor chainTaskExecutor) {
+        if (modelSnapshotId != null) {
+            chainTaskExecutor.add(listener -> {
+                jobProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
+                    if (newModelSnapshot == null) {
+                        String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId,
+                                job.getId());
+                        listener.onFailure(new ResourceNotFoundException(message));
+                        return;
                     }
-                    handler.accept(true);
-                }, errorHandler);
-            }, errorHandler);
-        } else {
-            handler.accept(true);
+                    jobProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), oldModelSnapshot -> {
+                        if (oldModelSnapshot != null
+                                && newModelSnapshot.result.getTimestamp().before(oldModelSnapshot.result.getTimestamp())) {
+                            String message = "Job [" + job.getId() + "] has a more recent model snapshot [" +
+                                    oldModelSnapshot.result.getSnapshotId() + "]";
+                            listener.onFailure(new IllegalArgumentException(message));
+                        }
+                        listener.onResponse(null);
+                    }, listener::onFailure);
+                }, listener::onFailure);
+            });
         }
+    }
+
+    private void validateAnalysisLimitsUpdate(Job job, AnalysisLimits newLimits, ChainTaskExecutor chainTaskExecutor) {
+        if (newLimits == null || newLimits.getModelMemoryLimit() == null) {
+            return;
+        }
+        Long newModelMemoryLimit = newLimits.getModelMemoryLimit();
+        chainTaskExecutor.add(listener -> {
+            if (isJobOpen(clusterService.state(), job.getId())) {
+                listener.onFailure(ExceptionsHelper.badRequestException("Cannot update " + Job.ANALYSIS_LIMITS.getPreferredName()
+                        + " while the job is open"));
+                return;
+            }
+            jobProvider.modelSizeStats(job.getId(), modelSizeStats -> {
+                if (modelSizeStats != null) {
+                    ByteSizeValue modelSize = new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES);
+                    if (newModelMemoryLimit < modelSize.getMb()) {
+                        listener.onFailure(ExceptionsHelper.badRequestException(
+                                Messages.getMessage(Messages.JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED,
+                                        new ByteSizeValue(modelSize.getMb(), ByteSizeUnit.MB),
+                                        new ByteSizeValue(newModelMemoryLimit, ByteSizeUnit.MB))));
+                        return;
+                    }
+                }
+                listener.onResponse(null);
+            }, listener::onFailure);
+        });
     }
 
     private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {

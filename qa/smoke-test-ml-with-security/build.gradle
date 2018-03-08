@@ -48,6 +48,7 @@ integTestRunner {
     'ml/jobs_crud/Test cannot create job with existing quantiles document',
     'ml/jobs_crud/Test cannot create job with existing result document',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
+    'ml/jobs_crud/Test cannot decrease model_memory_limit below current usage',
     'ml/jobs_crud/Test get job API with non existing job id',
     'ml/jobs_crud/Test put job after closing results index',
     'ml/jobs_crud/Test put job after closing state index',

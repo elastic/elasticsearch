@@ -21,7 +21,10 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * This context should implement the specific logic for a channel. When a channel receives a notification
@@ -32,24 +35,78 @@ import java.util.function.BiConsumer;
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
  */
-public abstract class SocketChannelContext implements ChannelContext {
+public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;
-    private final BiConsumer<NioSocketChannel, Exception> exceptionHandler;
+    private final SocketSelector selector;
+    private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private boolean ioException;
     private boolean peerClosed;
+    private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, BiConsumer<NioSocketChannel, Exception> exceptionHandler) {
+    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
+        super(channel.getRawChannel(), exceptionHandler);
+        this.selector = selector;
         this.channel = channel;
-        this.exceptionHandler = exceptionHandler;
     }
 
     @Override
-    public void handleException(Exception e) {
-        exceptionHandler.accept(channel, e);
+    public SocketSelector getSelector() {
+        return selector;
     }
 
-    public void channelRegistered() throws IOException {}
+    @Override
+    public NioSocketChannel getChannel() {
+        return channel;
+    }
+
+    public void addConnectListener(BiConsumer<Void, Throwable> listener) {
+        connectContext.whenComplete(listener);
+    }
+
+    public boolean isConnectComplete() {
+        return connectContext.isDone() && connectContext.isCompletedExceptionally() == false;
+    }
+
+    /**
+     * This method will attempt to complete the connection process for this channel. It should be called for
+     * new channels or for a channel that has produced a OP_CONNECT event. If this method returns true then
+     * the connection is complete and the channel is ready for reads and writes. If it returns false, the
+     * channel is not yet connected and this method should be called again when a OP_CONNECT event is
+     * received.
+     *
+     * @return true if the connection process is complete
+     * @throws IOException if an I/O error occurs
+     */
+    public boolean connect() throws IOException {
+        if (isConnectComplete()) {
+            return true;
+        } else if (connectContext.isCompletedExceptionally()) {
+            Exception exception = connectException;
+            if (exception == null) {
+                throw new AssertionError("Should have received connection exception");
+            } else if (exception instanceof IOException) {
+                throw (IOException) exception;
+            } else {
+                throw (RuntimeException) exception;
+            }
+        }
+
+        boolean isConnected = rawChannel.isConnected();
+        if (isConnected == false) {
+            try {
+                isConnected = rawChannel.finishConnect();
+            } catch (IOException | RuntimeException e) {
+                connectException = e;
+                connectContext.completeExceptionally(e);
+                throw e;
+            }
+        }
+        if (isConnected) {
+            connectContext.complete(null);
+        }
+        return isConnected;
+    }
 
     public abstract int read() throws IOException;
 
@@ -78,7 +135,7 @@ public abstract class SocketChannelContext implements ChannelContext {
 
     protected int readFromChannel(ByteBuffer buffer) throws IOException {
         try {
-            int bytesRead = channel.read(buffer);
+            int bytesRead = rawChannel.read(buffer);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -92,7 +149,7 @@ public abstract class SocketChannelContext implements ChannelContext {
 
     protected int readFromChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            int bytesRead = channel.read(buffers);
+            int bytesRead = (int) rawChannel.read(buffers);
             if (bytesRead < 0) {
                 peerClosed = true;
                 bytesRead = 0;
@@ -106,7 +163,7 @@ public abstract class SocketChannelContext implements ChannelContext {
 
     protected int flushToChannel(ByteBuffer buffer) throws IOException {
         try {
-            return channel.write(buffer);
+            return rawChannel.write(buffer);
         } catch (IOException e) {
             ioException = true;
             throw e;
@@ -115,7 +172,7 @@ public abstract class SocketChannelContext implements ChannelContext {
 
     protected int flushToChannel(ByteBuffer[] buffers) throws IOException {
         try {
-            return channel.write(buffers);
+            return (int) rawChannel.write(buffers);
         } catch (IOException e) {
             ioException = true;
             throw e;

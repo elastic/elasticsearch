@@ -17,21 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
-
-import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ServerSocketChannel;
-
-public class DoNotRegisterServerChannel extends NioServerSocketChannel {
-
-    public DoNotRegisterServerChannel(ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-        throws IOException {
-        super(channel, channelFactory, selector);
-    }
-
-    @Override
-    public void register() throws ClosedChannelException {
-        setSelectionKey(new TestSelectionKey(0));
-    }
-}
+grant codeBase "${codebase.elasticsearch-nio}" {
+  // elasticsearch-nio makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};

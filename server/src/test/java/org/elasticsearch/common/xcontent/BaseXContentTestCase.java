@@ -342,7 +342,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -360,7 +360,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(random.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -748,7 +748,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             if (useStream) {
                 generator.writeRawField("bar", new ByteArrayInputStream(rawData));
             } else {
-                generator.writeRawField("bar", new BytesArray(rawData));
+                generator.writeRawField("bar", new BytesArray(rawData).streamInput());
             }
             generator.writeEndObject();
         }
@@ -785,7 +785,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
         XContentParser parser = xcontentType().xContent()
@@ -801,7 +801,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
             generator.writeEndObject();
         }
 

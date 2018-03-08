@@ -55,7 +55,7 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
     }
 
     @Override
-    protected StoredScriptSource doParseInstance(XContentParser parser) throws IOException {
+    protected StoredScriptSource doParseInstance(XContentParser parser) {
         return StoredScriptSource.fromXContent(parser);
     }
 

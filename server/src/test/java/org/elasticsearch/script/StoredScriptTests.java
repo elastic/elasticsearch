@@ -27,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -218,15 +216,11 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
     @Override
     protected StoredScriptSource doParseInstance(XContentParser parser) {
-        try {
-            return StoredScriptSource.fromXContent(parser);
-        } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
-        }
+        return StoredScriptSource.fromXContent(parser);
     }
 
     @Override
-    protected StoredScriptSource mutateInstance(StoredScriptSource instance) throws IOException {
+    protected StoredScriptSource mutateInstance(StoredScriptSource instance) {
         String source = instance.getSource();
         String lang = instance.getLang();
         Map<String, String> options = instance.getOptions();

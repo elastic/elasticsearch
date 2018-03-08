@@ -125,6 +125,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchRequest searchRequest = new SearchRequest(); // <1>
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
             searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            searchRequest.source(searchSourceBuilder); // <4>
             // end::search-request-basic
         }
         {

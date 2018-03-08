@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.rollup;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 
-import java.io.IOException;
 import java.util.Map;
 
 public class RollupFeatureSet implements XPackFeatureSet {
@@ -56,17 +55,7 @@ public class RollupFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new RollupFeatureSet.Usage(available(), enabled()));
-    }
-
-    public static class Usage extends XPackFeatureSet.Usage {
-
-        public Usage(StreamInput input) throws IOException {
-            super(input);
-        }
-
-        public Usage(boolean available, boolean enabled) {
-            super(XPackField.ROLLUP, available, enabled);
-        }
+        // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
+        listener.onResponse(new RollupFeatureSetUsage(available(), enabled()));
     }
 }

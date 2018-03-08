@@ -232,16 +232,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             }
         }
 
-        String requiresKeystoreValue = propsMap.remove("requires.keystore");
-        if (requiresKeystoreValue == null) {
-            requiresKeystoreValue = "false";
-        }
-        final boolean requiresKeystore;
-        try {
-            requiresKeystore = Booleans.parseBoolean(requiresKeystoreValue);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("property [requires.keystore] must be [true] or [false]," +
-                    " but was [" + requiresKeystoreValue + "]", e);
+        if (esVersion.before(Version.V_6_3_0) && esVersion.onOrAfter(Version.V_6_0_0_beta2)) {
+            propsMap.remove("requires.keystore");
         }
 
         if (propsMap.isEmpty() == false) {

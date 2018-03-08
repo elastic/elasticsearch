@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -103,15 +102,6 @@ public interface XContent {
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
-
-    /**
-     * Creates a parser over the provided bytes.
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, InputStream)} instead,
-     * the BytesReference coupling in this class will be removed in a future commit
-     */
-    @Deprecated
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException;
 
     /**
      * Creates a parser over the provided reader.

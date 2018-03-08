@@ -238,6 +238,28 @@ setup:
           sort: [{ sort: desc }]
 
 ---
+"field collapsing and rescore":
+
+  - skip:
+      version: " - 5.2.99"
+      reason:  this uses a new API that has been added in 5.3
+
+  - do:
+      catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
+      search:
+        index: test
+        type:  test
+        body:
+          collapse: { field: numeric_group }
+          rescore:
+            window_size: 20
+            query:
+              rescore_query:
+                match_all: {}
+              query_weight: 1
+              rescore_query_weight: 2
+
+---
 "no hits and inner_hits":
 
   - skip:

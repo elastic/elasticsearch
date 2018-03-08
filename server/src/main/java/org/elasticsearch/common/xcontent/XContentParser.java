@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.lease.Releasable;
-
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.List;
@@ -37,7 +36,7 @@ import java.util.Map;
  *          NamedXContentRegistry.EMPTY, ParserField."{\"key\" : \"value\"}");
  * </pre>
  */
-public interface XContentParser extends Releasable {
+public interface XContentParser extends Closeable {
 
     enum Token {
         START_OBJECT {

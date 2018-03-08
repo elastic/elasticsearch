@@ -13,6 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
+import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
@@ -21,11 +24,13 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * This test checks that a Monitoring's HTTP exporter correctly exports to a monitoring cluster
@@ -56,8 +61,9 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @Before
     public void enableExporter() throws Exception {
         Settings exporterSettings = Settings.builder()
+                .put("xpack.monitoring.collection.enabled", true)
                 .put("xpack.monitoring.exporters._http.enabled", true)
-                .put("xpack.monitoring.exporters._http.host", "https://" + NetworkAddress.format(randomFrom(httpAddresses())))
+                .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
@@ -65,14 +71,31 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @After
     public void disableExporter() {
         Settings exporterSettings = Settings.builder()
+                .putNull("xpack.monitoring.collection.enabled")
                 .putNull("xpack.monitoring.exporters._http.enabled")
                 .putNull("xpack.monitoring.exporters._http.host")
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2077")
+    private boolean getMonitoringUsageExportersDefined() throws Exception {
+        final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
+        final Optional<MonitoringFeatureSetUsage> monitoringUsage =
+                usageResponse.getUsages()
+                        .stream()
+                        .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
+                        .map(usage -> (MonitoringFeatureSetUsage)usage)
+                        .findFirst();
+
+        assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
+
+        return monitoringUsage.get().getExporters().isEmpty() == false;
+    }
+
     public void testHTTPExporterWithSSL() throws Exception {
+        // Ensures that the exporter is actually on
+        assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));
+        
         // Checks that the monitoring index templates have been installed
         assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(MONITORING_PATTERN).get();
@@ -101,7 +124,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         });
     }
 
-    private InetSocketAddress[] httpAddresses() {
+    private String randomNodeHttpAddress() {
         List<NodeInfo> nodes = client().admin().cluster().prepareNodesInfo().clear().setHttp(true).get().getNodes();
         assertThat(nodes.size(), greaterThan(0));
 
@@ -109,6 +132,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         for (int i = 0; i < nodes.size(); i++) {
             httpAddresses[i] = nodes.get(i).getHttp().address().publishAddress().address();
         }
-        return httpAddresses;
+        return NetworkAddress.format(randomFrom(httpAddresses));
     }
 }

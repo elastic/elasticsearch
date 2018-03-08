@@ -28,7 +28,6 @@ import java.util.regex.Pattern;
  */
 public class Logstash extends Plugin implements ActionPlugin {
 
-    public static final String NAME = "logstash";
     private static final String LOGSTASH_TEMPLATE_NAME = "logstash-index-template";
     private static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${logstash.template.version}");

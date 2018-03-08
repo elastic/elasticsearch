@@ -14,7 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 
 import java.io.IOException;
@@ -33,7 +35,7 @@ public class LogstashFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return Logstash.NAME;
+        return XPackField.LOGSTASH;
     }
 
     @Override
@@ -58,25 +60,7 @@ public class LogstashFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new LogstashFeatureSet.Usage(available(), enabled()));
+        listener.onResponse(new LogstashFeatureSetUsage(available(), enabled()));
     }
 
-    public static class Usage extends XPackFeatureSet.Usage {
-
-        public Usage(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public Usage(boolean available, boolean enabled) {
-            super(Logstash.NAME, available, enabled);
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
-        protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
-            super.innerXContent(builder, params);
-        }
-    }
 }

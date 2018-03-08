@@ -206,6 +206,8 @@ it to the `transformers`:
 </transformer>
 --------------------------------------------------
 
+:client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+
 include::client.asciidoc[]
 
 include::docs.asciidoc[]

@@ -16,6 +16,9 @@ Core::
 Highlighting::
 * Limit the analyzed text for highlighting {pull}27934[#27934] (issue: {issue}27517[#27517])
 
+Rollover::
+* Fail rollover if duplicated alias found in templates {pull}28110[#28110] (issue: {issue}26976[#26976])
+
 Search::
 * Introduce limit to the number of terms in Terms Query {pull}27968[#27968] (issue: {issue}18829[#18829])
 
@@ -177,9 +180,6 @@ Recovery::
 * Non-peer recovery should set the global checkpoint {pull}27965[#27965]
 * Persist global checkpoint when finalizing a peer recovery {pull}27947[#27947] (issue: {issue}27861[#27861])
 * Rollback a primary before recovering from translog {pull}27804[#27804] (issue: {issue}10708[#10708])
-
-Rollover::
-* Fail rollover if duplicated alias found in templates {pull}28110[#28110] (issue: {issue}26976[#26976])
 
 Search::
 * Use typeName() to check field type in GeoShapeQueryBuilder {pull}27730[#27730]

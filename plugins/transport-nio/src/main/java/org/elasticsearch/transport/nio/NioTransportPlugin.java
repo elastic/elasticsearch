@@ -47,8 +47,7 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             NioTransport.NIO_WORKER_COUNT,
-            NioTransport.NIO_ACCEPTOR_COUNT,
-            NioNotEnabledBootstrapCheck.OVERRIDE_BOOTSTRAP
+            NioTransport.NIO_ACCEPTOR_COUNT
         );
     }
 
@@ -61,10 +60,5 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         return Collections.singletonMap(NIO_TRANSPORT_NAME,
             () -> new NioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
                 circuitBreakerService));
-    }
-
-    @Override
-    public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new NioNotEnabledBootstrapCheck());
     }
 }

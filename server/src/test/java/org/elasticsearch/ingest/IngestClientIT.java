@@ -126,6 +126,10 @@ public class IngestClientIT extends ESIntegTestCase {
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, source);
         assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
+
+        // cleanup
+        WritePipelineResponse deletePipelineResponse = client().admin().cluster().prepareDeletePipeline("_id").get();
+        assertTrue(deletePipelineResponse.isAcknowledged());
     }
 
     public void testBulkWithIngestFailures() throws Exception {

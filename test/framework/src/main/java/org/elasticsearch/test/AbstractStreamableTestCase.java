@@ -19,27 +19,22 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Collections;
 
-public abstract class AbstractStreamableTestCase<T extends Streamable> extends ESTestCase {
-    protected static final int NUMBER_OF_TEST_RUNS = 20;
+public abstract class AbstractStreamableTestCase<T extends Streamable> extends AbstractWireTestCase<T> {
 
-    /**
-     * Creates a random test instance to use in the tests. This method will be
-     * called multiple times during test execution and should return a different
-     * random instance each time it is called.
-     */
-    protected abstract T createTestInstance();
+    @Override
+    protected final T copyInstance(T instance, Version version) throws IOException {
+        return copyStreamable(instance, getNamedWriteableRegistry(), this::createBlankInstance, version);
+    }
+
+    @Override
+    protected final Writeable.Reader<T> instanceReader() {
+        return Streamable.newWriteableReader(this::createBlankInstance);
+    }
 
     /**
      * Creates an empty instance to use when deserialising the
@@ -47,83 +42,4 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
      * zer-arg constructor
      */
     protected abstract T createBlankInstance();
-
-    /**
-     * Returns a {@link CopyFunction} that can be used to make an exact copy of
-     * the given instance. This defaults to a function that uses
-     * {@link #copyInstance(Streamable, Version)} to create the copy.
-     */
-    protected CopyFunction<T> getCopyFunction() {
-        return (original) -> copyInstance(original, Version.CURRENT);
-    }
-
-    /**
-     * Returns a {@link MutateFunction} that can be used to create a copy
-     * of the given instance that is different to this instance. This defaults
-     * to null.
-     */
-    // TODO: Make this abstract when all sub-classes implement this (https://github.com/elastic/elasticsearch/issues/25929)
-    protected MutateFunction<T> getMutateFunction() {
-        return null;
-    }
-
-    /**
-     * Tests that the equals and hashcode methods are consistent and copied
-     * versions of the instance have are equal.
-     */
-    public void testEqualsAndHashcode() {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), getCopyFunction(), getMutateFunction());
-        }
-    }
-
-    /**
-     * Test serialization and deserialization of the test instance.
-     */
-    public void testSerialization() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
-            T testInstance = createTestInstance();
-            assertSerialization(testInstance);
-        }
-    }
-
-    /**
-     * Serialize the given instance and asserts that both are equal
-     */
-    protected T assertSerialization(T testInstance) throws IOException {
-        T deserializedInstance = copyInstance(testInstance, Version.CURRENT);
-        assertEquals(testInstance, deserializedInstance);
-        assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
-        assertNotSame(testInstance, deserializedInstance);
-        return deserializedInstance;
-    }
-
-    /**
-     * Round trip {@code instance} through binary serialization, setting the wire compatibility version to {@code version}.
-     */
-    private T copyInstance(T instance, Version version) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            instance.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                    getNamedWriteableRegistry())) {
-                in.setVersion(version);
-                T newInstance = createBlankInstance();
-                newInstance.readFrom(in);
-                return newInstance;
-            }
-        }
-    }
-
-    /**
-     * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     * 
-     * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     * 
-     * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
-     */
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.emptyList());
-    }
-
 }

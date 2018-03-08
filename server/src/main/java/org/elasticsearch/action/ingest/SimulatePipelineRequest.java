@@ -76,7 +76,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         verbose = in.readBoolean();
         source = in.readBytesReference();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         } else {
             xContentType = XContentFactory.xContentType(source);
         }
@@ -123,7 +123,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
     }
 

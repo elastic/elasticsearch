@@ -145,21 +145,17 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+        super.addCustomFields(builder, params);
         builder.field(OLD_INDEX.getPreferredName(), oldIndex);
         builder.field(NEW_INDEX.getPreferredName(), newIndex);
         builder.field(ROLLED_OVER.getPreferredName(), rolledOver);
         builder.field(DRY_RUN.getPreferredName(), dryRun);
-        addAcknowledgedField(builder);
-        addShardsAcknowledgedField(builder);
         builder.startObject(CONDITIONS.getPreferredName());
         for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
             builder.field(entry.getKey(), entry.getValue());
         }
         builder.endObject();
-        builder.endObject();
-        return builder;
     }
 
     public static RolloverResponse fromXContent(XContentParser parser) {
@@ -168,24 +164,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
+        if (super.equals(o)) {
+            RolloverResponse that = (RolloverResponse) o;
+            return dryRun == that.dryRun &&
+                    rolledOver == that.rolledOver &&
+                    Objects.equals(oldIndex, that.oldIndex) &&
+                    Objects.equals(newIndex, that.newIndex) &&
+                    Objects.equals(conditionStatus, that.conditionStatus);
         }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        RolloverResponse that = (RolloverResponse) o;
-        return isAcknowledged() == that.isAcknowledged() &&
-                isShardsAcknowledged() == that.isShardsAcknowledged() &&
-                dryRun == that.dryRun &&
-                rolledOver == that.rolledOver &&
-                Objects.equals(oldIndex, that.oldIndex) &&
-                Objects.equals(newIndex, that.newIndex) &&
-                Objects.equals(conditionStatus, that.conditionStatus);
+        return false;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isAcknowledged(), isShardsAcknowledged(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
+        return Objects.hash(super.hashCode(), oldIndex, newIndex, conditionStatus, dryRun, rolledOver);
     }
 }

@@ -221,7 +221,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = XContentType.readFrom(in);
+                    xContentType = in.readEnum(XContentType.class);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
                 }
@@ -243,7 +243,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (doc != null) {
                 out.writeGenericValue(doc);
                 if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType.writeTo(out);
+                    out.writeEnum(xContentType);
                 }
             } else {
                 out.writeString(id);

@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -97,12 +96,6 @@ public class YamlXContent implements XContent {
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length));
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException {
-        return createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
     }
 
     @Override

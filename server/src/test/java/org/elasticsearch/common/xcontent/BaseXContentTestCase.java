@@ -342,7 +342,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -360,7 +360,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(random.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }

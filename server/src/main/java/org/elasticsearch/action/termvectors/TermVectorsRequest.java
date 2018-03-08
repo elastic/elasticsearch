@@ -516,7 +516,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (in.readBoolean()) {
             doc = in.readBytesReference();
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType = XContentType.readFrom(in);
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 xContentType = XContentFactory.xContentType(doc);
             }
@@ -561,7 +561,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (doc != null) {
             out.writeBytesReference(doc);
             if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType.writeTo(out);
+                out.writeEnum(xContentType);
             }
         }
         out.writeOptionalString(routing);

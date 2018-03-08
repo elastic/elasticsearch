@@ -21,5 +21,5 @@ Highlighting a text that was indexed without offsets or term vectors,
 requires analysis of this text in memory real time during the search request.
 For large texts this analysis may take substantial amount of time and memory.
 To protect against this, the maximum number of characters that will be analyzed has been
-limited to 10000. This default limit can be changed
+limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.

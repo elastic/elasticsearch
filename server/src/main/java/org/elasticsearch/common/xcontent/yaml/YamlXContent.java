@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -66,7 +65,7 @@ public class YamlXContent implements XContent {
 
     @Override
     public byte streamSeparator() {
-        throw new ElasticsearchParseException("yaml does not support stream parsing...");
+        throw new UnsupportedOperationException("yaml does not support stream parsing...");
     }
 
     @Override

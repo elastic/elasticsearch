@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
 import static org.mockito.Mockito.mock;
 import static org.hamcrest.core.Is.is;
@@ -33,7 +34,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSet.Usage(out.bytes().streamInput());
+        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.enabled(), is(enabled));
     }
 
@@ -57,7 +58,7 @@ public class LogstashFeatureSetTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSet.Usage(out.bytes().streamInput());
+        XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(available));
     }
 }

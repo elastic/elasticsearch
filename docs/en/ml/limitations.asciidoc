@@ -27,15 +27,6 @@ web browser so that it does not block pop-up windows or create an
 exception for your {kib} URL.
 
 [float]
-=== {xpackml} features do not yet support cross cluster search
-
-At this time, you cannot use cross cluster search in either the {ml} APIs or the
-{ml} features in {kib}.
-
-For more information about cross cluster search,
-see {ref}/modules-cross-cluster-search.html[Cross Cluster Search].
-
-[float]
 === Anomaly Explorer omissions and limitations
 //See x-pack-elasticsearch/#844 and x-pack-kibana/#1461
 

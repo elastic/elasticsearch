@@ -187,14 +187,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
 
-        // Set a single type in the index
-        switch (random().nextInt(3)) {
-        case 0:
+        if (rarely()) {
             currentTypes = new String[0]; // no types
-            break;
-        default:
+        } else {
             currentTypes = new String[] { "_doc" };
-            break;
         }
         randomTypes = getRandomTypes();
     }
@@ -858,21 +854,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private static String[] getRandomTypes() {
-        String[] types;
-        if (currentTypes.length > 0 && randomBoolean()) {
-            int numberOfQueryTypes = randomIntBetween(1, currentTypes.length);
-            types = new String[numberOfQueryTypes];
-            for (int i = 0; i < numberOfQueryTypes; i++) {
-                types[i] = randomFrom(currentTypes);
-            }
-        } else {
-            if (randomBoolean()) {
-                types = new String[]{MetaData.ALL};
-            } else {
-                types = new String[0];
-            }
+        int rand = random().nextInt(3);
+        switch (rand) {
+            case 0:
+                return new String[0];
+            case 1:
+                return currentTypes;
+            case 2:
+                return new String[] {MetaData.ALL};
+            default:
+                throw new AssertionError("invalid random number " + rand);
         }
-        return types;
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {

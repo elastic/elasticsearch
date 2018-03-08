@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Numbers;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -240,13 +240,12 @@ public abstract class AbstractXContentParser implements XContentParser {
         return text();
     }
 
-
     @Override
-    public BytesRef utf8BytesOrNull() throws IOException {
+    public CharBuffer charBufferOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
         }
-        return utf8Bytes();
+        return charBuffer();
     }
 
     @Override

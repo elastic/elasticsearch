@@ -17,21 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.nio;
+package org.elasticsearch.common;
 
-import java.io.IOException;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.ServerSocketChannel;
-
-public class DoNotRegisterServerChannel extends NioServerSocketChannel {
-
-    public DoNotRegisterServerChannel(ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-        throws IOException {
-        super(channel, channelFactory, selector);
-    }
-
-    @Override
-    public void register() throws ClosedChannelException {
-        setSelectionKey(new TestSelectionKey(0));
-    }
+/**
+ * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedBiFunction<T, U, R, E extends Exception> {
+    R apply(T t, U u) throws E;
 }

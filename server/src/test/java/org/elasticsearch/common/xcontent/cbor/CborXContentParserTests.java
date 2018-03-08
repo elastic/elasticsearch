@@ -35,7 +35,7 @@ public class CborXContentParserTests extends ESTestCase {
             // See https://github.com/elastic/elasticsearch/issues/8629
             XContentParser parser = createParser(CborXContent.cborXContent, ref);
             while (parser.nextToken() != null) {
-                parser.utf8Bytes();
+                parser.charBuffer();
             }
         }
     }

@@ -38,7 +38,6 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestFlushAction extends BaseRestHandler {
     public RestFlushAction(Settings settings, RestController controller) {
@@ -65,7 +64,7 @@ public class RestFlushAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

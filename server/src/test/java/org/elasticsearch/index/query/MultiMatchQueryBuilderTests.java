@@ -129,7 +129,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
-            query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
+            query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.NONE, MatchQuery.ZeroTermsQuery.ALL));
         }
         if (randomBoolean()) {
             query.autoGenerateSynonymsPhraseQuery(randomBoolean());

@@ -21,7 +21,10 @@ package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -29,10 +32,25 @@ import java.util.List;
  */
 public class RefreshResponse extends BroadcastResponse {
 
+    private static final ConstructingObjectParser<RefreshResponse, Void> PARSER = new ConstructingObjectParser<>("refresh", true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            return new RefreshResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                Arrays.asList(response.getShardFailures()));
+        });
+
+    static {
+        declareBroadcastFields(PARSER);
+    }
+
     RefreshResponse() {
     }
 
     RefreshResponse(int totalShards, int successfulShards, int failedShards, List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
+    }
+
+    public static RefreshResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

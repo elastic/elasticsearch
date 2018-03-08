@@ -28,7 +28,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'integ-test-zip'
+    String distribution = 'zip'
 
     @Input
     int numNodes = 1

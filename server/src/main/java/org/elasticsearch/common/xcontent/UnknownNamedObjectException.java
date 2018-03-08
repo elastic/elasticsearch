@@ -35,8 +35,7 @@ public class UnknownNamedObjectException extends ParsingException {
     private final String categoryClass;
     private final String name;
 
-    public UnknownNamedObjectException(XContentLocation contentLocation, Class<?> categoryClass,
-                                       String name) {
+    public UnknownNamedObjectException(XContentLocation contentLocation, Class<?> categoryClass, String name) {
         super(contentLocation, "Unknown " + categoryClass.getSimpleName() + " [" + name + "]");
         this.categoryClass = requireNonNull(categoryClass, "categoryClass is required").getName();
         this.name = requireNonNull(name, "name is required");

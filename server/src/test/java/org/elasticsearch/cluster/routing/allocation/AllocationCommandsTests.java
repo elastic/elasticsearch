@@ -530,15 +530,16 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     }
 
     public void testMoveShardToNonDataNode() {
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .build();
+        AllocationService allocation = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
+        logger.info("creating an index with 1 shard, no replica");
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
         RoutingTable routingTable = RoutingTable.builder()
             .addAsNew(metaData.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-            .routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
 
@@ -548,27 +549,33 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                     MASTER_DATA_ROLES, Version.CURRENT))
                 .add(new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
                     new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT))).build();
+
+        logger.info("start primary shard");
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
         Index index = clusterState.getMetaData().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node1", "node2");
         RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.emptyList()),
             new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command to non-data node");
-        expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
+        assertEquals("[move_allocation] can't move 0 from node1 to node2: node2 is not a data node.", e.getMessage());
     }
 
     public void testMoveShardFromNonDataNode() {
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
-            .build();
+        AllocationService allocation = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
 
+        logger.info("creating an index with 1 shard, no replica");
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
         RoutingTable routingTable = RoutingTable.builder()
             .addAsNew(metaData.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
-            .routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes");
+
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
@@ -576,11 +583,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .add(new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
                     new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT))).build();
 
+        logger.info("start primary shard");
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
         Index index = clusterState.getMetaData().index("test").getIndex();
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node2", "node1");
         RoutingAllocation routingAllocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.emptyList()),
             new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command from non-data node");
-        expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
+        assertEquals("[move_allocation] can't move 0 from node2 to node1: node2 is not a data node.", e.getMessage());
     }
 }

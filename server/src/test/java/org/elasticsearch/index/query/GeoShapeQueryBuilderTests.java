@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -121,7 +122,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             builder.field(expectedShapePath, indexedShapeToReturn);
             builder.field(randomAlphaOfLengthBetween(10, 20), "something");
             builder.endObject();
-            json = builder.string();
+            json = Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }

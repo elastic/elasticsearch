@@ -75,6 +75,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -140,7 +141,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
-        String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("int_field").field("type", "integer").endObject()
                 .startObject("long_field").field("type", "long").endObject()
@@ -149,13 +150,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("double_field").field("type", "double").endObject()
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
         documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
-        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();

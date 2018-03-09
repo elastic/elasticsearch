@@ -36,6 +36,7 @@ import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -467,7 +468,7 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(builder.string(), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes
+                assertThat(Strings.toString(builder), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes
                     + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + expectedSizeInBytes
                     + ",\"earliest_last_modified_age\":" + stats.getEarliestLastModifiedAge() + "}}"));
             }

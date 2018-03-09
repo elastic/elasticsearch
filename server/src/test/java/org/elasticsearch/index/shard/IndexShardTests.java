@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1156,7 +1157,7 @@ public class IndexShardTests extends IndexShardTestCase {
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        String xContent = builder.string();
+        String xContent = Strings.toString(builder);
         StringBuilder expectedSubSequence = new StringBuilder("\"shard_path\":{\"state_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootStatePath().toString());
         expectedSubSequence.append("\",\"data_path\":\"");
@@ -2365,12 +2366,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
             int numDoc = randomIntBetween(100, 200);
             for (int i = 0; i < numDoc; i++) {
-                String doc = XContentFactory.jsonBuilder()
+                String doc = Strings.toString(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("count", randomInt())
                         .field("point", randomFloat())
                         .field("description", randomUnicodeOfCodepointLength(100))
-                    .endObject().string();
+                    .endObject());
                 indexDoc(indexShard, "doc", Integer.toString(i), doc);
             }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -204,7 +205,7 @@ public class SearchHitTests extends ESTestCase {
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", builder.string());
+        assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {

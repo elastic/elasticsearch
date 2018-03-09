@@ -86,12 +86,12 @@ public interface ToXContent {
 
         @Override
         public boolean paramAsBoolean(String key, boolean defaultValue) {
-            return parseBoolean(param(key), defaultValue);
+            return Booleans.parseBoolean(param(key), defaultValue);
         }
 
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
-            return parseBoolean(param(key), defaultValue);
+            return Booleans.parseBoolean(param(key), defaultValue);
         }
     }
 
@@ -131,23 +131,4 @@ public interface ToXContent {
         return true;
     }
 
-    /**
-     * Parse {@code value} with values "true", "false", or null, returning the
-     * default value if null or the empty string is used. Any other input
-     * results in an {@link IllegalArgumentException} being thrown.
-     */
-    static boolean parseBoolean(String value, Boolean defaultValue) {
-        if (value != null && value.length() > 0) {
-            switch (value) {
-                case "true":
-                    return true;
-                case "false":
-                    return false;
-                default:
-                    throw new IllegalArgumentException("Failed to parse param [" + value + "] as only [true] or [false] are allowed.");
-            }
-        } else {
-            return defaultValue;
-        }
-    }
 }

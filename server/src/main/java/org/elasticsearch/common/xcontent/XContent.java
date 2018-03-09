@@ -49,7 +49,7 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return ToXContent.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"), true);
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"), true);
     }
 
     /**

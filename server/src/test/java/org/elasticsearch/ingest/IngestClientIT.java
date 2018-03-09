@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -268,13 +269,9 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endArray()
                 .endObject().bytes();
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
-        try {
-            client().admin().cluster().putPipeline(putPipelineRequest).get();
-        } catch (ExecutionException e) {
-            ElasticsearchParseException ex = (ElasticsearchParseException) ExceptionsHelper.unwrap(e, ElasticsearchParseException.class);
-            assertNotNull(ex);
-            assertThat(ex.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class,
+            () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 
         GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id").get();
         assertFalse(response.isFound());

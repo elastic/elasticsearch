@@ -36,7 +36,11 @@ for SAML realms.
 | `enabled`                   | no       | Indicates whether this realm is enabled or disabled. Enables
                                            you to disable a realm without removing its configuration.
                                            Defaults to `true`.
-| `idp.entity_id`             | yes      | The Entity ID of the SAML Identity Provider
+| `idp.entity_id`             | yes      | The Entity ID of the SAML Identity Provider. An Entity ID is
+                                           a URI with a maximum length of 1024 characters. It can be a
+                                           URL (`https://idp.example.com/`) or a URN (`urn:example.com:idp`)
+                                           and can be found in the configuration or the SAML metadata
+                                           of the Identity Provider.
 | `idp.metadata.path`         | yes      | The path (_recommended_) or URL to a SAML 2.0 metadata file
                                            describing the capabilities and configuration of the Identity
                                            Provider. 

@@ -78,6 +78,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         // This plugin will NOT have a controller daemon
         Path plugin = environment.pluginsFile().resolve("a_plugin");
+        Files.createDirectories(environment.modulesFile());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
                 plugin,
@@ -118,7 +119,9 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
 
         // this plugin will have a controller daemon
-        Path plugin = environment.pluginsFile().resolve("test_plugin");
+        Path plugin = pluginsDirFinder.apply(environment).resolve("test_plugin");
+        Files.createDirectories(environment.modulesFile());
+        Files.createDirectories(environment.pluginsFile());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
             plugin,
@@ -187,6 +190,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
 
         Path metaPlugin = environment.pluginsFile().resolve("meta_plugin");
+        Files.createDirectories(environment.modulesFile());
         Files.createDirectories(metaPlugin);
         PluginTestUtil.writeMetaPluginProperties(
             metaPlugin,
@@ -285,6 +289,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
 
+        Files.createDirectories(environment.modulesFile());
         Files.createDirectories(environment.pluginsFile());
 
         final Path desktopServicesStore = environment.pluginsFile().resolve(".DS_Store");

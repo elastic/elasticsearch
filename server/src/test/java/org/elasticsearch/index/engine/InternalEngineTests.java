@@ -170,6 +170,7 @@ import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTr
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -4582,55 +4583,65 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testPruneOnlyDeletesAtMostLocalCheckpoint() throws Exception {
-        final ThreadPool threadPool = spy(this.threadPool);
-        final AtomicLong clock = new AtomicLong();
-        when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
         IOUtils.close(engine, store);
+        final AtomicLong clock = new AtomicLong(0);
+        threadPool = spy(threadPool);
+        when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
         this.store = createStore();
-        final EngineConfig config = engine.engineConfig;
-        final IndexSettings indexSettings = config.getIndexSettings();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
-            .settings(Settings.builder().put(indexSettings.getSettings())
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "-1")).build();
-        indexSettings.updateIndexMetaData(indexMetaData);
+        final EngineConfig config = engine.config();
         final EngineConfig newConfig = new EngineConfig(
-            config.getOpenMode(), config.getShardId(), config.getAllocationId(), threadPool, indexSettings, config.getWarmer(),
+            config.getOpenMode(), config.getShardId(), config.getAllocationId(), threadPool, config.getIndexSettings(), config.getWarmer(),
             store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(), new CodecService(null, logger),
             config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(), config.getForceNewHistoryUUID(),
             config.getTranslogConfig(), config.getFlushMergesAfter(), config.getExternalRefreshListener(), Collections.emptyList(),
             config.getIndexSort(), config.getTranslogRecoveryRunner(), config.getCircuitBreakerService(),
             config.getGlobalCheckpointSupplier());
-        newConfig.setEnableGcDeletes(true);
+        newConfig.setEnableGcDeletes(false);
+        // We can control the clock of this engine.
         this.engine = new InternalEngine(newConfig);
-
-        int addedDocs = scaledRandomIntBetween(0, 10);
-        for (int i = 0; i < addedDocs; i++) {
+        final long gcInterval = randomIntBetween(0, 10);
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(gcInterval).getStringRep())).build();
+        indexSettings.updateIndexMetaData(indexMetaData);
+        for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
             index(this.engine, i);
         }
-        final Set<Long> trimmedDeletes = new HashSet<>();
-        final int trimmedBatch = between(10, 20);
-        for (int i = 0; i < trimmedBatch; i++) {
-            final long seqno = this.engine.getLocalCheckpointTracker().generateSeqNo();
-            this.engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
-            trimmedDeletes.add(seqno);
+        final long deleteBatch = between(10, 20);
+        final long gapSeqNo = randomLongBetween(
+            engine.getLocalCheckpointTracker().getMaxSeqNo() + 1, engine.getLocalCheckpointTracker().getMaxSeqNo() + deleteBatch);
+        for (int i = 0; i < deleteBatch; i++) {
+            final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+            if (seqno != gapSeqNo) {
+                if (randomBoolean()) {
+                    clock.incrementAndGet();
+                }
+                engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
+            }
         }
-        final long gapSeqNo = this.engine.getLocalCheckpointTracker().generateSeqNo(); // Gap here.
-        final Set<Long> rememberedDeletes = new HashSet<>();
-        final int rememberedBatch = between(10, 20);
-        for (int i = 0; i < rememberedBatch; i++) {
-            final long seqno = this.engine.getLocalCheckpointTracker().generateSeqNo();
-            this.engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
-            rememberedDeletes.add(seqno);
+        List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones());
+        engine.config().setEnableGcDeletes(true);
+        // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gc.
+        clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
+        engine.refresh("test");
+        tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
+        assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+        // Prune tombstones whose seqno at most checkpoint
+        clock.set(randomLongBetween(deleteBatch + gcInterval * 4/3, 100)); // Need a margin for gcInterval/4.
+        engine.refresh("test");
+        tombstones.removeIf(v -> v.seqNo < gapSeqNo);
+        assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+        // Fill the seqno gap - should prune all tombstones.
+        clock.set(between(0, 100));
+        if (randomBoolean()) {
+            engine.index(replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false));
+        } else {
+            engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY, gapSeqNo, threadPool.relativeTimeInMillis()));
         }
-        // Move the clock
-        assertThat(this.engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
-            equalTo(Sets.union(trimmedDeletes, rememberedDeletes)));
-        this.engine.refresh("test"); // refresh will prune tombstones
-        assertThat(this.engine.getDeletedTombstones().values().stream().map(deleteVersion -> deleteVersion.seqNo).collect(Collectors.toSet()),
-            equalTo(rememberedDeletes));
-        // Fill the gap - should be able to prune all deletes.
-        this.engine.index(replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false));
-        this.engine.refresh("test"); // refresh will prune tombstones
-        assertThat(this.engine.getDeletedTombstones().entrySet(), empty());
+        clock.set(randomLongBetween(100 + gcInterval, Long.MAX_VALUE));
+        engine.refresh("test");
+        assertThat(engine.getDeletedTombstones(), empty());
     }
+
 }

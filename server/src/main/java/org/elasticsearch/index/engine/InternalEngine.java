@@ -81,6 +81,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1650,8 +1651,8 @@ public class InternalEngine extends Engine {
     }
 
     // for testing
-    final Map<BytesRef, DeleteVersionValue> getDeletedTombstones() {
-        return versionMap.getAllTombstones();
+    final Collection<DeleteVersionValue> getDeletedTombstones() {
+        return versionMap.getAllTombstones().values();
     }
 
     @Override

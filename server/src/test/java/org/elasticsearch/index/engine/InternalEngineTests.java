@@ -4618,12 +4618,12 @@ public class InternalEngineTests extends EngineTestCase {
         }
         List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones());
         engine.config().setEnableGcDeletes(true);
-        // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gc.
+        // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
         clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
         engine.refresh("test");
         tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
         assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
-        // Prune tombstones whose seqno at most checkpoint
+        // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
         clock.set(randomLongBetween(deleteBatch + gcInterval * 4/3, 100)); // Need a margin for gcInterval/4.
         engine.refresh("test");
         tombstones.removeIf(v -> v.seqNo < gapSeqNo);
@@ -4635,7 +4635,7 @@ public class InternalEngineTests extends EngineTestCase {
         } else {
             engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY, gapSeqNo, threadPool.relativeTimeInMillis()));
         }
-        clock.set(randomLongBetween(100 + gcInterval, Long.MAX_VALUE));
+        clock.set(randomLongBetween(100 + gcInterval * 4/3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
         engine.refresh("test");
         assertThat(engine.getDeletedTombstones(), empty());
     }

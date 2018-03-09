@@ -56,6 +56,15 @@ remains open when you stop the {dfeed}. This behavior avoids the overhead
 of closing and re-opening large jobs when there are pauses in the {dfeed}.
 
 [float]
+=== Jobs created in {kib} must use {dfeeds}
+
+If you create jobs in {kib}, you must use {dfeeds}. If the data that you want to
+analyze is not stored in {es}, you cannot use {dfeeds} and therefore you cannot
+create your jobs in {kib}. You can, however, use the {ml} APIs to create jobs
+and to send batches of data directly to the jobs. For more information, see
+<<ml-dfeeds>> and <<ml-api-quickref>>.
+
+[float]
 === Post data API requires JSON format
 
 The post data API enables you to send data to a job for analysis. The data that

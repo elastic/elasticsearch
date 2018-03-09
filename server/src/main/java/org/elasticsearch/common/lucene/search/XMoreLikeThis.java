@@ -58,10 +58,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -815,7 +815,7 @@ public final class XMoreLikeThis {
                 for (IndexableField field : fields) {
                     final String stringValue = field.stringValue();
                     if (stringValue != null) {
-                        addTermFrequencies(new FastStringReader(stringValue), termFreqMap, fieldName);
+                        addTermFrequencies(new StringReader(stringValue), termFreqMap, fieldName);
                     }
                 }
             } else {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cli;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -73,5 +74,17 @@ public class MultiCommand extends Command {
             throw new UserException(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
         }
         subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (subcommands.isEmpty()) {
+            throw new IllegalStateException("No subcommands configured");
+        }
+        for (Command command : subcommands.values()) {
+            if (command != null) {
+                command.close();
+            }
+        }
     }
 }

@@ -133,6 +133,7 @@ subprojects {
     dependsOn buildDist
     doFirst {
       project.delete(extractionDir)
+      extractionDir.mkdirs()
     }
   }
   if (project.name.contains('zip')) {

@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,7 +98,12 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     /**
      * Two plugins - one with a controller daemon and one without.
      */
-    public void testControllerSpawn() throws IOException, InterruptedException {
+    public void testControllerSpawn() throws Exception {
+        assertControllerSpawns(Environment::pluginsFile);
+        assertControllerSpawns(Environment::modulesFile);
+    }
+
+    private void assertControllerSpawns(Function<Environment, Path> pluginsDirFinder) throws Exception {
         /*
          * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
          * file as an argument and that's out of the remit of the controller daemon process spawner.
@@ -115,29 +121,29 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Path plugin = environment.pluginsFile().resolve("test_plugin");
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
-                plugin,
-                "description", "test_plugin",
-                "version", Version.CURRENT.toString(),
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "name", "test_plugin",
-                "java.version", "1.8",
-                "classname", "TestPlugin",
-                "has.native.controller", "true");
+            plugin,
+            "description", "test_plugin",
+            "version", Version.CURRENT.toString(),
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "name", "test_plugin",
+            "java.version", "1.8",
+            "classname", "TestPlugin",
+            "has.native.controller", "true");
         Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
         // this plugin will not have a controller daemon
-        Path otherPlugin = environment.pluginsFile().resolve("other_plugin");
+        Path otherPlugin = pluginsDirFinder.apply(environment).resolve("other_plugin");
         Files.createDirectories(otherPlugin);
         PluginTestUtil.writePluginProperties(
-                otherPlugin,
-                "description", "other_plugin",
-                "version", Version.CURRENT.toString(),
-                "elasticsearch.version", Version.CURRENT.toString(),
-                "name", "other_plugin",
-                "java.version", "1.8",
-                "classname", "OtherPlugin",
-                "has.native.controller", "false");
+            otherPlugin,
+            "description", "other_plugin",
+            "version", Version.CURRENT.toString(),
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "name", "other_plugin",
+            "java.version", "1.8",
+            "classname", "OtherPlugin",
+            "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
         spawner.spawnNativePluginControllers(environment);
@@ -150,7 +156,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         assertThat(processes, hasSize(1));
         Process process = processes.get(0);
         final InputStreamReader in =
-                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
+            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
         try (BufferedReader stdoutReader = new BufferedReader(in)) {
             String line = stdoutReader.readLine();
             assertEquals("I am alive", line);

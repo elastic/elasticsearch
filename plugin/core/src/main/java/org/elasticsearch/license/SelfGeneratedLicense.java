@@ -68,4 +68,8 @@ class SelfGeneratedLicense {
             throw new IllegalStateException(e);
         }
     }
+
+    public static boolean validSelfGeneratedType(String type) {
+        return "basic".equals(type) || "trial".equals(type);
+    }
 }

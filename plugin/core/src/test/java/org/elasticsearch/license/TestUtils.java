@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -249,7 +248,7 @@ public class TestUtils {
         if (version < License.VERSION_NO_FEATURE_TYPE) {
             licenseType = randomFrom("subscription", "internal", "development");
         } else {
-            licenseType = (type != null) ? type : randomFrom("basic", "silver", "dev", "gold", "platinum");
+            licenseType = (type != null) ? type : randomFrom( "silver", "dev", "gold", "platinum");
         }
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
@@ -273,20 +272,20 @@ public class TestUtils {
         return signer.sign(builder.build());
     }
 
-    public static License generateExpiredLicense(long expiryDate) throws Exception {
-        return generateExpiredLicense(randomFrom("basic", "silver", "dev", "gold", "platinum"), expiryDate);
+    public static License generateExpiredNonBasicLicense(long expiryDate) throws Exception {
+        return generateExpiredNonBasicLicense(randomFrom("silver", "dev", "gold", "platinum"), expiryDate);
     }
 
-    public static License generateExpiredLicense() throws Exception {
-        return generateExpiredLicense(randomFrom("basic", "silver", "dev", "gold", "platinum"));
+    public static License generateExpiredNonBasicLicense() throws Exception {
+        return generateExpiredNonBasicLicense(randomFrom("silver", "dev", "gold", "platinum"));
     }
 
-    public static License generateExpiredLicense(String type) throws Exception {
-        return generateExpiredLicense(type,
+    public static License generateExpiredNonBasicLicense(String type) throws Exception {
+        return generateExpiredNonBasicLicense(type,
                 System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(1, 10)).getMillis());
     }
 
-    public static License generateExpiredLicense(String type, long expiryDate) throws Exception {
+    public static License generateExpiredNonBasicLicense(String type, long expiryDate) throws Exception {
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())
                 .version(License.VERSION_CURRENT)

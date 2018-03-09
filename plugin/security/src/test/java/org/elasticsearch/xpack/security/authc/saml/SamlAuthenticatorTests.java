@@ -84,6 +84,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE;
+import static javax.xml.crypto.dsig.CanonicalizationMethod.EXCLUSIVE_WITH_COMMENTS;
 import static javax.xml.crypto.dsig.Transform.ENVELOPED;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
@@ -1527,6 +1528,40 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getCause().getMessage(), containsString("DOCTYPE"));
     }
 
+    public void testIgnoredCommentsInForgedResponses() throws Exception {
+        final String legitimateNameId = "useradmin@example.com";
+        final String forgedNameId = "user<!-- this is a comment -->admin@example.com";
+        final String signedXml = signDoc(getSimpleResponse(clock.instant(), legitimateNameId, randomId()));
+        final String forgedXml = signedXml.replace(legitimateNameId, forgedNameId);
+        final SamlToken forgedToken = token(forgedXml);
+        final SamlAttributes attributes = authenticator.authenticate(forgedToken);
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(legitimateNameId));
+    }
+
+    public void testIgnoredCommentsInLegitimateResponses() throws Exception {
+        final String nameId = "user<!-- this is a comment -->admin@example.com";
+        final String sanitizedNameId = "useradmin@example.com";
+        final String xml = getSimpleResponse(clock.instant(), nameId, randomId());
+        final SamlToken token = token(signDoc(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(sanitizedNameId));
+    }
+
+    public void testIgnoredCommentsInResponseUsingCanonicalizationWithComments() throws Exception {
+        final String nameId = "user<!-- this is a comment -->admin@example.com";
+        final String sanitizedNameId = "useradmin@example.com";
+        final String xml = getSimpleResponse(clock.instant(), nameId, randomId());
+        final SamlToken token = token(signDoc(xml, EXCLUSIVE_WITH_COMMENTS));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(sanitizedNameId));
+    }
+
     public void testFailureWhenIdPCredentialsAreEmpty() throws Exception {
         authenticator = buildAuthenticator(() -> emptyList());
         final String xml = getSimpleResponse(clock.instant());
@@ -1556,12 +1591,20 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private String signDoc(String xml) throws Exception {
-        return signDoc(xml, SamlAuthenticatorTests.idpCertificatePair);
+        return signDoc(xml, EXCLUSIVE, SamlAuthenticatorTests.idpCertificatePair);
     }
 
     private String signDoc(String xml, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
+        return signDoc(xml, EXCLUSIVE, keyPair);
+    }
+
+    private String signDoc(String xml, String c14nMethod) throws Exception {
+        return signDoc(xml, c14nMethod, SamlAuthenticatorTests.idpCertificatePair);
+    }
+
+    private String signDoc(String xml, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
         final Document doc = parseDocument(xml);
-        signElement(doc.getDocumentElement(), keyPair);
+        signElement(doc.getDocumentElement(), keyPair, c14nMethod);
         return SamlUtils.toString(doc.getDocumentElement());
     }
 
@@ -1615,6 +1658,10 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private void signElement(Element parent, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
+        signElement(parent, keyPair, EXCLUSIVE);
+    }
+
+    private void signElement(Element parent, Tuple<X509Certificate, PrivateKey> keyPair, String c14nMethod) throws Exception {
         //We need to explicitly set the Id attribute, "ID" is just our convention
         parent.setIdAttribute("ID", true);
         final String refID = "#" + parent.getAttribute("ID");
@@ -1627,7 +1674,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         // creating the XSW test cases
         final Reference reference = fac.newReference(refID, digestMethod, singletonList(transform), null, null);
         final SignatureMethod signatureMethod = fac.newSignatureMethod("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", null);
-        final CanonicalizationMethod canonicalizationMethod = fac.newCanonicalizationMethod(EXCLUSIVE, (C14NMethodParameterSpec) null);
+        final CanonicalizationMethod canonicalizationMethod = fac.newCanonicalizationMethod(c14nMethod, (C14NMethodParameterSpec) null);
 
         final SignedInfo signedInfo = fac.newSignedInfo(canonicalizationMethod, signatureMethod, singletonList(reference));
 

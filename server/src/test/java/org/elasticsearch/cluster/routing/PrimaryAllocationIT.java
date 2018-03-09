@@ -329,11 +329,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
+        final String oldPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
             prepareCreate("test", Settings.builder().put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
-        final String oldPrimary = internalCluster().startDataOnlyNode();
         final ShardId shardId = new ShardId(clusterService().state().metaData().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();

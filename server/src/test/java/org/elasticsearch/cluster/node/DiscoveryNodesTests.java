@@ -75,6 +75,12 @@ public class DiscoveryNodesTests extends ESTestCase {
     public void testAll() {
         final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
+        final String[] allNodes =
+                StreamSupport.stream(discoveryNodes.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes(), arrayContainingInAnyOrder(allNodes));
+        assertThat(discoveryNodes.resolveNodes(new String[0]), arrayContainingInAnyOrder(allNodes));
+        assertThat(discoveryNodes.resolveNodes("_all"), arrayContainingInAnyOrder(allNodes));
+
         final String[] nonMasterNodes =
                 StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
                         .map(n -> n.value)
@@ -83,11 +89,6 @@ public class DiscoveryNodesTests extends ESTestCase {
                         .toArray(String[]::new);
         assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
 
-        final String[] allNodes =
-                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
-                        .map(n -> n.value)
-                        .map(DiscoveryNode::getId)
-                        .toArray(String[]::new);
         assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
     }
 

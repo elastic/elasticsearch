@@ -873,7 +873,9 @@ public abstract class Engine implements Closeable {
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
-        maybeDie(reason, failure);
+        if (failure != null) {
+            maybeDie(reason, failure);
+        }
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {

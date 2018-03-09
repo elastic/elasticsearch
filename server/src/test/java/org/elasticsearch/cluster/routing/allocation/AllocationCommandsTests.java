@@ -543,12 +543,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
 
+        DiscoveryNode node1 = new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
+            MASTER_DATA_ROLES, Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT);
+
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                    MASTER_DATA_ROLES, Version.CURRENT))
-                .add(new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT))).build();
+                .add(node1)
+                .add(node2)).build();
 
         logger.info("start primary shard");
         clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
@@ -559,7 +562,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command to non-data node");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
-        assertEquals("[move_allocation] can't move 0 from node1 to node2: node2 is not a data node.", e.getMessage());
+        assertEquals("[move_allocation] can't move [test][0] from " + node1 + " to " + node2 + ": source [" + node2.getName() + "] is not a data node.", e.getMessage());
     }
 
     public void testMoveShardFromNonDataNode() {
@@ -576,13 +579,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
 
+        DiscoveryNode node1 = new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
+            MASTER_DATA_ROLES, Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT);
+
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node1", "node1", "node1", "test1", "test1", buildNewFakeTransportAddress(), emptyMap(),
-                    MASTER_DATA_ROLES, Version.CURRENT))
-                .add(new DiscoveryNode("node2", "node2", "node2", "test2", "test2", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(randomSubsetOf(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.INGEST))), Version.CURRENT))).build();
-
+                .add(node1)
+                .add(node2)).build();
         logger.info("start primary shard");
         clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
 
@@ -592,6 +597,6 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             new RoutingNodes(clusterState, false), clusterState, ClusterInfo.EMPTY, System.nanoTime());
         logger.info("--> executing move allocation command from non-data node");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> command.execute(routingAllocation, false));
-        assertEquals("[move_allocation] can't move 0 from node2 to node1: node2 is not a data node.", e.getMessage());
+        assertEquals("[move_allocation] can't move [test][0] from " + node2 + " to " + node1 + ": source [" + node2.getName() + "] is not a data node.", e.getMessage());
     }
 }

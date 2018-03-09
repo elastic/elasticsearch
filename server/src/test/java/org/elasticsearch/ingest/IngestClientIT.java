@@ -268,12 +268,12 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id2", source, XContentType.JSON);
         Exception e = expectThrows(ElasticsearchParseException.class,
             () -> client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 
-        GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id").get();
+        GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();
         assertFalse(response.isFound());
     }
 }

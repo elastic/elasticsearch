@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.ElasticsearchException;
+import org.opensaml.core.xml.util.XMLObjectSupport;
+import org.opensaml.saml.common.SAMLObject;
+import org.opensaml.saml.saml2.core.RequestAbstractType;
+import org.opensaml.saml.saml2.core.StatusResponseType;
+import org.opensaml.xmlsec.signature.support.SignatureConstants;
+
 import java.io.ByteArrayOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -12,13 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
-
-import org.elasticsearch.ElasticsearchException;
-import org.opensaml.core.xml.util.XMLObjectSupport;
-import org.opensaml.saml.common.SAMLObject;
-import org.opensaml.saml.saml2.core.RequestAbstractType;
-import org.opensaml.saml.saml2.core.StatusResponseType;
-import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
 public class SamlRedirect {
 
@@ -58,9 +58,19 @@ public class SamlRedirect {
                 final byte[] sig = signing.sign(queryParam, algo);
                 queryParam += "&Signature=" + urlEncode(base64Encode(sig));
             }
-            return destination + "?" + queryParam;
+            return withParameters(queryParam);
         } catch (Exception e) {
             throw new ElasticsearchException("Cannot construct SAML redirect", e);
+        }
+    }
+
+    private String withParameters(String queryParam) {
+        if (destination.indexOf('?') == -1) {
+            return destination + "?" + queryParam;
+        } else if (destination.endsWith("?")) {
+            return destination + queryParam;
+        } else {
+            return destination + "&" + queryParam;
         }
     }
 

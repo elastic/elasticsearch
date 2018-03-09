@@ -283,6 +283,7 @@ public class SamlUtils {
         dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
         dbf.setFeature("http://xml.org/sax/features/validation", true);
         dbf.setFeature("http://apache.org/xml/features/nonvalidating/load-dtd-grammar", false);
+        dbf.setIgnoringComments(true);
         // This is required, otherwise schema validation causes signature invalidation
         dbf.setFeature("http://apache.org/xml/features/validation/schema/normalized-value", false);
         // Make sure that URL schema namespaces are not resolved/downloaded from URLs we do not control

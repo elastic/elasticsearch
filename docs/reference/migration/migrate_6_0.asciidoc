@@ -33,6 +33,13 @@ See <<removal-of-types>> for more information.
 
 =========================================
 
+[IMPORTANT]
+.Mapping "string" has been renamed to "text" in 6.0
+=========================================
+The string type has been dropped. In order to index strings the type "text" has to be used.
+
+
+
 
 [float]
 === Also see:

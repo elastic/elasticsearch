@@ -107,12 +107,9 @@ public class PluginsServiceTests extends ESTestCase {
     public void testExistingPluginMissingDescriptor() throws Exception {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
-        try {
-            PluginsService.getPluginBundles(pluginsDir);
-            fail();
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin [plugin-missing-descriptor]"));
-        }
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.getPluginBundles(pluginsDir));
+        assertThat(e.getMessage(),
+                   containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
     }
 
     public void testFilterPlugins() {
@@ -139,7 +136,7 @@ public class PluginsServiceTests extends ESTestCase {
                 IllegalStateException.class,
                 () -> newPluginsService(settings));
 
-        final String expected = "Could not load plugin descriptor for existing plugin [.hidden]";
+        final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -158,7 +155,7 @@ public class PluginsServiceTests extends ESTestCase {
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e, hasToString(containsString("Could not load plugin descriptor for existing plugin [.DS_Store]")));
+            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
             assertNotNull(e.getCause());
             assertThat(e.getCause(), instanceOf(FileSystemException.class));
             if (Constants.WINDOWS) {

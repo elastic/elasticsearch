@@ -36,8 +36,8 @@ void getZip(File snapshotZip) {
 File snapshotZip = new File(projectDir, ".cache/ml-cpp-${version}.zip")
 task downloadMachineLearningSnapshot {
   onlyIf {
-    // skip if machine-learning-cpp is being built locally
-    findProject(':machine-learning-cpp') == null &&
+    // skip if ml-cpp is being built locally
+    findProject(':ml-cpp') == null &&
       // skip for offline builds - just rely on the artifact already having been downloaded before here
       project.gradle.startParameter.isOffline() == false
   }

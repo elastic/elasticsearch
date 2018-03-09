@@ -16,8 +16,8 @@ archivesBaseName = 'x-pack-ml'
 configurations {
     nativeBundle {
         resolutionStrategy.dependencySubstitution {
-            if (findProject(':machine-learning-cpp') != null) {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project(":machine-learning-cpp")
+            if (findProject(':ml-cpp') != null) {
+                substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
             } else {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:cpp-snapshot")
             }

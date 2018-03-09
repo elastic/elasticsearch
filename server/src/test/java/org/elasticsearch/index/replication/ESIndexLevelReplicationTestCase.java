@@ -427,7 +427,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         Response extends ReplicationResponse> {
         private final Request request;
         private ActionListener<Response> listener;
-        private final ReplicationGroup replicationGroup;
+        final ReplicationGroup replicationGroup;
         private final String opType;
 
         ReplicationAction(Request request, ActionListener<Response> listener, ReplicationGroup group, String opType) {
@@ -592,7 +592,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-            executeShardBulkOnReplica(replica, request);
+            executeShardBulkOnReplica(this.replicationGroup, replica, request);
         }
     }
 
@@ -602,15 +602,25 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 ((IndexRequest) itemRequest.request()).process(Version.CURRENT, null, index.getName());
             }
         }
-        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
-                TransportShardBulkAction.performOnPrimary(request, primary, null,
-                System::currentTimeMillis, new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
+        final PlainActionFuture<Releasable> permitAcquirer = new PlainActionFuture<>();
+        primary.acquirePrimaryOperationPermit(permitAcquirer, ThreadPool.Names.SAME, request);
+        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
+        try (Releasable ignored = permitAcquirer.actionGet()) {
+            result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis,
+                new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
+        }
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;
     }
 
-    private void executeShardBulkOnReplica(IndexShard replica, BulkShardRequest request) throws Exception {
-        final Translog.Location location = TransportShardBulkAction.performOnReplica(request, replica);
+    private void executeShardBulkOnReplica(ReplicationGroup group, IndexShard replica, BulkShardRequest request) throws Exception {
+        final PlainActionFuture<Releasable> permitAcquirer = new PlainActionFuture<>();
+        replica.acquireReplicaOperationPermit(group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint(),
+            permitAcquirer, ThreadPool.Names.SAME, request);
+        final Translog.Location location;
+        try (Releasable ignored = permitAcquirer.actionGet()) {
+            location = TransportShardBulkAction.performOnReplica(request, replica);
+        }
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
     }
 
@@ -630,8 +640,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     /**
      * indexes the given requests on the supplied replica shard
      */
-    void indexOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-        executeShardBulkOnReplica(replica, request);
+    void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
+        executeShardBulkOnReplica(group, replica, request);
     }
 
     class GlobalCheckpointSync extends ReplicationAction<

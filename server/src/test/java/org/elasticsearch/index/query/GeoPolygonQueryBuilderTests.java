@@ -63,17 +63,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         // todo LatLonPointInPolygon is package private
     }
 
-    /**
-     * Overridden here to ensure the test is only run if at least one type is
-     * present in the mappings. Geo queries do not execute if the field is not
-     * explicitly mapped
-     */
-    @Override
-    public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
-    }
-
     private static List<GeoPoint> randomPolygon() {
         ShapeBuilder shapeBuilder = null;
         // This is a temporary fix because sometimes the RandomShapeGenerator
@@ -139,7 +128,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_polygon\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
@@ -155,7 +143,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_polygon\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
@@ -180,7 +167,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_polygon\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
@@ -196,7 +182,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_polygon\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
@@ -233,12 +218,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
-    }
-
-    @Override
-    public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
     }
 
     public void testIgnoreUnmapped() throws IOException {

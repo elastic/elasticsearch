@@ -37,7 +37,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -157,18 +157,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static Version indexVersionCreated;
 
     private static ServiceHolder serviceHolder;
+    private static ServiceHolder serviceHolderWithNoType;
     private static int queryNameId = 0;
     private static Settings nodeSettings;
     private static Index index;
-    private static String[] currentTypes;
-    private static String[] randomTypes;
+    private static Index indexWithNoType;
 
     protected static Index getIndex() {
         return index;
     }
-
-    protected static String[] getCurrentTypes() {
-        return currentTypes;
+    protected static Index getIndexWithNoType() {
+        return indexWithNoType;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -185,14 +184,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
-
-        if (rarely()) {
-            currentTypes = new String[0]; // no types
-        } else {
-            currentTypes = new String[] { "_doc" };
-        }
-        randomTypes = getRandomTypes();
+        index = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
+        indexWithNoType = new Index(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(10));
     }
 
     protected Settings indexSettings() {
@@ -207,18 +200,24 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     @AfterClass
     public static void afterClass() throws Exception {
         IOUtils.close(serviceHolder);
+        IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
+        serviceHolderWithNoType = null;
     }
 
     @Before
     public void beforeTest() throws IOException {
         if (serviceHolder == null) {
-            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), this);
+            serviceHolder = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), true, this::initializeAdditionalMappings);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
+        if (serviceHolderWithNoType == null) {
+            serviceHolderWithNoType = new ServiceHolder(nodeSettings, indexSettings(), getPlugins(), false, null);
+        }
+        serviceHolderWithNoType.clientInvocationHandler.delegate = this;
     }
 
-    private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
+    private static SearchContext getSearchContext(QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
             public MapperService mapperService() {
@@ -231,7 +230,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
 
         };
-        testSearchContext.getQueryShardContext().setTypes(types);
         return testSearchContext;
     }
 
@@ -575,7 +573,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(randomTypes, context);
+            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
@@ -605,7 +603,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAlphaOfLengthBetween(1, 10));
             }
-            searchContext = getSearchContext(randomTypes, context);
+            searchContext = getSearchContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
@@ -778,7 +776,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        return serviceHolder.createShardContext();
+        QueryShardContext context = serviceHolder.createShardContext();
+        context.setTypes("_doc");
+        return context;
+    }
+
+    /**
+     * @return a new {@link QueryShardContext} based on an index with no type registered
+     */
+    protected static QueryShardContext createShardContextWithNoType() {
+        return serviceHolderWithNoType.createShardContext();
     }
 
     /**
@@ -830,10 +837,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected static String getRandomFieldName() {
         // if no type is set then return a random field name
-        if (currentTypes.length == 0 || randomBoolean()) {
+        if (randomBoolean()) {
             return randomAlphaOfLengthBetween(1, 10);
+        } else {
+            return randomFrom(MAPPED_LEAF_FIELD_NAMES);
         }
-        return randomFrom(MAPPED_LEAF_FIELD_NAMES);
     }
 
     /**
@@ -851,20 +859,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     QueryParsers.TOP_TERMS_BLENDED_FREQS).getPreferredName() + "1";
         }
         return rewrite;
-    }
-
-    private static String[] getRandomTypes() {
-        int rand = random().nextInt(3);
-        switch (rand) {
-            case 0:
-                return new String[0];
-            case 1:
-                return currentTypes;
-            case 2:
-                return new String[] {MetaData.ALL};
-            default:
-                throw new AssertionError("invalid random number " + rand);
-        }
     }
 
     protected static Fuzziness randomFuzziness(String fieldName) {
@@ -1020,8 +1014,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final Client client;
         private final long nowInMillis = randomNonNegativeLong();
 
-        ServiceHolder(Settings nodeSettings, Settings indexSettings,
-                      Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
+        ServiceHolder(Settings nodeSettings, Settings indexSettings, Collection<Class<? extends Plugin>> plugins, boolean registerType,
+                            CheckedConsumer<MapperService, IOException> mapperServiceConsumer) throws IOException {
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
@@ -1068,27 +1062,27 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
             });
 
-            for (String type : currentTypes) {
-                mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
-                        STRING_FIELD_NAME, "type=text",
-                        STRING_FIELD_NAME_2, "type=keyword",
-                        INT_FIELD_NAME, "type=integer",
-                        INT_RANGE_FIELD_NAME, "type=integer_range",
-                        DOUBLE_FIELD_NAME, "type=double",
-                        BOOLEAN_FIELD_NAME, "type=boolean",
-                        DATE_FIELD_NAME, "type=date",
-                        DATE_RANGE_FIELD_NAME, "type=date_range",
-                        OBJECT_FIELD_NAME, "type=object",
-                        GEO_POINT_FIELD_NAME, "type=geo_point",
-                        GEO_SHAPE_FIELD_NAME, "type=geo_shape"
+            if (registerType) {
+                mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    STRING_FIELD_NAME, "type=text",
+                    STRING_FIELD_NAME_2, "type=keyword",
+                    INT_FIELD_NAME, "type=integer",
+                    INT_RANGE_FIELD_NAME, "type=integer_range",
+                    DOUBLE_FIELD_NAME, "type=double",
+                    BOOLEAN_FIELD_NAME, "type=boolean",
+                    DATE_FIELD_NAME, "type=date",
+                    DATE_RANGE_FIELD_NAME, "type=date_range",
+                    OBJECT_FIELD_NAME, "type=object",
+                    GEO_POINT_FIELD_NAME, "type=geo_point",
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+
                 // also add mappings for two inner field in the object field
-                mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
-                                + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
-                                INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                        MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
+                    + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
+                    INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"), MapperService.MergeReason.MAPPING_UPDATE);
+                mapperServiceConsumer.accept(mapperService);
             }
-            testCase.initializeAdditionalMappings(mapperService);
         }
 
         @Override

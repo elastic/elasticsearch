@@ -107,15 +107,11 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals("cannot parse type from null string", e.getMessage());
     }
 
-    @Override
-    public void testToQuery() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
-    }
-
     public void testExceptionOnMissingTypes() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
+        QueryShardContext context = createShardContextWithNoType();
+        GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
+        qb.ignoreUnmapped(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
         assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
     }
 
@@ -291,7 +287,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -304,7 +299,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -323,7 +317,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -336,7 +329,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -349,7 +341,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -362,7 +353,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"geo_bounding_box\":{\n" +
                 "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
@@ -448,12 +438,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
         assertEquals(expectedJson, 1.0, parsed.boost(), delta);
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
-    }
-
-    @Override
-    public void testMustRewrite() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
     }
 
     public void testIgnoreUnmapped() throws IOException {

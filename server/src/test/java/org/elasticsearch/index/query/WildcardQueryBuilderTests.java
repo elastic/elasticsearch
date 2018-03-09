@@ -138,19 +138,17 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
             assertEquals(expected, query);
         }
     }
-    
-    public void testIndexWildcard() throws IOException {
-        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
+    public void testIndexWildcard() throws IOException {
         QueryShardContext context = createShardContext();
         String index = context.getFullyQualifiedIndexName();
-        
+
         Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-        
+
         query = new WildcardQueryBuilder("_index", index + "*").doToQuery(context);
         assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-        
+
         query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
         assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
     }

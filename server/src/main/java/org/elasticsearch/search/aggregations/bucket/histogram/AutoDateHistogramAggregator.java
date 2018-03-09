@@ -157,6 +157,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
+        consumeBucketsAndMaybeBreak((int) bucketOrds.size());
 
         long[] bucketOrdArray = new long[(int) bucketOrds.size()];
         for (int i = 0; i < bucketOrds.size(); i++) {

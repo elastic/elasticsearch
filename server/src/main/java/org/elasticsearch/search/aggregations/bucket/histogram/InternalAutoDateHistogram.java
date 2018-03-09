@@ -327,7 +327,12 @@ public final class InternalAutoDateHistogram extends
                 if (reduceRounding.round(top.current.key) != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
                     final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
-                    reducedBuckets.add(reduced);
+                    if (reduceContext.isFinalReduce() == false) {
+                        reduceContext.consumeBucketsAndMaybeBreak(1);
+                        reducedBuckets.add(reduced);
+                    } else {
+                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
+                    }
                     currentBuckets.clear();
                     key = reduceRounding.round(top.current.key);
                 }
@@ -346,7 +351,12 @@ public final class InternalAutoDateHistogram extends
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
-                reducedBuckets.add(reduced);
+                if (reduceContext.isFinalReduce() == false) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                    reducedBuckets.add(reduced);
+                } else {
+                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
+                }
             }
         }
 
@@ -425,6 +435,7 @@ public final class InternalAutoDateHistogram extends
             if (lastBucket != null) {
                 long key = rounding.nextRoundingValue(lastBucket.key);
                 while (key < nextBucket.key) {
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     iter.add(new InternalAutoDateHistogram.Bucket(key, 0, format, reducedEmptySubAggs));
                     key = rounding.nextRoundingValue(key);
                 }

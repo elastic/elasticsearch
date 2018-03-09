@@ -81,7 +81,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -860,14 +859,13 @@ public abstract class Engine implements Closeable {
      */
     @SuppressWarnings("finally")
     private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        final Optional<Error> maybeError = ExceptionsHelper.maybeError(maybeFatal, logger);
-        if (maybeError.isPresent()) {
+        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
             try {
-                logger.error(maybeMessage, maybeError.get());
+                logger.error(maybeMessage, error);
             } finally {
-                throw maybeError.get();
+                throw error;
             }
-        }
+        });
     }
 
     /**

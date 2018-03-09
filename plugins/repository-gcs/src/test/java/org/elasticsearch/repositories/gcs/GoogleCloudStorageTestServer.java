@@ -19,7 +19,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,10 +26,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,13 +39,15 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
- * {@link GoogleCloudStorageTestServer} emulates a Google Cloud Storage service through a {@link #handle(String, String, byte[])} method
- * that provides appropriate responses for specific requests like the real Google Cloud platform would do. It is largely based on official
- * documentation available at https://cloud.google.com/storage/docs/json_api/v1/.
+ * {@link GoogleCloudStorageTestServer} emulates a Google Cloud Storage service through
+ * a {@link #handle(String, String, String, Map, byte[])} method that provides appropriate
+ * responses for specific requests like the real Google Cloud platform would do.
+ * It is largely based on official documentation available at https://cloud.google.com/storage/docs/json_api/v1/.
  */
 public class GoogleCloudStorageTestServer {
 
@@ -57,19 +59,22 @@ public class GoogleCloudStorageTestServer {
     /** Request handlers for the requests made by the Google Cloud Storage client **/
     private final PathTrie<RequestHandler> handlers;
 
+    /** Server endpoint **/
+    private final String endpoint;
+
     /**
      * Creates a {@link GoogleCloudStorageTestServer} with the default endpoint
      */
     GoogleCloudStorageTestServer() {
-        this("https://www.googleapis.com", true);
+        this("https://www.googleapis.com");
     }
 
     /**
-     * Creates a {@link GoogleCloudStorageTestServer} with a custom endpoint,
-     * potentially prefixing the URL patterns to match with the endpoint name.
+     * Creates a {@link GoogleCloudStorageTestServer} with a custom endpoint
      */
-    GoogleCloudStorageTestServer(final String endpoint, final boolean prefixWithEndpoint) {
-        this.handlers = defaultHandlers(endpoint, prefixWithEndpoint, buckets);
+    GoogleCloudStorageTestServer(final String endpoint) {
+        this.endpoint = Objects.requireNonNull(endpoint, "endpoint must not be null");
+        this.handlers = defaultHandlers(endpoint, buckets);
     }
 
     /** Creates a bucket in the test server **/
@@ -77,24 +82,61 @@ public class GoogleCloudStorageTestServer {
         buckets.put(bucketName, new Bucket(bucketName));
     }
 
-    public Response handle(final String method, final String url, byte[] content) throws IOException {
-        final Map<String, String> params = new HashMap<>();
+    public String getEndpoint() {
+        return endpoint;
+    }
 
-        // Splits the URL to extract query string parameters
-        final String rawPath;
-        int questionMark = url.indexOf('?');
-        if (questionMark != -1) {
-            rawPath = url.substring(0, questionMark);
-            RestUtils.decodeQueryString(url, questionMark + 1, params);
-        } else {
-            rawPath = url;
+    /**
+     * Returns a Google Cloud Storage response for the given request
+     *
+     * @param method the HTTP method of the request
+     * @param url the HTTP URL of the request
+     * @param headers the HTTP headers of the request
+     * @param body the HTTP request body
+     * @return a {@link Response}
+     *
+     * @throws IOException if something goes wrong
+     */
+    public Response handle(final String method,
+                           final String url,
+                           final Map<String, List<String>> headers,
+                           byte[] body) throws IOException {
+
+        final int questionMark = url.indexOf('?');
+        if (questionMark == -1) {
+            return handle(method, url, null, headers, body);
+        }
+        return handle(method, url.substring(0, questionMark), url.substring(questionMark + 1), headers, body);
+    }
+
+    /**
+     * Returns a Google Cloud Storage response for the given request
+     *
+     * @param method  the HTTP method of the request
+     * @param path    the path of the URL of the request
+     * @param query   the queryString of the URL of request
+     * @param headers the HTTP headers of the request
+     * @param body    the HTTP request body
+     * @return a {@link Response}
+     * @throws IOException if something goes wrong
+     */
+    public Response handle(final String method,
+                           final String path,
+                           final String query,
+                           final Map<String, List<String>> headers,
+                           byte[] body) throws IOException {
+
+        final Map<String, String> params = new HashMap<>();
+        if (query != null) {
+            RestUtils.decodeQueryString(query, 0, params);
         }
 
-        final RequestHandler handler = handlers.retrieve(method + " " + rawPath, params);
+        final RequestHandler handler = handlers.retrieve(method + " " + path, params);
         if (handler != null) {
-            return handler.execute(url, params, content);
+            return handler.execute(params, headers, body);
         } else {
-            return newError(RestStatus.INTERNAL_SERVER_ERROR, "No handler defined for request [method: " + method + ", url: " + url + "]");
+            return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                "No handler defined for request [method: " + method + ", path: " + path + "]");
         }
     }
 
@@ -104,28 +146,24 @@ public class GoogleCloudStorageTestServer {
         /**
          * Simulates the execution of a Storage request and returns a corresponding response.
          *
-         * @param url the request URL
-         * @param params the request URL parameters
+         * @param params the request's query string parameters
+         * @param headers the request's headers
          * @param body the request body provided as a byte array
          * @return the corresponding response
          *
          * @throws IOException if something goes wrong
          */
-        Response execute(String url, Map<String, String> params, byte[] body) throws IOException;
+        Response execute(Map<String, String> params, Map<String, List<String>> headers, byte[] body) throws IOException;
     }
 
     /** Builds the default request handlers **/
-    private static PathTrie<RequestHandler> defaultHandlers(final String endpoint,
-                                                            final boolean prefixWithEndpoint,
-                                                            final Map<String, Bucket> buckets) {
-
+    private static PathTrie<RequestHandler> defaultHandlers(final String endpoint, final Map<String, Bucket> buckets) {
         final PathTrie<RequestHandler> handlers = new PathTrie<>(RestUtils.REST_DECODER);
-        final String prefix = prefixWithEndpoint ? endpoint :  "";
 
         // GET Bucket
         //
         // https://cloud.google.com/storage/docs/json_api/v1/buckets/get
-        handlers.insert("GET " + prefix + "/storage/v1/b/{bucket}", (url, params, body) -> {
+        handlers.insert("GET " + endpoint + "/storage/v1/b/{bucket}", (params, headers, body) -> {
             String name = params.get("bucket");
             if (Strings.hasText(name) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "bucket name is missing");
@@ -141,7 +179,7 @@ public class GoogleCloudStorageTestServer {
         // GET Object
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/get
-        handlers.insert("GET " + prefix + "/storage/v1/b/{bucket}/o/{object}", (url, params, body) -> {
+        handlers.insert("GET " + endpoint + "/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
             String objectName = params.get("object");
             if (Strings.hasText(objectName) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
@@ -163,7 +201,7 @@ public class GoogleCloudStorageTestServer {
         // Delete Object
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/delete
-        handlers.insert("DELETE " + prefix + "/storage/v1/b/{bucket}/o/{object}", (url, params, body) -> {
+        handlers.insert("DELETE " + endpoint + "/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
             String objectName = params.get("object");
             if (Strings.hasText(objectName) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object name is missing");
@@ -184,7 +222,7 @@ public class GoogleCloudStorageTestServer {
         // Insert Object (initialization)
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
-        handlers.insert("POST " + prefix + "/upload/storage/v1/b/{bucket}/o", (url, params, body) -> {
+        handlers.insert("POST " + endpoint + "/upload/storage/v1/b/{bucket}/o", (params, headers, body) -> {
             if ("resumable".equals(params.get("uploadType")) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload type must be resumable");
             }
@@ -210,7 +248,7 @@ public class GoogleCloudStorageTestServer {
         // Insert Object (upload)
         //
         // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-        handlers.insert("PUT " + prefix + "/upload/storage/v1/b/{bucket}/o", (url, params, body) -> {
+        handlers.insert("PUT " + endpoint + "/upload/storage/v1/b/{bucket}/o", (params, headers, body) -> {
             String objectId = params.get("upload_id");
             if (Strings.hasText(objectId) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload id is missing");
@@ -232,7 +270,7 @@ public class GoogleCloudStorageTestServer {
         // Copy Object
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/copy
-        handlers.insert("POST " + prefix + "/storage/v1/b/{srcBucket}/o/{src}/copyTo/b/{destBucket}/o/{dest}", (url, params, body) -> {
+        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/copyTo/b/{destBucket}/o/{dest}", (params, headers, body)-> {
             String source = params.get("src");
             if (Strings.hasText(source) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
@@ -265,7 +303,7 @@ public class GoogleCloudStorageTestServer {
         // List Objects
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/list
-        handlers.insert("GET " + prefix + "/storage/v1/b/{bucket}/o", (url, params, body) -> {
+        handlers.insert("GET " + endpoint + "/storage/v1/b/{bucket}/o", (params, headers, body) -> {
             final Bucket bucket = buckets.get(params.get("bucket"));
             if (bucket == null) {
                 return newError(RestStatus.NOT_FOUND, "bucket not found");
@@ -293,7 +331,7 @@ public class GoogleCloudStorageTestServer {
         // Download Object
         //
         // https://cloud.google.com/storage/docs/request-body
-        handlers.insert("GET " + prefix + "/download/storage/v1/b/{bucket}/o/{object}", (url, params, body) -> {
+        handlers.insert("GET " + endpoint + "/download/storage/v1/b/{bucket}/o/{object}", (params, headers, body) -> {
             String object = params.get("object");
             if (Strings.hasText(object) == false) {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "object id is missing");
@@ -314,7 +352,7 @@ public class GoogleCloudStorageTestServer {
         // Batch
         //
         // https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch
-        handlers.insert("POST " + prefix + "/batch", (url, params, req) -> {
+        handlers.insert("POST " + endpoint + "/batch", (params, headers, body) -> {
             final List<Response> batchedResponses = new ArrayList<>();
 
             // A batch request body looks like this:
@@ -339,37 +377,88 @@ public class GoogleCloudStorageTestServer {
             //
             //            --__END_OF_PART__--
 
-            // Here we simply process the request body line by line and delegate to other handlers
-            // if possible.
-            Streams.readAllLines(new BufferedInputStream(new ByteArrayInputStream(req)), line -> {
-                final int indexOfHttp = line.indexOf(" HTTP/1.1");
-                if (indexOfHttp > 0) {
-                    line = line.substring(0, indexOfHttp);
-                }
+            // Default multipart boundary
+            String boundary = "__END_OF_PART__";
 
-                RequestHandler handler = handlers.retrieve(line, params);
-                if (handler != null) {
-                    try {
-                        batchedResponses.add(handler.execute(line, params, req));
-                    } catch (IOException e) {
-                        batchedResponses.add(newError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
+            // Determine the multipart boundary
+            final List<String> contentTypes = headers.getOrDefault("Content-Type", headers.get("Content-type"));
+            if (contentTypes != null) {
+                final String contentType = contentTypes.get(0);
+                if (contentType != null && contentType.contains("multipart/mixed; boundary=")) {
+                    boundary = contentType.replace("multipart/mixed; boundary=", "");
+                }
+            }
+
+            // Read line by line the batched requests
+            try (BufferedReader reader = new BufferedReader(
+                                              new InputStreamReader(
+                                                  new ByteArrayInputStream(body), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    // Start of a batched request
+                    if (line.equals("--" + boundary)) {
+                        Map<String, List<String>> batchedHeaders = new HashMap<>();
+
+                        // Reads the headers, if any
+                        while ((line = reader.readLine()) != null) {
+                            if (line.equals("\r\n") || line.length() == 0) {
+                                // end of headers
+                                break;
+                            } else {
+                                String[] header = line.split(":", 2);
+                                batchedHeaders.put(header[0], singletonList(header[1]));
+                            }
+                        }
+
+                        // Reads the method and URL
+                        line = reader.readLine();
+                        String batchedUrl = line.substring(0, line.lastIndexOf(' '));
+
+                        final Map<String, String> batchedParams = new HashMap<>();
+                        int questionMark = batchedUrl.indexOf('?');
+                        if (questionMark != -1) {
+                            RestUtils.decodeQueryString(batchedUrl.substring(questionMark + 1), 0, batchedParams);
+                        }
+
+                        // Reads the body
+                        line = reader.readLine();
+                        byte[] batchedBody = new byte[0];
+                        if (line != null || line.startsWith("--" + boundary) == false) {
+                            batchedBody = line.getBytes(StandardCharsets.UTF_8);
+                        }
+
+                        // Executes the batched request
+                        RequestHandler handler = handlers.retrieve(batchedUrl, batchedParams);
+                        if (handler != null) {
+                            try {
+                                batchedResponses.add(handler.execute(batchedParams, batchedHeaders, batchedBody));
+                            } catch (IOException e) {
+                                batchedResponses.add(newError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
+                            }
+                        }
                     }
                 }
-            });
+            }
 
             // Now we can build the response
-            String boundary = "__END_OF_PART__";
             String sep = "--";
             String line = "\r\n";
 
             StringBuilder builder = new StringBuilder();
             for (Response response : batchedResponses) {
                 builder.append(sep).append(boundary).append(line);
+                builder.append("Content-Type: application/http").append(line);
                 builder.append(line);
-                builder.append("HTTP/1.1 ").append(response.status.getStatus());
-                builder.append(' ').append(response.status.toString());
-                builder.append(line);
+                builder.append("HTTP/1.1 ")
+                    .append(response.status.getStatus())
+                    .append(' ')
+                    .append(response.status.toString())
+                    .append(line);
                 builder.append("Content-Length: ").append(response.body.length).append(line);
+                builder.append("Content-Type: ").append(response.contentType).append(line);
+                response.headers.forEach((k, v) -> builder.append(k).append(": ").append(v).append(line));
+                builder.append(line);
+                builder.append(new String(response.body, StandardCharsets.UTF_8)).append(line);
                 builder.append(line);
             }
             builder.append(line);
@@ -378,6 +467,17 @@ public class GoogleCloudStorageTestServer {
             byte[] content = builder.toString().getBytes(StandardCharsets.UTF_8);
             return new Response(RestStatus.OK, emptyMap(), "multipart/mixed; boundary=" + boundary, content);
         });
+
+        // Fake refresh of an OAuth2 token
+        //
+        handlers.insert("POST " + endpoint + "/o/oauth2/token", (url, params, req) ->
+            newResponse(RestStatus.OK, emptyMap(), jsonBuilder()
+                .startObject()
+                    .field("access_token", "unknown")
+                    .field("token_type", "Bearer")
+                    .field("expires_in", 3600)
+                .endObject())
+        );
 
         return handlers;
     }

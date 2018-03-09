@@ -33,4 +33,8 @@ public class LicenseUtils {
     public static boolean isLicenseExpiredException(ElasticsearchSecurityException exception) {
         return (exception != null) && (exception.getMetadata(EXPIRED_FEATURE_METADATA) != null);
     }
+
+    public static boolean licenseNeedsExtended(License license) {
+        return "basic".equals(license.type()) && license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+    }
 }

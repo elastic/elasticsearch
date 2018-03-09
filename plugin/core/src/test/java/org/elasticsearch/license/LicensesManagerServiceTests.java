@@ -62,13 +62,13 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, silverLicense, LicensesStatus.VALID);
         License platinumLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(1));
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
-        License basicLicense = TestUtils.generateSignedLicense("basic", TimeValue.timeValueHours(3));
-        TestUtils.registerAndAckSignedLicenses(licenseService, basicLicense, LicensesStatus.VALID);
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesMetaData.getLicense(), equalTo(basicLicense));
+        assertThat(licensesMetaData.getLicense(), equalTo(platinumLicense));
         final License getLicenses = licenseService.getLicense();
-        assertThat(getLicenses, equalTo(basicLicense));
+        assertThat(getLicenses, equalTo(platinumLicense));
     }
+
+    // TODO: Add test/feature blocking the registration of basic license
 
     public void testEffectiveLicenses() throws Exception {
         final LicenseService licenseService = getInstanceFromNode(LicenseService.class);
@@ -84,12 +84,6 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
         TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(LicenseService.getLicense(licensesMetaData), equalTo(platinumLicense));
-
-        License basicLicense = TestUtils.generateSignedLicense("basic", TimeValue.timeValueSeconds(3));
-        // put basic license
-        TestUtils.registerAndAckSignedLicenses(licenseService, basicLicense, LicensesStatus.VALID);
-        licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(LicenseService.getLicense(licensesMetaData), equalTo(basicLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {

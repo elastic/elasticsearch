@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.UUID;
 
 import static org.elasticsearch.license.TestUtils.dateMath;
-import static org.elasticsearch.license.TestUtils.generateExpiredLicense;
+import static org.elasticsearch.license.TestUtils.generateExpiredNonBasicLicense;
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -123,7 +123,7 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     }
 
     public void testPutExpiredLicense() throws Exception {
-        License expiredLicense = generateExpiredLicense();
+        License expiredLicense = generateExpiredNonBasicLicense();
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
         builder.setLicense(expiredLicense);
         PutLicenseResponse putLicenseResponse = builder.get();

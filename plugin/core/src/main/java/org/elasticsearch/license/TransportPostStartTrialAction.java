@@ -44,7 +44,7 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
     @Override
     protected void masterOperation(PostStartTrialRequest request, ClusterState state,
                                    ActionListener<PostStartTrialResponse> listener) throws Exception {
-        licenseService.upgradeSelfGeneratedLicense(listener);
+        licenseService.startSelfGeneratedTrialLicense(listener);
     }
 
     @Override

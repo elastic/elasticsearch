@@ -78,6 +78,12 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
         assertEquals(licenseType, licenseMetaData.getLicense().type());
-        assertEquals(clock.millis() + LicenseService.SELF_GENERATED_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+        long expiration;
+        if (licenseType.equals("basic")) {
+            expiration = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        } else {
+            expiration = LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis() + clock.millis();
+        }
+        assertEquals(expiration, licenseMetaData.getLicense().expiryDate());
     }
 }

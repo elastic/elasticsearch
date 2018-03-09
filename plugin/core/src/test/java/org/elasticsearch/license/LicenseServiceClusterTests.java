@@ -140,7 +140,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);
-        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
+        putLicense(TestUtils.generateExpiredNonBasicLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
         assertLicenseActive(false);
         logger.info("--> restart node");
         internalCluster().fullRestart();

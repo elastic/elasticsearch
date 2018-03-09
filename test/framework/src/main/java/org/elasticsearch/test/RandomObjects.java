@@ -129,13 +129,14 @@ public final class RandomObjects {
                 case 8:
                     byte[] randomBytes = RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50).getBytes(StandardCharsets.UTF_8);
                     BytesArray randomBytesArray = new BytesArray(randomBytes);
-                    originalValues.add(randomBytesArray);
                     if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
                         //JSON and YAML write the base64 format
                         expectedParsedValues.add(Base64.getEncoder().encodeToString(randomBytes));
+                        originalValues.add(Base64.getEncoder().encodeToString(randomBytes));
                     } else {
                         //SMILE and CBOR write the original bytes as they support binary format
                         expectedParsedValues.add(randomBytesArray);
+                        originalValues.add(randomBytesArray);
                     }
                     break;
                 default:

@@ -81,6 +81,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -848,10 +849,33 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
+     * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable dies indeed contain a fatal error, the
+     * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal   the throwable that maybe contains a fatal error
+     */
+    @SuppressWarnings("finally")
+    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        final Optional<Error> maybeError = ExceptionsHelper.maybeError(maybeFatal, logger);
+        if (maybeError.isPresent()) {
+            try {
+                logger.error(maybeMessage, maybeError.get());
+            } finally {
+                throw maybeError.get();
+            }
+        }
+    }
+
+    /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        maybeDie(reason, failure);
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {

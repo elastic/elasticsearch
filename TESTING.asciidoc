@@ -270,14 +270,14 @@ The REST tests are run automatically when executing the "./gradlew check" comman
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:integ-test-zip:integTest   \
+./gradlew :distribution:archives:integ-test-zip:integTest   \
   -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT"
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:integ-test-zip:integTest \
+./gradlew :distribution:archives:integ-test-zip:integTest \
   -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
@@ -407,7 +407,7 @@ destructive. When working with a single package it's generally faster to run its
 tests in a tighter loop than Gradle provides. In one window:
 
 --------------------------------
-./gradlew :distribution:rpm:assemble
+./gradlew :distribution:packages:rpm:assemble
 --------------------------------
 
 and in another window:

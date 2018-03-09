@@ -22,7 +22,9 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,12 +35,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DiscoveryNodesTests extends ESTestCase {
@@ -68,6 +74,40 @@ public class DiscoveryNodesTests extends ESTestCase {
                 fail("resolveNode shouldn't have failed for [" + nodeSelector.selector + "]");
             }
         }
+    }
+
+    public void testAll() {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        final String[] nonMasterNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                        .map(n -> n.value)
+                        .filter(n -> n.isMasterNode() == false)
+                        .map(DiscoveryNode::getId)
+                        .toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
+
+        final String[] allNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                        .map(n -> n.value)
+                        .map(DiscoveryNode::getId)
+                        .toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
+    }
+
+    public void testCoordinatorOnlyNodes() {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        final String[] coordinatorOnlyNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                    .map(n -> n.value)
+                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .map(DiscoveryNode::getId)
+                    .toArray(String[]::new);
+
+        assertThat(
+                discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
+                arrayContainingInAnyOrder(coordinatorOnlyNodes));
     }
 
     public void testResolveNodesIds() {

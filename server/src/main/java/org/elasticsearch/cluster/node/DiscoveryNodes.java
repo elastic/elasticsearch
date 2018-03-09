@@ -304,14 +304,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
-        if (isAllNodes(nodes)) {
-            int index = 0;
-            nodes = new String[this.nodes.size()];
-            for (DiscoveryNode node : this) {
-                nodes[index++] = node.getId();
-            }
-            return nodes;
-        } else {
+        {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
             for (String nodeId : nodes) {
                 if (nodeId.equals("_local")) {
@@ -327,16 +320,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
-                    // not a node id, try and search by name
                     for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getName())) {
-                            resolvedNodesIds.add(node.getId());
-                        }
-                    }
-                    for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
-                            resolvedNodesIds.add(node.getId());
-                        } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
+                        if ("_all".equals(nodeId)
+                                || Regex.simpleMatch(nodeId, node.getName())
+                                || Regex.simpleMatch(nodeId, node.getHostAddress())
+                                || Regex.simpleMatch(nodeId, node.getHostName())) {
                             resolvedNodesIds.add(node.getId());
                         }
                     }

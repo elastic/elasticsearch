@@ -140,12 +140,16 @@ public class PluginsService extends AbstractComponent {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<Bundle> plugins = findBundles(pluginsDirectory, "plugin");
-                    for (final Bundle bundle : plugins) {
-                        pluginsList.add(bundle.plugin);
-                        pluginsNames.add(bundle.plugin.getName());
+                    // call findBundles directly to get the meta plugin names
+                    List<BundleCollection> plugins = findBundles(pluginsDirectory, "plugin");
+                    for (final BundleCollection plugin : plugins) {
+                        final Collection<Bundle> bundles = plugin.bundles();
+                        for (final Bundle bundle : bundles) {
+                            pluginsList.add(bundle.plugin);
+                        }
+                        seenBundles.addAll(bundles);
+                        pluginsNames.add(plugin.name());
                     }
-                    seenBundles.addAll(plugins);
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
@@ -170,8 +174,9 @@ public class PluginsService extends AbstractComponent {
             if (!missingPlugins.isEmpty()) {
                 final String message = String.format(
                         Locale.ROOT,
-                        "missing mandatory plugins [%s]",
-                        Strings.collectionToDelimitedString(missingPlugins, ", "));
+                        "missing mandatory plugins [%s], found plugins [%s]",
+                        Strings.collectionToDelimitedString(missingPlugins, ", "),
+                        Strings.collectionToDelimitedString(pluginsNames, ", "));
                 throw new IllegalStateException(message);
             }
         }
@@ -420,16 +425,16 @@ public class PluginsService extends AbstractComponent {
 
     /** Get bundles for plugins installed in the given modules directory. */
     static Set<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
-        return findBundles(modulesDirectory, "module");
+        return findBundles(modulesDirectory, "module").stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
     static Set<Bundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
-        return findBundles(pluginsDirectory, "plugin");
+        return findBundles(pluginsDirectory, "plugin").stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
     }
 
     // searches subdirectories under the given directory for plugin directories
-    private static Set<Bundle> findBundles(final Path directory, String type) throws IOException {
+    private static List<BundleCollection> findBundles(final Path directory, String type) throws IOException {
         final List<BundleCollection> bundles = new ArrayList<>();
         final Set<Bundle> seenBundles = new HashSet<>();
         final Tuple<List<Path>, Map<String, List<Path>>> groupedPluginDirs = findGroupedPluginDirs(directory);
@@ -447,7 +452,7 @@ public class PluginsService extends AbstractComponent {
             bundles.add(metaBundle);
         }
 
-        return bundles.stream().flatMap(b -> b.bundles().stream()).collect(Collectors.toSet());
+        return bundles;
     }
 
     // get a bundle for a single plugin dir
@@ -457,7 +462,8 @@ public class PluginsService extends AbstractComponent {
         try {
             info = PluginInfo.readFromProperties(plugin);
         } catch (final IOException e) {
-            throw new IllegalStateException("Could not load plugin descriptor for " + type + " directory " + plugin.toString(), e);
+            throw new IllegalStateException("Could not load plugin descriptor for " + type +
+                                            " directory [" + plugin.getFileName() + "]", e);
         }
         final Bundle bundle = new Bundle(info, plugin);
         if (bundles.add(bundle) == false) {

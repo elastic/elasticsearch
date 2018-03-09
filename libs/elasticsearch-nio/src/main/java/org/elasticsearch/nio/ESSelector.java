@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 public abstract class ESSelector implements Closeable {
 
     final Selector selector;
-    final ConcurrentLinkedQueue<NioChannel> channelsToClose = new ConcurrentLinkedQueue<>();
+    final ConcurrentLinkedQueue<ChannelContext<?>> channelsToClose = new ConcurrentLinkedQueue<>();
 
     private final EventHandler eventHandler;
     private final ReentrantLock runLock = new ReentrantLock();
@@ -60,7 +60,7 @@ public abstract class ESSelector implements Closeable {
         this(eventHandler, Selector.open());
     }
 
-    ESSelector(EventHandler eventHandler, Selector selector) throws IOException {
+    ESSelector(EventHandler eventHandler, Selector selector) {
         this.eventHandler = eventHandler;
         this.selector = selector;
     }
@@ -111,10 +111,10 @@ public abstract class ESSelector implements Closeable {
                         try {
                             processKey(sk);
                         } catch (CancelledKeyException cke) {
-                            eventHandler.genericChannelException((NioChannel) sk.attachment(),  cke);
+                            eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  cke);
                         }
                     } else {
-                        eventHandler.genericChannelException((NioChannel) sk.attachment(),  new CancelledKeyException());
+                        eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  new CancelledKeyException());
                     }
                 }
             }
@@ -131,7 +131,7 @@ public abstract class ESSelector implements Closeable {
 
     void cleanupAndCloseChannels() {
         cleanup();
-        channelsToClose.addAll(selector.keys().stream().map(sk -> (NioChannel) sk.attachment()).collect(Collectors.toList()));
+        channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
         closePendingChannels();
     }
 
@@ -191,9 +191,10 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void queueChannelClose(NioChannel channel) {
-        assert channel.getSelector() == this : "Must schedule a channel for closure with its selector";
-        channelsToClose.offer(channel);
-        ensureSelectorOpenForEnqueuing(channelsToClose, channel);
+        ChannelContext<?> context = channel.getContext();
+        assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
+        channelsToClose.offer(context);
+        ensureSelectorOpenForEnqueuing(channelsToClose, context);
         wakeup();
     }
 
@@ -239,9 +240,9 @@ public abstract class ESSelector implements Closeable {
     }
 
     private void closePendingChannels() {
-        NioChannel channel;
-        while ((channel = channelsToClose.poll()) != null) {
-            eventHandler.handleClose(channel);
+        ChannelContext<?> channelContext;
+        while ((channelContext = channelsToClose.poll()) != null) {
+            eventHandler.handleClose(channelContext);
         }
     }
 }

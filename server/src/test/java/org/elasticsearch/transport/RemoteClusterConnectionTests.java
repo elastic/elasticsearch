@@ -480,7 +480,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                                 new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(5, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();
@@ -590,17 +590,28 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     CountDownLatch latch = new CountDownLatch(numConnectionAttempts);
                                     for (int i = 0; i < numConnectionAttempts; i++) {
                                         AtomicBoolean executed = new AtomicBoolean(false);
-                                        ActionListener<Void> listener = ActionListener.wrap(x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();}, x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();
-                                            if (x instanceof RejectedExecutionException) {
-                                                // that's fine
-                                            } else {
-                                                throw new AssertionError(x);
-                                            }
-                                        });
+                                        ActionListener<Void> listener = ActionListener.wrap(
+                                                x -> {
+                                                    assertTrue(executed.compareAndSet(false, true));
+                                                    latch.countDown();},
+                                                x -> {
+                                                    /*
+                                                     * This can occur on a thread submitted to the thread pool while we are closing the
+                                                     * remote cluster connection at the end of the test.
+                                                     */
+                                                    if (x instanceof CancellableThreads.ExecutionCancelledException) {
+                                                        // we should already be shutting down
+                                                        assertTrue(executed.get());
+                                                        return;
+                                                    }
+
+                                                    assertTrue(executed.compareAndSet(false, true));
+                                                    latch.countDown();
+
+                                                    if (!(x instanceof RejectedExecutionException)) {
+                                                        throw new AssertionError(x);
+                                                    }
+                                                });
                                         connection.updateSeedNodes(seedNodes, listener);
                                     }
                                     latch.await();

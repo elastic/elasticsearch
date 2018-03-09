@@ -77,8 +77,8 @@ public class ParseFieldRegistry<T> {
      * @return The value being looked up. Never null.
      * @throws ParsingException if the named thing isn't in the registry or the name was deprecated and deprecated names aren't supported.
      */
-    public T lookup(String name, XContentLocation xContentLocation) {
-        T value = lookupReturningNullIfNotFound(name);
+    public T lookup(String name, XContentLocation xContentLocation, DeprecationHandler deprecationHandler) {
+        T value = lookupReturningNullIfNotFound(name, deprecationHandler);
         if (value == null) {
             throw new ParsingException(xContentLocation, "no [" + registryName + "] registered for [" + name + "]");
         }
@@ -92,14 +92,14 @@ public class ParseFieldRegistry<T> {
      * @return The value being looked up or null if it wasn't found.
      * @throws ParsingException if the named thing isn't in the registry or the name was deprecated and deprecated names aren't supported.
      */
-    public T lookupReturningNullIfNotFound(String name) {
+    public T lookupReturningNullIfNotFound(String name, DeprecationHandler deprecationHandler) {
         Tuple<ParseField, T> parseFieldAndValue = registry.get(name);
         if (parseFieldAndValue == null) {
             return null;
         }
         ParseField parseField = parseFieldAndValue.v1();
         T value = parseFieldAndValue.v2();
-        boolean match = parseField.match(name);
+        boolean match = parseField.match(name, deprecationHandler);
         //this is always expected to match, ParseField is useful for deprecation warnings etc. here
         assert match : "ParseField did not match registered name [" + name + "][" + registryName + "]";
         return value;

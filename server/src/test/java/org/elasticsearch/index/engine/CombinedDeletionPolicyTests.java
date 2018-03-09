@@ -131,10 +131,15 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                     assertThat(snapshot.getUserData(), equalTo(commitList.get(commitList.size() - 1).getUserData()));
                 }
             }
-            randomSubsetOf(snapshottingCommits).forEach(snapshot -> {
+            final List<IndexCommit> releasingSnapshots = randomSubsetOf(snapshottingCommits);
+            for (IndexCommit snapshot : releasingSnapshots) {
                 snapshottingCommits.remove(snapshot);
-                indexPolicy.releaseCommit(snapshot);
-            });
+                final long pendingSnapshots = snapshottingCommits.stream().filter(snapshot::equals).count();
+                final IndexCommit lastCommit = commitList.get(commitList.size() - 1);
+                final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
+                assertThat(indexPolicy.releaseCommit(snapshot),
+                    equalTo(pendingSnapshots == 0 && snapshot.equals(lastCommit) == false && snapshot.equals(safeCommit) == false));
+            }
             // Snapshotting commits must not be deleted.
             snapshottingCommits.forEach(snapshot -> assertThat(snapshot.isDeleted(), equalTo(false)));
             // We don't need to retain translog for snapshotting commits.

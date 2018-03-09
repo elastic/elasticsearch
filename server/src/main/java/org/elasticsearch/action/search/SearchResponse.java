@@ -269,15 +269,15 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             if (token == Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (SCROLL_ID.match(currentFieldName)) {
+                if (SCROLL_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     scrollId = parser.text();
-                } else if (TOOK.match(currentFieldName)) {
+                } else if (TOOK.match(currentFieldName, parser.getDeprecationHandler())) {
                     tookInMillis = parser.longValue();
-                } else if (TIMED_OUT.match(currentFieldName)) {
+                } else if (TIMED_OUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     timedOut = parser.booleanValue();
-                } else if (TERMINATED_EARLY.match(currentFieldName)) {
+                } else if (TERMINATED_EARLY.match(currentFieldName, parser.getDeprecationHandler())) {
                     terminatedEarly = parser.booleanValue();
-                } else if (NUM_REDUCE_PHASES.match(currentFieldName)) {
+                } else if (NUM_REDUCE_PHASES.match(currentFieldName, parser.getDeprecationHandler())) {
                     numReducePhases = parser.intValue();
                 } else {
                     parser.skipChildren();
@@ -291,24 +291,24 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                     suggest = Suggest.fromXContent(parser);
                 } else if (SearchProfileShardResults.PROFILE_FIELD.equals(currentFieldName)) {
                     profile = SearchProfileShardResults.fromXContent(parser);
-                } else if (RestActions._SHARDS_FIELD.match(currentFieldName)) {
+                } else if (RestActions._SHARDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {
                         if (token == Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (RestActions.FAILED_FIELD.match(currentFieldName)) {
+                            if (RestActions.FAILED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 parser.intValue(); // we don't need it but need to consume it
-                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName)) {
+                            } else if (RestActions.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 successfulShards = parser.intValue();
-                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName)) {
+                            } else if (RestActions.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 totalShards = parser.intValue();
-                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName)) {
+                            } else if (RestActions.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skippedShards = parser.intValue();
                             } else {
                                 parser.skipChildren();
                             }
                         } else if (token == Token.START_ARRAY) {
-                            if (RestActions.FAILURES_FIELD.match(currentFieldName)) {
+                            if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 while((token = parser.nextToken()) != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
@@ -319,7 +319,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                             parser.skipChildren();
                         }
                     }
-                } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName)) {
+                } else if (Clusters._CLUSTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     int successful = -1;
                     int total = -1;
                     int skipped = -1;
@@ -327,11 +327,11 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName)) {
+                            if (Clusters.SUCCESSFUL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 successful = parser.intValue();
-                            } else if (Clusters.TOTAL_FIELD.match(currentFieldName)) {
+                            } else if (Clusters.TOTAL_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 total = parser.intValue();
-                            } else if (Clusters.SKIPPED_FIELD.match(currentFieldName)) {
+                            } else if (Clusters.SKIPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                 skipped = parser.intValue();
                             } else {
                                 parser.skipChildren();

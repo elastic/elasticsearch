@@ -30,8 +30,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 
@@ -195,20 +197,20 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (VALUE_FIELD.match(currentFieldName)) {
+                        if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             value = parser.textOrNull();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (REWRITE_FIELD.match(currentFieldName)) {
+                        } else if (REWRITE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             rewrite = parser.textOrNull();
-                        } else if (FLAGS_FIELD.match(currentFieldName)) {
+                        } else if (FLAGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
-                        } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName)) {
+                        } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             maxDeterminizedStates = parser.intValue();
-                        } else if (FLAGS_VALUE_FIELD.match(currentFieldName)) {
+                        } else if (FLAGS_VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             flagsValue = parser.intValue();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -238,7 +240,15 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null);
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (value.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["  + value.length() +  "] used in the Regexp Query request has exceeded " +
+                    "the allowed maximum of [" + maxAllowedRegexLength + "]. " +
+                    "This maximum can be set by changing the [" +
+                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+        }
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);

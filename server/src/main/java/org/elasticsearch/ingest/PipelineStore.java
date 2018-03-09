@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.gateway.GatewayService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +70,10 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     }
 
     void innerUpdatePipelines(ClusterState previousState, ClusterState state) {
+        if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
+
         IngestMetadata ingestMetadata = state.getMetaData().custom(IngestMetadata.TYPE);
         IngestMetadata previousIngestMetadata = previousState.getMetaData().custom(IngestMetadata.TYPE);
         if (Objects.equals(ingestMetadata, previousIngestMetadata)) {
@@ -77,16 +81,41 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
         }
 
         Map<String, Pipeline> pipelines = new HashMap<>();
+        List<ElasticsearchParseException> exceptions = new ArrayList<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
                 pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
             } catch (ElasticsearchParseException e) {
-                throw e;
+                pipelines.put(pipeline.getId(), substitutePipeline(pipeline.getId(), e));
+                exceptions.add(e);
             } catch (Exception e) {
-                throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
+                ElasticsearchParseException parseException = new ElasticsearchParseException(
+                    "Error updating pipeline with id [" + pipeline.getId() + "]", e);
+                pipelines.put(pipeline.getId(), substitutePipeline(pipeline.getId(), parseException));
+                exceptions.add(parseException);
             }
         }
         this.pipelines = Collections.unmodifiableMap(pipelines);
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    private Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
+        String tag = e.getHeaderKeys().contains("processor_tag") ? e.getHeader("processor_tag").get(0) : null;
+        String type = e.getHeaderKeys().contains("processor_type") ? e.getHeader("processor_type").get(0) : "unknown";
+        String errorMessage = "pipeline with id [" + id + "] could not be loaded, caused by [" + e.getDetailedMessage() + "]";
+        Processor failureProcessor = new AbstractProcessor(tag) {
+            @Override
+            public void execute(IngestDocument ingestDocument) {
+                throw new IllegalStateException(errorMessage);
+            }
+
+            @Override
+            public String getType() {
+                return type;
+            }
+        };
+        String description = "this is a place holder pipeline, because pipeline with id [" +  id + "] could not be loaded";
+        return new Pipeline(id, description, null, new CompoundProcessor(failureProcessor));
     }
 
     /**

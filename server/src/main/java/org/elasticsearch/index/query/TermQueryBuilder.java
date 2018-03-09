@@ -99,13 +99,13 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (TERM_FIELD.match(currentFieldName)) {
-                            value = parser.objectBytes();
-                        } else if (VALUE_FIELD.match(currentFieldName)) {
-                            value = parser.objectBytes();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            value = maybeConvertToBytesRef(parser.objectBytes());
+                        } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            value = maybeConvertToBytesRef(parser.objectBytes());
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -116,7 +116,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             } else if (token.isValue()) {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = currentFieldName;
-                value = parser.objectBytes();
+                value = maybeConvertToBytesRef(parser.objectBytes());
             } else if (token == XContentParser.Token.START_ARRAY) {
                 throw new ParsingException(parser.getTokenLocation(), "[term] query does not support array of values");
             }

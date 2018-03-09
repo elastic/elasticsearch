@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -102,7 +102,7 @@ public class Retry {
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
             this.listener = listener;
-            this.logger = ServerLoggers.getLogger(getClass(), settings);
+            this.logger = Loggers.getLogger(getClass(), settings);
             this.scheduler = scheduler;
             // in contrast to System.currentTimeMillis(), nanoTime() uses a monotonic clock under the hood
             this.startTimestampNanos = System.nanoTime();

@@ -1,0 +1,18 @@
+# Integration tests for repository-gcs
+#
+"Plugin repository-gcs is loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: repository-gcs  }
+--
+"Snapshot/Restore with repository-gcs":
+  - do:
+      create.index:
+      

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -61,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.service.ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING;
@@ -401,8 +401,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
-                logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.trace(new ParameterizedMessage(
                         "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}{}{}",
                         executionTime,
                         previousClusterState.version(),
@@ -441,7 +440,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 final String stateUUID = newClusterState.stateUUID();
                 final String fullState = newClusterState.toString();
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                         "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
                         executionTime,
                         version,
@@ -528,8 +527,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 listener.onFailure(source, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(new ParameterizedMessage(
                         "exception thrown by listener notifying of failure from [{}]", source), inner);
             }
         }
@@ -539,12 +537,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 listener.clusterStateProcessed(source, oldState, newState);
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(new ParameterizedMessage(
                         "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n" +
                             "{}\nnew cluster state:\n{}",
-                        source, oldState, newState),
-                    e);
+                        source, oldState, newState), e);
             }
         }
     }

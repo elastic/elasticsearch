@@ -141,7 +141,6 @@
 
   - do:
       tasks.get:
-        wait_for_completion: true
         task_id: $task_id
 
   - is_false: node_failures

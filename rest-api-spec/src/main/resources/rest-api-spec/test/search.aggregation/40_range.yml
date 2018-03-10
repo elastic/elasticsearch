@@ -274,7 +274,7 @@ setup:
   - match: { aggregations.date_range.buckets.1.to: 4000000 }
 
 ---
-"WIP":
+"Date Range Missing":
   - do:
       index:
         index: test
@@ -304,19 +304,26 @@ setup:
         body: { "date" : "-2524492800000" }
 
   - do:
+        index:
+          index: test
+          type: test
+          id: 5
+          body: { "ip" : "192.168.0.1" }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         body: { "aggs": { "age_groups": { "date_range": { "field": "date", "missing": "-2240496000000", "ranges": [ { "key": "Generation Y", "from": "315561600000", "to": "946713600000" }, { "key": "Generation X", "from": "-157737600000", "to": "315561600000" }, { "key": "Other", "to": "-2208960000000" } ] } } } }
 
-  - match: { hits.total: 4 }
+  - match: { hits.total: 5 }
 
   - length: { aggregations.age_groups.buckets: 3 }
 
   - match: { aggregations.age_groups.buckets.0.key: "Other" }
 
-  - match: { aggregations.age_groups.buckets.0.doc_count: 1 }
+  - match: { aggregations.age_groups.buckets.0.doc_count: 2 }
 
   - match: { aggregations.age_groups.buckets.1.key: "Generation X" }
 

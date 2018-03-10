@@ -187,7 +187,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
                     () -> parseTypedKeysObject(parser, delimiter, Boolean.class, a -> {}));
             assertEquals("Unknown Boolean [type]", e.getMessage());
             assertEquals("type", e.getName());

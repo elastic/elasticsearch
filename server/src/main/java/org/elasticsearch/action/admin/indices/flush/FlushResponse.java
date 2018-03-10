@@ -21,15 +21,27 @@ package org.elasticsearch.action.admin.indices.flush;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * A response to flush action.
- *
- *
  */
 public class FlushResponse extends BroadcastResponse {
+
+    private static final ConstructingObjectParser<FlushResponse, Void> PARSER = new ConstructingObjectParser<>("flush", true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            return new FlushResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                    Arrays.asList(response.getShardFailures()));
+        });
+
+    static {
+        declareBroadcastFields(PARSER);
+    }
 
     FlushResponse() {
 
@@ -39,4 +51,7 @@ public class FlushResponse extends BroadcastResponse {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
+    public static FlushResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
 }

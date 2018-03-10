@@ -17,21 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest;
+package org.elasticsearch.common;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-/** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
-public class ZipClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-    public ZipClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
-    }
+/**
+ * A {@link java.util.function.BiFunction}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedBiFunction<T, U, R, E extends Exception> {
+    R apply(T t, U u) throws E;
 }

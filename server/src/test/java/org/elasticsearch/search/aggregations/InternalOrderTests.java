@@ -19,14 +19,11 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -80,25 +77,9 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     }
 
     @Override
-    protected BucketOrder assertSerialization(BucketOrder testInstance) throws IOException {
-        // identical behavior to AbstractWireSerializingTestCase, except assertNotSame is only called for
-        // compound and aggregation order because _key and _count orders are static instances.
-        BucketOrder deserializedInstance = copyInstance(testInstance);
-        assertEquals(testInstance, deserializedInstance);
-        assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
-        if(testInstance instanceof CompoundOrder || testInstance instanceof InternalOrder.Aggregation) {
-            assertNotSame(testInstance, deserializedInstance);
-        }
-        return deserializedInstance;
-    }
-
-    @Override
-    protected void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, BucketOrder expectedInstance)
-        throws IOException {
+    protected void assertEqualInstances(BucketOrder expectedInstance, BucketOrder newInstance) {
         // identical behavior to AbstractSerializingTestCase, except assertNotSame is only called for
         // compound and aggregation order because _key and _count orders are static instances.
-        XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
-        BucketOrder newInstance = parseInstance(parser);
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
         if(expectedInstance instanceof CompoundOrder || expectedInstance instanceof InternalOrder.Aggregation) {

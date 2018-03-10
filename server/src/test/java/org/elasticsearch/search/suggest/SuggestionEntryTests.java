@@ -129,8 +129,9 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-        Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+        PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+            1.3f, true);
+        PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(option);
         BytesReference xContent = toXContent(entry, XContentType.JSON, randomBoolean());
         assertEquals(
@@ -146,7 +147,7 @@ public class SuggestionEntryTests extends ESTestCase {
 
         org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option termOption =
                 new org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
-        entry = new Entry<>(new Text("entryText"), 42, 313);
+        entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(termOption);
         xContent = toXContent(entry, XContentType.JSON, randomBoolean());
         assertEquals(
@@ -162,7 +163,7 @@ public class SuggestionEntryTests extends ESTestCase {
         org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option completionOption =
                 new org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option(-1, new Text("completionOption"),
                         3.13f, Collections.singletonMap("key", Collections.singleton("value")));
-        entry = new Entry<>(new Text("entryText"), 42, 313);
+        entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(completionOption);
         xContent = toXContent(entry, XContentType.JSON, randomBoolean());
         assertEquals(

@@ -67,7 +67,7 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
-    private static final String SUGGESTION_NAME = "term";
+    public static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
     private float accuracy = DEFAULT_ACCURACY;

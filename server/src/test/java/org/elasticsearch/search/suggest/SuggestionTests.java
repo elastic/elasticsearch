@@ -188,14 +188,15 @@ public class SuggestionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         {
-            Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-            Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
+                1.3f, true);
+            PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);
-            Suggestion<Entry<Option>> suggestion = new Suggestion<>("suggestionName", 5);
+            PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
             assertEquals(
-                    "{\"suggestion#suggestionName\":[{"
+                    "{\"phrase#suggestionName\":[{"
                             + "\"text\":\"entryText\","
                             + "\"offset\":42,"
                             + "\"length\":313,"
@@ -208,7 +209,7 @@ public class SuggestionTests extends ESTestCase {
                     + "}", xContent.utf8ToString());
         }
         {
-            Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
+            Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313, 1.0);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
@@ -41,20 +42,24 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    public static final String NAME = "term";
+    @Deprecated
+    public static final int TYPE = 1;
 
     public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
     public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
-    public static final int TYPE = 1;
 
     private SortBy sort;
 
-    public TermSuggestion() {
-    }
+    public TermSuggestion() {}
 
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
         this.sort = sort;
+    }
+
+    public TermSuggestion(StreamInput in) throws IOException {
+        super(in);
+        sort = SortBy.readFromStream(in);
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -104,11 +109,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    protected String getType() {
-        return NAME;
-    }
-
-    @Override
     protected Comparator<Option> sortComparator() {
         switch (sort) {
         case SCORE:
@@ -121,15 +121,14 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     }
 
     @Override
-    protected void innerReadFrom(StreamInput in) throws IOException {
-        super.innerReadFrom(in);
-        sort = SortBy.readFromStream(in);
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        sort.writeTo(out);
     }
 
     @Override
-    public void innerWriteTo(StreamOutput out) throws IOException {
-        super.innerWriteTo(out);
-        sort.writeTo(out);
+    public String getWriteableName() {
+        return TermSuggestionBuilder.SUGGESTION_NAME;
     }
 
     public static TermSuggestion fromXContent(XContentParser parser, String name) throws IOException {
@@ -144,21 +143,34 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         return new Entry();
     }
 
+    @Override
+    protected Entry newEntry(StreamInput in) throws IOException {
+        return new Entry(in);
+    }
+
     /**
      * Represents a part from the suggest text with suggested options.
      */
-    public static class Entry extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
+    public static class Entry extends Suggest.Suggestion.Entry<TermSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);
         }
 
-        Entry() {
+        public Entry() {}
+
+        public Entry(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
         protected Option newOption() {
             return new Option();
+        }
+
+        @Override
+        protected Option newOption(StreamInput in) throws IOException {
+            return new Option(in);
         }
 
         private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("TermSuggestionEntryParser", true, Entry::new);
@@ -175,7 +187,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         /**
          * Contains the suggested text with its document frequency and score.
          */
-        public static class Option extends org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option {
+        public static class Option extends Suggest.Suggestion.Entry.Option {
 
             public static final ParseField FREQ = new ParseField("freq");
 
@@ -184,6 +196,11 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             public Option(Text text, int freq, float score) {
                 super(text, score);
                 this.freq = freq;
+            }
+
+            public Option(StreamInput in) throws IOException {
+                super(in);
+                freq = in.readVInt();
             }
 
             @Override
@@ -205,12 +222,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
              */
             public int getFreq() {
                 return freq;
-            }
-
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                super.readFrom(in);
-                freq = in.readVInt();
             }
 
             @Override

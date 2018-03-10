@@ -293,7 +293,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream().map(a -> (SiblingPipelineAggregator) a)
                 .collect(Collectors.toList());
         if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(in);
+            suggest = new Suggest(in);
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();

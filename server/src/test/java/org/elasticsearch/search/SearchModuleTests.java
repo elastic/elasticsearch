@@ -65,8 +65,11 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.suggest.CustomSuggester;
+import org.elasticsearch.search.suggest.CustomSuggester.CustomSuggestion;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.io.IOException;
@@ -99,7 +102,8 @@ public class SearchModuleTests extends ModuleTestCase {
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
             public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
-                return singletonList(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
+                return singletonList(new SuggesterSpec<>(TermSuggestionBuilder.SUGGESTION_NAME,
+                    TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent, TermSuggestion::new));
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSuggester));
@@ -184,7 +188,8 @@ public class SearchModuleTests extends ModuleTestCase {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
             @Override
             public List<SuggesterSpec<?>> getSuggesters() {
-                return singletonList(new SuggesterSpec<>("custom", CustomSuggestionBuilder::new, CustomSuggestionBuilder::fromXContent));
+                return singletonList(new SuggesterSpec<>(CustomSuggestionBuilder.SUGGESTION_NAME,
+                    CustomSuggestionBuilder::new, CustomSuggestionBuilder::fromXContent, CustomSuggestion::new));
             }
         }));
         assertEquals(1, module.getNamedXContents().stream()

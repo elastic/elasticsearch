@@ -25,12 +25,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.suggest.CustomSuggester.CustomSuggestion;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -39,22 +39,23 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Integration test for registering a custom suggester.
  */
-@ClusterScope(scope= Scope.SUITE, numDataNodes =1)
+@ClusterScope(scope= Scope.SUITE, numDataNodes = 2, supportsDedicatedMasters = false)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -69,8 +70,9 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     public static class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<SuggesterSpec<?>> getSuggesters() {
-            return singletonList(new SuggesterSpec<CustomSuggestionBuilder>("custom", CustomSuggestionBuilder::new,
-                    CustomSuggestionBuilder::fromXContent));
+            return Collections.<SuggesterSpec<?>>singletonList(
+                new SuggesterSpec<>(CustomSuggestionBuilder.SUGGESTION_NAME,
+                    CustomSuggestionBuilder::new, CustomSuggestionBuilder::fromXContent, CustomSuggestion::new));
         }
     }
 
@@ -94,17 +96,29 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         // TODO: infer type once JI-9019884 is fixed
         // TODO: see also JDK-8039214
-        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions =
-            CollectionUtils.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>iterableAsArrayList(
-                searchResponse.getSuggest().getSuggestion("someName"));
-        assertThat(suggestions, hasSize(2));
-        assertThat(suggestions.get(0).getText().string(),
-            is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
-        assertThat(suggestions.get(1).getText().string(),
-            is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
+        CustomSuggestion suggestion = searchResponse.getSuggest().getSuggestion("someName");
+
+        assertThat(suggestion.getEntries(), hasSize(1));
+        assertThat(suggestion.getDummy(), is("suggestion-dummy-value"));
+
+        CustomSuggestion.Entry entry = suggestion.getEntries().get(0);
+
+        assertThat(entry.getOptions(), hasSize(2));
+        assertThat(entry.getDummy(), is("entry-dummy-value"));
+
+        CustomSuggestion.Entry.Option firstOption = entry.getOptions().get(0);
+        assertThat(firstOption.getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
+        assertThat(firstOption.getDummy(), is("option-dummy-value-1"));
+
+        CustomSuggestion.Entry.Option secondOption = entry.getOptions().get(1);
+        assertThat(secondOption.getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));
+        assertThat(secondOption.getDummy(), is("option-dummy-value-2"));
     }
 
     public static class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionBuilder> {
+
+        public static final String SUGGESTION_NAME = "custom";
+
         protected static final ParseField RANDOM_SUFFIX_FIELD = new ParseField("suffix");
 
         private String randomSuffix;
@@ -135,7 +149,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         @Override
         public String getWriteableName() {
-            return "custom";
+            return SUGGESTION_NAME;
         }
 
         @Override

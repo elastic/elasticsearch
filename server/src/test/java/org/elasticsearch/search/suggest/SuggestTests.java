@@ -114,10 +114,10 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        Option option = new Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
-        Entry<Option> entry = new Entry<>(new Text("entryText"), 42, 313);
+        PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"), 1.3f, true);
+        PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(option);
-        Suggestion<Entry<Option>> suggestion = new Suggestion<>("suggestionName", 5);
+        PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
         suggestion.addTerm(entry);
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
         BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());

@@ -20,15 +20,16 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -55,14 +56,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContentFragment {
+public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Writeable, ToXContentFragment {
 
     public static final String NAME = "suggest";
 
@@ -90,6 +89,42 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         suggestions.sort((o1, o2) -> o1.getName().compareTo(o2.getName()));
         this.suggestions = suggestions;
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
+    }
+
+    public Suggest(StreamInput in) throws IOException {
+        // in older versions, Suggestion types were serialized as Streamable
+        if (in.getVersion().before(Version.V_6_4_0)) {
+            final int size = in.readVInt();
+            suggestions = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                Suggestion<? extends Entry<? extends Option>> suggestion;
+                final int type = in.readVInt();
+                switch (type) {
+                    case TermSuggestion.TYPE:
+                        suggestion = new TermSuggestion(in);
+                        break;
+                    case CompletionSuggestion.TYPE:
+                        suggestion = new CompletionSuggestion(in);
+                        break;
+                    case 2: // CompletionSuggestion.TYPE
+                        throw new IllegalArgumentException("Completion suggester 2.x is not supported anymore");
+                    case PhraseSuggestion.TYPE:
+                        suggestion = new PhraseSuggestion(in);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown suggestion type with ordinal " + type);
+                }
+                suggestions.add(suggestion);
+            }
+        } else {
+            int suggestionCount = in.readVInt();
+            suggestions = new ArrayList<>(suggestionCount);
+            for (int i = 0; i < suggestionCount; i++) {
+                suggestions.add(in.readNamedWriteable(Suggestion.class));
+            }
+        }
+
+        hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
     @Override
@@ -126,41 +161,19 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        final int size = in.readVInt();
-        suggestions = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            // TODO: remove these complicated generics
-            Suggestion<? extends Entry<? extends Option>> suggestion;
-            final int type = in.readVInt();
-            switch (type) {
-            case TermSuggestion.TYPE:
-                suggestion = new TermSuggestion();
-                break;
-            case CompletionSuggestion.TYPE:
-                suggestion = new CompletionSuggestion();
-                break;
-            case 2: // CompletionSuggestion.TYPE
-                throw new IllegalArgumentException("Completion suggester 2.x is not supported anymore");
-            case PhraseSuggestion.TYPE:
-                suggestion = new PhraseSuggestion();
-                break;
-            default:
-                suggestion = new Suggestion();
-                break;
-            }
-            suggestion.readFrom(in);
-            suggestions.add(suggestion);
-        }
-        hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(suggestions.size());
-        for (Suggestion<?> command : suggestions) {
-            out.writeVInt(command.getWriteableType());
-            command.writeTo(out);
+        // in older versions, Suggestion types were serialized as Streamable
+        if (out.getVersion().before(Version.V_6_4_0)) {
+            out.writeVInt(suggestions.size());
+            for (Suggestion<?> command : suggestions) {
+                out.writeVInt(command.getWriteableType());
+                command.writeTo(out);
+            }
+        } else {
+            out.writeVInt(suggestions.size());
+            for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
+                out.writeNamedWriteable(suggestion);
+            }
         }
     }
 
@@ -193,12 +206,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
         }
         return new Suggest(suggestions);
-    }
-
-    public static Suggest readSuggest(StreamInput in) throws IOException {
-        Suggest result = new Suggest();
-        result.readFrom(in);
-        return result;
     }
 
     public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
@@ -235,7 +242,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
-    public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContentFragment {
+    public static abstract class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
         private static final String NAME = "suggestion";
 
@@ -252,6 +259,18 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
         }
 
+        public Suggestion(StreamInput in) throws IOException {
+            name = in.readString();
+            size = in.readVInt();
+
+            int entriesCount = in.readVInt();
+            entries.clear();
+            for (int i = 0; i < entriesCount; i++) {
+                T newEntry = newEntry(in);
+                entries.add(newEntry);
+            }
+        }
+
         public void addTerm(T entry) {
             entries.add(entry);
         }
@@ -259,18 +278,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Returns a integer representing the type of the suggestion. This is used for
          * internal serialization over the network.
+         *
+         * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
          */
-        public int getWriteableType() { // TODO remove this in favor of NamedWriteable
+        @Deprecated
+        public int getWriteableType() {
             return TYPE;
-        }
-
-        /**
-         * Returns a string representing the type of the suggestion. This type is added to
-         * the suggestion name in the XContent response, so that it can later be used by
-         * REST clients to determine the internal type of the suggestion.
-         */
-        protected String getType() {
-            return NAME;
         }
 
         @Override
@@ -346,47 +359,28 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            innerReadFrom(in);
-            int size = in.readVInt();
-            entries.clear();
-            for (int i = 0; i < size; i++) {
-                T newEntry = newEntry();
-                newEntry.readFrom(in);
-                entries.add(newEntry);
-            }
-        }
-
-        protected T newEntry() {
-            return (T)new Entry();
-        }
-
-
-        protected void innerReadFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            size = in.readVInt();
-        }
+        protected abstract T newEntry();
+        protected abstract T newEntry(StreamInput in) throws IOException;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            innerWriteTo(out);
+            out.writeString(name);
+            out.writeVInt(size);
+
             out.writeVInt(entries.size());
             for (Entry<?> entry : entries) {
                 entry.writeTo(out);
             }
         }
 
-        public void innerWriteTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeVInt(size);
-        }
+        @Override
+        public abstract String getWriteableName();
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (params.paramAsBoolean(RestSearchAction.TYPED_KEYS_PARAM, false)) {
                 // Concatenates the type and the name of the suggestion (ex: completion#foo)
-                builder.startArray(String.join(Aggregation.TYPED_KEYS_DELIMITER, getType(), getName()));
+                builder.startArray(String.join(Aggregation.TYPED_KEYS_DELIMITER, getWriteableName(), getName()));
             } else {
                 builder.startArray(getName());
             }
@@ -417,7 +411,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public static class Entry<O extends Entry.Option> implements Iterable<O>, Streamable, ToXContentObject {
+        public static abstract class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentObject {
 
             private static final String TEXT = "text";
             private static final String OFFSET = "offset";
@@ -436,7 +430,18 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 this.length = length;
             }
 
-            protected Entry() {
+            protected Entry() {}
+
+            public Entry(StreamInput in) throws IOException {
+                text = in.readText();
+                offset = in.readVInt();
+                length = in.readVInt();
+                int suggestedWords = in.readVInt();
+                options = new ArrayList<>(suggestedWords);
+                for (int j = 0; j < suggestedWords; j++) {
+                    O newOption = newOption(in);
+                    options.add(newOption);
+                }
             }
 
             public void addOption(O option) {
@@ -554,24 +559,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return result;
             }
 
-            @Override
-            public void readFrom(StreamInput in) throws IOException {
-                text = in.readText();
-                offset = in.readVInt();
-                length = in.readVInt();
-                int suggestedWords = in.readVInt();
-                options = new ArrayList<>(suggestedWords);
-                for (int j = 0; j < suggestedWords; j++) {
-                    O newOption = newOption();
-                    newOption.readFrom(in);
-                    options.add(newOption);
-                }
-            }
-
-            @SuppressWarnings("unchecked")
-            protected O newOption(){
-                return (O) new Option();
-            }
+            protected abstract O newOption();
+            protected abstract O newOption(StreamInput in) throws IOException;
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
@@ -599,27 +588,16 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 return builder;
             }
 
-            private static ObjectParser<Entry<Option>, Void> PARSER = new ObjectParser<>("SuggestionEntryParser", true, Entry::new);
-
-            static {
-                declareCommonFields(PARSER);
-                PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
-            }
-
             protected static void declareCommonFields(ObjectParser<? extends Entry<? extends Option>, Void> parser) {
                 parser.declareString((entry, text) -> entry.text = new Text(text), new ParseField(TEXT));
                 parser.declareInt((entry, offset) -> entry.offset = offset, new ParseField(OFFSET));
                 parser.declareInt((entry, length) -> entry.length = length, new ParseField(LENGTH));
             }
 
-            public static Entry<? extends Option> fromXContent(XContentParser parser) {
-                return PARSER.apply(parser, null);
-            }
-
             /**
              * Contains the suggested text with its document frequency and score.
              */
-            public static class Option implements Streamable, ToXContentObject {
+            public static abstract class Option implements Writeable, ToXContentObject {
 
                 public static final ParseField TEXT = new ParseField("text");
                 public static final ParseField HIGHLIGHTED = new ParseField("highlighted");
@@ -646,7 +624,13 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     this(text, null, score);
                 }
 
-                public Option() {
+                public Option() {}
+
+                public Option(StreamInput in) throws IOException {
+                    text = in.readText();
+                    score = in.readFloat();
+                    highlighted = in.readOptionalText();
+                    collateMatch = in.readOptionalBoolean();
                 }
 
                 /**
@@ -684,14 +668,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
 
                 @Override
-                public void readFrom(StreamInput in) throws IOException {
-                    text = in.readText();
-                    score = in.readFloat();
-                    highlighted = in.readOptionalText();
-                    collateMatch = in.readOptionalBoolean();
-                }
-
-                @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
                     out.writeFloat(score);
@@ -717,27 +693,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                         builder.field(COLLATE_MATCH.getPreferredName(), collateMatch.booleanValue());
                     }
                     return builder;
-                }
-
-                private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("SuggestOptionParser",
-                        true, args -> {
-                            Text text = new Text((String) args[0]);
-                            float score = (Float) args[1];
-                            String highlighted = (String) args[2];
-                            Text highlightedText = highlighted == null ? null : new Text(highlighted);
-                            Boolean collateMatch = (Boolean) args[3];
-                            return new Option(text, highlightedText, score, collateMatch);
-                        });
-
-                static {
-                    PARSER.declareString(constructorArg(), TEXT);
-                    PARSER.declareFloat(constructorArg(), SCORE);
-                    PARSER.declareString(optionalConstructorArg(), HIGHLIGHTED);
-                    PARSER.declareBoolean(optionalConstructorArg(), COLLATE_MATCH);
-                }
-
-                public static Option fromXContent(XContentParser parser) {
-                    return PARSER.apply(parser, null);
                 }
 
                 protected void mergeInto(Option otherOption) {

@@ -133,9 +133,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     highlighted = new Text(spare.toString());
                 }
                 if (collatePrune) {
-                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score), collateMatch));
                 } else {
-                    resultEntry.addOption(new Suggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
+                    resultEntry.addOption(new PhraseSuggestion.Entry.Option(phrase, highlighted, (float) (correction.score)));
                 }
             }
         } else {

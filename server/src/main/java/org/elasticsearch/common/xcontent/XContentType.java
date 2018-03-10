@@ -19,22 +19,18 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
  */
-public enum XContentType implements Writeable {
+public enum XContentType {
 
     /**
      * A JSON based content type.
@@ -183,18 +179,4 @@ public enum XContentType implements Writeable {
 
     public abstract String mediaTypeWithoutParameters();
 
-    public static XContentType readFrom(StreamInput in) throws IOException {
-        int index = in.readVInt();
-        for (XContentType contentType : values()) {
-            if (index == contentType.index) {
-                return contentType;
-            }
-        }
-        throw new IllegalStateException("Unknown XContentType with index [" + index + "]");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(index);
-    }
 }

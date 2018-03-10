@@ -41,7 +41,6 @@ for (Version version : bwcVersions.wireCompatible) {
      the nodes has a different minor.  */
   Object extension = extensions.findByName("${baseName}#mixedClusterTestCluster")
   configure(extension) {
-    distribution = 'zip'
     numNodes = 4
     numBwcNodes = 2
     bwcVersion = version

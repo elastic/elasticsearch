@@ -64,7 +64,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     }
 
     @AfterClass
-    public static void afterClass() throws Exception {
+    public static void afterClass() {
         namedWriteableRegistry = null;
         xContentRegistry = null;
     }
@@ -186,7 +186,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
     }
 
-    public void testBuildWithSearchContextExceptions() throws IOException {
+    public void testBuildWithSearchContextExceptions() {
         SearchContext context = mockSearchContext();
         {
             CollapseBuilder builder = new CollapseBuilder("unknown_field");
@@ -225,7 +225,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     }
 
     @Override
-    protected CollapseBuilder doParseInstance(XContentParser parser) throws IOException {
+    protected CollapseBuilder doParseInstance(XContentParser parser) {
         return CollapseBuilder.fromXContent(parser);
     }
 

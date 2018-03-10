@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class CloseIndexResponseTests extends AbstractStreamableXContentTestCase<CloseIndexResponse> {
 
@@ -41,7 +40,7 @@ public class CloseIndexResponseTests extends AbstractStreamableXContentTestCase<
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<CloseIndexResponse> getMutateFunction() {
-        return response -> new CloseIndexResponse(response.isAcknowledged() == false);
+    protected CloseIndexResponse mutateInstance(CloseIndexResponse response) {
+        return new CloseIndexResponse(response.isAcknowledged() == false);
     }
 }

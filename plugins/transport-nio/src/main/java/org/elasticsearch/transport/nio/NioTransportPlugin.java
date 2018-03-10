@@ -61,9 +61,4 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
             () -> new NioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
                 circuitBreakerService));
     }
-
-    @Override
-    public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new NioNotEnabledBootstrapCheck());
-    }
 }

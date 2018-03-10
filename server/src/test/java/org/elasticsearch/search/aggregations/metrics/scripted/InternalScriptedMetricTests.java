@@ -172,8 +172,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             Map<String, Object> expectedMap = (Map<String, Object>) expected;
             Map<String, Object> actualMap = (Map<String, Object>) actual;
             assertEquals(expectedMap.size(), actualMap.size());
-            for (String key : expectedMap.keySet()) {
-                assertValues(expectedMap.get(key), actualMap.get(key));
+            for (Map.Entry<String, Object> entry : expectedMap.entrySet()) {
+                assertValues(expectedMap.get(entry.getKey()), actualMap.get(entry.getKey()));
             }
         } else if (expected instanceof List) {
                 List<Object> expectedList = (List<Object>) expected;

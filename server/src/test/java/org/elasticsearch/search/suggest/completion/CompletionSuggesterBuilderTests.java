@@ -182,8 +182,8 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 new ContextMappings(contextMappings));
         Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();
         assertEquals(parsedContextBytes.keySet(), queryContexts.keySet());
-        for (String contextName : queryContexts.keySet()) {
-            assertEquals(parsedContextBytes.get(contextName), queryContexts.get(contextName));
+        for (Map.Entry<String, List<InternalQueryContext>> entry : queryContexts.entrySet()) {
+            assertEquals(parsedContextBytes.get(entry.getKey()), queryContexts.get(entry.getKey()));
         }
         assertEquals(builder.regexOptions, completionSuggestionCtx.getRegexOptions());
         assertEquals(builder.skipDuplicates, completionSuggestionCtx.isSkipDuplicates());

@@ -87,14 +87,14 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         super.writeTo(out);
         out.writeDouble(evaluationResult);
         out.writeVInt(details.size());
-        for (String queryId : details.keySet()) {
-            out.writeString(queryId);
-            details.get(queryId).writeTo(out);
+        for (Map.Entry<String, EvalQueryQuality> entry : details.entrySet()) {
+            out.writeString(entry.getKey());
+            details.get(entry.getKey()).writeTo(out);
         }
         out.writeVInt(failures.size());
-        for (String queryId : failures.keySet()) {
-            out.writeString(queryId);
-            out.writeException(failures.get(queryId));
+        for (Map.Entry<String, Exception> entry : failures.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeException(failures.get(entry.getKey()));
         }
     }
 
@@ -122,14 +122,14 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         builder.startObject();
         builder.field("quality_level", evaluationResult);
         builder.startObject("details");
-        for (String key : details.keySet()) {
-            details.get(key).toXContent(builder, params);
+        for (Map.Entry<String, EvalQueryQuality> entry : details.entrySet()) {
+            details.get(entry.getKey()).toXContent(builder, params);
         }
         builder.endObject();
         builder.startObject("failures");
-        for (String key : failures.keySet()) {
-            builder.startObject(key);
-            ElasticsearchException.generateFailureXContent(builder, params, failures.get(key), true);
+        for (Map.Entry<String, Exception> entry : failures.entrySet()) {
+            builder.startObject(entry.getKey());
+            ElasticsearchException.generateFailureXContent(builder, params, failures.get(entry.getKey()), true);
             builder.endObject();
         }
         builder.endObject();

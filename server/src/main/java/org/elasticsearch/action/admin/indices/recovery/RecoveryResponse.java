@@ -82,12 +82,12 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasRecoveries()) {
-            for (String index : shardRecoveryStates.keySet()) {
-                List<RecoveryState> recoveryStates = shardRecoveryStates.get(index);
+            for (Map.Entry<String, List<RecoveryState>> entry : shardRecoveryStates.entrySet()) {
+                List<RecoveryState> recoveryStates = entry.getValue();
                 if (recoveryStates == null || recoveryStates.size() == 0) {
                     continue;
                 }
-                builder.startObject(index);
+                builder.startObject(entry.getKey());
                 builder.startArray("shards");
                 for (RecoveryState recoveryState : recoveryStates) {
                     builder.startObject();

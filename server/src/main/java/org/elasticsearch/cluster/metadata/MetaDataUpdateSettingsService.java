@@ -130,7 +130,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         if (nrReplicasChanged.size() > 0) {
             // update settings and kick of a reroute (implicit) for them to take effect
-            for (final Integer fNumberOfReplicas : nrReplicasChanged.keySet()) {
+            for (Map.Entry<Integer, List<Index>> entry : nrReplicasChanged.entrySet()) {
+                final Integer fNumberOfReplicas = entry.getKey();
                 Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, fNumberOfReplicas).build();
                 final List<Index> indices = nrReplicasChanged.get(fNumberOfReplicas);
 

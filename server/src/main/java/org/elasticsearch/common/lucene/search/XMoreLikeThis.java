@@ -727,7 +727,8 @@ public final class XMoreLikeThis {
         final int limit = Math.min(maxQueryTerms, words.size());
         FreqQ queue = new FreqQ(limit); // will order words by score
 
-        for (String word : words.keySet()) { // for every word
+        for (Map.Entry<String, Int> entry : words.entrySet()) { // for every word
+            String word = entry.getKey();
             int tf = words.get(word).x; // term freq in the source doc
             if (minTermFreq > 0 && tf < minTermFreq) {
                 continue; // filter out words that don't occur enough times in the source

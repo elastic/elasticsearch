@@ -91,8 +91,8 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
                 assertThat(indices.containsKey(index), equalTo(true));
                 Map<String, Object> shards = ((Map<String, Object>) ((Map<String, Object>) indices.get(index)).get("shards"));
                 assertThat(shards.size(), equalTo(2));
-                for (String shardId : shards.keySet()) {
-                    HashMap shardStoresStatus = (HashMap) shards.get(shardId);
+                for (Map.Entry<String, Object> entry : shards.entrySet()) {
+                    HashMap shardStoresStatus = (HashMap) entry.getValue();
                     assertThat(shardStoresStatus.containsKey("stores"), equalTo(true));
                     List stores = (ArrayList) shardStoresStatus.get("stores");
                     assertThat(stores.size(), equalTo(storeStatusList.size()));

@@ -440,7 +440,8 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             assertThat(result.size(), equalTo(pathsPerRole.size()));
-            for (DiscoveryNode.Role role : result.keySet()) {
+            for (Map.Entry<DiscoveryNode.Role, Set<String>> entry : result.entrySet()) {
+                DiscoveryNode.Role role = entry.getKey();
                 assertThat("path are not the same for " + role, result.get(role), equalTo(pathsPerRole.get(role)));
             }
         } finally {

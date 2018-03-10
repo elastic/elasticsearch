@@ -134,14 +134,14 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     }
 
     public void testPutLicensesSimple() throws Exception {
-        License basicSignedLicense = generateSignedLicense("basic", TimeValue.timeValueMinutes(5));
+        License goldSignedLicense = generateSignedLicense("gold", TimeValue.timeValueMinutes(5));
         PutLicenseRequestBuilder putLicenseRequestBuilder =
-                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(basicSignedLicense)
+                new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE).setLicense(goldSignedLicense)
                         .setAcknowledge(true);
         PutLicenseResponse putLicenseResponse = putLicenseRequestBuilder.get();
         assertThat(putLicenseResponse.status(), equalTo(LicensesStatus.VALID));
         GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
-        assertThat(getLicenseResponse.license(), equalTo(basicSignedLicense));
+        assertThat(getLicenseResponse.license(), equalTo(goldSignedLicense));
 
         License platinumSignedLicense = generateSignedLicense("platinum", TimeValue.timeValueMinutes(2));
         putLicenseRequestBuilder.setLicense(platinumSignedLicense);

@@ -669,7 +669,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/account/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -696,7 +696,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `account` type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
 
 === The Search API
 
@@ -731,14 +731,14 @@ And the response (partially shown):
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "account",
+      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,

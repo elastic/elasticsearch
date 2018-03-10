@@ -151,7 +151,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void close() {
-        this.service.close();
+        this.service.releaseCachedClients();
     }
 
     public CannedAccessControlList getCannedACL() {

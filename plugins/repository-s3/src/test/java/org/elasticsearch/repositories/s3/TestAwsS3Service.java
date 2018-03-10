@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.s3;
 import java.util.IdentityHashMap;
 
 import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 
 public class TestAwsS3Service extends InternalAwsS3Service {
@@ -53,10 +52,9 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     }
 
     @Override
-    protected synchronized void doClose() throws ElasticsearchException {
-        super.doClose();
+    public synchronized void releaseCachedClients() {
+        super.releaseCachedClients();
         clients.clear();
     }
-
 
 }

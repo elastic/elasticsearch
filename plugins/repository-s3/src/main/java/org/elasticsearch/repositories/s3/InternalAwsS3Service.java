@@ -30,16 +30,15 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 
-class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
+class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
 
     private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
     private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();
@@ -54,15 +53,15 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
      * destroyed contrary to being returned to the registry.
      */
     @Override
-    public synchronized void updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
+    public synchronized Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
-        doClose();
-        // reload secure settings
-        // clientsSettings = S3ClientSettings.load(settings);
-        this.clientsSettings = clientsSettings;
-        assert clientsSettings.containsKey("default") : "always at least have 'default'";
+        releaseCachedClients();
+        final Map<String, S3ClientSettings> prevSettings = this.clientsSettings;
+        this.clientsSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        assert this.clientsSettings.containsKey("default") : "always at least have 'default'";
         // clients are built lazily by {@link client(String)}
+        return prevSettings;
     }
 
     /**
@@ -80,27 +79,32 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
             if ((clientReference != null) && clientReference.tryIncRef()) {
                 return clientReference;
             }
-            clientReference = new AmazonS3Reference(buildClient(clientName));
-            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientName, clientReference).immutableMap();
+            final S3ClientSettings clientSettings = clientsSettings.get(clientName);
+            if (clientSettings == null) {
+                throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: "
+                        + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
+            }
+            logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
+            clientReference = new AmazonS3Reference(buildClient(clientSettings));
             clientReference.incRef();
+            clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientName, clientReference).immutableMap();
             return clientReference;
         }
     }
 
-    private AmazonS3 buildClient(String clientName) {
-        final S3ClientSettings clientSettings = clientsSettings.get(clientName);
-        if (clientSettings == null) {
-            throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: " +
-                Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
-        }
-        logger.debug("creating S3 client with client_name [{}], endpoint [{}]", clientName, clientSettings.endpoint);
+    private AmazonS3 buildClient(S3ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         final ClientConfiguration configuration = buildConfiguration(clientSettings);
-        final AmazonS3Client client = new AmazonS3Client(credentials, configuration);
+        final AmazonS3 client = buildClient(credentials, configuration);
         if (Strings.hasText(clientSettings.endpoint)) {
             client.setEndpoint(clientSettings.endpoint);
         }
         return client;
+    }
+
+    // proxy for testing
+    AmazonS3 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+        return new AmazonS3Client(credentials, configuration);
     }
 
     // pkg private for tests
@@ -139,15 +143,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected synchronized void doClose() throws ElasticsearchException {
+    public synchronized void releaseCachedClients() {
         // the clients will shutdown when they will not be used anymore
         for (final AmazonS3Reference clientReference : clientsCache.values()) {
             clientReference.decRef();

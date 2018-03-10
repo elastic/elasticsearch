@@ -19,6 +19,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.auth.BasicAWSCredentials;
+
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -35,6 +37,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -182,11 +185,16 @@ class S3Repository extends BlobStoreRepository {
             "buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
 
-        // deprecated behavior: override client credentials from cluster state
+        // deprecated behavior: override client credentials from the cluster state
         // (repository settings)
-        if (S3ClientSettings.checkDeprecatedCredentialsAndLog(deprecationLogger, metadata.settings())) {
-            awsService.updateClientsSettings(S3ClientSettings.load(settings,
-                    (ignoredSettings, ignoredClientName) -> S3ClientSettings.loadDeprecatedCredentials(metadata.settings())));
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings.");
+            final BasicAWSCredentials insecureCredentials = S3ClientSettings.loadDeprecatedCredentials(metadata.settings());
+            // hack, but that's ok because the whole if branch should be axed
+            final Map<String, S3ClientSettings> prevSettings = awsService.updateClientsSettings(S3ClientSettings.load(Settings.EMPTY));
+            final Map<String, S3ClientSettings> newSettings = S3ClientSettings.overrideCredentials(prevSettings, insecureCredentials);
+            awsService.updateClientsSettings(newSettings);
         }
         blobStore = new S3BlobStore(settings, awsService, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
 

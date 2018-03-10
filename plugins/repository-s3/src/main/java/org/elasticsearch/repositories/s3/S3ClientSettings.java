@@ -24,13 +24,11 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
-
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.BasicAWSCredentials;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -142,28 +140,39 @@ class S3ClientSettings {
      *
      * Note this will always at least return a client named "default".
      */
-    static Map<String, S3ClientSettings> load(Settings settings, BiFunction<Settings, String, BasicAWSCredentials> credentialsFactory) {
+    static Map<String, S3ClientSettings> load(Settings settings) {
         final Set<String> clientNames = settings.getGroups(PREFIX).keySet();
         final Map<String, S3ClientSettings> clients = new HashMap<>();
         for (final String clientName : clientNames) {
-            clients.put(clientName, getClientSettings(settings, clientName, credentialsFactory));
+            clients.put(clientName, getClientSettings(settings, clientName));
         }
         if (clients.containsKey("default") == false) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
-            clients.put("default", getClientSettings(settings, "default", credentialsFactory));
+            clients.put("default", getClientSettings(settings, "default"));
         }
         return Collections.unmodifiableMap(clients);
     }
 
-    static boolean checkDeprecatedCredentialsAndLog(DeprecationLogger deprecationLogger, Settings repositorySettings) {
+    static Map<String, S3ClientSettings> overrideCredentials(Map<String, S3ClientSettings> clientsSettings,
+                                                             BasicAWSCredentials credentials) {
+        final MapBuilder<String, S3ClientSettings> mapBuilder = new MapBuilder<>();
+        for (final Map.Entry<String, S3ClientSettings> entry : clientsSettings.entrySet()) {
+            final S3ClientSettings s3ClientSettings = new S3ClientSettings(credentials, entry.getValue().endpoint,
+                    entry.getValue().protocol, entry.getValue().proxyHost, entry.getValue().proxyPort, entry.getValue().proxyUsername,
+                    entry.getValue().proxyPassword, entry.getValue().readTimeoutMillis, entry.getValue().maxRetries,
+                    entry.getValue().throttleRetries);
+            mapBuilder.put(entry.getKey(), s3ClientSettings);
+        }
+        return mapBuilder.immutableMap();
+    }
+
+    static boolean checkDeprecatedCredentials(Settings repositorySettings) {
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
             if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
                 throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey()
                         + " must be accompanied by setting [" + S3Repository.SECRET_KEY_SETTING.getKey() + "]");
             }
-            deprecationLogger.deprecated("Using s3 access/secret key from repository settings. Instead "
-                    + "store these in named clients and the elasticsearch keystore for secure settings.");
             return true;
         } else if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings)) {
             throw new IllegalArgumentException("Repository setting [" + S3Repository.SECRET_KEY_SETTING.getKey()
@@ -174,6 +183,7 @@ class S3ClientSettings {
 
     // backcompat for reading keys out of repository settings (clusterState)
     static BasicAWSCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+        assert checkDeprecatedCredentials(repositorySettings);
         try (SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
                 SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)) {
             return new BasicAWSCredentials(key.toString(), secret.toString());
@@ -198,9 +208,8 @@ class S3ClientSettings {
 
     // pkg private for tests
     /** Parse settings for a single client. */
-    static S3ClientSettings getClientSettings(Settings settings, String clientName,
-                                              BiFunction<Settings, String, BasicAWSCredentials> credentialsFactory) {
-        final BasicAWSCredentials credentials = credentialsFactory.apply(settings, clientName);
+    static S3ClientSettings getClientSettings(Settings settings, String clientName) {
+        final BasicAWSCredentials credentials = S3ClientSettings.loadCredentials(settings, clientName);
         try (SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
              SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
             return new S3ClientSettings(

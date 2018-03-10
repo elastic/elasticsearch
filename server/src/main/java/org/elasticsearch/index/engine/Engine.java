@@ -850,7 +850,7 @@ public abstract class Engine implements Closeable {
     /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
      * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
-     * by the uncaught exception handler that we install during bootstrap. If the specified throwable dies indeed contain a fatal error, the
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error, the
      * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
      * error, this method is a no-op.
      *

@@ -123,11 +123,11 @@ public final class IndexSettings {
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
-     * The default maximum of 10000 characters is defensive as for highlighting larger texts,
+     * The default maximum of 1M characters is defensive as for highlighting larger texts,
      * indexing with offsets or term vectors is recommended.
      */
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
-        Setting.intSetting("index.highlight.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.highlight.max_analyzed_offset", 1000000, 1, Property.Dynamic, Property.IndexScope);
 
 
     /**
@@ -250,6 +250,12 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
         1024, 1, Property.Dynamic, Property.IndexScope);
 
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
+        1000, 1, Property.Dynamic, Property.IndexScope);
+
     public static final String INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY = "index.mapping.single_type";
     private static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING; // private - should not be registered
     static {
@@ -313,6 +319,12 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
+
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    private volatile int maxRegexLength;
+
     /**
      * Whether the index is required to have at most one type.
      */
@@ -415,6 +427,7 @@ public final class IndexSettings {
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
+        maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
@@ -462,6 +475,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
+        scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -821,6 +835,17 @@ public final class IndexSettings {
 
     private void setMaxSlicesPerScroll(int value) {
         this.maxSlicesPerScroll = value;
+    }
+
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    public int getMaxRegexLength() {
+        return maxRegexLength;
+    }
+
+    private void setMaxRegexLength(int maxRegexLength) {
+        this.maxRegexLength = maxRegexLength;
     }
 
     /**

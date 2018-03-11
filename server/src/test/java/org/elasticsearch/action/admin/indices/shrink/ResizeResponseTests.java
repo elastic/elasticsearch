@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class ResizeResponseTests extends AbstractStreamableXContentTestCase<ResizeResponse> {
 
@@ -51,22 +50,20 @@ public class ResizeResponseTests extends AbstractStreamableXContentTestCase<Resi
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<ResizeResponse> getMutateFunction() {
-        return response -> {
+    protected ResizeResponse mutateInstance(ResizeResponse response) {
+        if (randomBoolean()) {
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    boolean acknowledged = response.isAcknowledged() == false;
-                    boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
-                    return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
-                } else {
-                    boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
-                    boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
-                    return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
-                }
+                boolean acknowledged = response.isAcknowledged() == false;
+                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
+                return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             } else {
-                return new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                        response.index() + randomAlphaOfLengthBetween(2, 5));
+                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
+                return new ResizeResponse(acknowledged, shardsAcknowledged, response.index());
             }
-        };
+        } else {
+            return new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
+                    response.index() + randomAlphaOfLengthBetween(2, 5));
+        }
     }
 }

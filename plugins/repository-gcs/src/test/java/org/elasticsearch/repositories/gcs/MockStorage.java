@@ -49,8 +49,7 @@ class MockStorage extends com.google.api.client.testing.http.MockHttpTransport {
         return new MockLowLevelHttpRequest() {
             @Override
             public LowLevelHttpResponse execute() throws IOException {
-                final GoogleCloudStorageTestServer.Response response = server.handle(method, url, getContentAsBytes());
-                return convert(response);
+                return convert(server.handle(method, url, getHeaders(), getContentAsBytes()));
             }
 
             /** Returns the LowLevelHttpRequest body as an array of bytes **/

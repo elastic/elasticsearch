@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
@@ -46,23 +45,21 @@ public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<CreateIndexResponse> getMutateFunction() {
-        return response -> {
+    protected CreateIndexResponse mutateInstance(CreateIndexResponse response) {
+        if (randomBoolean()) {
             if (randomBoolean()) {
-                if (randomBoolean()) {
-                    boolean acknowledged = response.isAcknowledged() == false;
-                    boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
-                    return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
-                } else {
-                    boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
-                    boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
-                    return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
-                }
+                boolean acknowledged = response.isAcknowledged() == false;
+                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
+                return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             } else {
-                return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                            response.index() + randomAlphaOfLengthBetween(2, 5));
+                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
+                return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }
-        };
+        } else {
+            return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
+                        response.index() + randomAlphaOfLengthBetween(2, 5));
+        }
     }
 
     @Override

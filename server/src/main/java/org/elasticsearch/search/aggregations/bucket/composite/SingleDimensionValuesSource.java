@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
@@ -34,7 +35,7 @@ import java.io.IOException;
 /**
  * A source that can record and compare values produced by documents.
  */
-abstract class SingleDimensionValuesSource<T extends Comparable<T>> {
+abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
     protected final int size;
     protected final int reverseMul;
     protected T afterValue;

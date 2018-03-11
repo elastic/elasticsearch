@@ -23,6 +23,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -34,14 +37,15 @@ import java.io.IOException;
  */
 class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc;
-    private final double[] values;
+    private final DoubleArray values;
     private double currentValue;
 
-    DoubleValuesSource(MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
+    DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
+                       CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
                        int size, int reverseMul) {
         super(fieldType, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.values = new double[size];
+        this.values = bigArrays.newDoubleArray(size, false);
     }
 
     @Override
@@ -51,17 +55,17 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     void copyCurrent(int slot) {
-        values[slot] = currentValue;
+        values.set(slot, currentValue);
     }
 
     @Override
     int compare(int from, int to) {
-        return compareValues(values[from], values[to]);
+        return compareValues(values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
-        return compareValues(currentValue, values[slot]);
+        return compareValues(currentValue, values.get(slot));
     }
 
     @Override
@@ -84,7 +88,7 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     @Override
     Double toComparable(int slot) {
-        return values[slot];
+        return values.get(slot);
     }
 
     @Override
@@ -122,5 +126,10 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         return null;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(values);
     }
 }

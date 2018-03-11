@@ -20,9 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.DocIdSetBuilder;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -40,23 +43,32 @@ abstract class SortedDocsProducer {
     }
 
     /**
-     * Visits all non-deleted documents in <code>iterator</code> and pass documents that contain competitive composite buckets
-     * to the provided <code>sub</code> collector.
+     * Visits all non-deleted documents in <code>iterator</code> and fills the provided <code>queue</code>
+     * with the top composite buckets extracted from the collection.
+     * Documents that contain a top composite bucket are added in the provided <code>builder</code> if it is not null.
+     *
      * Returns true if the queue is full and the current <code>leadSourceBucket</code> did not produce any competitive
      * composite buckets.
      */
     protected boolean processBucket(CompositeValuesCollectorQueue queue, LeafReaderContext context,
-                                    LeafBucketCollector sub, DocIdSetIterator iterator, Comparable<?> leadSourceBucket) throws IOException {
+                                    DocIdSetIterator iterator, Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
+        int cost = (int) iterator.cost();
+        final DocIdSetBuilder.BulkAdder adder = builder != null ? builder.grow(cost) : null;
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
+            int lastDoc = -1;
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 hasCollected[0] = true;
                 int slot = queue.addIfCompetitive();
                 if (slot != -1) {
                     topCompositeCollected[0]++;
-                    sub.collect(doc, slot);
+                    if (adder != null && doc != lastDoc) {
+                        adder.add(doc);
+                        lastDoc = doc;
+                    }
                 }
             }
         };
@@ -77,7 +89,8 @@ abstract class SortedDocsProducer {
 
     /**
      * Populates the queue with the composite buckets present in the <code>context</code>.
+     * Returns the {@link DocIdSet} of the documents that contain a top composite bucket in this leaf or
+     * {@link DocIdSet#EMPTY} if <code>fillDocIdSet</code> is false.
      */
-    abstract void processLeaf(Query query, CompositeValuesCollectorQueue queue,
-                              LeafReaderContext context, LeafBucketCollector sub) throws IOException;
+    abstract DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException;
 }

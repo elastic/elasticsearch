@@ -26,6 +26,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -34,21 +37,25 @@ import java.io.IOException;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
- * A {@link SingleDimensionValuesSource} for global ordinals
+ * A {@link SingleDimensionValuesSource} for global ordinals.
  */
 class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
-    private final long[] values;
+    private final LongArray values;
     private SortedSetDocValues lookup;
     private long currentValue;
     private Long afterValueGlobalOrd;
     private boolean isTopValueInsertionPoint;
 
-    GlobalOrdinalValuesSource(MappedFieldType type, CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+    private long lastLookupOrd = -1;
+    private BytesRef lastLookupValue;
+
+    GlobalOrdinalValuesSource(BigArrays bigArrays,
+                              MappedFieldType type, CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
                               int size, int reverseMul) {
         super(type, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
-        this.values = new long[size];
+        this.values = bigArrays.newLongArray(size, false);
     }
 
     @Override
@@ -58,17 +65,17 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void copyCurrent(int slot) {
-        values[slot] = currentValue;
+        values.set(slot, currentValue);
     }
 
     @Override
     int compare(int from, int to) {
-        return Long.compare(values[from], values[to]) * reverseMul;
+        return Long.compare(values.get(from), values.get(to)) * reverseMul;
     }
 
     @Override
     int compareCurrent(int slot) {
-        return Long.compare(currentValue, values[slot]) * reverseMul;
+        return Long.compare(currentValue, values.get(slot)) * reverseMul;
     }
 
     @Override
@@ -96,7 +103,14 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) throws IOException {
-        return BytesRef.deepCopyOf(lookup.lookupOrd(values[slot]));
+        long globalOrd = values.get(slot);
+        if (globalOrd == lastLookupOrd) {
+            return lastLookupValue;
+        } else {
+            lastLookupOrd= globalOrd;
+            lastLookupValue = BytesRef.deepCopyOf(lookup.lookupOrd(values.get(slot)));
+            return lastLookupValue;
+        }
     }
 
     @Override
@@ -159,6 +173,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(values);
     }
 
     private void initLookup(SortedSetDocValues dvs) throws IOException {

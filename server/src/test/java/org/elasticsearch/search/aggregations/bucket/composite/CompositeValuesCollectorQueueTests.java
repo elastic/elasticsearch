@@ -30,11 +30,13 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -135,6 +137,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
     }
 
     private void testRandomCase(boolean forceMerge, ClassAndName... types) throws IOException {
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
         int numDocs = randomIntBetween(50, 100);
         List<Comparable<?>[]> possibleValues = new ArrayList<>();
         for (ClassAndName type : types) {
@@ -206,18 +209,18 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
             for (int i = 0; i < types.length; i++) {
                 final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
-                    sources[i] = new LongValuesSource(fieldType, context -> context.reader().getSortedNumericDocValues(fieldType.name()),
-                        value -> value, DocValueFormat.RAW, size, 1
-                    );
+                    sources[i] = new LongValuesSource(bigArrays, fieldType,
+                        context -> context.reader().getSortedNumericDocValues(fieldType.name()), value -> value,
+                        DocValueFormat.RAW, size, 1);
                 } else if (types[i].clazz == Double.class) {
-                    sources[i] = new DoubleValuesSource(fieldType,
+                    sources[i] = new DoubleValuesSource(bigArrays, fieldType,
                         context -> FieldData.sortableLongBitsToDoubles(context.reader().getSortedNumericDocValues(fieldType.name())),
                         size, 1);
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
                         // we don't create global ordinals but we test this mode when the reader has a single segment
                         // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(fieldType,
+                        sources[i] = new GlobalOrdinalValuesSource(bigArrays, fieldType,
                             context -> context.reader().getSortedSetDocValues(fieldType.name()), size, 1);
                     } else {
                         sources[i] = new BinaryValuesSource(fieldType,
@@ -251,12 +254,8 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                             }
                         };
                         if (withProducer) {
-                            final LeafBucketCollector empty = new LeafBucketCollector() {
-                                @Override
-                                public void collect(int doc, long bucket) throws IOException {
-                                }
-                            };
-                            docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, empty);
+                            assertEquals(DocIdSet.EMPTY,
+                                docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false));
                         } else {
                             final LeafBucketCollector queueCollector = queue.getLeafCollector(leafReaderContext, leafCollector);
                             final Bits liveDocs = leafReaderContext.reader().getLiveDocs();

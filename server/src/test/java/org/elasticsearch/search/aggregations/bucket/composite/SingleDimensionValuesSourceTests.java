@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -71,7 +72,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     numberType == NumberFieldMapper.NumberType.SHORT ||
                     numberType == NumberFieldMapper.NumberType.INTEGER ||
                     numberType == NumberFieldMapper.NumberType.LONG) {
-                source = new LongValuesSource(number, context -> null, value -> value, DocValueFormat.RAW, 1, 1);
+                source = new LongValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
+                    number, context -> null, value -> value, DocValueFormat.RAW, 1, 1);
                 assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
                 IndexReader reader = mockIndexReader(1, 1);
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
@@ -79,12 +81,14 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, LongPoint.newRangeQuery("number", 0, 1)));
                 assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
                 LongValuesSource sourceRev =
-                    new LongValuesSource(number, context -> null, value -> value, DocValueFormat.RAW, 1, -1);
+                    new LongValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
+                        number, context -> null, value -> value, DocValueFormat.RAW, 1, -1);
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, null));
             } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT ||
                     numberType == NumberFieldMapper.NumberType.FLOAT ||
                     numberType == NumberFieldMapper.NumberType.DOUBLE) {
-                source = new DoubleValuesSource(number, context -> null, 1, 1);
+                source = new DoubleValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
+                    number, context -> null, 1, 1);
             } else{
                 throw new AssertionError ("missing type:" + numberType.typeName());
             }

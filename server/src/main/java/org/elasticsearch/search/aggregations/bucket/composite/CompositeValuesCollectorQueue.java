@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -30,7 +32,7 @@ import java.util.TreeMap;
 /**
  * A specialized queue implementation for composite buckets
  */
-final class CompositeValuesCollectorQueue {
+final class CompositeValuesCollectorQueue implements Releasable {
     // the slot for the current candidate
     private static final int CANDIDATE_SLOT = Integer.MAX_VALUE;
 
@@ -82,7 +84,7 @@ final class CompositeValuesCollectorQueue {
 
     /**
      * Compares the current candidate with the values in the queue and returns
-     * the slot if the candidate is already in the queue or -1 if the candidate is not present.
+     * the slot if the candidate is already in the queue or null if the candidate is not present.
      */
     Integer compareCurrent() {
         return keys.get(CANDIDATE_SLOT);
@@ -235,5 +237,11 @@ final class CompositeValuesCollectorQueue {
         copyCurrent(newSlot);
         keys.put(newSlot, newSlot);
         return newSlot;
+    }
+
+
+    @Override
+    public void close() {
+        Releasables.close(arrays);
     }
 }

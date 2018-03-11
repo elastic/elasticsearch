@@ -26,14 +26,12 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.function.ToLongFunction;
 
 /**
- * A {@link SortedDocsProducer} that can sort documents based on numerics indexed in the
- * provided field.
+ * A {@link SortedDocsProducer} that can sort documents based on numerics indexed in the provided field.
  */
 class PointsSortedDocsProducer extends SortedDocsProducer {
     private final ToLongFunction<byte[]> bucketFunction;
@@ -48,12 +46,11 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
     }
 
     @Override
-    void processLeaf(Query query, CompositeValuesCollectorQueue queue,
-                     LeafReaderContext context, LeafBucketCollector sub) throws IOException {
+    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException {
         final PointValues values = context.reader().getPointValues(field);
         if (values == null) {
             // no value for the field
-            return;
+            return DocIdSet.EMPTY;
         }
         long lowerBucket = Long.MIN_VALUE;
         Comparable<?> lowerValue = queue.getLowerValueLeadSource();
@@ -72,38 +69,46 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
-
-        Visitor visitor =
-            new Visitor(context, queue, sub, values.getBytesPerDimension(), lowerBucket, upperBucket);
+        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
+        Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
         try {
             values.intersect(visitor);
             visitor.flush();
         } catch (CollectionTerminatedException exc) {}
+        return fillDocIdSet ? builder.build() : DocIdSet.EMPTY;
     }
 
     private class Visitor implements PointValues.IntersectVisitor {
         final LeafReaderContext context;
         final CompositeValuesCollectorQueue queue;
-        final LeafBucketCollector sub;
+        final DocIdSetBuilder builder;
         final int maxDoc;
         final int bytesPerDim;
         final long lowerBucket;
         final long upperBucket;
 
-        DocIdSetBuilder builder;
+        DocIdSetBuilder bucketDocsBuilder;
+        DocIdSetBuilder.BulkAdder adder;
+        int remaining;
         long lastBucket;
         boolean first = true;
 
-        Visitor(LeafReaderContext context, CompositeValuesCollectorQueue queue,
-                LeafBucketCollector sub, int bytesPerDim, long lowerBucket, long upperBucket) {
+        Visitor(LeafReaderContext context, CompositeValuesCollectorQueue queue, DocIdSetBuilder builder,
+                int bytesPerDim, long lowerBucket, long upperBucket) {
             this.context = context;
             this.maxDoc = context.reader().maxDoc();
             this.queue = queue;
-            this.sub = sub;
+            this.builder = builder;
             this.lowerBucket = lowerBucket;
             this.upperBucket = upperBucket;
-            this.builder = new DocIdSetBuilder(maxDoc);
+            this.bucketDocsBuilder = new DocIdSetBuilder(maxDoc);
             this.bytesPerDim = bytesPerDim;
+        }
+
+        @Override
+        public void grow(int count) {
+            remaining = count;
+            adder = bucketDocsBuilder.grow(count);
         }
 
         @Override
@@ -114,25 +119,29 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             if (compare(packedValue, packedValue) != PointValues.Relation.CELL_CROSSES_QUERY) {
+                remaining --;
                 return;
             }
 
             long bucket = bucketFunction.applyAsLong(packedValue);
             if (first == false && bucket != lastBucket) {
-                final DocIdSet docIdSet = builder.build();
-                if (processBucket(queue, context, sub, docIdSet.iterator(), lastBucket) &&
-                    // lower bucket is inclusive
-                    lowerBucket != lastBucket) {
+                final DocIdSet docIdSet = bucketDocsBuilder.build();
+                if (processBucket(queue, context, docIdSet.iterator(), lastBucket, builder) &&
+                        // lower bucket is inclusive
+                        lowerBucket != lastBucket) {
                     // this bucket does not have any competitive composite buckets,
                     // we can early terminate the collection because the remaining buckets are guaranteed
                     // to be greater than this bucket.
                     throw new CollectionTerminatedException();
                 }
-                builder = new DocIdSetBuilder(maxDoc);
+                bucketDocsBuilder = new DocIdSetBuilder(maxDoc);
+                assert remaining > 0;
+                adder = bucketDocsBuilder.grow(remaining);
             }
             lastBucket = bucket;
             first = false;
-            builder.grow(1).add(docID);
+            adder.add(docID);
+            remaining --;
         }
 
         @Override
@@ -161,10 +170,10 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
         }
 
         public void flush() throws IOException {
-            if (first == false && builder != null) {
-                final DocIdSet docIdSet = builder.build();
-                processBucket(queue, context, sub, docIdSet.iterator(), lastBucket);
-                builder = null;
+            if (first == false)  {
+                final DocIdSet docIdSet = bucketDocsBuilder.build();
+                processBucket(queue, context, docIdSet.iterator(), lastBucket, builder);
+                bucketDocsBuilder = null;
             }
         }
     }

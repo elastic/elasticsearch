@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import java.io.IOException;
 
 /**
- * A {@link SingleDimensionValuesSource} for binary source ({@link BytesRef})
+ * A {@link SingleDimensionValuesSource} for binary source ({@link BytesRef}).
  */
 class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc;
@@ -131,4 +131,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
         return new TermsSortedDocsProducer(fieldType.name());
     }
+
+    @Override
+    public void close() {}
 }

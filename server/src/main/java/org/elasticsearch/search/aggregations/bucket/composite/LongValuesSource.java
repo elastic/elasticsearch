@@ -28,6 +28,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -47,16 +50,17 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     // handles "format" for date histogram source
     private final DocValueFormat format;
 
-    private final long[] values;
+    private final LongArray values;
     private long currentValue;
 
-    LongValuesSource(MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+    LongValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
+                     CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
                      LongUnaryOperator rounding, DocValueFormat format, int size, int reverseMul) {
         super(fieldType, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.format = format;
-        this.values = new long[size];
+        this.values = bigArrays.newLongArray(size, false);
     }
 
     @Override
@@ -66,17 +70,17 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     void copyCurrent(int slot) {
-        values[slot] = currentValue;
+        values.set(slot, currentValue);
     }
 
     @Override
     int compare(int from, int to) {
-        return compareValues(values[from], values[to]);
+        return compareValues(values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
-        return compareValues(currentValue, values[slot]);
+        return compareValues(currentValue, values.get(slot));
     }
 
     @Override
@@ -103,7 +107,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     Long toComparable(int slot) {
-        return values[slot];
+        return values.get(slot);
     }
 
     @Override
@@ -168,13 +172,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
                     break;
 
                 case "int":
-                    toBucketFunction = (value) -> rounding.applyAsLong(IntPoint.decodeDimension(value, 0));
-                    break;
-
                 case "short":
-                    toBucketFunction = (value) -> rounding.applyAsLong(IntPoint.decodeDimension(value, 0));
-                    break;
-
                 case "byte":
                     toBucketFunction = (value) -> rounding.applyAsLong(IntPoint.decodeDimension(value, 0));
                     break;
@@ -189,5 +187,10 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(values);
     }
 }

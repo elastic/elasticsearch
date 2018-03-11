@@ -287,8 +287,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
-        if (events.contains(REALM_AUTHENTICATION_FAILED)
-                && filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED) && filterPolicyPredicate
+                .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]",
                         localNodeInfo.prefix, realm, hostAttributes(request), token.principal(), request.uri(),
@@ -514,7 +514,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     static Optional<String[]> indices(TransportMessage message) {
         if (message instanceof IndicesRequest) {
-            return Optional.ofNullable(((IndicesRequest) message).indices());
+            final String[] indices = ((IndicesRequest) message).indices();
+            if ((indices != null) && (indices.length != 0)) {
+                return Optional.of(((IndicesRequest) message).indices());
+            }
         }
         return Optional.empty();
     }
@@ -546,7 +549,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
      * that will be ignored, aka filtered out, aka not logged. The event can be
      * filtered by the following fields : `user`, `realm`, `role` and `index`.
      * Predicates on each field are ANDed together to form the filter predicate of
-     * the policy.
+     * the policy. 
      */
     private static final class EventFilterPolicy {
         final String name;

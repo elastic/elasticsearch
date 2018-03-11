@@ -48,6 +48,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -701,6 +703,59 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
         auditTrail.authenticationSuccess(realm, user, "_action", message);
         assertEmptyLog(logger);
+    }
+
+    public void testRequestsWithoutIndices() throws Exception {
+        final Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        final Settings allEventsSettings = Settings.builder()
+                .put(settings)
+                .put("xpack.security.audit.logfile.events.include", "_all")
+                .build();
+        final LoggingAuditTrail auditTrail = new LoggingAuditTrail(allEventsSettings, clusterService, logger, threadContext);
+        final User user = new User("_username", new String[] { "r1" });
+        final String role = randomAlphaOfLengthBetween(1, 6);
+        final String realm = randomAlphaOfLengthBetween(1, 6);
+        // transport messages without indices
+        final TransportMessage[] messages = new TransportMessage[] { new MockMessage(threadContext),
+                new org.elasticsearch.action.MockIndicesRequest(IndicesOptions.strictExpandOpenAndForbidClosed(), new String[0]),
+                new org.elasticsearch.action.MockIndicesRequest(IndicesOptions.strictExpandOpenAndForbidClosed(), (String[]) null) };
+        final List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        int logEntriesCount = 1;
+        for (final TransportMessage message : messages) {
+            auditTrail.anonymousAccessDenied("_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.authenticationFailed(new MockToken(), "_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.authenticationFailed("_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.authenticationFailed(realm, new MockToken(), "_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.accessGranted(user, "_action", message, new String[] { role });
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.accessDenied(user, "_action", message, new String[] { role });
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.tamperedRequest("_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.tamperedRequest(user, "_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.runAsGranted(user, "_action", message, new String[] { role });
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.runAsDenied(user, "_action", message, new String[] { role });
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+            auditTrail.authenticationSuccess(realm, user, "_action", message);
+            assertThat(output.size(), is(logEntriesCount++));
+            assertThat(output.get(logEntriesCount - 2), not(containsString("indices=[")));
+        }
     }
 
     private void assertMsg(Logger logger, Level level, String message) {

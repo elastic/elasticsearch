@@ -45,6 +45,9 @@ public final class EngineDiskUtils {
     private EngineDiskUtils() {
     }
 
+    /**
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     */
     public static void createEmpty(final Directory dir, final Path translogPath, final ShardId shardId) throws IOException {
         try (IndexWriter writer = newIndexWriter(true, dir)) {
             final String translogUuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId);
@@ -60,6 +63,10 @@ public final class EngineDiskUtils {
     }
 
 
+    /**
+     * Converts an existing lucene index and marks it with a new history uuid. Also creates a new empty translog file.
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     */
     public static void bootstrapNewHistoryFromLuceneIndex(final Directory dir, final Path translogPath, final ShardId shardId)
         throws IOException {
         try (IndexWriter writer = newIndexWriter(false, dir)) {
@@ -75,6 +82,9 @@ public final class EngineDiskUtils {
         }
     }
 
+    /**
+     * Creates a new empty translog and associates it with an existing lucene index.
+     */
     public static void createNewTranslog(final Directory dir, final Path translogPath, long initialGlobalCheckpoint, final ShardId shardId)
         throws IOException {
         if (Assertions.ENABLED) {
@@ -96,7 +106,10 @@ public final class EngineDiskUtils {
     }
 
 
-    public static void verifyHasHistoryUUID(final Directory dir) throws IOException {
+    /**
+     * Checks that the Lucene index contains a history uuid marker. If not, a new one is generated and committed.
+     */
+    public static void ensureIndexHasHistoryUUID(final Directory dir) throws IOException {
         try (IndexWriter writer = newIndexWriter(false, dir)) {
             final Map<String, String> userData = getUserData(writer);
             if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {

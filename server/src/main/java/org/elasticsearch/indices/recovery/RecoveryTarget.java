@@ -441,7 +441,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                EngineDiskUtils.verifyHasHistoryUUID(store.directory());
+                EngineDiskUtils.ensureIndexHasHistoryUUID(store.directory());
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),

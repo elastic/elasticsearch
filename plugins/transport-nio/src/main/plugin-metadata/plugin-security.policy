@@ -17,21 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest;
-
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
-import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-/** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
-public class TarClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-    public TarClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
-        super(testCandidate);
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
-    }
-}
+grant codeBase "${codebase.elasticsearch-nio}" {
+  // elasticsearch-nio makes and accepts socket connections
+  permission java.net.SocketPermission "*", "accept,connect";
+};

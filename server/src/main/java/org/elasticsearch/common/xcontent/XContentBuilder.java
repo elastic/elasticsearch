@@ -20,10 +20,10 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +34,7 @@ import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +59,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content.
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content.
      * </p>
      *
      * @param xContent the {@link XContent}
@@ -66,13 +67,13 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput());
+        return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content and some inclusive and/or exclusive filters.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content. When both exclusive and
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
      * <p>
@@ -83,7 +84,7 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), includes, excludes);
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
     }
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
@@ -1036,7 +1037,11 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public BytesReference bytes() {
         close();
-        return ((BytesStream) bos).bytes();
+        if (bos instanceof ByteArrayOutputStream) {
+            return new BytesArray(((ByteArrayOutputStream) bos).toByteArray());
+        } else {
+            return ((BytesStream) bos).bytes();
+        }
     }
 
     /**

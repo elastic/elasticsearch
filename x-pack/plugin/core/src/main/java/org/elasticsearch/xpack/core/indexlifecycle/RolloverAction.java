@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -164,13 +165,11 @@ public class RolloverAction implements LifecycleAction {
             client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<RolloverResponse>() {
                 @Override
                 public void onResponse(RolloverResponse rolloverResponse) {
-                    logger.error(rolloverResponse);
                     listener.onSuccess(rolloverResponse.isRolledOver());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(e);
                     listener.onFailure(e);
                 }
             });

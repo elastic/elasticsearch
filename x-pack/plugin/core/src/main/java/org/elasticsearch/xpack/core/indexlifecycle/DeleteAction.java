@@ -67,13 +67,11 @@ public class DeleteAction implements LifecycleAction {
         client.admin().indices().delete(new DeleteIndexRequest(index.getName()), new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse deleteIndexResponse) {
-                logger.error(deleteIndexResponse);
                 listener.onSuccess(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(e);
                 listener.onFailure(e);
             }
         });

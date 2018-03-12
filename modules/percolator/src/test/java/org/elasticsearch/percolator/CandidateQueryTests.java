@@ -55,6 +55,7 @@ import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -77,6 +78,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -219,6 +221,16 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 clauses.add(new TermQuery(new Term(field, randomFrom(stringContent.get(field)))));
             }
             return new DisjunctionMaxQuery(clauses, 0.01f);
+        });
+        queryFunctions.add(() -> {
+            Float minScore = randomBoolean() ? null : (float) randomIntBetween(1, 1000);
+            Query innerQuery;
+            if (randomBoolean()) {
+                innerQuery = new TermQuery(new Term(field1, randomFrom(stringContent.get(field1))));
+            } else {
+                innerQuery = new PhraseQuery(field1, randomFrom(stringContent.get(field1)), randomFrom(stringContent.get(field1)));
+            }
+            return new FunctionScoreQuery(innerQuery, minScore, 1f);
         });
 
         List<ParseContext.Document> documents = new ArrayList<>();
@@ -677,6 +689,31 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
         assertEquals(4, topDocs.scoreDocs[2].doc);
+    }
+
+    public void testFunctionScoreQuery() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), null, 1f), docs);
+        addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), 10f, 1f), docs);
+        addQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), null, 1f), docs);
+        addQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), 10F, 1f), docs);
+
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        assertEquals(2L, topDocs.totalHits);
+        assertEquals(2, topDocs.scoreDocs.length);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(2, topDocs.scoreDocs[1].doc);
     }
 
     public void testPercolateSmallAndLargeDocument() throws Exception {

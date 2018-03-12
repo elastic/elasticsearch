@@ -98,7 +98,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "database_file" : "GeoLite2-Country.mmdb.gz"
+                  "database_file" : "GeoLite2-Country.mmdb"
                 }
               }
             ]
@@ -208,7 +208,7 @@
               {
                 "geoip" : {
                   "field" : "field1",
-                  "database_file" : "GeoLite2-ASN.mmdb.gz"
+                  "database_file" : "GeoLite2-ASN.mmdb"
                 }
               }
             ]

@@ -115,7 +115,7 @@ public class RepositoryDataTests extends ESTestCase {
         Collections.sort(actual);
         assertEquals(expected, actual);
         for (Map.Entry<IndexId, Set<SnapshotId>> entry : indices.entrySet()) {
-            assertEquals(indices.get(entry.getKey()), newRepoData.getSnapshots(entry.getKey()));
+            assertEquals(entry.getValue(), newRepoData.getSnapshots(entry.getKey()));
         }
     }
 

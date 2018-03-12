@@ -62,7 +62,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         for (Map.Entry<String, GoogleCloudStorageClientSettings> entry : expectedClientsSettings.entrySet()) {
             GoogleCloudStorageClientSettings actualClientSettings = actualClientsSettings.get(entry.getKey());
             assertNotNull(actualClientSettings);
-            GoogleCloudStorageClientSettings expectedClientSettings = expectedClientsSettings.get(entry.getKey());
+            GoogleCloudStorageClientSettings expectedClientSettings = entry.getValue();
             assertNotNull(expectedClientSettings);
 
             assertGoogleCredential(expectedClientSettings.getCredential(), actualClientSettings.getCredential());

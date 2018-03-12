@@ -771,9 +771,10 @@ public final class Definition {
 
         // precompute runtime classes
         for (Map.Entry<String, Struct> entry : structsMap.entrySet()) {
-            Struct painlessStruct = structsMap.get(entry.getKey());
+            Struct painlessStruct = entry.getValue();
+            String painlessStructName = entry.getKey();
 
-            if (!painlessStruct.name.equals(entry.getKey())) {
+            if (painlessStruct.name.equals(painlessStructName) == false) {
                 continue;
             }
 
@@ -782,7 +783,7 @@ public final class Definition {
 
         // copy all structs to make them unmodifiable for outside users:
         for (Map.Entry<String,Struct> entry : structsMap.entrySet()) {
-            if (!entry.getKey().equals(entry.getValue().name)) {
+            if (entry.getKey().equals(entry.getValue().name) == false) {
                 continue;
             }
 

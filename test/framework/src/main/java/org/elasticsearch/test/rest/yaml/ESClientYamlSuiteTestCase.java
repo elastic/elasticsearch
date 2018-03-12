@@ -149,7 +149,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
         // yaml suites are grouped by directory (effectively by api)
         for (Map.Entry<String, Set<Path>> entry : yamlSuites.entrySet()) {
-            List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(entry.getKey()));
+            List<Path> yamlFiles = new ArrayList<>(entry.getValue());
             for (Path yamlFile : yamlFiles) {
                 ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(entry.getKey(), yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {

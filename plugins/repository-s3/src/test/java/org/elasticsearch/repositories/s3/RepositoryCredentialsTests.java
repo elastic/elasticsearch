@@ -24,6 +24,7 @@ import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +36,7 @@ import java.security.PrivilegedAction;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressForbidden(reason = "test fixture requires System.setProperty")
 public class RepositoryCredentialsTests extends ESTestCase {
 
     static {
@@ -50,7 +52,7 @@ public class RepositoryCredentialsTests extends ESTestCase {
         static final class ClientAndCredentials extends AmazonS3Wrapper {
             final AWSCredentialsProvider credentials;
 
-            public ClientAndCredentials(AmazonS3 delegate, AWSCredentialsProvider credentials) {
+            ClientAndCredentials(AmazonS3 delegate, AWSCredentialsProvider credentials) {
                 super(delegate);
                 this.credentials = credentials;
             }
@@ -159,9 +161,9 @@ public class RepositoryCredentialsTests extends ESTestCase {
             builder.put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
         }
         final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", builder.build());
-        try (final S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
-                final S3Repository s3repo = s3Plugin.getS3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY)) {
-            try (final AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
+        try (S3RepositoryPlugin s3Plugin = new ProxyS3RepositoryPlugin(settings);
+                S3Repository s3repo = s3Plugin.getS3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY)) {
+            try (AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
                 final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials
                         .getCredentials();
                 if (repositorySettings) {
@@ -188,7 +190,7 @@ public class RepositoryCredentialsTests extends ESTestCase {
                 }
             }
             // check credentials have been updated
-            try (final AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
+            try (AmazonS3Reference s3Ref = ((S3BlobStore) s3repo.blobStore()).clientReference()) {
                 final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) s3Ref.client()).credentials
                         .getCredentials();
                 assertThat(newCredentials.getAWSAccessKeyId(), is("new_secret_aws_key"));

@@ -48,8 +48,8 @@ public class AmazonS3Reference extends AbstractRefCounted implements Releasable 
     }
 
     /**
-     * Returns the underlying `AmazonS3` client. All calls are permitted BUT NOT
-     * shutdown. Shutdown is called when reference count gets to 0.
+     * Returns the underlying `AmazonS3` client. All method calls are permitted BUT
+     * NOT shutdown. Shutdown is called when reference count reaches 0.
      */
     public AmazonS3 client() {
         return client;

@@ -31,7 +31,8 @@ interface AwsS3Service {
 
     /**
      * Updates settings for building clients. Future client requests will use the
-     * new settings, ie. clears the client cache.
+     * new settings. Implementations SHOULD drop the client cache to prevent reusing
+     * clients with old settings from cache.
      *
      * @param clientsSettings
      *            the new settings
@@ -40,8 +41,8 @@ interface AwsS3Service {
     Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings);
 
     /**
-     * Releases cached clients. Subsequent requests will recreate clients. Does not
-     * touch the client settings.
+     * Releases cached clients. Subsequent client requests will recreate client
+     * instances. Does not touch the client settings.
      */
     void releaseCachedClients();
 }

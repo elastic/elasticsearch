@@ -50,7 +50,7 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
     /**
      * Reloads the settings for the AmazonS3 client. New clients will be build using
      * these. Old clients are usable until released. On release they will be
-     * destroyed contrary to being returned to the registry.
+     * destroyed contrary to being returned to the cache.
      */
     @Override
     public synchronized Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings) {
@@ -65,8 +65,8 @@ class InternalAwsS3Service extends AbstractComponent implements AwsS3Service {
     }
 
     /**
-     * Attempts to retrieve a client by name from the registry. If the client does
-     * not exist it will be created.
+     * Attempts to retrieve a client by name from the cache. If the client does not
+     * exist it will be created.
      */
     @Override
     public AmazonS3Reference client(String clientName) {

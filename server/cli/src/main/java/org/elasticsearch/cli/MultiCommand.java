@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cli;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -77,14 +78,46 @@ public class MultiCommand extends Command {
     }
 
     @Override
-    public void close() throws IOException {
-        if (subcommands.isEmpty()) {
-            throw new IllegalStateException("No subcommands configured");
-        }
-        for (Command command : subcommands.values()) {
-            if (command != null) {
-                command.close();
+    public void close() throws IOException, RuntimeException {
+        Throwable th = null;
+        for (Closeable object : subcommands.values()) {
+            try {
+                if (object != null) {
+                    object.close();
+                }
+            } catch (Throwable t) {
+                addSuppressed(th, t);
+                if (th == null) {
+                    th = t;
+                }
             }
         }
+        if (th != null) {
+            throw reThrowAlways(th);
+        }
+    }
+
+    // Following methods are similar to IOUtils,
+    // avoiding lucene dependency in CLI.
+    private static void addSuppressed(Throwable t, Throwable suppressed) {
+        if (t != null && suppressed != null) {
+            t.addSuppressed(suppressed);
+        }
+    }
+
+    private static Error reThrowAlways(Throwable th) throws IOException, RuntimeException {
+        if (th instanceof IOException) {
+            throw (IOException) th;
+        }
+
+        if (th instanceof RuntimeException) {
+            throw (RuntimeException) th;
+        }
+
+        if (th instanceof Error) {
+            throw (Error) th;
+        }
+
+        throw new RuntimeException(th);
     }
 }

@@ -36,8 +36,13 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.Objects;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.TreeSet;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -65,6 +70,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         private long minSeqNo;
         private long maxSeqNo;
         private ShardId shardId;
+        private long maxTranslogsBytes = ShardFollowTasksExecutor.DEFAULT_MAX_TRANSLOG_BYTES;
 
         public Request(ShardId shardId) {
             super(shardId.getIndexName());
@@ -94,15 +100,27 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             this.maxSeqNo = maxSeqNo;
         }
 
+        public long getMaxTranslogsBytes() {
+            return maxTranslogsBytes;
+        }
+
+        public void setMaxTranslogsBytes(long maxTranslogsBytes) {
+            this.maxTranslogsBytes = maxTranslogsBytes;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (minSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                validationException = addValidationError("minSeqNo cannot be unassigned", validationException);
+            if (minSeqNo < 0) {
+                validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be lower than 0", validationException);
             }
             if (maxSeqNo < minSeqNo) {
                 validationException = addValidationError("minSeqNo [" + minSeqNo + "] cannot be larger than maxSeqNo ["
                         + maxSeqNo +  "]", validationException);
+            }
+            if (maxTranslogsBytes <= 0) {
+                validationException = addValidationError("maxTranslogsBytes [" + maxTranslogsBytes + "] must be larger than 0",
+                        validationException);
             }
             return validationException;
         }
@@ -110,33 +128,36 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            minSeqNo = in.readZLong();
-            maxSeqNo = in.readZLong();
+            minSeqNo = in.readVLong();
+            maxSeqNo = in.readVLong();
             shardId = ShardId.readShardId(in);
+            maxTranslogsBytes = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeZLong(minSeqNo);
-            out.writeZLong(maxSeqNo);
+            out.writeVLong(minSeqNo);
+            out.writeVLong(maxSeqNo);
             shardId.writeTo(out);
+            out.writeVLong(maxTranslogsBytes);
         }
 
 
         @Override
-        public boolean equals(Object o) {
+        public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
+            final Request request = (Request) o;
             return minSeqNo == request.minSeqNo &&
                     maxSeqNo == request.maxSeqNo &&
-                    Objects.equals(shardId, request.shardId);
+                    Objects.equals(shardId, request.shardId) &&
+                    maxTranslogsBytes == request.maxTranslogsBytes;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(minSeqNo, maxSeqNo, shardId);
+            return Objects.hash(minSeqNo, maxSeqNo, shardId, maxTranslogsBytes);
         }
     }
 
@@ -210,8 +231,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
-            Translog.Operation[] operations = getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo);
-            return new Response(operations);
+            return getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
         }
 
         @Override
@@ -236,24 +256,43 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Translog.Operation[] getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo) throws IOException {
+    static Response getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
 
+        long seenBytes = 0;
+        long nextExpectedSeqNo = minSeqNo;
+        final Queue<Translog.Operation> orderedOps = new PriorityQueue<>(Comparator.comparingLong(Translog.Operation::seqNo));
+
         final List<Translog.Operation> operations = new ArrayList<>();
         final LocalCheckpointTracker tracker = new LocalCheckpointTracker(maxSeqNo, minSeqNo);
         try (Translog.Snapshot snapshot = indexShard.getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo)) {
-            for (Translog.Operation op = snapshot.next(); op != null; op = snapshot.next()) {
-                if (op.seqNo() >= minSeqNo && op.seqNo() <= maxSeqNo) {
-                    operations.add(op);
-                    tracker.markSeqNoAsCompleted(op.seqNo());
+            for (Translog.Operation unorderedOp = snapshot.next(); unorderedOp != null; unorderedOp = snapshot.next()) {
+                if (unorderedOp.seqNo() < minSeqNo || unorderedOp.seqNo() > maxSeqNo) {
+                    continue;
+                }
+
+                orderedOps.add(unorderedOp);
+                while (orderedOps.peek() != null && orderedOps.peek().seqNo() == nextExpectedSeqNo) {
+                    Translog.Operation orderedOp = orderedOps.poll();
+                    if (seenBytes < byteLimit) {
+                        nextExpectedSeqNo++;
+                        seenBytes += orderedOp.estimateSize();
+                        operations.add(orderedOp);
+                        tracker.markSeqNoAsCompleted(orderedOp.seqNo());
+                        if (nextExpectedSeqNo > maxSeqNo) {
+                            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+                        }
+                    } else {
+                        return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+                    }
                 }
             }
         }
 
         if (tracker.getCheckpoint() == maxSeqNo) {
-            return operations.toArray(EMPTY_OPERATIONS_ARRAY);
+            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
         } else {
             String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
                     "] found, tracker checkpoint [" + tracker.getCheckpoint() + "]";

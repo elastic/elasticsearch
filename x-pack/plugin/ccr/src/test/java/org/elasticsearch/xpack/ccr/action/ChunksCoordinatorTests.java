@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
 import java.net.ConnectException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +48,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
         ShardId leaderShardId = new ShardId("index1", "index1", 0);
         ShardId followShardId = new ShardId("index2", "index1", 0);
 
-        ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, 1024, 1, leaderShardId, followShardId, e -> {});
+        ChunksCoordinator coordinator =
+                new ChunksCoordinator(client, ccrExecutor, 1024, 1, Long.MAX_VALUE, leaderShardId, followShardId, e -> {});
         coordinator.createChucks(0, 1024);
         List<long[]> result = new ArrayList<>(coordinator.getChunks());
         assertThat(result.size(), equalTo(1));
@@ -103,7 +106,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
         int concurrentProcessors = randomIntBetween(1, 4);
         int batchSize = randomIntBetween(1, 1000);
         ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, batchSize, concurrentProcessors,
-                leaderShardId, followShardId, handler);
+                Long.MAX_VALUE, leaderShardId, followShardId, handler);
 
         int numberOfOps = randomIntBetween(batchSize, batchSize * 20);
         long from = randomInt(1000);
@@ -145,7 +148,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
             assertThat(e, notNullValue());
             assertThat(e, sameInstance(expectedException));
         };
-        ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, 10, 1, leaderShardId, followShardId, handler);
+        ChunksCoordinator coordinator =
+                new ChunksCoordinator(client, ccrExecutor, 10, 1, Long.MAX_VALUE, leaderShardId, followShardId, handler);
         coordinator.createChucks(0, 20);
         assertThat(coordinator.getChunks().size(), equalTo(2));
 
@@ -175,7 +179,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
             }
             latch.countDown();
         };
-        ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, 1000, 4, leaderShardId, followShardId, handler);
+        ChunksCoordinator coordinator =
+                new ChunksCoordinator(client, ccrExecutor, 1000, 4, Long.MAX_VALUE, leaderShardId, followShardId, handler);
         coordinator.createChucks(0, 1000000);
         assertThat(coordinator.getChunks().size(), equalTo(1000));
 
@@ -191,6 +196,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
 
     public void testChunkProcessor() {
         Client client = mock(Client.class);
+        Queue<long[]> chunks = new LinkedList<>();
         mockShardChangesApiCall(client);
         mockBulkShardOperationsApiCall(client);
         Executor ccrExecutor = Runnable::run;
@@ -200,14 +206,15 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, ccrExecutor, leaderShardId, followShardId, handler);
-        chunkProcessor.start(0, 10);
+        ChunkProcessor chunkProcessor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShardId, followShardId, handler);
+        chunkProcessor.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], nullValue());
     }
 
     public void testChunkProcessorRetry() {
         Client client = mock(Client.class);
+        Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
         int testRetryLimit = randomIntBetween(1, ShardFollowTasksExecutor.PROCESSOR_RETRY_LIMIT - 1);
         mockShardCangesApiCallWithRetry(client, testRetryLimit, new ConnectException("connection exception"));
@@ -219,8 +226,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, ccrExecutor, leaderShardId, followShardId, handler);
-        chunkProcessor.start(0, 10);
+        ChunkProcessor chunkProcessor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShardId, followShardId, handler);
+        chunkProcessor.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], nullValue());
         assertThat(chunkProcessor.retryCounter.get(), equalTo(testRetryLimit + 1));
@@ -228,6 +235,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
 
     public void testChunkProcessorRetryTooManyTimes() {
         Client client = mock(Client.class);
+        Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
         int testRetryLimit = ShardFollowTasksExecutor.PROCESSOR_RETRY_LIMIT + 1;
         mockShardCangesApiCallWithRetry(client, testRetryLimit, new ConnectException("connection exception"));
@@ -239,8 +247,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, ccrExecutor, leaderShardId, followShardId, handler);
-        chunkProcessor.start(0, 10);
+        ChunkProcessor chunkProcessor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShardId, followShardId, handler);
+        chunkProcessor.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], notNullValue());
         assertThat(exception[0].getMessage(), equalTo("retrying failed [17] times, aborting..."));
@@ -250,6 +258,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
 
     public void testChunkProcessorNoneRetryableError() {
         Client client = mock(Client.class);
+        Queue<long[]> chunks = new LinkedList<>();
         mockBulkShardOperationsApiCall(client);
         mockShardCangesApiCallWithRetry(client, 3, new RuntimeException("unexpected"));
 
@@ -260,12 +269,49 @@ public class ChunksCoordinatorTests extends ESTestCase {
         boolean[] invoked = new boolean[1];
         Exception[] exception = new Exception[1];
         Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
-        ChunkProcessor chunkProcessor = new ChunkProcessor(client, ccrExecutor, leaderShardId, followShardId, handler);
-        chunkProcessor.start(0, 10);
+        ChunkProcessor chunkProcessor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShardId, followShardId, handler);
+        chunkProcessor.start(0, 10, Long.MAX_VALUE);
         assertThat(invoked[0], is(true));
         assertThat(exception[0], notNullValue());
         assertThat(exception[0].getMessage(), equalTo("unexpected"));
         assertThat(chunkProcessor.retryCounter.get(), equalTo(0));
+    }
+
+    public void testChunkProcessorExceedMaxTranslogsBytes() {
+        long from = 0;
+        long to = 20;
+        long actualTo = 10;
+        Client client = mock(Client.class);
+        Queue<long[]> chunks = new LinkedList<>();
+        doAnswer(invocation -> {
+            Object[] args = invocation.getArguments();
+            assert args.length == 3;
+            @SuppressWarnings("unchecked")
+            ActionListener<ShardChangesAction.Response> listener = (ActionListener) args[2];
+
+            List<Translog.Operation> operations = new ArrayList<>();
+            for (int i = 0; i <= actualTo; i++) {
+                operations.add(new Translog.NoOp(i, 1, "test"));
+            }
+            listener.onResponse(new ShardChangesAction.Response(operations.toArray(new Translog.Operation[0])));
+            return null;
+        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any(ActionListener.class));
+
+        mockBulkShardOperationsApiCall(client);
+        Executor ccrExecutor = Runnable::run;
+        ShardId leaderShardId = new ShardId("index1", "index1", 0);
+        ShardId followShardId = new ShardId("index2", "index1", 0);
+
+        boolean[] invoked = new boolean[1];
+        Exception[] exception = new Exception[1];
+        Consumer<Exception> handler = e -> {invoked[0] = true;exception[0] = e;};
+        ChunkProcessor chunkProcessor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShardId, followShardId, handler);
+        chunkProcessor.start(from, to, Long.MAX_VALUE);
+        assertThat(invoked[0], is(true));
+        assertThat(exception[0], nullValue());
+        assertThat(chunks.size(), equalTo(1));
+        assertThat(chunks.peek()[0], equalTo(11L));
+        assertThat(chunks.peek()[1], equalTo(20L));
     }
 
     private void mockShardCangesApiCallWithRetry(Client client, int testRetryLimit, Exception e) {
@@ -299,12 +345,11 @@ public class ChunksCoordinatorTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<ShardChangesAction.Response> listener = (ActionListener) args[2];
 
-            long delta = request.getMaxSeqNo() - request.getMinSeqNo();
-            Translog.Operation[] operations = new Translog.Operation[(int) delta];
-            for (int i = 0; i < operations.length; i++) {
-                operations[i] = new Translog.NoOp(request.getMinSeqNo() + i, 1, "test");
+            List<Translog.Operation> operations = new ArrayList<>();
+            for (long i = request.getMinSeqNo(); i <= request.getMaxSeqNo(); i++) {
+                operations.add(new Translog.NoOp(request.getMinSeqNo() + i, 1, "test"));
             }
-            ShardChangesAction.Response response = new ShardChangesAction.Response(operations);
+            ShardChangesAction.Response response = new ShardChangesAction.Response(operations.toArray(new Translog.Operation[0]));
             listener.onResponse(response);
             return null;
         }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any(ActionListener.class));

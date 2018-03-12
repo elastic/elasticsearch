@@ -40,6 +40,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class SettingsUpdaterTests extends ESTestCase {
 
@@ -172,39 +173,59 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     public void testUpdateWithUnknownAndSettings() {
-        final int numberOfDynamicSettings = randomIntBetween(2, 8);
-        final List<Setting<String>> dynamicSettings = new ArrayList<>();
+        // we will randomly apply some new dynamic persistent and transient settings
+        final int numberOfDynamicSettings = randomIntBetween(1, 8);
+        final List<Setting<String>> dynamicSettings = new ArrayList<>(numberOfDynamicSettings);
         for (int i = 0; i < numberOfDynamicSettings; i++) {
             final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting" + i, Property.Dynamic, Property.NodeScope);
             dynamicSettings.add(dynamicSetting);
         }
 
-        final Setting<String> invalidSetting = Setting.simpleString(
-                "invalid.setting",
-                (value, settings) -> {
-                    throw new IllegalArgumentException("invalid");
-                },
-                Property.NodeScope);
+        // these are invalid settings that exist as either persistent or transient settings
+        final int numberOfInvalidSettings = randomIntBetween(0, 7);
+        final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
+        for (int i = 0; i < numberOfInvalidSettings; i++) {
+            final Setting<String> invalidSetting = Setting.simpleString(
+                    "invalid.setting" + i,
+                    (value, settings) -> {
+                        throw new IllegalArgumentException("invalid");
+                    },
+                    Property.NodeScope);
+            invalidSettings.add(invalidSetting);
+        }
+
+        // these are unknown settings that exist as either persistent or transient settings
+        final int numberOfUnknownSettings = randomIntBetween(0, 7);
+        final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
+        for (int i = 0; i < numberOfUnknownSettings; i++) {
+            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
+            unknownSettings.add(unknownSetting);
+        }
 
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
 
-        if (randomBoolean()) {
-            existingPersistentSettings.put("invalid.setting", "value");
-        } else {
-            existingTransientSettings.put("invalid.setting", "value");
+        for (final Setting<String> invalidSetting : invalidSettings) {
+            if (randomBoolean()) {
+                existingPersistentSettings.put(invalidSetting.getKey(), "value");
+            } else {
+                existingTransientSettings.put(invalidSetting.getKey(), "value");
+            }
         }
 
-        if (randomBoolean()) {
-            existingPersistentSettings.put("unknown.setting", "value");
-        } else {
-            existingTransientSettings.put("unknown.setting", "value");
+        for (final Setting<String> unknownSetting : unknownSettings) {
+            if (randomBoolean()) {
+                existingPersistentSettings.put(unknownSetting.getKey(), "value");
+            } else {
+                existingTransientSettings.put(unknownSetting.getKey(), "value");
+            }
         }
 
+        // register all the known settings (not that we do not register the unknown settings)
         final Set<Setting<?>> knownSettings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        Stream.concat(dynamicSettings.stream(), Stream.of(invalidSetting)))
+                        Stream.concat(dynamicSettings.stream(), invalidSettings.stream()))
                         .collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
         for (final Setting<String> dynamicSetting : dynamicSettings) {
@@ -216,6 +237,8 @@ public class SettingsUpdaterTests extends ESTestCase {
                         .persistentSettings(existingPersistentSettings.build())
                         .transientSettings(existingTransientSettings.build());
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metaData(metaDataBuilder).build();
+
+        // prepare the dynamic settings update
         final Settings.Builder persistentToApply = Settings.builder();
         final Settings.Builder transientToApply = Settings.builder();
         for (final Setting<String> dynamicSetting : dynamicSettings) {
@@ -225,30 +248,36 @@ public class SettingsUpdaterTests extends ESTestCase {
                 transientToApply.put(dynamicSetting.getKey(), "value");
             }
         }
-        final ClusterState clusterStateAfterUpdate;
-        clusterStateAfterUpdate =
+        final ClusterState clusterStateAfterUpdate =
                 settingsUpdater.updateSettings(clusterState, transientToApply.build(), persistentToApply.build(), logger);
 
-        if (existingPersistentSettings.keys().contains("invalid.setting")) {
-            assertThat(
-                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
-                    hasItem(ARCHIVED_SETTINGS_PREFIX + "invalid.setting"));
-        } else {
-            assertThat(
-                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
-                    hasItem(ARCHIVED_SETTINGS_PREFIX + "invalid.setting"));
+        // the invalid settings should be archived
+        for (final Setting<String> invalidSetting : invalidSettings) {
+            if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+            } else {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+            }
         }
 
-        if (existingPersistentSettings.keys().contains("unknown.setting")) {
-            assertThat(
-                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
-                    hasItem(ARCHIVED_SETTINGS_PREFIX + "unknown.setting"));
-        } else {
-            assertThat(
-                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
-                    hasItem(ARCHIVED_SETTINGS_PREFIX + "unknown.setting"));
+        // the unknown settings should be archived
+        for (final Setting<String> unknownSetting : unknownSettings) {
+            if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+            } else {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+            }
         }
 
+        // the dynamic settings should be applied
         for (final Setting<String> dynamicSetting : dynamicSettings) {
             if (persistentToApply.keys().contains(dynamicSetting.getKey())) {
                 assertThat(clusterStateAfterUpdate.metaData().persistentSettings().keySet(), hasItem(dynamicSetting.getKey()));
@@ -256,7 +285,123 @@ public class SettingsUpdaterTests extends ESTestCase {
                 assertThat(clusterStateAfterUpdate.metaData().transientSettings().keySet(), hasItem(dynamicSetting.getKey()));
             }
         }
+    }
 
+    public void testRemovingArchivedSettingsDoesNotRemoveNonArchivedInvalidOrUnknownSettings() {
+        // these are settings that are archived in the cluster state as either persistent or transient settings
+        final int numberOfArchivedSettings = randomIntBetween(1, 8);
+        final List<Setting<String>> archivedSettings = new ArrayList<>(numberOfArchivedSettings);
+        for (int i = 0; i < numberOfArchivedSettings; i++) {
+            final Setting<String> archivedSetting = Setting.simpleString("setting", Property.NodeScope);
+            archivedSettings.add(archivedSetting);
+        }
+
+        // these are invalid settings that exist as either persistent or transient settings
+        final int numberOfInvalidSettings = randomIntBetween(0, 7);
+        final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
+        for (int i = 0; i < numberOfInvalidSettings; i++) {
+            final Setting<String> invalidSetting = Setting.simpleString(
+                    "invalid.setting" + i,
+                    (value, settings) -> {
+                        throw new IllegalArgumentException("invalid");
+                    },
+                    Property.NodeScope);
+            invalidSettings.add(invalidSetting);
+        }
+
+        // these are unknown settings that exist as either persistent or transient settings
+        final int numberOfUnknownSettings = randomIntBetween(0, 7);
+        final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
+        for (int i = 0; i < numberOfUnknownSettings; i++) {
+            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
+            unknownSettings.add(unknownSetting);
+        }
+
+        final Settings.Builder existingPersistentSettings = Settings.builder();
+        final Settings.Builder existingTransientSettings = Settings.builder();
+
+        for (final Setting<String> archivedSetting : archivedSettings) {
+            if (randomBoolean()) {
+                existingPersistentSettings.put(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey(), "value");
+            } else {
+                existingTransientSettings.put(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey(), "value");
+            }
+        }
+
+        for (final Setting<String> invalidSetting : invalidSettings) {
+            if (randomBoolean()) {
+                existingPersistentSettings.put(invalidSetting.getKey(), "value");
+            } else {
+                existingTransientSettings.put(invalidSetting.getKey(), "value");
+            }
+        }
+
+        for (final Setting<String> unknownSetting : unknownSettings) {
+            if (randomBoolean()) {
+                existingPersistentSettings.put(unknownSetting.getKey(), "value");
+            } else {
+                existingTransientSettings.put(unknownSetting.getKey(), "value");
+            }
+        }
+
+        // register all the known settings (not that we do not register the unknown settings)
+        final Set<Setting<?>> knownSettings =
+                Stream.concat(
+                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+                        Stream.concat(archivedSettings.stream(), invalidSettings.stream()))
+                        .collect(Collectors.toSet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
+        final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
+        final MetaData.Builder metaDataBuilder =
+                MetaData.builder()
+                        .persistentSettings(existingPersistentSettings.build())
+                        .transientSettings(existingTransientSettings.build());
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metaData(metaDataBuilder).build();
+
+        final Settings.Builder persistentToApply = Settings.builder().put("archived.*", (String)null);
+        final Settings.Builder transientToApply = Settings.builder().put("archived.*", (String)null);
+
+        final ClusterState clusterStateAfterUpdate =
+                settingsUpdater.updateSettings(clusterState, transientToApply.build(), persistentToApply.build(), logger);
+
+        // existing archived settings are removed
+        for (final Setting<String> archivedSetting : archivedSettings) {
+            if (existingPersistentSettings.keys().contains(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())) {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                        not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())));
+            } else {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                        not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())));
+            }
+        }
+
+        // the invalid settings should be archived
+        for (final Setting<String> invalidSetting : invalidSettings) {
+            if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+            } else {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+            }
+        }
+
+        // the unknown settings should be archived
+        for (final Setting<String> unknownSetting : unknownSettings) {
+            if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+            } else {
+                assertThat(
+                        clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+            }
+        }
     }
 
 }

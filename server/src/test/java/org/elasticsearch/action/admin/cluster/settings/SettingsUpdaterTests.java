@@ -170,13 +170,14 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     public void testUpdateWithUnknownAndSettings() {
-        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::persistentSettings, MetaData::persistentSettings);
-        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::transientSettings, MetaData::transientSettings);
+        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::persistentSettings, MetaData::persistentSettings, false);
+        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::transientSettings, MetaData::transientSettings, true);
     }
 
     private void runUpdateWithUnknownAndInvalidSettingTest(
         final BiFunction<MetaData.Builder, Settings, MetaData.Builder> metaDataSettingsBuilder,
-        final Function<MetaData, Settings> settingsToTest) {
+        final Function<MetaData, Settings> settingsToTest,
+        final boolean applyTransient) {
         final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
         final Setting<String> invalidSetting = Setting.simpleString(
                 "invalid.setting",
@@ -200,7 +201,6 @@ public class SettingsUpdaterTests extends ESTestCase {
                         .metaData(metaDataSettingsBuilder.apply(MetaData.builder(), settings).build())
                         .build();
         final Settings toApply = Settings.builder().put("dynamic.setting", "value").build();
-        final boolean applyTransient = randomBoolean();
         final ClusterState clusterStateAfterUpdate;
         if (applyTransient) {
             clusterStateAfterUpdate = settingsUpdater.updateSettings(clusterState, toApply, Settings.EMPTY, logger);

@@ -115,7 +115,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta2) && in.getVersion().before(Version.V_6_3_0)) {
             /*
-             * Elasticsearch versions in [6.0.0-beta2, 7.0.0) allowed plugins to specify that they require the keystore and this was
+             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
              * serialized into the plugin info. Therefore, we have to read and ignore this value from the stream.
              */
             in.readBoolean();
@@ -140,7 +140,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta2) && out.getVersion().before(Version.V_6_3_0)) {
             /*
-             * Elasticsearch versions in [6.0.0-beta2, 7.0.0) allowed plugins to specify that they require the keystore and this was
+             * Elasticsearch versions in [6.0.0-beta2, 6.3.0) allowed plugins to specify that they require the keystore and this was
              * serialized into the plugin info. Therefore, we have to write out a value for this boolean.
              */
             out.writeBoolean(false);

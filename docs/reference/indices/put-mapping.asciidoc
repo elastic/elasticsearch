@@ -12,7 +12,7 @@ PUT twitter <1>
 PUT twitter/_mapping/_doc <2>
 {
   "properties": {
-    "name": {
+    "user": {
       "type": "text"
     }
   }

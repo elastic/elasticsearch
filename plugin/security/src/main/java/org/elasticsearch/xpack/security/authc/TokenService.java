@@ -1408,7 +1408,7 @@ public final class TokenService extends AbstractComponent {
                 try {
                     refreshMetaData(custom);
                 } catch (Exception e) {
-                    logger.warn(e);
+                    logger.warn("refreshing metadata failed", e);
                 }
                 logger.info("refreshed keys");
             }

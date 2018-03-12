@@ -48,21 +48,7 @@ public class DieWithDignityIT extends ESRestTestCase {
         assertThat(pidFileLines, hasSize(1));
         final int pid = Integer.parseInt(pidFileLines.get(0));
         Files.delete(pidFile);
-        final CountDownLatch latch = new CountDownLatch(1);
-        client().performRequestAsync("GET", "/_die_with_dignity", new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                assert false;
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                assertThat(exception, instanceOf(ConnectionClosedException.class));
-                latch.countDown();
-            }
-        });
-
-        latch.await();
+        expectThrows(ConnectionClosedException.class, () -> client().performRequest("GET", "/_die_with_dignity"));
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {

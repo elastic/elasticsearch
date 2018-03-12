@@ -54,12 +54,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Path configDir = createTempDir();
         Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb.gz")),
-                geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
-                geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb.gz")),
-            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
+                geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
+                geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
+            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb"));
 
         NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomNonNegativeLong()));
         databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, cache);
@@ -111,7 +111,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        config.put("database_file", "GeoLite2-Country.mmdb");
         String processorTag = randomAlphaOfLength(10);
 
         GeoIpProcessor processor = factory.create(null, processorTag, config);
@@ -129,7 +129,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
+        config.put("database_file", "GeoLite2-ASN.mmdb");
         String processorTag = randomAlphaOfLength(10);
 
         GeoIpProcessor processor = factory.create(null, processorTag, config);
@@ -157,7 +157,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        config.put("database_file", "GeoLite2-Country.mmdb");
         GeoIpProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
@@ -170,7 +170,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        config.put("database_file", "GeoLite2-Country.mmdb");
         EnumSet<GeoIpProcessor.Property> asnOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_ASN_PROPERTIES);
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
@@ -184,7 +184,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseReaders);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
+        config.put("database_file", "GeoLite2-ASN.mmdb");
         EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_CITY_PROPERTIES);
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
@@ -199,9 +199,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "does-not-exist.mmdb.gz");
+        config.put("database_file", "does-not-exist.mmdb");
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
-        assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb.gz] doesn't exist"));
+        assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
     }
 
     public void testBuildFields() throws Exception {
@@ -249,12 +249,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Path configDir = createTempDir();
         Path geoIpConfigDir = configDir.resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb.gz")),
-            geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
-            geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
-        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb.gz")),
-            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb.gz"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")),
+            geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")),
+            geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
+        Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-ASN.mmdb")),
+            geoIpConfigDir.resolve("GeoLite2-ASN.mmdb"));
 
         // Loading another database reader instances, because otherwise we can't test lazy loading as the
         // database readers used at class level are reused between tests. (we want to keep that otherwise running this
@@ -268,15 +268,15 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-City.mmdb.gz");
+        config.put("database_file", "GeoLite2-City.mmdb");
         factory.create(null, "_tag", config);
         config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-Country.mmdb.gz");
+        config.put("database_file", "GeoLite2-Country.mmdb");
         factory.create(null, "_tag", config);
         config = new HashMap<>();
         config.put("field", "_field");
-        config.put("database_file", "GeoLite2-ASN.mmdb.gz");
+        config.put("database_file", "GeoLite2-ASN.mmdb");
         factory.create(null, "_tag", config);
 
         for (DatabaseReaderLazyLoader lazyLoader : databaseReaders.values()) {

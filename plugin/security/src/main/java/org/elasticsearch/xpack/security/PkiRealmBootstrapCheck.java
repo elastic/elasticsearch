@@ -12,8 +12,11 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
@@ -22,9 +25,34 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 class PkiRealmBootstrapCheck implements BootstrapCheck {
 
     private final SSLService sslService;
+    private final List<SSLConfiguration> sslConfigurations;
 
-    PkiRealmBootstrapCheck(SSLService sslService) {
+    PkiRealmBootstrapCheck(Settings settings, SSLService sslService) {
         this.sslService = sslService;
+        this.sslConfigurations = loadSslConfigurations(settings);
+    }
+
+    /**
+     * {@link SSLConfiguration} may depend on {@link org.elasticsearch.common.settings.SecureSettings} that can only be read during startup.
+     * We need to preload these during component configuration.
+     */
+    private List<SSLConfiguration> loadSslConfigurations(Settings settings) {
+        final List<SSLConfiguration> list = new ArrayList<>();
+        if (HTTP_SSL_ENABLED.get(settings)) {
+            list.add(sslService.sslConfiguration(SSLService.getHttpTransportSSLSettings(settings), Settings.EMPTY));
+        }
+
+        if (XPackSettings.TRANSPORT_SSL_ENABLED.get(settings)) {
+            final Settings transportSslSettings = settings.getByPrefix(setting("transport.ssl."));
+            list.add(sslService.sslConfiguration(transportSslSettings, Settings.EMPTY));
+
+            settings.getGroups("transport.profiles.").values().stream()
+                    .map(SecurityNetty4Transport::profileSslSettings)
+                    .map(s -> sslService.sslConfiguration(s, transportSslSettings))
+                    .forEach(list::add);
+        }
+
+        return list;
     }
 
     /**
@@ -38,27 +66,8 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
                 .filter(s -> PkiRealmSettings.TYPE.equals(s.get("type")))
                 .anyMatch(s -> s.getAsBoolean("enabled", true));
         if (pkiRealmEnabled) {
-            // HTTP
-            final boolean httpSsl = HTTP_SSL_ENABLED.get(settings);
-            Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
-            final boolean httpClientAuth = sslService.isSSLClientAuthEnabled(httpSSLSettings);
-            if (httpSsl && httpClientAuth) {
-                return BootstrapCheckResult.success();
-            }
-
-            // Default Transport
-            final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
-            final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
-            final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-            if (transportSSLEnabled && clientAuthEnabled) {
-                return BootstrapCheckResult.success();
-            }
-
-            // Transport Profiles
-            Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
-            for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
-                if (transportSSLEnabled && sslService.isSSLClientAuthEnabled(
-                        SecurityNetty4Transport.profileSslSettings(entry.getValue()), transportSSLSettings)) {
+            for (SSLConfiguration configuration : this.sslConfigurations) {
+                if (sslService.isSSLClientAuthEnabled(configuration)) {
                     return BootstrapCheckResult.success();
                 }
             }

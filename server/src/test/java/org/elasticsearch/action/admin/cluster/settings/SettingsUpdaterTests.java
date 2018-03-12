@@ -30,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -169,12 +170,12 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     public void testUpdateWithUnknownAndSettings() {
-        runUpdateWithUnknownAndInvalidSettingTest(builder -> builder::persistentSettings, MetaData::persistentSettings);
-        runUpdateWithUnknownAndInvalidSettingTest(builder -> builder::transientSettings, MetaData::transientSettings);
+        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::persistentSettings, MetaData::persistentSettings);
+        runUpdateWithUnknownAndInvalidSettingTest(MetaData.Builder::transientSettings, MetaData::transientSettings);
     }
 
     private void runUpdateWithUnknownAndInvalidSettingTest(
-        final Function<MetaData.Builder, Function<Settings, MetaData.Builder>> function,
+        final BiFunction<MetaData.Builder, Settings, MetaData.Builder> metaDataSettingsBuilder,
         final Function<MetaData, Settings> settingsToTest) {
         final Setting<String> dynamicSetting = Setting.simpleString("dynamic.setting", Property.Dynamic, Property.NodeScope);
         final Setting<String> invalidSetting = Setting.simpleString(
@@ -196,7 +197,7 @@ public class SettingsUpdaterTests extends ESTestCase {
         final ClusterState clusterState =
                 ClusterState
                         .builder(new ClusterName("cluster"))
-                        .metaData(function.apply(MetaData.builder()).apply(settings).build())
+                        .metaData(metaDataSettingsBuilder.apply(MetaData.builder(), settings).build())
                         .build();
         final Settings toApply = Settings.builder().put("dynamic.setting", "value").build();
         final boolean applyTransient = randomBoolean();

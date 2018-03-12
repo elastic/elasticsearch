@@ -8,14 +8,6 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
-
-
-# Source the default env file
-ES_ENV_FILE="${path.env}"
-if [ -f "$ES_ENV_FILE" ]; then
-    . "$ES_ENV_FILE"
-fi
-
 IS_UPGRADE=false
 
 case "$1" in

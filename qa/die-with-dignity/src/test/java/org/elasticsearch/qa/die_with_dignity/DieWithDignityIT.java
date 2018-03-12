@@ -52,7 +52,7 @@ public class DieWithDignityIT extends ESRestTestCase {
 
         // the Elasticsearch process should die and disappear from the output of jps
         assertBusy(() -> {
-            final String jpsPath = PathUtils.get(System.getProperty("java.home"), "bin/jps").toString();
+            final String jpsPath = PathUtils.get(System.getProperty("runtime.java.home"), "bin/jps").toString();
             final Process process = new ProcessBuilder().command(jpsPath).start();
             assertThat(process.waitFor(), equalTo(0));
             try (InputStream is = process.getInputStream();

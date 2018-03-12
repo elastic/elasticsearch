@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -13,6 +15,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,25 +26,68 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     public static final String TYPE = "indices_stats";
 
-    private final IndicesStatsResponse indicesStats;
+    private final List<IndexStats> indicesStats;
 
     IndicesStatsMonitoringDoc(final String cluster,
                               final long timestamp,
                               final long intervalMillis,
                               final MonitoringDoc.Node node,
-                              final IndicesStatsResponse indicesStats) {
+                              final List<IndexStats> indicesStats) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
         this.indicesStats = Objects.requireNonNull(indicesStats);
     }
 
-    IndicesStatsResponse getIndicesStats() {
+    List<IndexStats> getIndicesStats() {
         return indicesStats;
     }
 
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        final CommonStats total = new CommonStats();
+        final CommonStats primaries = new CommonStats();
+
+        for (IndexStats indexStats : getIndicesStats()) {
+            final ShardStats[] shardsStats = indexStats.getShards();
+            if (shardsStats != null) {
+                for (ShardStats shard : indexStats.getShards()) {
+                    total.add(shard.getStats());
+                    if (shard.getShardRouting().primary()) {
+                        primaries.add(shard.getStats());
+                    }
+                }
+            }
+        }
+
         builder.startObject(TYPE);
-        indicesStats.toXContent(builder, params);
+        {
+            builder.startObject("_all");
+            {
+                builder.startObject("primaries");
+                primaries.toXContent(builder, params);
+                builder.endObject();
+
+                builder.startObject("total");
+                total.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.startObject("indices");
+            for (IndexStats indexStats : getIndicesStats()) {
+                builder.startObject(indexStats.getIndex());
+
+                builder.startObject("primaries");
+                indexStats.getPrimaries().toXContent(builder, params);
+                builder.endObject();
+
+                builder.startObject("total");
+                indexStats.getTotal().toXContent(builder, params);
+                builder.endObject();
+
+                builder.endObject();
+            }
+            builder.endObject();
+        }
         builder.endObject();
     }
 

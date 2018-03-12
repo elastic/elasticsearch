@@ -9,8 +9,6 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
-
-
 STOP_REQUIRED=false
 REMOVE_SERVICE=false
 
@@ -44,6 +42,11 @@ case "$1" in
     ;;
 esac
 
+ES_ENV_FILE="${path.env}"
+if [ -f "$ES_ENV_FILE" ]; then
+    . "$ES_ENV_FILE"
+fi
+
 # Stops the service
 if [ "$STOP_REQUIRED" = "true" ]; then
     echo -n "Stopping elasticsearch service..."
@@ -67,6 +70,12 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     echo " OK"
 fi
 
+if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ]; then
+  if md5sum --status -c "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum; then
+    rm "$ES_PATH_CONF"/elasticsearch.keystore "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum
+  fi
+fi
+
 if [ "$REMOVE_SERVICE" = "true" ]; then
     if command -v systemctl >/dev/null; then
         systemctl disable elasticsearch.service > /dev/null 2>&1 || true
@@ -80,6 +89,5 @@ if [ "$REMOVE_SERVICE" = "true" ]; then
         update-rc.d elasticsearch remove >/dev/null || true
     fi
 fi
-
 
 ${scripts.footer}

@@ -28,7 +28,7 @@ DEFAULT_PACKAGE_USER=root
 DEFAULT_PACKAGE_ESHOME="/usr/share/elasticsearch"
 DEFAULT_PACKAGE_UTILS=$BATS_UTILS/packages.bash
 
-if [[ "$BATS_TEST_FILENAME" =~ 60_tar_certgen.bats$ ]]; then
+if [[ "$BATS_TEST_FILENAME" =~ 40_tar_certgen.bats$ ]]; then
     GROUP='TAR CERTGEN'
 
     MASTER_USER=$DEFAULT_ARCHIVE_USER
@@ -153,6 +153,9 @@ start_node_using_package() {
     # and restart the node once ssl/tls is configured. Or use setup-passwords over
     # HTTPS with the right cacerts imported into a Java keystore.
     run sudo -E -u $MASTER_USER sh <<"NEW_PASS"
+if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
+    $ESHOME/bin/elasticsearch-keystore create
+fi
 echo "changeme" | $ESHOME/bin/elasticsearch-keystore add --stdin bootstrap.password
 NEW_PASS
     [ "$status" -eq 0 ] || {

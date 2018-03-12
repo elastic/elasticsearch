@@ -19,7 +19,7 @@ setup() {
     fi
 }
 
-if [[ "$BATS_TEST_FILENAME" =~ 40_tar_bootstrap_password.bats$ ]]; then
+if [[ "$BATS_TEST_FILENAME" =~ 20_tar_bootstrap_password.bats$ ]]; then
     load $BATS_UTILS/tar.bash
     GROUP='TAR BOOTSTRAP PASSWORD'
     install() {
@@ -50,6 +50,9 @@ fi
     fi
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NEW_PASS"
+if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
+    $ESHOME/bin/elasticsearch-keystore create
+fi
 cat /dev/urandom | tr -dc "[a-zA-Z0-9]" | fold -w 20 | head -n 1 > /tmp/bootstrap.password
 cat /tmp/bootstrap.password | $ESHOME/bin/elasticsearch-keystore add --stdin bootstrap.password
 NEW_PASS

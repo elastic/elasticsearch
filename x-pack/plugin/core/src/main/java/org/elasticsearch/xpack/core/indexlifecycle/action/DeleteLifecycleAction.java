@@ -58,14 +58,6 @@ public class DeleteLifecycleAction
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            addAcknowledgedField(builder);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public void readFrom(StreamInput in) throws IOException {
             readAcknowledged(in);
         }

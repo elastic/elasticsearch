@@ -40,7 +40,7 @@ public class LicensingClient {
         client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
 
-    public PostStartTrialRequestBuilder preparePutUpgradeToTrial() {
+    public PostStartTrialRequestBuilder preparePostUpgradeToTrial() {
         return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
     }
 
@@ -48,7 +48,19 @@ public class LicensingClient {
         return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
     }
 
-    public void putUpgradeToTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
+    public void postUpgradeToTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
         client.execute(PostStartTrialAction.INSTANCE, request, listener);
+    }
+
+    public void postStartBasic(PostStartBasicRequest request, ActionListener<PostStartBasicResponse> listener) {
+        client.execute(PostStartBasicAction.INSTANCE, request, listener);
+    }
+
+    public PostStartBasicRequestBuilder preparePostStartBasic() {
+        return new PostStartBasicRequestBuilder(client, PostStartBasicAction.INSTANCE);
+    }
+
+    public GetBasicStatusRequestBuilder prepareGetStartBasic() {
+        return new GetBasicStatusRequestBuilder(client, GetBasicStatusAction.INSTANCE);
     }
 }

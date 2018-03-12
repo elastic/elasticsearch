@@ -25,7 +25,7 @@ import java.util.Collection;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
-public class UpgradeToTrialTests extends AbstractLicensesIntegrationTestCase {
+public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

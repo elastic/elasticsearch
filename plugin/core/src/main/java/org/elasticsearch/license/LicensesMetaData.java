@@ -188,6 +188,18 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
         return readDiffFrom(MetaData.Custom.class, TYPE, streamInput);
     }
 
+    public static License extractLicense(LicensesMetaData licensesMetaData) {
+        if (licensesMetaData != null) {
+            License license = licensesMetaData.getLicense();
+            if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
+                return null;
+            } else {
+                return license;
+            }
+        }
+        return null;
+    }
+
     @Override
     public LicensesMetaData merge(LicensesMetaData other) {
         if (other.license == null) {

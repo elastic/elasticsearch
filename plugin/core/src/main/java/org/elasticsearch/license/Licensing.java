@@ -65,7 +65,9 @@ public class Licensing implements ActionPlugin {
                 new ActionHandler<>(GetLicenseAction.INSTANCE, TransportGetLicenseAction.class),
                 new ActionHandler<>(DeleteLicenseAction.INSTANCE, TransportDeleteLicenseAction.class),
                 new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class),
-                new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class));
+                new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class),
+                new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class),
+                new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
     }
 
     @Override
@@ -77,7 +79,9 @@ public class Licensing implements ActionPlugin {
         handlers.add(new RestPutLicenseAction(settings, restController));
         handlers.add(new RestDeleteLicenseAction(settings, restController));
         handlers.add(new RestGetTrialStatus(settings, restController));
+        handlers.add(new RestGetBasicStatus(settings, restController));
         handlers.add(new RestPostStartTrialLicense(settings, restController));
+        handlers.add(new RestPostStartBasicLicense(settings, restController));
         return handlers;
     }
 

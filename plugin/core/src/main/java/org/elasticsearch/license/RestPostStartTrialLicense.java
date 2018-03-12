@@ -29,7 +29,7 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
 
     @Override
     protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        return channel -> client.licensing().preparePutUpgradeToTrial().execute(
+        return channel -> client.licensing().preparePostUpgradeToTrial().execute(
                 new RestBuilderListener<PostStartTrialResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(PostStartTrialResponse response, XContentBuilder builder) throws Exception {

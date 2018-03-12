@@ -5,6 +5,8 @@
  * be called "proto" there.
  */
 
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
 apply plugin: 'elasticsearch.build'
 
 description = 'Request and response objects shared by the cli, jdbc ' +
@@ -27,6 +29,11 @@ dependencies {
     runtime "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
     testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+forbiddenApisMain {
+    //sql does not depend on server, so only jdk signatures should be checked
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
 }
 
 dependencyLicenses {

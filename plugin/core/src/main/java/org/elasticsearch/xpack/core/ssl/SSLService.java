@@ -274,6 +274,13 @@ public class SSLService extends AbstractComponent {
      */
     public boolean isSSLClientAuthEnabled(Settings settings, Settings fallback) {
         SSLConfiguration sslConfiguration = sslConfiguration(settings, fallback);
+        return isSSLClientAuthEnabled(sslConfiguration);
+    }
+
+    /**
+     * Indicates whether client authentication is enabled for a particular configuration
+     */
+    public boolean isSSLClientAuthEnabled(SSLConfiguration sslConfiguration) {
         return sslConfiguration.sslClientAuth().enabled();
     }
 

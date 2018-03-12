@@ -7,13 +7,11 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -29,35 +27,37 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.action.admin.indices.stats.IndicesStatsResponseTestUtils.newIndicesStatsResponse;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<IndicesStatsMonitoringDoc> {
 
-    private IndicesStatsResponse indicesStatsResponse;
+    private List<IndexStats> indicesStats;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        indicesStatsResponse = mock(IndicesStatsResponse.class);
-        when(indicesStatsResponse.toXContent(any(XContentBuilder.class), any(ToXContent.Params.class))).thenCallRealMethod();
-        when(indicesStatsResponse.getPrimaries()).thenReturn(mockCommonStats());
-        when(indicesStatsResponse.getTotal()).thenReturn(mockCommonStats());
+        indicesStats = Collections.singletonList(new IndexStats("index-0", new ShardStats[] {
+                // Primaries
+                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null),
+                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null),
+                // Replica
+                new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null)
+        }));
     }
 
     @Override
     protected IndicesStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
                                                             MonitoredSystem system, String type, String id) {
-        return new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, indicesStatsResponse);
+        return new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, indicesStats);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         assertThat(document.getType(), is(IndicesStatsMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
 
-        assertThat(document.getIndicesStats(), is(indicesStatsResponse));
+        assertThat(document.getIndicesStats(), is(indicesStats));
     }
 
     @Override
@@ -81,18 +81,8 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     @Override
     public void testToXContent() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-
-        final ShardStats[] shards = new ShardStats[] {
-                // Primaries
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null),
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null),
-                // Replica
-                new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null)
-        };
-        final IndicesStatsResponse indicesStatsResponse = newIndicesStatsResponse(shards, -1, -1, -1, emptyList());
-
         final IndicesStatsMonitoringDoc document =
-                new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStatsResponse);
+                new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStats);
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"

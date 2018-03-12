@@ -10,8 +10,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +58,7 @@ public class IndexStatsCollector extends Collector {
                                                   final long interval,
                                                   final ClusterState clusterState) throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>();
-        final IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
+        final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats()
                 .setIndices(getCollectionIndices())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .clear()
@@ -76,18 +76,23 @@ public class IndexStatsCollector extends Collector {
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);
+        final MetaData metadata = clusterState.metaData();
+        final RoutingTable routingTable = clusterState.routingTable();
 
-        // add the indices stats that we use to collect the index stats
-        results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));
+        // Filters the indices stats to only return the statistics for the indices known by the collector's
+        // local cluster state. This way indices/index/shards stats all share a common view of indices state.
+        final List<IndexStats> indicesStats = new ArrayList<>();
+        for (final String indexName : metadata.getConcreteAllIndices()) {
+            final IndexStats indexStats = indicesStatsResponse.getIndex(indexName);
+            if (indexStats != null) {
+                // The index appears both in the local cluster state and indices stats response
+                indicesStats.add(indexStats);
 
-        // collect each index stats document
-        for (final IndexStats indexStats : indicesStats.getIndices().values()) {
-            final String index = indexStats.getIndex();
-            final IndexMetaData metaData = clusterState.metaData().index(index);
-            final IndexRoutingTable routingTable = clusterState.routingTable().index(index);
-
-            results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats, metaData, routingTable));
+                results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats,
+                        metadata.index(indexName), routingTable.index(indexName)));
+            }
         }
+        results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));
 
         return Collections.unmodifiableCollection(results);
     }

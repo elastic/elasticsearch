@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -86,9 +89,18 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final RoutingTable routingTable = mock(RoutingTable.class);
         when(clusterState.routingTable()).thenReturn(routingTable);
 
+        final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        final int indices = randomIntBetween(0, 10);
+        // Number of indices that exist in the cluster state and returned in the IndicesStatsResponse
+        final int existingIndices = randomIntBetween(0, 10);
+        // Number of indices returned in the IndicesStatsResponse only
+        final int createdIndices = randomIntBetween(0, 10);
+        // Number of indices returned in the local cluster state only
+        final int deletedIndices = randomIntBetween(0, 10);
+        // Total number of indices
+        final int indices = existingIndices + createdIndices + deletedIndices;
+
         final Map<String, IndexStats> indicesStats = new HashMap<>(indices);
         final Map<String, IndexMetaData> indicesMetaData = new HashMap<>(indices);
         final Map<String, IndexRoutingTable> indicesRoutingTable = new HashMap<>(indices);
@@ -96,20 +108,29 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         for (int i = 0; i < indices; i++) {
             final String index = "_index_" + i;
             final IndexStats indexStats = mock(IndexStats.class);
+            when(indexStats.getIndex()).thenReturn(index);
+
             final IndexMetaData indexMetaData = mock(IndexMetaData.class);
             final IndexRoutingTable indexRoutingTable = mock(IndexRoutingTable.class);
 
-            indicesStats.put(index, indexStats);
-            indicesMetaData.put(index, indexMetaData);
-            indicesRoutingTable.put(index, indexRoutingTable);
+            if (i < (createdIndices + existingIndices)) {
+                when(indicesStatsResponse.getIndex(index)).thenReturn(indexStats);
+            }
+            if (i >= createdIndices) {
+                indicesMetaData.put(index, indexMetaData);
+                when(metaData.index(index)).thenReturn(indexMetaData);
 
-            when(indexStats.getIndex()).thenReturn(index);
-            when(metaData.index(index)).thenReturn(indexMetaData);
-            when(routingTable.index(index)).thenReturn(indexRoutingTable);
+                indicesRoutingTable.put(index, indexRoutingTable);
+                when(routingTable.index(index)).thenReturn(indexRoutingTable);
+
+                if (i < (createdIndices + existingIndices)) {
+                    indicesStats.put(index, indexStats);
+                }
+            }
         }
 
-        final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
-        when(indicesStatsResponse.getIndices()).thenReturn(indicesStats);
+        final String[] indexNames = indicesMetaData.keySet().toArray(new String[0]);
+        when(metaData.getConcreteAllIndices()).thenReturn(indexNames);
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
                 spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
@@ -131,11 +152,13 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
         verify(indicesAdminClient).prepareStats();
-        verify(clusterState, times(1 + indices)).metaData();
-        verify(clusterState, times(indices)).routingTable();
+
+        verify(indicesStatsResponse, times(existingIndices + deletedIndices)).getIndex(anyString());
+        verify(metaData, times(existingIndices)).index(anyString());
+        verify(routingTable, times(existingIndices)).index(anyString());
         verify(metaData).clusterUUID();
 
-        assertEquals(1 + indices, results.size());
+        assertEquals(1 + existingIndices, results.size());
 
         for (final MonitoringDoc document : results) {
             assertThat(document.getCluster(), equalTo(clusterUUID));
@@ -147,7 +170,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
             if (document instanceof IndicesStatsMonitoringDoc) {
                 assertThat(document.getType(), equalTo(IndicesStatsMonitoringDoc.TYPE));
-                assertThat(((IndicesStatsMonitoringDoc) document).getIndicesStats(), is(indicesStatsResponse));
+                final List<IndexStats> actualIndicesStats = ((IndicesStatsMonitoringDoc) document).getIndicesStats();
+                actualIndicesStats.forEach((value) -> assertThat(value, is(indicesStats.get(value.getIndex()))));
+                assertThat(actualIndicesStats.size(), equalTo(indicesStats.size()));
             } else {
                 assertThat(document.getType(), equalTo(IndexStatsMonitoringDoc.TYPE));
 

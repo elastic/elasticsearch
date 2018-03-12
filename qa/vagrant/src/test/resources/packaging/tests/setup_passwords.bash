@@ -20,7 +20,7 @@ setup() {
 }
 
 
-if [[ "$BATS_TEST_FILENAME" =~ 50_tar_setup_passwords.bats$ ]]; then
+if [[ "$BATS_TEST_FILENAME" =~ 30_tar_setup_passwords.bats$ ]]; then
     load $BATS_UTILS/tar.bash
     GROUP='TAR SETUP PASSWORD'
     install() {

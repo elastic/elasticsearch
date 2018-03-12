@@ -69,9 +69,6 @@ verify_xpack_installation() {
     done
     assert_number_of_files "$ESCONFIG/$name/" $configFilesCount
 
-    # Verify keystore creation
-    assert_file "$ESCONFIG/elasticsearch.keystore" f $user elasticsearch 660
-
     # Read the $name.expected file that contains all the expected
     # plugins for the meta plugin
     while read plugin; do

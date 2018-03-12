@@ -29,8 +29,8 @@ public class ShardChangesRequestTests extends AbstractStreamableTestCase<ShardCh
 
     public void testValidate() {
         ShardChangesAction.Request request = new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0));
-        request.setMinSeqNo(SequenceNumbers.UNASSIGNED_SEQ_NO);
-        assertThat(request.validate().getMessage(), containsString("minSeqNo cannot be unassigned"));
+        request.setMinSeqNo(-1);
+        assertThat(request.validate().getMessage(), containsString("minSeqNo [-1] cannot be lower than 0"));
 
         request.setMinSeqNo(4);
         assertThat(request.validate().getMessage(), containsString("minSeqNo [4] cannot be larger than maxSeqNo [0]"));

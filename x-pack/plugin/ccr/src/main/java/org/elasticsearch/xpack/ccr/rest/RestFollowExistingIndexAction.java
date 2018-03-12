@@ -48,6 +48,10 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
         if (restRequest.hasParam(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())) {
             request.setConcurrentProcessors(Integer.valueOf(restRequest.param(ShardFollowTask.NUM_CONCURRENT_CHUNKS.getPreferredName())));
         }
+        if (restRequest.hasParam(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName())) {
+            long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
+            request.setProcessorMaxTranslogBytes(value);
+        }
         return channel -> client.execute(INSTANCE, request, new RestBuilderListener<Response>(channel) {
             @Override
             public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {

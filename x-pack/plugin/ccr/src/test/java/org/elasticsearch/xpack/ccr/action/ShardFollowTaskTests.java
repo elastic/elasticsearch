@@ -24,8 +24,8 @@ public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollo
         return new ShardFollowTask(
                 new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomInt(5)),
                 new ShardId(randomAlphaOfLength(4), randomAlphaOfLength(4), randomInt(5)),
-                randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(1, Integer.MAX_VALUE)
-        );
+                randomIntBetween(1, Integer.MAX_VALUE), randomIntBetween(1, Integer.MAX_VALUE),
+                randomIntBetween(1, Integer.MAX_VALUE));
     }
 
     @Override

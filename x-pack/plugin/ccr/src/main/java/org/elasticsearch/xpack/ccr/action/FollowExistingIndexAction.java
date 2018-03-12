@@ -59,6 +59,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
         private String followIndex;
         private long batchSize = ShardFollowTasksExecutor.DEFAULT_BATCH_SIZE;
         private int concurrentProcessors = ShardFollowTasksExecutor.DEFAULT_CONCURRENT_PROCESSORS;
+        private long processorMaxTranslogBytes = ShardFollowTasksExecutor.DEFAULT_MAX_TRANSLOG_BYTES;
 
         public String getLeaderIndex() {
             return leaderIndex;
@@ -88,15 +89,18 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             this.batchSize = batchSize;
         }
 
-        public int getConcurrentProcessors() {
-            return concurrentProcessors;
-        }
-
         public void setConcurrentProcessors(int concurrentProcessors) {
             if (concurrentProcessors < 1) {
                 throw new IllegalArgumentException("concurrent_processors must be larger than 0");
             }
             this.concurrentProcessors = concurrentProcessors;
+        }
+
+        public void setProcessorMaxTranslogBytes(long processorMaxTranslogBytes) {
+            if (processorMaxTranslogBytes <= 0) {
+                throw new IllegalArgumentException("processor_max_translog_bytes must be larger than 0");
+            }
+            this.processorMaxTranslogBytes = processorMaxTranslogBytes;
         }
 
         @Override
@@ -110,6 +114,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             leaderIndex = in.readString();
             followIndex = in.readString();
             batchSize = in.readVLong();
+            processorMaxTranslogBytes = in.readVLong();
         }
 
         @Override
@@ -118,6 +123,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
             out.writeString(leaderIndex);
             out.writeString(followIndex);
             out.writeVLong(batchSize);
+            out.writeVLong(processorMaxTranslogBytes);
         }
     }
 
@@ -182,7 +188,8 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                         final int shardId = i;
                         String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
                         ShardFollowTask shardFollowTask =  new ShardFollowTask(new ShardId(followIndexMetadata.getIndex(), shardId),
-                                new ShardId(leaderIndexMetadata.getIndex(), shardId), request.batchSize, request.concurrentProcessors);
+                                new ShardId(leaderIndexMetadata.getIndex(), shardId), request.batchSize, request.concurrentProcessors,
+                                request.processorMaxTranslogBytes);
                         persistentTasksService.startPersistentTask(taskId, ShardFollowTask.NAME, shardFollowTask,
                                 new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
                             @Override

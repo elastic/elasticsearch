@@ -150,7 +150,7 @@ Returns this:
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
-      "language": "ro",
+      "language": "sl",
       "content": "Lorem ipsum",
       "content_length": 11
     }
@@ -162,6 +162,19 @@ Returns this:
 
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "indexed_chars" : 11,
+        "indexed_chars_field" : "max_size"
+      }
+    }
+  ]
+}
 PUT my_index/_doc/my_id_2?pipeline=attachment
 {
   "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
@@ -185,7 +198,7 @@ Returns this:
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
-      "language": "ro",
+      "language": "sl",
       "content": "Lorem",
       "content_length": 5
     }

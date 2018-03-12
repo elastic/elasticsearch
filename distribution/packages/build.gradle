@@ -217,7 +217,7 @@ task buildDeb(type: Deb) {
   dependsOn processDebFiles
   configure(commonPackageConfig('deb'))
 
-  version = project.version
+  version = project.version.replace('-', '~')
   packageGroup 'web'
   requires 'bash'
   requires 'libc6'

@@ -24,10 +24,6 @@ esplugin {
     classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 
-integTestCluster {
-
-}
-
 integTestRunner {
     systemProperty 'tests.security.manager', 'false'
     systemProperty 'tests.system_call_filter', 'false'

@@ -327,12 +327,8 @@ public final class InternalAutoDateHistogram extends
                 if (reduceRounding.round(top.current.key) != key) {
                     // the key changes, reduce what we already buffered and reset the buffer for current buckets
                     final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
-                    if (reduceContext.isFinalReduce() == false) {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                        reducedBuckets.add(reduced);
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
-                    }
+                    reduceContext.consumeBucketsAndMaybeBreak(1);
+                    reducedBuckets.add(reduced);
                     currentBuckets.clear();
                     key = reduceRounding.round(top.current.key);
                 }
@@ -351,12 +347,8 @@ public final class InternalAutoDateHistogram extends
 
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = currentBuckets.get(0).reduce(currentBuckets, reduceRounding, reduceContext);
-                if (reduceContext.isFinalReduce() == false) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
-                    reducedBuckets.add(reduced);
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
-                }
+                reduceContext.consumeBucketsAndMaybeBreak(1);
+                reducedBuckets.add(reduced);
             }
         }
 
@@ -382,17 +374,22 @@ public final class InternalAutoDateHistogram extends
             long roundedBucketKey = reduceRounding.round(bucket.key);
             if (Double.isNaN(key)) {
                 key = roundedBucketKey;
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
                 sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
             } else if (roundedBucketKey == key) {
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
                 sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
             } else {
+                reduceContext.consumeBucketsAndMaybeBreak(1);
                 mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, reduceRounding, reduceContext));
                 sameKeyedBuckets.clear();
                 key = roundedBucketKey;
+                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(bucket) - 1);
                 sameKeyedBuckets.add(createBucket(key, bucket.docCount, bucket.aggregations));
             }
         }
         if (sameKeyedBuckets.isEmpty() == false) {
+            reduceContext.consumeBucketsAndMaybeBreak(1);
             mergedBuckets.add(sameKeyedBuckets.get(0).reduce(sameKeyedBuckets, reduceRounding, reduceContext));
         }
         reducedBuckets = mergedBuckets;

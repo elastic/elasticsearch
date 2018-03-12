@@ -22,8 +22,8 @@ public class DeleteLifecycleRequestTests extends AbstractStreamableTestCase<Dele
     }
 
     @Override
-    protected MutateFunction<Request> getMutateFunction() {
-        return resp -> new Request(resp.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
+    protected Request mutateInstance(Request request) {
+        return new Request(request.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
     }
 
 }

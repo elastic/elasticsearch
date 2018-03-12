@@ -74,26 +74,24 @@ public class PutLifecycleRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected MutateFunction<Request> getMutateFunction() {
-        return resp -> {
-            LifecyclePolicy policy = resp.getPolicy();
-            String name = policy.getName();
-            Map<String, Phase> phases = policy.getPhases();
-            switch (between(0, 1)) {
-                case 0:
-                    name = name + randomAlphaOfLengthBetween(1, 5);
-                    break;
-                case 1:
-                    phases = new HashMap<>(phases);
-                    String newPhaseName = randomAlphaOfLengthBetween(1, 10);
-                    phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
-                        Collections.emptyMap()));
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
-            }
-            return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases));
-        };
+    protected Request mutateInstance(Request request) {
+        LifecyclePolicy policy = request.getPolicy();
+        String name = policy.getName();
+        Map<String, Phase> phases = policy.getPhases();
+        switch (between(0, 1)) {
+            case 0:
+                name = name + randomAlphaOfLengthBetween(1, 5);
+                break;
+            case 1:
+                phases = new HashMap<>(phases);
+                String newPhaseName = randomAlphaOfLengthBetween(1, 10);
+                phases.put(name, new Phase(newPhaseName, TimeValue.timeValueSeconds(randomIntBetween(1, 1000)),
+                    Collections.emptyMap()));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Request(new LifecyclePolicy(TestLifecycleType.INSTANCE, name, phases));
     }
 
 }

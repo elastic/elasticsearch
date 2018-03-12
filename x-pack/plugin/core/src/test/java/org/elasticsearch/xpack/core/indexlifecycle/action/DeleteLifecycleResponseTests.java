@@ -22,8 +22,8 @@ public class DeleteLifecycleResponseTests extends AbstractStreamableTestCase<Del
     }
 
     @Override
-    protected MutateFunction<Response> getMutateFunction() {
-        return resp -> new Response(resp.isAcknowledged() == false);
+    protected Response mutateInstance(Response response) {
+        return new Response(response.isAcknowledged() == false);
     }
 
 }

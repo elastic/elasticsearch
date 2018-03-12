@@ -44,6 +44,11 @@ case "$1" in
     ;;
 esac
 
+ES_ENV_FILE="${path.env}"
+if [ -f "$ES_ENV_FILE" ]; then
+    . "$ES_ENV_FILE"
+fi
+
 # Stops the service
 if [ "$STOP_REQUIRED" = "true" ]; then
     echo -n "Stopping elasticsearch service..."
@@ -65,6 +70,12 @@ if [ "$STOP_REQUIRED" = "true" ]; then
         /etc/rc.d/init.d/elasticsearch stop
     fi
     echo " OK"
+fi
+
+if [ -f "$ES_PATH_CONF"/elasticsearch.keystore ]; then
+  if md5sum --status -c "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum; then
+    rm "$ES_PATH_CONF"/elasticsearch.keystore "$ES_PATH_CONF"/.elasticsearch.keystore.initial_md5sum
+  fi
 fi
 
 if [ "$REMOVE_SERVICE" = "true" ]; then

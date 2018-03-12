@@ -46,7 +46,8 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
     }
 
     @Override
-    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException {
+    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue,
+                         LeafReaderContext context, boolean fillDocIdSet) throws IOException {
         final PointValues values = context.reader().getPointValues(field);
         if (values == null) {
             // no value for the field

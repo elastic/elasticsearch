@@ -221,7 +221,7 @@ public class SettingsUpdaterTests extends ESTestCase {
             }
         }
 
-        // register all the known settings (not that we do not register the unknown settings)
+        // register all the known settings (note that we do not register the unknown settings)
         final Set<Setting<?>> knownSettings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),

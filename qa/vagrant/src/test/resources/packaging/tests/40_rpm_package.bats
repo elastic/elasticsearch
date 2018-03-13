@@ -155,6 +155,7 @@ setup() {
 }
 
 @test "[RPM] reremove package" {
+    echo foobar | "$ESHOME/bin/elasticsearch-keystore" add --stdin foo.bar
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
     echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
@@ -181,6 +182,7 @@ setup() {
     assert_file_not_exist "/usr/share/elasticsearch/modules"
     assert_file_not_exist "/usr/share/elasticsearch/modules/lang-painless"
 
+    assert_file_exist "/etc/elasticsearch/elasticsearch.keystore"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"

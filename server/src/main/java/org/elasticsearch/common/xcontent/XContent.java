@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -51,7 +49,7 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"), true);
     }
 
     /**

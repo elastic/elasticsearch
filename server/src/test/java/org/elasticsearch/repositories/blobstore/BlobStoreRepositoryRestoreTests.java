@@ -20,7 +20,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;

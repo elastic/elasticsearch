@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import java.io.IOException;
+import org.elasticsearch.cli.UserException;
 
 /**
  * Represents a terminal endpoint
@@ -49,11 +50,20 @@ public interface CliTerminal extends AutoCloseable {
 
     /**
      * Prompts the user to enter the password and returns it.
+     *
+     * @throws UserException if there is a problem reading the password,
+     *      for instance, the user {@code ctrl-c}s while we're waiting
+     *      or they send an EOF
+     * @return the password the user typed, never null
      */
-    String readPassword(String prompt);
+    String readPassword(String prompt) throws UserException;
 
     /**
      * Reads the line from the terminal.
+     *
+     * @return {@code null} if the user closes the terminal while we're
+     * waiting for the line, {@code ""} if the use {@code ctrl-c}s while
+     * we're waiting, the line they typed otherwise
      */
     String readLine(String prompt);
 

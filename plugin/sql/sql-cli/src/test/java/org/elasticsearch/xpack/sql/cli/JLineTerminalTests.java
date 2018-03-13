@@ -5,50 +5,109 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
+import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
+import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
 import java.io.IOException;
 
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 public class JLineTerminalTests extends ESTestCase {
-    public void testReadPasswordSuccess() throws IOException {
-        Terminal wrapped = mock(Terminal.class);
-        LineReader reader = mock(LineReader.class);
+    private final Terminal wrapped = mock(Terminal.class);
+    private final LineReader reader = mock(LineReader.class);
+
+    public void testDisableMatchBracket() throws IOException {
+        new JLineTerminal(wrapped, reader, false).close();
+        verify(reader).setVariable(LineReader.BLINK_MATCHING_PAREN, 0L);
+    }
+
+    public void testReadPasswordSuccess() throws IOException, UserException {
+        String prompt = randomAlphaOfLength(5);
+        String expected = randomAlphaOfLength(5);
+        when(reader.readLine(prompt, (char) 0)).thenReturn(expected);
 
         try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
-            String prompt = randomAlphaOfLength(5);
-
-            String expected = randomAlphaOfLength(5);
-            when(reader.readLine(prompt, null, (char) 0, null)).thenReturn(expected);
             String actual = terminal.readPassword(prompt);
 
             assertEquals(expected, actual);
-            verify(reader).readLine(prompt, null, (char) 0, null);
         }
     }
 
-    public void testReadPasswordEof() throws IOException {
-        Terminal wrapped = mock(Terminal.class);
-        LineReader reader = mock(LineReader.class);
+    public void testReadPasswordNull() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        /*
+         * jLine documents readLine as not being able to return null but
+         * LineReader totally does sometimes. We should interpret that as
+         * "user hit ctrl-d on the password prompt" because that is similar
+         * to the situations where this comes up.
+         */
+        when(reader.readLine(prompt, (char) 0)).thenReturn(null);
 
         try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
-            String prompt = randomAlphaOfLength(5);
-
-            Exception e = expectThrows(FatalCliException.class, () -> terminal.readPassword(prompt));
-            assertEquals("Error reading password, terminal is closed", e.getMessage());
-
-            verify(reader).readLine(prompt, null, (char) 0, null);
+            UserException e = expectThrows(UserException.class, () -> terminal.readPassword(prompt));
+            assertEquals(ExitCodes.NOPERM, e.exitCode);
+            assertEquals("password required", e.getMessage());
         }
     }
 
-    public void testDisableMatchBracket() throws IOException {
-        Terminal wrapped = mock(Terminal.class);
-        LineReader reader = mock(LineReader.class);
-        new JLineTerminal(wrapped, reader, false).close();
-        verify(reader).setVariable(LineReader.BLINK_MATCHING_PAREN, 0L);
+    public void testReadPasswordInterrupted() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        when(reader.readLine(prompt, (char) 0)).thenThrow(new UserInterruptException(""));
+
+        try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
+            UserException e = expectThrows(UserException.class, () -> terminal.readPassword(prompt));
+            assertEquals(ExitCodes.NOPERM, e.exitCode);
+            assertEquals("password required", e.getMessage());
+        }
+    }
+
+    public void testReadPasswordClosed() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        when(reader.readLine(prompt, (char) 0)).thenThrow(new EndOfFileException(""));
+
+        try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
+            UserException e = expectThrows(UserException.class, () -> terminal.readPassword(prompt));
+            assertEquals(ExitCodes.NOPERM, e.exitCode);
+            assertEquals("password required", e.getMessage());
+        }
+    }
+
+    public void testReadLineSuccess() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        String expected = randomAlphaOfLength(5);
+        when(reader.readLine(any(String.class))).thenReturn(expected);
+
+        try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
+            String actual = terminal.readLine(prompt);
+
+            assertEquals(expected, actual);
+        }
+    }
+
+    public void testReadLineInterrupted() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        when(reader.readLine(any(String.class))).thenThrow(new UserInterruptException(""));
+
+        try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
+            assertEquals("", terminal.readLine(prompt));
+        }
+    }
+
+    public void testReadLineClosed() throws IOException {
+        String prompt = randomAlphaOfLength(5);
+        when(reader.readLine(any(String.class))).thenThrow(new EndOfFileException(""));
+
+        try (JLineTerminal terminal = new JLineTerminal(wrapped, reader, randomBoolean())) {
+            assertEquals(null, terminal.readLine(prompt));
+        }
     }
 }

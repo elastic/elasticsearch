@@ -32,7 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Utilities for handling {@link Closeable}s. Borrowed heavily from Lucene (org.apache.lucene.util.IOUtils).
+ * Utilities for common I/O methods. Borrowed heavily from Lucene (org.apache.lucene.util.IOUtils).
  */
 public final class IOUtils {
 

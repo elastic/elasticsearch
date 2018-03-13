@@ -1023,7 +1023,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
             assertEquals("Unknown Object [unknown]", e.getMessage());
             assertEquals("java.lang.Object", e.getCategoryClass());

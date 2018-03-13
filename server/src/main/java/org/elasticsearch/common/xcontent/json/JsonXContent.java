@@ -23,7 +23,6 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -36,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.Set;
 
 /**
@@ -82,7 +82,7 @@ public class JsonXContent implements XContent {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new FastStringReader(content)));
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(new StringReader(content)));
     }
 
     @Override

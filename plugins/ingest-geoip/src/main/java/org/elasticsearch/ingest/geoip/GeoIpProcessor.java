@@ -37,7 +37,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -68,8 +67,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final boolean ignoreMissing;
 
-    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties,
-                   boolean ignoreMissing) throws IOException {
+    GeoIpProcessor(String tag, String field, DatabaseReader dbReader, String targetField, Set<Property> properties, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
@@ -323,7 +321,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                                        Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 

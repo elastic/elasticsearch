@@ -226,13 +226,16 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        if (keystore == null) {
-            return null; // no keystore
-        }
 
         try {
-            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-            KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
+            if (keystore == null) {
+                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
+                return keyStoreWrapper;
+            } else {
+                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
+                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
+            }
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

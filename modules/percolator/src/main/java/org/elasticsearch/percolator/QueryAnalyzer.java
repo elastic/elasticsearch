@@ -465,12 +465,17 @@ final class QueryAnalyzer {
         return (query, version) -> {
             FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
             Result result = analyze(functionScoreQuery.getSubQuery(), version);
+
             // If min_score is specified we can't guarantee upfront that this percolator query matches,
             // so in that case we set verified to false.
             // (if it matches with the percolator document matches with the extracted terms.
             // Min score filters out docs, which is different than the functions, which just influences the score.)
-            boolean verified = functionScoreQuery.getMinScore() == null;
-            return new Result(verified, result.extractions, result.minimumShouldMatch);
+            boolean verified = result.verified && functionScoreQuery.getMinScore() == null;
+            if (result.matchAllDocs) {
+                return new Result(result.matchAllDocs, verified);
+            } else {
+                return new Result(verified, result.extractions, result.minimumShouldMatch);
+            }
         };
     }
 

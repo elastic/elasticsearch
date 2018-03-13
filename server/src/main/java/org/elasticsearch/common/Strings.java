@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,7 +51,7 @@ public class Strings {
     public static final String[] EMPTY_ARRAY = new String[0];
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
+        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 for (int i = 0; i < spaces; i++) {

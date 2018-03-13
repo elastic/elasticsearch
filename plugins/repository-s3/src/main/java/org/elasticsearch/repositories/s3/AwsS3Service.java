@@ -19,14 +19,30 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
+import java.util.Map;
 
-interface AwsS3Service extends LifecycleComponent {
+interface AwsS3Service {
 
     /**
-     * Creates an {@code AmazonS3} client from the given repository metadata and node settings.
+     * Creates then caches an {@code AmazonS3} client using the current client
+     * settings.
      */
-    AmazonS3 client(Settings repositorySettings);
+    AmazonS3Reference client(String clientName);
+
+    /**
+     * Updates settings for building clients. Future client requests will use the
+     * new settings. Implementations SHOULD drop the client cache to prevent reusing
+     * clients with old settings from cache.
+     *
+     * @param clientsSettings
+     *            the new settings
+     * @return the old settings
+     */
+    Map<String, S3ClientSettings> updateClientsSettings(Map<String, S3ClientSettings> clientsSettings);
+
+    /**
+     * Releases cached clients. Subsequent client requests will recreate client
+     * instances. Does not touch the client settings.
+     */
+    void releaseCachedClients();
 }

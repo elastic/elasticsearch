@@ -17,6 +17,8 @@
 
 package org.elasticsearch.core.internal.io;
 
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.mockfile.FilterPath;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -24,17 +26,21 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -130,24 +136,85 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     public void testRm() throws IOException {
+        runTestRm(false);
+    }
+
+    public void testRmWithIOExceptions() throws IOException {
+        runTestRm(true);
+    }
+
+    public void runTestRm(final boolean exception) throws IOException {
         final int numberOfLocations = randomIntBetween(0, 7);
         final Path[] locations = new Path[numberOfLocations];
+        final List<Path> locationsThrowingException = new ArrayList<>(numberOfLocations);
         for (int i = 0; i < numberOfLocations; i++) {
-            locations[i] = createTempDir();
-            Path location = locations[i];
-            while (true) {
-                location = Files.createDirectory(location.resolve(randomAlphaOfLength(8)));
-                if (rarely() == false) {
-                    Files.createTempFile(location, randomAlphaOfLength(8), null);
-                    break;
+            if (exception && randomBoolean()) {
+                final Path location = createTempDir();
+                final FileSystem fs =
+                        new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(URI.create("file:///"));
+                final Path wrapped = new FilterPath(location, fs);
+                locations[i] = wrapped.resolve(randomAlphaOfLength(8));
+                Files.createDirectory(locations[i]);
+                locationsThrowingException.add(locations[i]);
+            } else {
+                locations[i] = createTempDir();
+                Path location = locations[i];
+                while (true) {
+                    location = Files.createDirectory(location.resolve(randomAlphaOfLength(8)));
+                    if (rarely() == false) {
+                        Files.createTempFile(location, randomAlphaOfLength(8), null);
+                        break;
+                    }
                 }
             }
         }
 
-        IOUtils.rm(locations);
+        if (locationsThrowingException.isEmpty()) {
+            IOUtils.rm(locations);
+        } else {
+            final IOException e = expectThrows(IOException.class, () -> IOUtils.rm(locations));
+            assertThat(e, hasToString(containsString("could not remove the following files (in the order of attempts):")));
+            for (final Path locationThrowingException : locationsThrowingException) {
+                assertThat(e, hasToString(containsString("access denied while trying to delete file [" + locationThrowingException + "]")));
+            }
+        }
 
         for (int i = 0; i < numberOfLocations; i++) {
-            assertFalse(locations[i].toString(), Files.exists(locations[i]));
+            if (locationsThrowingException.contains(locations[i]) == false) {
+                assertFalse(locations[i].toString(), Files.exists(locations[i]));
+            }
+        }
+    }
+
+    private static class AccessDeniedWhileDeletingFileSystem extends FilterFileSystemProvider {
+
+        private volatile boolean enabled = true;
+
+        /**
+         * Create a new instance, wrapping {@code delegate}.
+         */
+        public AccessDeniedWhileDeletingFileSystem(final FileSystem delegate) {
+            super("accessdenied://", delegate);
+        }
+
+        public void enable() {
+            enabled = true;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void disable() {
+            enabled = false;
+        }
+
+        @Override
+        public void delete(final Path path) throws IOException {
+            if (enabled && Files.exists(path)) {
+                throw new AccessDeniedException("access denied while trying to delete file [" + path + "]");
+            }
+            super.delete(path);
         }
     }
 

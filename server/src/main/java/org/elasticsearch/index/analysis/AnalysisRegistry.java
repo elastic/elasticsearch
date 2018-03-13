@@ -20,7 +20,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

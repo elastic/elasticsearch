@@ -21,7 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;

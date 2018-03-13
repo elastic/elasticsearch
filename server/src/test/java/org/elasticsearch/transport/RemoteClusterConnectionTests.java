@@ -19,7 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;

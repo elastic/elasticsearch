@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;

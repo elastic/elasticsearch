@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;

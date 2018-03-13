@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;

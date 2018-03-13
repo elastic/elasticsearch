@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

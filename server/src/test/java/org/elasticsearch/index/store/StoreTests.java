@@ -48,7 +48,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;

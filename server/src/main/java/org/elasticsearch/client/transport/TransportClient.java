@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;

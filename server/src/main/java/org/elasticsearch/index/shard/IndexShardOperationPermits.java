@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;

@@ -205,6 +205,19 @@ public class SettingsUpdaterTests extends ESTestCase {
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
 
+        for (final Setting<String> dynamicSetting : dynamicSettings) {
+            switch (randomIntBetween(0, 2)) {
+                case 0:
+                    existingPersistentSettings.put(dynamicSetting.getKey(), "existing_value");
+                    break;
+                case 1:
+                    existingTransientSettings.put(dynamicSetting.getKey(), "existing_value");
+                    break;
+                case 2:
+                    break;
+            }
+        }
+
         for (final Setting<String> invalidSetting : invalidSettings) {
             if (randomBoolean()) {
                 existingPersistentSettings.put(invalidSetting.getKey(), "value");
@@ -242,16 +255,31 @@ public class SettingsUpdaterTests extends ESTestCase {
         final Settings.Builder persistentToApply = Settings.builder();
         final Settings.Builder transientToApply = Settings.builder();
         for (final Setting<String> dynamicSetting : dynamicSettings) {
-            if (randomBoolean()) {
-                persistentToApply.put(dynamicSetting.getKey(), "value");
-            } else {
-                transientToApply.put(dynamicSetting.getKey(), "value");
+            switch (randomIntBetween(0, 2)) {
+                case 0:
+                    persistentToApply.put(dynamicSetting.getKey(), "new_value");
+                    break;
+                case 1:
+                    transientToApply.put(dynamicSetting.getKey(), "new_value");
+                    break;
+                case 2:
+                    break;
             }
         }
+
+        if (transientToApply.keys().isEmpty() && persistentToApply.keys().isEmpty()) {
+            // force a settings update otherwise our assertions below will fail
+            if (randomBoolean()) {
+                persistentToApply.put(dynamicSettings.get(0).getKey(), "new_value");
+            } else {
+                transientToApply.put(dynamicSettings.get(0).getKey(), "new_value");
+            }
+        }
+
         final ClusterState clusterStateAfterUpdate =
                 settingsUpdater.updateSettings(clusterState, transientToApply.build(), persistentToApply.build(), logger);
 
-        // the invalid settings should be archived
+        // the invalid settings should be archived and not present in non-archived form
         for (final Setting<String> invalidSetting : invalidSettings) {
             if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
                 assertThat(
@@ -262,9 +290,15 @@ public class SettingsUpdaterTests extends ESTestCase {
                         clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                         hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
             }
+            assertThat(
+                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                    not(hasItem(invalidSetting.getKey())));
+            assertThat(
+                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                    not(hasItem(invalidSetting.getKey())));
         }
 
-        // the unknown settings should be archived
+        // the unknown settings should be archived and not present in non-archived form
         for (final Setting<String> unknownSetting : unknownSettings) {
             if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
                 assertThat(
@@ -275,14 +309,37 @@ public class SettingsUpdaterTests extends ESTestCase {
                         clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                         hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
             }
+            assertThat(
+                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                    not(hasItem(unknownSetting.getKey())));
+            assertThat(
+                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                    not(hasItem(unknownSetting.getKey())));
         }
 
         // the dynamic settings should be applied
         for (final Setting<String> dynamicSetting : dynamicSettings) {
             if (persistentToApply.keys().contains(dynamicSetting.getKey())) {
                 assertThat(clusterStateAfterUpdate.metaData().persistentSettings().keySet(), hasItem(dynamicSetting.getKey()));
-            } else {
+                assertThat(clusterStateAfterUpdate.metaData().persistentSettings().get(dynamicSetting.getKey()), equalTo("new_value"));
+            } else if (transientToApply.keys().contains(dynamicSetting.getKey())) {
                 assertThat(clusterStateAfterUpdate.metaData().transientSettings().keySet(), hasItem(dynamicSetting.getKey()));
+                assertThat(clusterStateAfterUpdate.metaData().transientSettings().get(dynamicSetting.getKey()), equalTo("new_value"));
+            } else {
+                if (existingPersistentSettings.keys().contains(dynamicSetting.getKey())) {
+                    assertThat(clusterStateAfterUpdate.metaData().persistentSettings().keySet(), hasItem(dynamicSetting.getKey()));
+                    assertThat(
+                            clusterStateAfterUpdate.metaData().persistentSettings().get(dynamicSetting.getKey()),
+                            equalTo("existing_value"));
+                } else if (existingTransientSettings.keys().contains(dynamicSetting.getKey())) {
+                    assertThat(clusterStateAfterUpdate.metaData().transientSettings().keySet(), hasItem(dynamicSetting.getKey()));
+                    assertThat(
+                            clusterStateAfterUpdate.metaData().transientSettings().get(dynamicSetting.getKey()),
+                            equalTo("existing_value"));
+                } else {
+                    assertThat(clusterStateAfterUpdate.metaData().persistentSettings().keySet(), not(hasItem(dynamicSetting.getKey())));
+                    assertThat(clusterStateAfterUpdate.metaData().transientSettings().keySet(), not(hasItem(dynamicSetting.getKey())));
+                }
             }
         }
     }
@@ -377,7 +434,7 @@ public class SettingsUpdaterTests extends ESTestCase {
             }
         }
 
-        // the invalid settings should be archived
+        // the invalid settings should be archived and not present in non-archived form
         for (final Setting<String> invalidSetting : invalidSettings) {
             if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
                 assertThat(
@@ -388,9 +445,15 @@ public class SettingsUpdaterTests extends ESTestCase {
                         clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                         hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
             }
+            assertThat(
+                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                    not(hasItem(invalidSetting.getKey())));
+            assertThat(
+                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                    not(hasItem(invalidSetting.getKey())));
         }
 
-        // the unknown settings should be archived
+        // the unknown settings should be archived and not present in non-archived form
         for (final Setting<String> unknownSetting : unknownSettings) {
             if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
                 assertThat(
@@ -401,6 +464,12 @@ public class SettingsUpdaterTests extends ESTestCase {
                         clusterStateAfterUpdate.metaData().transientSettings().keySet(),
                         hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
             }
+            assertThat(
+                    clusterStateAfterUpdate.metaData().persistentSettings().keySet(),
+                    not(hasItem(unknownSetting.getKey())));
+            assertThat(
+                    clusterStateAfterUpdate.metaData().transientSettings().keySet(),
+                    not(hasItem(unknownSetting.getKey())));
         }
     }
 

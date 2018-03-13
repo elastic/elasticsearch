@@ -64,12 +64,11 @@ public class RestUpgradeAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.method().equals(RestRequest.Method.GET)) {
             return handleGet(request, client);
-        } 
-        if (request.method().equals(RestRequest.Method.POST)) {
+        } else if (request.method().equals(RestRequest.Method.POST)) {
             return handlePost(request, client);
+        } else {
+            throw new AssertionError("unsupported method [" + request.method() + "] for request [" + request.path() + "]");
         }
-        assert false;
-        return null;
     }
 
     private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {

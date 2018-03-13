@@ -8,14 +8,6 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
-
-
-# Source the default env file
-ES_ENV_FILE="${path.env}"
-if [ -f "$ES_ENV_FILE" ]; then
-    . "$ES_ENV_FILE"
-fi
-
 IS_UPGRADE=false
 
 case "$1" in
@@ -103,12 +95,15 @@ chown -R root:elasticsearch /etc/elasticsearch
 chmod g+s /etc/elasticsearch
 chmod 0750 /etc/elasticsearch
 
-if [ -f /etc/default/elasticsearch ]; then
-   chown root:elasticsearch /etc/default/elasticsearch
+if [ -f ${path.env} ]; then
+    chown root:elasticsearch ${path.env}
 fi
 
-if [ -f /etc/sysconfig/elasticsearch ]; then
-   chown root:elasticsearch /etc/sysconfig/elasticsearch
+if [ ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
+    /usr/share/elasticsearch/bin/elasticsearch-keystore create
+    chown root:elasticsearch /etc/elasticsearch/elasticsearch.keystore
+    chmod 660 /etc/elasticsearch/elasticsearch.keystore
+    md5sum /etc/elasticsearch/elasticsearch.keystore > /etc/elasticsearch/.elasticsearch.keystore.initial_md5sum
 fi
 
 ${scripts.footer}

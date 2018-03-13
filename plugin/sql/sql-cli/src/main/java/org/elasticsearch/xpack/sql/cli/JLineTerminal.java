@@ -117,9 +117,7 @@ public class JLineTerminal implements CliTerminal {
                 throw new UserException(ExitCodes.NOPERM, "password required");
             }
             return password;
-        } catch (UserInterruptException ex) {
-            throw new UserException(ExitCodes.NOPERM, "password required");
-        } catch (EndOfFileException ex) {
+        } catch (UserInterruptException | EndOfFileException ex) {
             throw new UserException(ExitCodes.NOPERM, "password required");
         }
     }

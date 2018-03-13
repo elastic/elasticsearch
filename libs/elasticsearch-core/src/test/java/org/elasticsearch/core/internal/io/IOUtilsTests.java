@@ -157,6 +157,7 @@ public class IOUtilsTests extends ESTestCase {
                 Files.createDirectory(locations[i]);
                 locationsThrowingException.add(locations[i]);
             } else {
+                // we create a tree of files that IOUtils#rm should delete
                 locations[i] = createTempDir();
                 Path location = locations[i];
                 while (true) {

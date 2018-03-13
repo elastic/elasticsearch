@@ -87,6 +87,8 @@ verify_package_installation() {
     id elasticsearch
 
     getent group elasticsearch
+    # homedir is set in /etc/passwd
+    assert_file $(getent passwd elasticsearch | cut -d: -f6) d root root 755
 
     assert_file "$ESHOME" d root root 755
     assert_file "$ESHOME/bin" d root root 755

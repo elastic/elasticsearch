@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -70,7 +71,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {
-        assertThat(BytesReference.bytes(actual).utf8ToString(), is(BytesReference.bytes(expected).utf8ToString()));
+        assertThat(Strings.toString(actual), is(Strings.toString(expected)));
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {

@@ -186,7 +186,7 @@ public class IOUtilsTests extends ESTestCase {
         }
     }
 
-    private static class AccessDeniedWhileDeletingFileSystem extends FilterFileSystemProvider {
+    private static final class AccessDeniedWhileDeletingFileSystem extends FilterFileSystemProvider {
 
         private volatile boolean enabled = true;
 

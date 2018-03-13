@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.license.DeleteLicenseAction;
+import org.elasticsearch.license.GetBasicStatusAction;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.LicenseService;
@@ -290,6 +291,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteLicenseAction.INSTANCE,
                 PostStartTrialAction.INSTANCE,
                 GetTrialStatusAction.INSTANCE,
+                GetBasicStatusAction.INSTANCE,
                 // x-pack
                 XPackInfoAction.INSTANCE,
                 XPackUsageAction.INSTANCE,

@@ -17,7 +17,6 @@ import java.util.UUID;
 
 import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 

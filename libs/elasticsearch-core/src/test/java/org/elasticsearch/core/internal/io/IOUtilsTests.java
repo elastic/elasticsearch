@@ -202,6 +202,7 @@ public class IOUtilsTests extends ESTestCase {
             }
             super.delete(path);
         }
+
     }
 
     public void testFsyncDirectory() throws Exception {

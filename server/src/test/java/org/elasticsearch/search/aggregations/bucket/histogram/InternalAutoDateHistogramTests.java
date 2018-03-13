@@ -79,8 +79,9 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
         BucketInfo bucketInfo = new BucketInfo(roundings, randomIntBetween(0, roundings.length - 1), subAggregations);
-
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        long numValuesCollected = randomNonNegativeLong();
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, numValuesCollected, bucketInfo, format, pipelineAggregators,
+                metaData);
     }
 
     @Override
@@ -121,10 +122,11 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         String name = instance.getName();
         List<InternalAutoDateHistogram.Bucket> buckets = instance.getBuckets();
         int targetBuckets = instance.getTargetBuckets();
+        long numValuesCollected = instance.getNumValuesCollected();
         BucketInfo bucketInfo = instance.getBucketInfo();
         List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
         Map<String, Object> metaData = instance.getMetaData();
-        switch (between(0, 3)) {
+        switch (between(0, 5)) {
         case 0:
             name += randomAlphaOfLength(5);
             break;
@@ -145,9 +147,16 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             }
             metaData.put(randomAlphaOfLength(15), randomInt());
             break;
+        case 4:
+            targetBuckets += between(1, 100);
+            break;
+        case 5:
+            numValuesCollected += between(1, 100);
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, numValuesCollected, bucketInfo, format, pipelineAggregators,
+                metaData);
     }
 }

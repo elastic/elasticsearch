@@ -61,6 +61,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private LongHash bucketOrds;
     private int targetBuckets;
     private MergingBucketsDeferringCollector deferringCollector;
+    private int numCollectedValues = 0;
 
     AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, Rounding[] roundings,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
@@ -109,6 +110,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
+                        numCollectedValues++;
                         long rounded = roundings[roundingIdx].round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
@@ -120,7 +122,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                             collectExistingBucket(sub, doc, bucketOrd);
                         } else {
                             collectBucket(sub, doc, bucketOrd);
-                            while (bucketOrds.size() > targetBuckets) {
+                            double maxBuckets = Math.max(targetBuckets, targetBuckets * Math.log(numCollectedValues));
+                            while (bucketOrds.size() > maxBuckets) {
                                 increaseRounding();
                             }
                         }
@@ -179,14 +182,15 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundings, roundingIdx,
                 buildEmptySubAggregations());
 
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, pipelineAggregators(), metaData());
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, numCollectedValues, emptyBucketInfo, formatter,
+                pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundings, roundingIdx,
                 buildEmptySubAggregations());
-        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter,
+        return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, numCollectedValues, emptyBucketInfo, formatter,
                 pipelineAggregators(), metaData());
     }
 

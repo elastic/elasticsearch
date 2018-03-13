@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -207,15 +208,17 @@ public final class InternalAutoDateHistogram extends
     private final DocValueFormat format;
     private final BucketInfo bucketInfo;
     private final int targetBuckets;
+    private final long numValuesCollected;
 
 
-    InternalAutoDateHistogram(String name, List<Bucket> buckets, int targetBuckets, BucketInfo emptyBucketInfo, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    InternalAutoDateHistogram(String name, List<Bucket> buckets, int targetBuckets, long numValuesCollected, BucketInfo emptyBucketInfo,
+            DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
         this.bucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.targetBuckets = targetBuckets;
+        this.numValuesCollected = numValuesCollected;
     }
 
     /**
@@ -227,6 +230,7 @@ public final class InternalAutoDateHistogram extends
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
+        this.numValuesCollected = in.readVLong();
     }
 
     @Override
@@ -235,6 +239,7 @@ public final class InternalAutoDateHistogram extends
         out.writeNamedWriteable(format);
         out.writeList(buckets);
         out.writeVInt(targetBuckets);
+        out.writeVLong(numValuesCollected);
     }
 
     @Override
@@ -255,13 +260,18 @@ public final class InternalAutoDateHistogram extends
         return targetBuckets;
     }
 
+    public long getNumValuesCollected() {
+        return numValuesCollected;
+    }
+
     public BucketInfo getBucketInfo() {
         return bucketInfo;
     }
 
     @Override
     public InternalAutoDateHistogram create(List<Bucket> buckets) {
-        return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators(), metaData);
+        return new InternalAutoDateHistogram(name, buckets, targetBuckets, numValuesCollected, bucketInfo, format, pipelineAggregators(),
+                metaData);
     }
 
     @Override
@@ -365,7 +375,8 @@ public final class InternalAutoDateHistogram extends
         return new BucketReduceResult(reducedBuckets, reduceRounding, reduceRoundingIdx);
     }
 
-    private List<Bucket> mergeBuckets(List<Bucket> reducedBuckets, Rounding reduceRounding, ReduceContext reduceContext) {
+    private List<Bucket> mergeBuckets(List<Bucket> reducedBuckets, Rounding reduceRounding,
+            ReduceContext reduceContext) {
         List<Bucket> mergedBuckets = new ArrayList<>();
 
         List<Bucket> sameKeyedBuckets = new ArrayList<>();
@@ -409,12 +420,13 @@ public final class InternalAutoDateHistogram extends
         }
     }
 
-    private BucketReduceResult addEmptyBuckets(BucketReduceResult currentResult, ReduceContext reduceContext) {
+    private BucketReduceResult addEmptyBuckets(BucketReduceResult currentResult, long numValuesCollected, ReduceContext reduceContext) {
         List<Bucket> list = currentResult.buckets;
         if (list.isEmpty()) {
             return currentResult;
         }
-        int roundingIdx = getAppropriateRounding(list.get(0).key, list.get(list.size() - 1).key, currentResult.roundingIdx,
+        double maxBuckets = Math.max(targetBuckets, targetBuckets * Math.log(numValuesCollected));
+        int roundingIdx = getAppropriateRounding(list.get(0).key, list.get(list.size() - 1).key, maxBuckets, currentResult.roundingIdx,
                 bucketInfo.roundings);
         Rounding rounding = bucketInfo.roundings[roundingIdx];
         // merge buckets using the new rounding
@@ -443,7 +455,7 @@ public final class InternalAutoDateHistogram extends
         return new BucketReduceResult(list, rounding, roundingIdx);
     }
 
-    private int getAppropriateRounding(long minKey, long maxKey, int roundingIdx, Rounding[] roundings) {
+    private int getAppropriateRounding(long minKey, long maxKey, double maxBuckets, int roundingIdx, Rounding[] roundings) {
         if (roundingIdx == roundings.length - 1) {
             return roundingIdx;
         }
@@ -458,7 +470,7 @@ public final class InternalAutoDateHistogram extends
                 currentKey = currentRounding.nextRoundingValue(currentKey);
             }
             currentRoundingIdx++;
-        } while (requiredBuckets > targetBuckets && currentRoundingIdx < roundings.length);
+        } while (requiredBuckets > maxBuckets && currentRoundingIdx < roundings.length);
         // The loop will increase past the correct rounding index here so we
         // need to subtract one to get the rounding index we need
         return currentRoundingIdx - 1;
@@ -466,10 +478,13 @@ public final class InternalAutoDateHistogram extends
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        long numValuesCollected = aggregations.stream()
+                .collect(Collectors.summingLong(agg -> ((InternalAutoDateHistogram) agg).getNumValuesCollected()));
+
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
         // adding empty buckets if needed
-        reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
+        reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, numValuesCollected, reduceContext);
 
         // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
         reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
@@ -478,7 +493,7 @@ public final class InternalAutoDateHistogram extends
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundings, reducedBucketsResult.roundingIdx,
                 this.bucketInfo.emptySubAggregations);
 
-        return new InternalAutoDateHistogram(getName(), reducedBucketsResult.buckets, targetBuckets, bucketInfo, format,
+        return new InternalAutoDateHistogram(getName(), reducedBucketsResult.buckets, targetBuckets, numValuesCollected, bucketInfo, format,
                 pipelineAggregators(), getMetaData());
     }
 
@@ -512,7 +527,8 @@ public final class InternalAutoDateHistogram extends
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, bucketInfo, format, pipelineAggregators(), getMetaData());
+        return new InternalAutoDateHistogram(name, buckets2, targetBuckets, numValuesCollected, bucketInfo, format, pipelineAggregators(),
+                getMetaData());
     }
 
     @Override
@@ -524,6 +540,8 @@ public final class InternalAutoDateHistogram extends
     protected boolean doEquals(Object obj) {
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
         return Objects.equals(buckets, that.buckets)
+                && Objects.equals(targetBuckets, that.targetBuckets)
+                && Objects.equals(numValuesCollected, that.numValuesCollected)
                 && Objects.equals(format, that.format)
                 && Objects.equals(bucketInfo, that.bucketInfo);
     }

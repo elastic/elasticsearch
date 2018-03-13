@@ -28,6 +28,8 @@ import java.util.Map;
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
 
+import org.elasticsearch.core.internal.io.IOUtils;
+
 /**
  * A cli tool which is made up of multiple subcommands.
  */
@@ -78,46 +80,8 @@ public class MultiCommand extends Command {
     }
 
     @Override
-    public void close() throws IOException, RuntimeException {
-        Throwable th = null;
-        for (Closeable object : subcommands.values()) {
-            try {
-                if (object != null) {
-                    object.close();
-                }
-            } catch (Throwable t) {
-                addSuppressed(th, t);
-                if (th == null) {
-                    th = t;
-                }
-            }
-        }
-        if (th != null) {
-            throw reThrowAlways(th);
-        }
+    public void close() throws IOException {
+        IOUtils.close(subcommands.values());
     }
 
-    // Following methods are similar to IOUtils,
-    // avoiding lucene dependency in CLI.
-    private static void addSuppressed(Throwable t, Throwable suppressed) {
-        if (t != null && suppressed != null) {
-            t.addSuppressed(suppressed);
-        }
-    }
-
-    private static Error reThrowAlways(Throwable th) throws IOException, RuntimeException {
-        if (th instanceof IOException) {
-            throw (IOException) th;
-        }
-
-        if (th instanceof RuntimeException) {
-            throw (RuntimeException) th;
-        }
-
-        if (th instanceof Error) {
-            throw (Error) th;
-        }
-
-        throw new RuntimeException(th);
-    }
 }

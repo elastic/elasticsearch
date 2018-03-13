@@ -58,12 +58,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
         implements Releasable {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(SignificantTermsAggregatorFactory.class));
 
     private final IncludeExclude includeExclude;
     private final String executionHint;
+    private final SubAggCollectionMode collectMode;
     private String indexedFieldName;
     private MappedFieldType fieldType;
     private FilterableTermsEnum termsEnum;
@@ -77,6 +80,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                              ValuesSourceConfig<ValuesSource> config,
                                              IncludeExclude includeExclude,
                                              String executionHint,
+                                             SubAggCollectionMode collectMode,
                                              QueryBuilder filterBuilder,
                                              TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                              SignificanceHeuristic significanceHeuristic,
@@ -87,6 +91,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
+        this.collectMode = collectMode;
         this.filter = filterBuilder == null
                 ? null
                 : filterBuilder.toFilter(context.getQueryShardContext());
@@ -200,6 +205,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
                     context.numberOfShards()));
         }
+        final long maxOrd = getMaxOrd(valuesSource, context.searcher());
+        SubAggCollectionMode cm = collectMode;
+        if (cm == null) {
+            cm = SubAggCollectionMode.DEPTH_FIRST;
+            if (factories != AggregatorFactories.EMPTY) {
+                cm = subAggCollectionMode(bucketCountThresholds.getShardSize(), maxOrd);
+            }
+        }
 
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
@@ -220,7 +233,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                         + "settings as they can only be applied to string fields. Use an array of values for include/exclude clauses");
             }
 
-            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
+            return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent, cm,
                     significanceHeuristic, this, pipelineAggregators, metaData);
         }
 
@@ -239,12 +252,40 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 longFilter = includeExclude.convertToLongFilter(config.format());
             }
             return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                    bucketCountThresholds, context, parent, significanceHeuristic, this, longFilter, pipelineAggregators,
+                    bucketCountThresholds, context, parent, cm, significanceHeuristic, this, longFilter, pipelineAggregators,
                     metaData);
         }
 
         throw new AggregationExecutionException("significant_terms aggregation cannot be applied to field ["
                 + config.fieldContext().field() + "]. It can only be applied to numeric or string fields.");
+    }
+
+
+    // return the SubAggCollectionMode that this aggregation should use based on the expected size
+    // and the cardinality of the field
+    static SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {
+        if (expectedSize == Integer.MAX_VALUE) {
+            // return all buckets
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (maxOrd == -1 || maxOrd > expectedSize) {
+            // use breadth_first if the cardinality is bigger than the expected size or unknown (-1)
+            return SubAggCollectionMode.BREADTH_FIRST;
+        }
+        return SubAggCollectionMode.DEPTH_FIRST;
+    }
+
+    /**
+     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
+     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
+     */
+    static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
+        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
+            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
+            return valueSourceWithOrdinals.globalMaxOrd(searcher);
+        } else {
+            return -1;
+        }
     }
 
     public enum ExecutionMode {
@@ -260,6 +301,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               IncludeExclude includeExclude,
                               SearchContext aggregationContext,
                               Aggregator parent,
+                              SubAggCollectionMode subAggCollectMode,
                               SignificanceHeuristic significanceHeuristic,
                               SignificantTermsAggregatorFactory termsAggregatorFactory,
                               List<PipelineAggregator> pipelineAggregators,
@@ -267,7 +309,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new SignificantStringTermsAggregator(name, factories, valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, subAggCollectMode, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
 
             }
 
@@ -283,6 +325,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               IncludeExclude includeExclude,
                               SearchContext aggregationContext,
                               Aggregator parent,
+                              SubAggCollectionMode subAggCollectMode,
                               SignificanceHeuristic significanceHeuristic,
                               SignificantTermsAggregatorFactory termsAggregatorFactory,
                               List<PipelineAggregator> pipelineAggregators,
@@ -303,7 +346,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
                 return new GlobalOrdinalsSignificantTermsAggregator(name, factories,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, format, bucketCountThresholds, filter,
-                        aggregationContext, parent, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
+                        aggregationContext, parent, subAggCollectMode, remapGlobalOrd, significanceHeuristic, termsAggregatorFactory, pipelineAggregators, metaData);
 
             }
         };
@@ -334,6 +377,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    IncludeExclude includeExclude,
                                    SearchContext aggregationContext,
                                    Aggregator parent,
+                                   SubAggCollectionMode subAggCollectMode,
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificantTermsAggregatorFactory termsAggregatorFactory,
                                    List<PipelineAggregator> pipelineAggregators,

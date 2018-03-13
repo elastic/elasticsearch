@@ -45,12 +45,12 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
             DocValueFormat format, BucketCountThresholds bucketCountThresholds, SearchContext context, Aggregator parent,
-            SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            SubAggCollectionMode subAggCollectMode, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
             IncludeExclude.LongFilter includeExclude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, format, null, bucketCountThresholds, context, parent,
-                SubAggCollectionMode.DEPTH_FIRST, false, includeExclude, pipelineAggregators, metaData);
+                subAggCollectMode, false, includeExclude, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }

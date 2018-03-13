@@ -53,11 +53,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude, SearchContext aggregationContext,
-            Aggregator parent, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            Aggregator parent, SubAggCollectionMode subAggCollectMode, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, aggregationContext, parent,
-                SubAggCollectionMode.DEPTH_FIRST, false, pipelineAggregators, metaData);
+                subAggCollectMode, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }

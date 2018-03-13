@@ -188,8 +188,6 @@ public class IOUtilsTests extends ESTestCase {
 
     private static final class AccessDeniedWhileDeletingFileSystem extends FilterFileSystemProvider {
 
-        private volatile boolean enabled = true;
-
         /**
          * Create a new instance, wrapping {@code delegate}.
          */
@@ -197,21 +195,9 @@ public class IOUtilsTests extends ESTestCase {
             super("accessdenied://", delegate);
         }
 
-        public void enable() {
-            enabled = true;
-        }
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void disable() {
-            enabled = false;
-        }
-
         @Override
         public void delete(final Path path) throws IOException {
-            if (enabled && Files.exists(path)) {
+            if (Files.exists(path)) {
                 throw new AccessDeniedException("access denied while trying to delete file [" + path + "]");
             }
             super.delete(path);

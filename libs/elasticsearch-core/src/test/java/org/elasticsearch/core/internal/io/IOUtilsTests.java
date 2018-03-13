@@ -193,7 +193,7 @@ public class IOUtilsTests extends ESTestCase {
         /**
          * Create a new instance, wrapping {@code delegate}.
          */
-        public AccessDeniedWhileDeletingFileSystem(final FileSystem delegate) {
+        AccessDeniedWhileDeletingFileSystem(final FileSystem delegate) {
             super("accessdenied://", delegate);
         }
 

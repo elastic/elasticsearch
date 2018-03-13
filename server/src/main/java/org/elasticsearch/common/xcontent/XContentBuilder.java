@@ -171,7 +171,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     /**
-     * @return the output stream to which the built object is being written
+     * @return the output stream to which the built object is being written. Note that is dangerous to modify the stream.
      */
     public OutputStream getOutputStream() {
         return bos;

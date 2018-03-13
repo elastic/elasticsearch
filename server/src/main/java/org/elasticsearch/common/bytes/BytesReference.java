@@ -41,6 +41,10 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
+    /**
+     * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
+     * so no further fields may be added.
+     */
     public static BytesReference bytes(XContentBuilder xContentBuilder) {
         xContentBuilder.close();
         OutputStream stream = xContentBuilder.getOutputStream();

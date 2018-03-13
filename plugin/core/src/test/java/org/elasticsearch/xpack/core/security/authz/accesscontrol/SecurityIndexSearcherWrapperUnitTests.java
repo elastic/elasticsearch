@@ -34,7 +34,7 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;

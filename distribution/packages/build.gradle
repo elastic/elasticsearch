@@ -134,7 +134,6 @@ Closure commonPackageConfig(String type) {
     }
 
     // ========= systemd =========
-    configurationFile '/usr/lib/systemd/system/elasticsearch.service'
     into('/usr/lib/tmpfiles.d') {
       from "${packagingFiles}/systemd/elasticsearch.conf"
     }

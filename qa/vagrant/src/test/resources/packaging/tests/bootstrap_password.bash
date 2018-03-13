@@ -150,6 +150,20 @@ SQL
     }
 }
 
+@test "[$GROUP] test sql-cli when user refuses password" {
+    # Run with empty stdin
+    run $ESHOME/bin/x-pack/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
+SQL
+    [ "$status" -eq 77 ] || { #NOPERM
+        echo "SQL cli failed:\n$output"
+        false
+    }
+    [[ "$output" == *"password required"* ]] || {
+        echo "Failed to find author [password required] in error:$output"
+        false
+    }
+}
+
 @test "[$GROUP] stop Elasticsearch" {
     stop_elasticsearch_service
 }

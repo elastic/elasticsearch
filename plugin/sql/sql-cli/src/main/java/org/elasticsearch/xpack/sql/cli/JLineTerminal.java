@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -103,27 +105,30 @@ public class JLineTerminal implements CliTerminal {
     }
 
     @Override
-    public String readPassword(String prompt) {
-        String line = readLine(prompt, (char) 0);
-        if (line == null) {
-            throw new FatalCliException("Error reading password, terminal is closed");
+    public String readPassword(String prompt) throws UserException {
+        try {
+            String password = reader.readLine(prompt, (char) 0);
+            if (password == null) {
+                /*
+                 * The docs say this can't return null but they lie. Lies, I tell you!
+                 * This returns null when you pipe an empty file into the process.
+                 * Since that is a lot like an EOF we throw the same exception.
+                 */
+                throw new UserException(ExitCodes.NOPERM, "password required");
+            }
+            return password;
+        } catch (UserInterruptException ex) {
+            throw new UserException(ExitCodes.NOPERM, "password required");
+        } catch (EndOfFileException ex) {
+            throw new UserException(ExitCodes.NOPERM, "password required");
         }
-        return line;
     }
 
     @Override
     public String readLine(String prompt) {
         String attributedString = new AttributedString(prompt, DEFAULT.foreground(YELLOW)).toAnsi(terminal);
-        return readLine(attributedString, null);
-    }
-
-    private String readLine(String prompt, Character mask) {
         try {
-            String line = reader.readLine(prompt, null, mask, null);
-            if (line == null) {
-                throw new FatalCliException("Error reading password, terminal is closed");
-            }
-            return line;
+            return reader.readLine(attributedString);
         } catch (UserInterruptException ex) {
             return "";
         } catch (EndOfFileException ex) {

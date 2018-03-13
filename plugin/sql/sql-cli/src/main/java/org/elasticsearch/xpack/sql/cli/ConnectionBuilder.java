@@ -37,8 +37,8 @@ public class ConnectionBuilder {
      *
      * @param connectionStringArg the connection string to connect to
      * @param keystoreLocation    the location of the keystore to configure. If null then use the system keystore.
+     * @throws UserException if there is a problem with the information provided by the user
      */
-    @SuppressForbidden(reason = "cli application")
     public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation) throws UserException {
         final URI uri;
         final String connectionString;
@@ -65,13 +65,9 @@ public class ConnectionBuilder {
             if (false == "https".equals(uri.getScheme())) {
                 throw new UserException(ExitCodes.USAGE, "keystore file specified without https");
             }
-            Path p = Paths.get(keystoreLocation);
+            Path p = getKeystorePath(keystoreLocation);
             checkIfExists("keystore file", p);
             String keystorePassword = cliTerminal.readPassword("keystore password: ");
-            if (keystorePassword == null) {
-                throw new FatalCliException("readPassword shouldn't ever return null but ["
-                    + cliTerminal + "#readPassword] did!");
-            }
 
             /*
              * Set both the keystore and truststore settings which is required
@@ -91,16 +87,17 @@ public class ConnectionBuilder {
         if (user != null) {
             if (password == null) {
                 password = cliTerminal.readPassword("password: ");
-                if (password == null) {
-                    throw new FatalCliException("readPassword shouldn't ever return null but ["
-                        + cliTerminal + "#readPassword] did!");
-                }
             }
             properties.setProperty(ConnectionConfiguration.AUTH_USER, user);
             properties.setProperty(ConnectionConfiguration.AUTH_PASS, password);
         }
 
         return newConnectionConfiguration(uri, connectionString, properties);
+    }
+
+    @SuppressForbidden(reason = "cli application shouldn't depend on ES")
+    private Path getKeystorePath(String keystoreLocation) {
+        return Paths.get(keystoreLocation);
     }
 
     protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString, Properties properties) {

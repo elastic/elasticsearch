@@ -61,7 +61,7 @@ public class ConnectionBuilderTests extends ESTestCase {
         verifyNoMoreInteractions(testTerminal);
     }
 
-    public void testUserInteractiveConnection() throws Exception {
+    public void testAskUserForPassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         when(testTerminal.readPassword("password: ")).thenReturn("password");
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
@@ -74,7 +74,7 @@ public class ConnectionBuilderTests extends ESTestCase {
         verifyNoMoreInteractions(testTerminal);
     }
 
-    public void testKeystoreAndUserInteractiveConnection() throws Exception {
+    public void testAskUserForPasswordAndKeystorePassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         when(testTerminal.readPassword("keystore password: ")).thenReturn("keystore password");
         when(testTerminal.readPassword("password: ")).thenReturn("password");
@@ -105,5 +105,29 @@ public class ConnectionBuilderTests extends ESTestCase {
         verifyNoMoreInteractions(testTerminal);
     }
 
+    public void testUserGaveUpOnPassword() throws Exception {
+        CliTerminal testTerminal = mock(CliTerminal.class);
+        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        when(testTerminal.readPassword("password: ")).thenThrow(ue);
+        ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
+        UserException actual = expectThrows(UserException.class, () ->
+            connectionBuilder.buildConnection("http://user@foobar:9242/", null));
+        assertSame(actual, ue);
+    }
 
+    public void testUserGaveUpOnKeystorePassword() throws Exception {
+        CliTerminal testTerminal = mock(CliTerminal.class);
+        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        when(testTerminal.readPassword("keystore password: ")).thenThrow(ue);
+        when(testTerminal.readPassword("password: ")).thenReturn("password");
+        ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal) {
+            @Override
+            protected void checkIfExists(String name, Path p) {
+                // Stubbed so we don't need permission to read the file
+            }
+        };
+        UserException actual = expectThrows(UserException.class, () ->
+            connectionBuilder.buildConnection("https://user@foobar:9242/", "keystore_location"));
+        assertSame(actual, ue);
+    }
 }

@@ -145,9 +145,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        wipeCluster();
-        waitForClusterStateUpdatesToFinish();
-        logIfThereAreRunningTasks();
+        if (preserveClusterUponCompletion() == false) {
+            wipeCluster();
+            waitForClusterStateUpdatesToFinish();
+            logIfThereAreRunningTasks();
+        }
     }
 
     @AfterClass
@@ -173,6 +175,17 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient adminClient() {
         return adminClient;
+    }
+
+    /**
+     * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
+     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()}, and
+     * {@link #preserveSnapshotsUponCompletion()}.
+     *
+     * @return true if the state of the cluster should be preserved
+     */
+    protected boolean preserveClusterUponCompletion() {
+        return false;
     }
 
     /**

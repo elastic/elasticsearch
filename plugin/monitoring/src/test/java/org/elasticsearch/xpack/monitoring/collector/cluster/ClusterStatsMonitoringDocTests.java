@@ -221,7 +221,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     }
 
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4100")
     public void testToXContent() throws IOException {
         final ClusterName clusterName = new ClusterName("_cluster_name");
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
@@ -520,8 +519,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                           + "\"description\":\"_plugin_desc\","
                           + "\"classname\":\"_plugin_class\","
                           + "\"extended_plugins\":[],"
-                          + "\"has_native_controller\":false,"
-                          + "\"requires_keystore\":false"
+                          + "\"has_native_controller\":false"
                         + "}"
                       + "],"
                       + "\"network_types\":{"

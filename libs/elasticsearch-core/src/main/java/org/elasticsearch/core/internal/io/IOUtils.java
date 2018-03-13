@@ -269,8 +269,8 @@ public final class IOUtils {
      * an effect.
      *
      * @param fileToSync the file to fsync
-     * @param isDir if true, the given file is a directory (we open for read and ignore {@link IOException}s, because not all file systems
-     *              and operating systems allow to fsync on a directory)
+     * @param isDir      if true, the given file is a directory (we open for read and ignore {@link IOException}s, because not all file
+     *                   systems and operating systems allow to fsync on a directory)
      */
     public static void fsync(final Path fileToSync, final boolean isDir) throws IOException {
         try (FileChannel file = FileChannel.open(fileToSync, isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {

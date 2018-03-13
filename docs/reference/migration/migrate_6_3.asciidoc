@@ -10,3 +10,11 @@
 must now be specified in the client settings instead.
 
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
+
+==== Ingest Geoip Plugin
+
+* In earlier versions, database files have been stored as gzip compressed files with the extension `.gz` to
+save disk space. As a consequence, database files had to be loaded in memory. Now the default database files
+that are stored uncompressed as `.mmdb` files which allows to memory-map them and save heap memory. Any
+custom database files must also be stored uncompressed. Consequently, the `database_file` property in any
+ingest pipelines that use the Geoip Processor must refer to the uncompressed database files as well.

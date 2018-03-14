@@ -52,7 +52,6 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::main-execute
             MainResponse response = client.info();
             //end::main-execute
-            assertTrue(response.isAvailable());
             //tag::main-response
             ClusterName clusterName = response.getClusterName(); // <1>
             String clusterUuid = response.getClusterUuid(); // <2>

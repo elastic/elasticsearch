@@ -18,6 +18,13 @@ NOTE: Elasticsearch requires Java 8 or later. Use the
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
 or an open-source distribution such as http://openjdk.java.net[OpenJDK].
 
+. <<install-windows,Download and install the `.zip` package.>>
+include::{xes-repo-dir}/setup/xpack-tls.asciidoc[]
+. <<windows-running,Start {es}>>. You can optionally
+<<windows-service, run it as a service>>.
+. <<windows-checking,Check that {es} is running>>.
+include::{xes-repo-dir}/setup/xpack-passwords.asciidoc[]
+
 [[install-windows]]
 ==== Download and install the `.zip` package
 
@@ -39,6 +46,8 @@ window, `cd` to the `%ES_HOME%` directory, for instance:
 ----------------------------
 cd c:\elasticsearch-{version}
 ----------------------------
+
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
 
 endif::[]
 
@@ -76,6 +85,7 @@ TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
+[[windows-checking]]
 include::check-running.asciidoc[]
 
 [[windows-service]]

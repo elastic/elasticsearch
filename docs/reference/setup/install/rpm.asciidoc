@@ -86,6 +86,8 @@ sudo zypper install elasticsearch <3>
 <2> Use `dnf` on Fedora and other newer Red Hat distributions.
 <3> Use `zypper` on OpenSUSE based distributions
 
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+
 endif::[]
 
 [[install-rpm]]
@@ -114,6 +116,8 @@ sudo rpm --install elasticsearch-{version}.rpm
 endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
+
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
 
 include::init-systemd.asciidoc[]
 

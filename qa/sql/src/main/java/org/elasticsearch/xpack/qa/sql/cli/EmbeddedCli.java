@@ -25,19 +25,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
-import java.io.PrintWriter;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -46,7 +37,6 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -54,7 +44,7 @@ import static org.junit.Assert.fail;
 /**
  * Wraps a CLI in as "real" a way as it can get without forking the CLI
  * subprocess with the goal being integration testing of the CLI without
- * breaking out security model by forking. We test the script that starts
+ * breaking our security model by forking. We test the script that starts
  * the CLI using packaging tests which is super "real" but not super fast
  * and doesn't run super frequently.
  */

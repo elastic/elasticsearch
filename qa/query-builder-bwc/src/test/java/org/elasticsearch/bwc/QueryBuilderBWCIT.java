@@ -25,6 +25,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -189,7 +190,7 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             Response rsp = client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {

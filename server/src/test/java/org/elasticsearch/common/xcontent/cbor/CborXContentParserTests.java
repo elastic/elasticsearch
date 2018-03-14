@@ -28,7 +28,7 @@ import java.io.IOException;
 
 public class CborXContentParserTests extends ESTestCase {
     public void testEmptyValue() throws IOException {
-        BytesReference ref = XContentFactory.cborBuilder().startObject().field("field", "").endObject().bytes();
+        BytesReference ref = BytesReference.bytes(XContentFactory.cborBuilder().startObject().field("field", "").endObject());
 
         for (int i = 0; i < 2; i++) {
             // Running this part twice triggers the issue.

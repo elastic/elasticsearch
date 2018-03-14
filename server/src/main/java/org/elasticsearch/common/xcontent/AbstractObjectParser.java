@@ -219,7 +219,7 @@ public abstract class AbstractObjectParser<Value, Context>
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.prettyPrint();
                 builder.copyCurrentStructure(p);
-                return builder.bytes();
+                return BytesReference.bytes(builder);
             }
         };
         declareField(consumer, bytesParser, field, ValueType.OBJECT);

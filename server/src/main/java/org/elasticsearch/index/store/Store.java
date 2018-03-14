@@ -218,8 +218,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
      * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
      */
-    public SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
-        final Map<String, String> userData = commit != null ? commit.getUserData() : SegmentInfos.readLatestCommit(directory).getUserData();
+    public static SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
+        final Map<String, String> userData = commit.getUserData();
         return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 

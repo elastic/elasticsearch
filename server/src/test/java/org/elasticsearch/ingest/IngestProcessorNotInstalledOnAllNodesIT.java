@@ -45,14 +45,14 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
     private volatile boolean installPlugin;
 
     public IngestProcessorNotInstalledOnAllNodesIT() throws IOException {
-        pipelineSource = jsonBuilder().startObject()
+        pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
                 .startArray("processors")
                     .startObject()
                         .startObject("test")
                         .endObject()
                     .endObject()
                 .endArray()
-                .endObject().bytes();
+                .endObject());
     }
 
     @Override

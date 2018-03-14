@@ -33,6 +33,7 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -66,11 +67,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_classic() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "classic")
@@ -85,11 +86,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "BM25")
@@ -108,11 +109,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_boolean() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "boolean").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         IndexService indexService = createIndex("foo", Settings.EMPTY);
         DocumentMapper documentMapper = indexService.mapperService()
@@ -123,11 +124,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFR")
@@ -148,11 +149,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_IB() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "IB")
@@ -173,11 +174,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_DFI() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "DFI")
@@ -192,11 +193,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMDirichlet")
@@ -211,11 +212,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings indexSettings = Settings.builder()
             .put("index.similarity.my_similarity.type", "LMJelinekMercer")
@@ -230,11 +231,11 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     }
 
     public void testResolveSimilaritiesFromMapping_Unknown() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("field1").field("type", "text").field("similarity", "unknown_similarity").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         IndexService indexService = createIndex("foo");
         try {

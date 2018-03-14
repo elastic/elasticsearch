@@ -82,6 +82,7 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-mlt-query.html[More Like This]                      | {query-ref}/MoreLikeThisQueryBuilder.html[MoreLikeThisQueryBuilder]                 | {query-ref}/QueryBuilders.html#moreLikeThisQuery-org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item:A-[QueryBuilders.moreLikeThisQuery()]
 | {ref}/query-dsl-script-query.html[Script]                           | {query-ref}/ScriptQueryBuilder.html[ScriptQueryBuilder]                             | {query-ref}/QueryBuilders.html#scriptQuery-org.elasticsearch.script.Script-[QueryBuilders.scriptQuery()]
 | {ref}/query-dsl-percolate-query.html[Percolate]                     | {percolate-ref}/PercolateQueryBuilder.html[PercolateQueryBuilder]                   |
+| {ref}/query-dsl-wrapper-query.html[Wrapper]                         | {query-ref}/WrapperQueryBuilder.html[WrapperQueryBuilder]                           | {query-ref}/QueryBuilders.html#wrapperQuery-java.lang.String-[QueryBuilders.wrapperQuery()]
 |======
 
 ==== Span queries

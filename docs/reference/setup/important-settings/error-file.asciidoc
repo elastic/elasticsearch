@@ -1,0 +1,16 @@
+[[error-file-path]]
+=== JVM fatal error logs
+
+The <<rpm,RPM>> and <<deb,Debian>> package distributions default to configuring
+the JVM to write fatal error logs to `/var/lib/elasticsearch`; these are logs
+produced by the JVM when it encounters a fatal error (e.g., a segmentation
+fault). If this path is not suitable for receiving logs, you should modify the
+entry `-XX:ErrorFile=/var/lib/elasticsearch/hs_err_pid%p.log` in
+<<jvm-options,`jvm.options`>> to an alternate path.
+
+Note that the archive distributions do not configure the error file path by
+default. Instead, the JVM will default to writing to the working directory for
+the Elasticsearch process. If you wish to configure an error file path, you
+should modify the entry `#-XX:ErrorFile=/error/file/path` in
+<<jvm-options,`jvm.options`>> to remove the comment marker `#` and to specify an
+actual path.

@@ -123,45 +123,12 @@ Continue with installation? [y/N]y
 --
 
 . {xpack} will try to automatically create a number of indices within {es}.
-By default, {es} is configured to allow automatic index creation, and no
-additional steps are required. However, if you have disabled automatic index
-creation in {es}, you must configure
-{ref}/docs-index_.html#index-creation[`action.auto_create_index`] in
-`elasticsearch.yml` to allow {xpack} to create the following indices:
 +
 --
-[source,yaml]
------------------------------------------------------------
-action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,.ml*
------------------------------------------------------------
+include::xpack-indices.asciidoc[]
 --
-+
-[IMPORTANT]
-=============================================================================
-If you are using https://www.elastic.co/products/logstash[Logstash]
-or https://www.elastic.co/products/beats[Beats] then you will most likely
-require additional index names in your `action.auto_create_index` setting, and
-the exact value will depend on your local configuration. If you are unsure of
-the correct value for your environment, you may consider setting the value to
- `*` which will allow automatic creation of all indices.
-=============================================================================
 
-. Configure Transport Layer Security (TLS/SSL).
-+
---
-If you have a non-trial license and you want to use {security}, you must
-configure TLS for internode-communication.
-
-NOTE: This requirement applies to clusters with more than one node and to
-clusters with a single node that listens on an external interface. Single-node
-clusters that use a loopback interface do not have this requirement.  For more
-information, see
-{xpack-ref}/encrypting-communications.html[Encrypting Communications].
-
---
-.. <<node-certificates,Generate node certificates for each of your {es} nodes>>.
-
-.. <<tls-transport, Enable TLS on each {es} node>>.
+include::xpack-tls.asciidoc[]
 
 . Start {es}.
 +
@@ -172,28 +139,7 @@ bin/elasticsearch
 ----------------------------------------------------------
 --
 
-. Set the passwords for all built-in users. The +setup-passwords+ command is
-the simplest method to set the built-in users' passwords for the first time.
-+
---
-For example, you can run the command in an "interactive" mode, which prompts you
-to enter new passwords for the `elastic`, `kibana`, and `logstash_system` users:
-
-[source,shell]
---------------------------------------------------
-bin/x-pack/setup-passwords interactive
---------------------------------------------------
-
-For more information about the command options, see <<setup-passwords>>.
-
-IMPORTANT: The `setup-passwords` command uses a transient bootstrap password
-that is no longer valid after the command runs successfully. You cannot run the
-`setup-passwords` command a second time. Instead, you can update passwords from
-the **Management > Users** UI in {kib} or use the security user API.
-
-For more information, see
-{xpack-ref}/setting-up-authentication.html#set-built-in-user-passwords[Setting Built-in User Passwords].
---
+include::xpack-passwords.asciidoc[]
 
 . Optional: <<setup-xpack-client, Configure the Java Client>>.
 

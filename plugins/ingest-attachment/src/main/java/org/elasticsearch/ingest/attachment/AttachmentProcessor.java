@@ -242,7 +242,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 properties = RESERVED_PROPERTIES_KEYS;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField, automaton);
+            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField,
+                automaton);
         }
     }
 

@@ -70,7 +70,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void createStandardProcessor() {
         // We test the default behavior which is extracting all metadata but the raw_metadata
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
-            "target_field", RESERVED_PROPERTIES_KEYS, 10000, false, null);
+            "target_field", RESERVED_PROPERTIES_KEYS, 10000, false, null, null);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -96,7 +96,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         }
 
         processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "target_field",
-            selectedProperties, 10000, false, null);
+            selectedProperties, 10000, false, null, null);
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
         assertThat(attachmentData.keySet(), hasSize(expectedFields));
@@ -256,7 +256,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
-            Collections.emptySet(), 10, true, null);
+            Collections.emptySet(), 10, true, null, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -265,7 +265,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
-            Collections.emptySet(), 10, true, null);
+            Collections.emptySet(), 10, true, null, null);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
@@ -275,7 +275,7 @@ public class AttachmentProcessorTests extends ESTestCase {
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
-            Collections.emptySet(), 10, false, null);
+            Collections.emptySet(), 10, false, null, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
     }
@@ -284,14 +284,14 @@ public class AttachmentProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "randomTarget",
-            Collections.emptySet(), 10, false, null);
+            Collections.emptySet(), 10, false, null, null);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
     }
 
     public void testRawMetadataFromWordDocument() throws Exception {
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("*")));
 
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
@@ -347,7 +347,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testRawMetadataFromPdf() throws Exception {
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // "created" is different depending on the JVM Locale. We skip testing its content
@@ -383,7 +383,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         }
 
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(fields));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(fields));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:"
@@ -396,7 +396,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testFilteredRawMetadataFromPdf() throws Exception {
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion")));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have only the expected field
@@ -408,7 +408,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testRawMetadataWith2FiltersFromPdf() throws Exception {
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted")));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("pdf:PDFVersion", "pdf:encrypted")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have only expected fields
@@ -425,7 +425,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         Set<String> selectedProperties = randomReservedProperties();
 
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            selectedProperties, 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
+            selectedProperties, 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("pdf:*")));
         Map<String, Object> attachmentData = parseDocument("test.pdf", processor);
 
         // We check that we have all expected field starting with "pdf:" and some random reserved properties
@@ -459,19 +459,68 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     public void testRawMetadataFromRtf() {
         processor = new AttachmentProcessor(randomAsciiLettersOfLength(10), "source_field", "target_field",
-            Collections.emptySet(), 10000, false, buildCharacterRunAutomaton(Sets.newHashSet("*")));
+            Collections.emptySet(), 10000, false, null, buildCharacterRunAutomaton(Sets.newHashSet("*")));
         Map<String, Object> attachmentData =
-            parseBase64Document("e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=", processor);
+            parseBase64Document("e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=", processor, new HashMap<>());
 
         assertThat(attachmentData, hasEntry("X-Parsed-By", "org.apache.tika.parser.rtf.RTFParser"));
         assertThat(attachmentData, hasEntry("Content-Type", "application/rtf"));
     }
 
-    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {
-        return parseBase64Document(getAsBase64(file), processor);
+    public void testIndexedChars() throws Exception {
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+            "target_field", RESERVED_PROPERTIES_KEYS, 19, false, null, null);
+
+        Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder(LANGUAGE.toLowerCase(), CONTENT.toLowerCase(),
+            CONTENT_TYPE.toLowerCase(), CONTENT_LENGTH.toLowerCase()));
+        assertThat(attachmentData.get(LANGUAGE.toLowerCase()), is("en"));
+        assertThat(attachmentData.get(CONTENT.toLowerCase()), is("\"God Save the Queen"));
+        assertThat(attachmentData.get(CONTENT_TYPE.toLowerCase()).toString(), containsString("text/plain"));
+        assertThat(attachmentData.get(CONTENT_LENGTH.toLowerCase()), is(19L));
+
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+            "target_field", RESERVED_PROPERTIES_KEYS, 19, false, "max_length", null);
+
+        attachmentData = parseDocument("text-in-english.txt", processor);
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder(LANGUAGE.toLowerCase(), CONTENT.toLowerCase(),
+            CONTENT_TYPE.toLowerCase(), CONTENT_LENGTH.toLowerCase()));
+        assertThat(attachmentData.get(LANGUAGE.toLowerCase()), is("en"));
+        assertThat(attachmentData.get(CONTENT.toLowerCase()), is("\"God Save the Queen"));
+        assertThat(attachmentData.get(CONTENT_TYPE.toLowerCase()).toString(), containsString("text/plain"));
+        assertThat(attachmentData.get(CONTENT_LENGTH.toLowerCase()), is(19L));
+
+        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder(LANGUAGE.toLowerCase(), CONTENT.toLowerCase(),
+            CONTENT_TYPE.toLowerCase(), CONTENT_LENGTH.toLowerCase()));
+        assertThat(attachmentData.get(LANGUAGE.toLowerCase()), is("sk"));
+        assertThat(attachmentData.get(CONTENT.toLowerCase()), is("\"God Save"));
+        assertThat(attachmentData.get(CONTENT_TYPE.toLowerCase()).toString(), containsString("text/plain"));
+        assertThat(attachmentData.get(CONTENT_LENGTH.toLowerCase()), is(10L));
+
+        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 100));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder(LANGUAGE.toLowerCase(), CONTENT.toLowerCase(),
+            CONTENT_TYPE.toLowerCase(), CONTENT_LENGTH.toLowerCase()));
+        assertThat(attachmentData.get(LANGUAGE.toLowerCase()), is("en"));
+        assertThat(attachmentData.get(CONTENT.toLowerCase()), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
+        assertThat(attachmentData.get(CONTENT_TYPE.toLowerCase()).toString(), containsString("text/plain"));
+        assertThat(attachmentData.get(CONTENT_LENGTH.toLowerCase()), is(56L));
     }
 
-    private Map<String, Object> parseBase64Document(String base64, AttachmentProcessor processor) {
+    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {
+        return parseBase64Document(getAsBase64(file), processor, new HashMap<>());
+    }
+
+    private Map<String, Object> parseDocument(String file, AttachmentProcessor processor, Map<String, Object> optionalFields)
+        throws Exception {
+        return parseBase64Document(getAsBase64(file), processor, optionalFields);
+    }
+
+    private Map<String, Object> parseBase64Document(String base64, AttachmentProcessor processor, Map<String, Object> optionalFields) {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", base64);
         document.putAll(optionalFields);
@@ -482,46 +531,6 @@ public class AttachmentProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         return attachmentData;
-    }
-
-    public void testIndexedChars() throws Exception {
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
-
-        Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
-
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("en"));
-        assertThat(attachmentData.get("content"), is("\"God Save the Queen"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_length"), is(19L));
-
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
-            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length");
-
-        attachmentData = parseDocument("text-in-english.txt", processor);
-
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("en"));
-        assertThat(attachmentData.get("content"), is("\"God Save the Queen"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_length"), is(19L));
-
-        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
-
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("sk"));
-        assertThat(attachmentData.get("content"), is("\"God Save"));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_length"), is(10L));
-
-        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 100));
-
-        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("en"));
-        assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
-        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
-        assertThat(attachmentData.get("content_length"), is(56L));
     }
 
     private String getAsBase64(String filename) throws Exception {

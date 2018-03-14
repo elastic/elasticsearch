@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -160,7 +161,7 @@ public class ControlMsgToProcessWriter {
         }
         builder.endObject();
         
-        writeMessage(FORECAST_MESSAGE_CODE + builder.string());
+        writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));
         fillCommandBuffer();
         lengthEncodedWriter.flush();
     }
@@ -208,7 +209,7 @@ public class ControlMsgToProcessWriter {
                 rule.toXContent(builder, ToXContent.EMPTY_PARAMS);
             }
             builder.endArray();
-            stringBuilder.append(builder.string());
+            stringBuilder.append(Strings.toString(builder));
         }
 
         writeMessage(stringBuilder.toString());

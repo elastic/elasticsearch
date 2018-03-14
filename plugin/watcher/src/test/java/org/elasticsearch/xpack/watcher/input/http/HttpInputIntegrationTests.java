@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,7 +70,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .trigger(schedule(interval("5s")))
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/index/_search")
-                                .body(jsonBuilder().startObject().field("size", 1).endObject().string())
+                                .body(Strings.toString(jsonBuilder().startObject().field("size", 1).endObject()))
                                 .putHeader("Content-Type", new TextTemplate("application/json"))))
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_id", loggingAction("anything")))
@@ -109,7 +110,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .endObject();
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path(new TextTemplate("/idx/_search"))
-                .body(body.string());
+                .body(Strings.toString(body));
 
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()

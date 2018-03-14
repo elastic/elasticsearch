@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -343,7 +344,7 @@ public class JobManager extends AbstractComponent {
                                 try {
                                     XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
                                     jobUpdate.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                                    return jsonBuilder.string();
+                                    return Strings.toString(jsonBuilder);
                                 } catch (IOException e) {
                                     return "(unprintable due to " + e.getMessage() + ")";
                                 }

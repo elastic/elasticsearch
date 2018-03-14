@@ -65,7 +65,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
 
     public void testParserEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         MonthlySchedule schedule = new MonthlySchedule.Parser().parse(parser);
@@ -85,7 +85,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
                 .array("minute", time.minute())
                 .endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         MonthlySchedule schedule = new MonthlySchedule.Parser().parse(parser);
@@ -107,7 +107,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
                 .field("minute", time.minute)
                 .endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -121,7 +121,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
     public void testParserMultipleTimes() throws Exception {
         MonthTimes[] times = validMonthTimes();
         XContentBuilder builder = jsonBuilder().value(times);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         MonthlySchedule schedule = new MonthlySchedule.Parser().parse(parser);
@@ -139,7 +139,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
                 .field("on", randomDayOfMonth())
                 .array("at", (Object[]) times)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +58,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        logger.info("JSON: {}", builder.string());
+        logger.info("JSON: {}", Strings.toString(builder));
         XContentParser xContentParser = createParser(builder);
         EmailAttachments attachments = parser.parse(xContentParser);
         assertThat(attachments.getAttachments(), hasSize(2));
@@ -103,14 +104,14 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         builder.startObject();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        logger.info("JSON is: {}", builder.string());
-        assertThat(builder.string(), containsString("my-name.json"));
-        assertThat(builder.string(), containsString("json"));
-        assertThat(builder.string(), containsString("other-id"));
-        assertThat(builder.string(), containsString("localhost"));
-        assertThat(builder.string(), containsString("/"));
+        logger.info("JSON is: {}", Strings.toString(builder));
+        assertThat(Strings.toString(builder), containsString("my-name.json"));
+        assertThat(Strings.toString(builder), containsString("json"));
+        assertThat(Strings.toString(builder), containsString("other-id"));
+        assertThat(Strings.toString(builder), containsString("localhost"));
+        assertThat(Strings.toString(builder), containsString("/"));
         if (inline) {
-            assertThat(builder.string(), containsString("inline"));
+            assertThat(Strings.toString(builder), containsString("inline"));
         }
     }
 
@@ -130,7 +131,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         builder.startObject();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        logger.info("JSON is: " + builder.string());
+        logger.info("JSON is: " + Strings.toString(builder));
 
         XContentParser xContentParser = createParser(builder);
         try {

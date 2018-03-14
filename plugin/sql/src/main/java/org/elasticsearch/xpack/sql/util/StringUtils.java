@@ -213,7 +213,7 @@ public abstract class StringUtils {
     public static String toString(SearchSourceBuilder source) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true)) {
             source.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new RuntimeException("error rendering", e);
         }

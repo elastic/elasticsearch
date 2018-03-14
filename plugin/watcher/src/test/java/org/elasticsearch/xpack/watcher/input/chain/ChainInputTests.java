@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -106,7 +108,7 @@ public class ChainInputTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         chainedInput.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(builder.bytes().utf8ToString(),
+        assertThat(BytesReference.bytes(builder).utf8ToString(),
                 is("{\"inputs\":[{\"first\":{\"simple\":{\"foo\":\"bar\"}}},{\"second\":{\"simple\":{\"spam\":\"eggs\"}}}]}"));
 
         // parsing it back as well!
@@ -132,7 +134,7 @@ public class ChainInputTests extends ESTestCase {
 
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder("theHost", 1234)
                 .path("/index/_search")
-                .body(jsonBuilder().startObject().field("size", 1).endObject().string())
+                .body(Strings.toString(jsonBuilder().startObject().field("size", 1).endObject()))
                 .auth(new BasicAuth("test", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
 
         ChainInput.Builder chainedInputBuilder = chainInput()
@@ -154,8 +156,8 @@ public class ChainInputTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         chainedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.bytes().utf8ToString(), containsString("\"type\":\"exception\""));
-        assertThat(builder.bytes().utf8ToString(), containsString("\"reason\":\"foo\""));
+        assertThat(BytesReference.bytes(builder).utf8ToString(), containsString("\"type\":\"exception\""));
+        assertThat(BytesReference.bytes(builder).utf8ToString(), containsString("\"reason\":\"foo\""));
     }
 
     /* https://github.com/elastic/x-plugins/issues/3736

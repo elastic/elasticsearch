@@ -126,7 +126,7 @@ public class TextTemplateTests extends ESTestCase {
         }
         builder.field("params", template.getParams());
         builder.endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         TextTemplate parsed = TextTemplate.parse(parser);
@@ -140,7 +140,7 @@ public class TextTemplateTests extends ESTestCase {
                 templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
 
         XContentBuilder builder = jsonBuilder().value(template);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         TextTemplate parsed = TextTemplate.parse(parser);
@@ -152,7 +152,7 @@ public class TextTemplateTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("unknown_field", "value")
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {
@@ -169,7 +169,7 @@ public class TextTemplateTests extends ESTestCase {
                 .field("type", "unknown_type")
                 .startObject("params").endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {
@@ -185,7 +185,7 @@ public class TextTemplateTests extends ESTestCase {
                 .field("type", ScriptType.STORED)
                 .startObject("params").endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {

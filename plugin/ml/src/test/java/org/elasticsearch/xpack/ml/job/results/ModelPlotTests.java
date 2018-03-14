@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -208,7 +209,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         modelPlot.setActual(null);
         modelPlot.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        String json = builder.string();
+        String json = Strings.toString(builder);
         assertThat(json, not(containsString("actual")));
     }
 

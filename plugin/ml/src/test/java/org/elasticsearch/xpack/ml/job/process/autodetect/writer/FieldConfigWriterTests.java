@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -213,7 +214,7 @@ public class FieldConfigWriterTests extends ESTestCase {
         String expectedSecondLineStart = "detector.0.rules = ";
         assertTrue(secondLine.startsWith(expectedSecondLineStart));
         String rulesJson = secondLine.substring(expectedSecondLineStart.length());
-        assertEquals("[" + rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string() + "]\n", rulesJson);
+        assertEquals("[" + Strings.toString(rule.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) + "]\n", rulesJson);
     }
 
     public void testWrite_GivenFilters() throws IOException {

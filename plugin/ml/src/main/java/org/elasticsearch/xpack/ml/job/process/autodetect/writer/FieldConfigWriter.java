@@ -129,7 +129,7 @@ public class FieldConfigWriter {
                 contents.append(',');
             }
             try (XContentBuilder contentBuilder = XContentFactory.jsonBuilder()) {
-                contents.append(rule.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS).string());
+                contents.append(Strings.toString(rule.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS)));
             }
         }
         contents.append(']');

@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -91,7 +92,8 @@ public class DataLoader {
         }
         createIndex.endObject().endObject();
         
-        client.performRequest("PUT", "/" + index, emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
+        client.performRequest("PUT", "/" + index, emptyMap(), new StringEntity(Strings.toString(createIndex),
+                        ContentType.APPLICATION_JSON));
 
         
         Map<String, String> deps = new LinkedHashMap<>();

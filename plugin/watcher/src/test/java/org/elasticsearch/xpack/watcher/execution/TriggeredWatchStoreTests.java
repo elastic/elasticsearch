@@ -373,12 +373,12 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         TriggeredWatch.Parser parser = new TriggeredWatch.Parser(Settings.EMPTY, triggerService);
-        TriggeredWatch parsedTriggeredWatch = parser.parse(triggeredWatch.id().value(), 0, jsonBuilder.bytes());
+        TriggeredWatch parsedTriggeredWatch = parser.parse(triggeredWatch.id().value(), 0, BytesReference.bytes(jsonBuilder));
 
         XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
         parsedTriggeredWatch.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
 
-        assertThat(jsonBuilder.bytes().utf8ToString(), equalTo(jsonBuilder2.bytes().utf8ToString()));
+        assertThat(BytesReference.bytes(jsonBuilder).utf8ToString(), equalTo(BytesReference.bytes(jsonBuilder2).utf8ToString()));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

@@ -88,7 +88,7 @@ public class BytesReferenceMonitoringDocTests extends BaseMonitoringDocTestCase<
         final MonitoringDoc.Node node =
                 new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final BytesReferenceMonitoringDoc document = new BytesReferenceMonitoringDoc("_cluster", 1502266739402L, 1506593717631L,
-                node, KIBANA, "_type", "_id", xContentType, builder.bytes());
+                node, KIBANA, "_type", "_id", xContentType, BytesReference.bytes(builder));
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertEquals("{"

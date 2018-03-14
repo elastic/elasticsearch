@@ -41,6 +41,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
@@ -187,18 +188,18 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupRoleMapping() throws IOException {
-        final StringEntity json = new StringEntity(XContentBuilder.builder(XContentType.JSON.xContent())
-                .startObject()
-                .array("roles", new String[] { "kibana_user"} )
-                .field("enabled", true)
-                .startObject("rules")
-                .startArray("all")
-                .startObject().startObject("field").field("username", "thor").endObject().endObject()
-                .startObject().startObject("field").field("realm.name", "shibboleth").endObject().endObject()
-                .endArray() // "all"
-                .endObject() // "rules"
-                .endObject() // top-level
-                .string(), ContentType.APPLICATION_JSON);
+        final StringEntity json = new StringEntity(Strings // top-level
+                .toString(XContentBuilder.builder(XContentType.JSON.xContent())
+                        .startObject()
+                        .array("roles", new String[] { "kibana_user"} )
+                        .field("enabled", true)
+                        .startObject("rules")
+                        .startArray("all")
+                        .startObject().startObject("field").field("username", "thor").endObject().endObject()
+                        .startObject().startObject("field").field("realm.name", "shibboleth").endObject().endObject()
+                        .endArray() // "all"
+                        .endObject() // "rules"
+                        .endObject()), ContentType.APPLICATION_JSON);
 
         final Response response = adminClient().performRequest("PUT", "/_xpack/security/role_mapping/thor-kibana", emptyMap(), json);
         assertOK(response);

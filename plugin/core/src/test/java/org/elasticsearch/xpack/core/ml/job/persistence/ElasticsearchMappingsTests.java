@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -107,7 +108,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         XContentBuilder builder = ElasticsearchMappings.docMapping();
         BufferedInputStream inputStream =
-                new BufferedInputStream(new ByteArrayInputStream(builder.string().getBytes(StandardCharsets.UTF_8)));
+                new BufferedInputStream(new ByteArrayInputStream(Strings.toString(builder).getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,7 +29,7 @@ public class WatcherXContentParserTests extends ESTestCase {
             builder.startObject().field(fieldName, "::es_redacted::").endObject();
 
             try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE, builder.string())) {
+                    LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
                 xContentParser.nextToken();
                 xContentParser.nextToken();
                 assertThat(xContentParser.currentName(), is(fieldName));

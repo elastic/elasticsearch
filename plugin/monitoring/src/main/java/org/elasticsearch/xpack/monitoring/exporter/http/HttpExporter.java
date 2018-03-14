@@ -585,7 +585,8 @@ public class HttpExporter extends Exporter {
                 final String pipelineName = MonitoringTemplateUtils.pipelineName(pipelineId);
                 // lazily load the pipeline
                 final Supplier<byte[]> pipeline =
-                        () -> BytesReference.toBytes(MonitoringTemplateUtils.loadPipeline(pipelineId, XContentType.JSON).bytes());
+                        () -> BytesReference.toBytes(BytesReference.bytes(MonitoringTemplateUtils.loadPipeline(pipelineId,
+                                                XContentType.JSON)));
 
                 resources.add(new PipelineHttpResource(resourceOwnerName, pipelineTimeout, pipelineName, pipeline));
             }

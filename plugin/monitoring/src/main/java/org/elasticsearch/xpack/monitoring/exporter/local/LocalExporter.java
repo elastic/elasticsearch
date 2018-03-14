@@ -387,7 +387,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      */
     private void putIngestPipeline(final String pipelineId, final ActionListener<WritePipelineResponse> listener) {
         final String pipelineName = pipelineName(pipelineId);
-        final BytesReference pipeline = loadPipeline(pipelineId, XContentType.JSON).bytes();
+        final BytesReference pipeline = BytesReference.bytes(loadPipeline(pipelineId, XContentType.JSON));
         final PutPipelineRequest request = new PutPipelineRequest(pipelineName, pipeline, XContentType.JSON);
 
         logger.debug("installing ingest pipeline [{}]", pipelineName);

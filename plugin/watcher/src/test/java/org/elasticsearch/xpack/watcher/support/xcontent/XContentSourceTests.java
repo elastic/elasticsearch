@@ -21,16 +21,16 @@ public class XContentSourceTests extends ESTestCase {
     public void testToXContent() throws Exception {
         XContentBuilder builder = randomBoolean() ? jsonBuilder() : randomBoolean() ? yamlBuilder() : smileBuilder();
         BytesReference bytes = randomBoolean() ?
-                builder.startObject().field("key", "value").endObject().bytes() :
-                builder.startObject()
-                        .field("key_str", "value")
-                        .startArray("array_int").value(randomInt(10)).endArray()
-                        .nullField("key_null")
-                        .endObject()
-                        .bytes();
+                BytesReference.bytes(builder.startObject().field("key", "value").endObject()) :
+                BytesReference
+                        .bytes(builder.startObject()
+                                .field("key_str", "value")
+                                .startArray("array_int").value(randomInt(10)).endArray()
+                                .nullField("key_null")
+                                .endObject());
         XContentSource source = new XContentSource(bytes, builder.contentType());
         XContentBuilder builder2 = XContentFactory.contentBuilder(builder.contentType());
-        BytesReference bytes2 = source.toXContent(builder2, ToXContent.EMPTY_PARAMS).bytes();
+        BytesReference bytes2 = BytesReference.bytes(source.toXContent(builder2, ToXContent.EMPTY_PARAMS));
         assertEquals(bytes.toBytesRef(), bytes2.toBytesRef());
     }
 }

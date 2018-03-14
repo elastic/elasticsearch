@@ -33,7 +33,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build();
         XContentBuilder b = jsonBuilder();
         privs.toXContent(b, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"]}", b.string());
+        assertEquals("{\"names\":[\"idx\"],\"privileges\":[\"priv\"]}", Strings.toString(b));
     }
 
     public void testToString() throws Exception {
@@ -63,7 +63,7 @@ public class RoleDescriptorTests extends ESTestCase {
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, new String[] { "sudo" }, metadata);
         XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        RoleDescriptor parsed = RoleDescriptor.parse("test", builder.bytes(), false, XContentType.JSON);
+        RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
         assertEquals(parsed, descriptor);
     }
 
@@ -163,7 +163,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 Collections.singletonMap("_unlicensed_feature", true), Collections.singletonMap("foo", "bar"));
         XContentBuilder b = jsonBuilder();
         descriptor.toXContent(b, ToXContent.EMPTY_PARAMS);
-        RoleDescriptor parsed = RoleDescriptor.parse("test", b.bytes(), false, XContentType.JSON);
+        RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(b), false, XContentType.JSON);
         assertNotNull(parsed);
         assertEquals(1, parsed.getTransientMetadata().size());
         assertEquals(true, parsed.getTransientMetadata().get("enabled"));

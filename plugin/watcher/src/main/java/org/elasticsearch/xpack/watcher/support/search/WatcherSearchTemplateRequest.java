@@ -21,6 +21,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -129,7 +130,9 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
             builder.array(TYPES_FIELD.getPreferredName(), types);
         }
         if (searchSource != null && searchSource.length() > 0) {
-            builder.rawField(BODY_FIELD.getPreferredName(), searchSource);
+            try (InputStream stream = searchSource.streamInput()) {
+                builder.rawField(BODY_FIELD.getPreferredName(), stream);
+            }
         }
         if (indicesOptions != DEFAULT_INDICES_OPTIONS) {
             builder.startObject(INDICES_OPTIONS_FIELD.getPreferredName());
@@ -197,7 +200,7 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                 if (BODY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
-                        searchSource = builder.bytes();
+                        searchSource = BytesReference.bytes(builder);
                     }
                 } else if (INDICES_OPTIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();

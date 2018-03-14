@@ -9,8 +9,8 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbcx.JdbcDataSource;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -89,7 +88,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        HttpEntity doc = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        HttpEntity doc = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/" + index + "/doc/1", singletonMap("refresh", "true"), doc);
     }
 

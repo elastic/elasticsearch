@@ -9,6 +9,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -282,7 +283,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.field("_source", true);
         xContentBuilder.endObject();
         return client().performRequest("put", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId,
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
+                Collections.emptyMap(), new StringEntity(Strings.toString(xContentBuilder), ContentType.APPLICATION_JSON));
     }
 
     private Response createFarequoteJob(String jobId) throws Exception {
@@ -310,7 +311,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         xContentBuilder.endObject();
 
         return client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + URLEncoder.encode(jobId, "UTF-8"),
-                Collections.emptyMap(), new StringEntity(xContentBuilder.string(), ContentType.APPLICATION_JSON));
+                Collections.emptyMap(), new StringEntity(Strings.toString(xContentBuilder), ContentType.APPLICATION_JSON));
     }
 
     private static Map<String, Object> responseEntityToMap(Response response) throws IOException {

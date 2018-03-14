@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -154,7 +155,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
                 XContentBuilder builder = XContentFactory.jsonBuilder();
 
                 record.toXContent(builder, WatcherParams.builder().hideSecrets(true).debug(request.isDebug()).build());
-                listener.onResponse(new ExecuteWatchResponse(record.id().value(), builder.bytes(), XContentType.JSON));
+                listener.onResponse(new ExecuteWatchResponse(record.id().value(), BytesReference.bytes(builder), XContentType.JSON));
             }
         });
     }

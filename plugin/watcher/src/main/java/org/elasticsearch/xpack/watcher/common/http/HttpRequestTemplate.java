@@ -459,7 +459,7 @@ public class HttpRequestTemplate implements ToXContentObject {
         }
 
         public Builder body(XContentBuilder content) throws IOException {
-            return body(new TextTemplate(content.string(), content.contentType(), ScriptType.INLINE, null));
+            return body(new TextTemplate(Strings.toString(content), content.contentType(), ScriptType.INLINE, null));
         }
 
         public Builder connectionTimeout(TimeValue timeout) {

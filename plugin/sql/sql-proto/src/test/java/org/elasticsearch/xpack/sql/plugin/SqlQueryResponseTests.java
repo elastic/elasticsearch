@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -79,9 +81,9 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
         SqlQueryResponse testInstance = createTestInstance();
 
         XContentBuilder builder = testInstance.toXContent(XContentFactory.jsonBuilder(), EMPTY_PARAMS);
-        Map<String, Object> rootMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> rootMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
 
-        logger.info(builder.string());
+        logger.info(Strings.toString(builder));
 
         if (testInstance.columns() != null) {
             List<?> columns = (List<?>) rootMap.get("columns");

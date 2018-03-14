@@ -19,6 +19,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -388,7 +389,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     try {
                         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                         xContentBuilder.startObject().field("password", supplierPassword.toString()).endObject();
-                        return xContentBuilder.string();
+                        return Strings.toString(xContentBuilder);
                     } finally {
                         supplierPassword.close();
                     }

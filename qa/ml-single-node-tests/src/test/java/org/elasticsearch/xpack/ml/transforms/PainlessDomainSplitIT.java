@@ -10,6 +10,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -194,7 +195,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         params.putAll(DomainSplitFunction.params);
         for (TestConfiguration testConfig : tests) {
             params.put("host", testConfig.hostName);
-            String mapAsJson = jsonBuilder().map(params).string();
+            String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
             StringEntity body = new StringEntity("{\n" +

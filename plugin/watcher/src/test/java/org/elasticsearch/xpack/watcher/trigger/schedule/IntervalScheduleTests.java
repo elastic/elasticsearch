@@ -22,7 +22,7 @@ public class IntervalScheduleTests extends ESTestCase {
     public void testParseNumber() throws Exception {
         long value = randomIntBetween(0, Integer.MAX_VALUE);
         XContentBuilder builder = jsonBuilder().value(value);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         IntervalSchedule schedule = new IntervalSchedule.Parser().parse(parser);
@@ -33,7 +33,7 @@ public class IntervalScheduleTests extends ESTestCase {
     public void testParseNegativeNumber() throws Exception {
         long value = randomIntBetween(Integer.MIN_VALUE, 0);
         XContentBuilder builder = jsonBuilder().value(value);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -48,7 +48,7 @@ public class IntervalScheduleTests extends ESTestCase {
     public void testParseString() throws Exception {
         IntervalSchedule.Interval value = randomTimeInterval();
         XContentBuilder builder = jsonBuilder().value(value);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         IntervalSchedule schedule = new IntervalSchedule.Parser().parse(parser);
@@ -58,7 +58,7 @@ public class IntervalScheduleTests extends ESTestCase {
 
     public void testParseInvalidString() throws Exception {
         XContentBuilder builder = jsonBuilder().value("43S");
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -71,7 +71,7 @@ public class IntervalScheduleTests extends ESTestCase {
 
     public void testParseInvalidObject() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {

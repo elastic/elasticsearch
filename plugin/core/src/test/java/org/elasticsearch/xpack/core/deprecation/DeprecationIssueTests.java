@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.deprecation;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +53,7 @@ public class DeprecationIssueTests extends ESTestCase {
     public void testToXContent() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         issue.toXContent(builder, EMPTY_PARAMS);
-        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         String level = (String) toXContentMap.get("level");
         String message = (String) toXContentMap.get("message");
         String url = (String) toXContentMap.get("url");

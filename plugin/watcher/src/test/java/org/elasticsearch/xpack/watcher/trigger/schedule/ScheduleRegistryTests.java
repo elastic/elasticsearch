@@ -42,7 +42,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(IntervalSchedule.TYPE, interval)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);
@@ -59,7 +59,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(CronSchedule.TYPE, cron)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);
@@ -74,7 +74,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(HourlySchedule.TYPE, hourly)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);
@@ -89,7 +89,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(DailySchedule.TYPE, daily)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);
@@ -104,7 +104,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(WeeklySchedule.TYPE, weekly)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);
@@ -119,7 +119,7 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .startObject()
                 .field(MonthlySchedule.TYPE, monthly)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         Schedule schedule = registry.parse("ctx", parser);

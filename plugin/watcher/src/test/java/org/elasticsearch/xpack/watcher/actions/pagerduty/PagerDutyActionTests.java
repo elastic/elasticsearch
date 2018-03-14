@@ -182,7 +182,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         builder.endObject();
 
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("pagerduty action json [{}]", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();

@@ -9,6 +9,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -62,7 +63,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        HttpEntity doc = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        HttpEntity doc = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/" + index + "/doc/1", singletonMap("refresh", "true"), doc);
     }
 

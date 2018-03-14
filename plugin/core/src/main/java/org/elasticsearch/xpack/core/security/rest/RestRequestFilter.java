@@ -73,7 +73,7 @@ public interface RestRequestFilter {
                                 fields.toArray(Strings.EMPTY_ARRAY));
                         try {
                             XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
-                            filteredBytes = xContentBuilder.bytes();
+                            filteredBytes = BytesReference.bytes(xContentBuilder);
                         } catch (IOException e) {
                             throw new ElasticsearchException("failed to parse request", e);
                         }

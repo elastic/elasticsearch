@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -33,7 +35,8 @@ public class HttpProxyTests extends ESTestCase {
         }
         builder.endObject();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput())) {
             parser.nextToken();
             HttpProxy proxy = HttpProxy.parse(parser);
             assertThat(proxy.getHost(), is(host));
@@ -51,7 +54,8 @@ public class HttpProxyTests extends ESTestCase {
                 .field("host", "localhost").field("port", 12345).field("scheme", "invalid")
                 .endObject();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput())) {
             parser.nextToken();
             expectThrows(IllegalArgumentException.class, () -> HttpProxy.parse(parser));
         }
@@ -62,7 +66,8 @@ public class HttpProxyTests extends ESTestCase {
                 .field("host", "localhost").field("port", -1)
                 .endObject();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput())) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }
@@ -73,7 +78,8 @@ public class HttpProxyTests extends ESTestCase {
                 .field("port", -1)
                 .endObject();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput())) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }
@@ -84,7 +90,8 @@ public class HttpProxyTests extends ESTestCase {
                 .field("host", "localhost")
                 .endObject();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        BytesReference.bytes(builder).streamInput())) {
             parser.nextToken();
             expectThrows(ElasticsearchParseException.class, () -> HttpProxy.parse(parser));
         }
@@ -96,7 +103,7 @@ public class HttpProxyTests extends ESTestCase {
             HttpProxy proxy = new HttpProxy("localhost", 3128);
             proxy.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertThat(builder.string(), is("{\"proxy\":{\"host\":\"localhost\",\"port\":3128}}"));
+            assertThat(Strings.toString(builder), is("{\"proxy\":{\"host\":\"localhost\",\"port\":3128}}"));
         }
 
         try (XContentBuilder builder = jsonBuilder()) {
@@ -104,7 +111,7 @@ public class HttpProxyTests extends ESTestCase {
             HttpProxy httpsProxy = new HttpProxy("localhost", 3128, Scheme.HTTPS);
             httpsProxy.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertThat(builder.string(), is("{\"proxy\":{\"host\":\"localhost\",\"port\":3128,\"scheme\":\"https\"}}"));
+            assertThat(Strings.toString(builder), is("{\"proxy\":{\"host\":\"localhost\",\"port\":3128,\"scheme\":\"https\"}}"));
         }
     }
 }

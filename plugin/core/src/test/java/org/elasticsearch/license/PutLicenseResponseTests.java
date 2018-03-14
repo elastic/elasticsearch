@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,7 +36,8 @@ public class PutLicenseResponseTests extends ESTestCase {
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
         response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
 
-        Map<String, Object> map = XContentHelper.convertToMap(contentBuilder.bytes(), false, contentBuilder.contentType()).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(contentBuilder), false,
+                contentBuilder.contentType()).v2();
         assertThat(map.containsKey("acknowledged"), equalTo(true));
         boolean actualAcknowledged = (boolean) map.get("acknowledged");
         assertThat(actualAcknowledged, equalTo(acknowledged));

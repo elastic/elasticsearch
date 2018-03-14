@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -129,8 +130,8 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         // create a bad request
         WatcherSearchTemplateRequest request = templateRequest(new SearchSourceBuilder().query(
-                QueryBuilders.wrapperQuery(jsonBuilder().startObject()
-                .startObject("_unknown_query_").endObject().endObject().bytes())), "idx");
+                QueryBuilders.wrapperQuery(BytesReference.bytes(jsonBuilder().startObject()
+                    .startObject("_unknown_query_").endObject().endObject()))), "idx");
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, client(),
                 watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));

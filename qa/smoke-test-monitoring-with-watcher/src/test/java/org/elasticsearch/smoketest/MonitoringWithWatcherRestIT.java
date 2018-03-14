@@ -9,6 +9,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -34,9 +36,9 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
 
     @After
     public void cleanExporters() throws Exception {
-        String body = jsonBuilder().startObject().startObject("transient")
+        String body = Strings.toString(jsonBuilder().startObject().startObject("transient")
                 .nullField("xpack.monitoring.exporters.*")
-                .endObject().endObject().string();
+                .endObject().endObject());
         assertOK(adminClient().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON)));
 
@@ -46,10 +48,10 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
     public void testThatLocalExporterAddsWatches() throws Exception {
         String watchId = createMonitoringWatch();
 
-        String body = jsonBuilder().startObject().startObject("transient")
+        String body = BytesReference.bytes(jsonBuilder().startObject().startObject("transient")
                 .field("xpack.monitoring.exporters.my_local_exporter.type", "local")
                 .field("xpack.monitoring.exporters.my_local_exporter.cluster_alerts.management.enabled", true)
-                .endObject().endObject().bytes().utf8ToString();
+                .endObject().endObject()).utf8ToString();
 
         adminClient().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON));
@@ -63,11 +65,11 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
         String watchId = createMonitoringWatch();
         String httpHost = getHttpHost();
 
-        String body = jsonBuilder().startObject().startObject("transient")
+        String body = BytesReference.bytes(jsonBuilder().startObject().startObject("transient")
                 .field("xpack.monitoring.exporters.my_http_exporter.type", "http")
                 .field("xpack.monitoring.exporters.my_http_exporter.host", httpHost)
                 .field("xpack.monitoring.exporters.my_http_exporter.cluster_alerts.management.enabled", true)
-                .endObject().endObject().bytes().utf8ToString();
+                .endObject().endObject()).utf8ToString();
 
         adminClient().performRequest("PUT", "_cluster/settings", Collections.emptyMap(),
                 new StringEntity(body, ContentType.APPLICATION_JSON));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
@@ -152,7 +153,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watchSource.endObject();
         try {
             watcherClient.preparePutWatch("_name")
-                    .setSource(watchSource.bytes(), watchSource.contentType())
+                    .setSource(BytesReference.bytes(watchSource), watchSource.contentType())
                     .get();
             fail();
         } catch (ElasticsearchParseException e) {
@@ -219,7 +220,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()
                 .setId("my-template")
-                .setContent(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes(), XContentType.JSON)
+                .setContent(BytesReference.bytes(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject()),
+                        XContentType.JSON)
                 .get());
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());

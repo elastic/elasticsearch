@@ -237,7 +237,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
                 builder.endArray();
             }
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         }
 
         void importUsers(Terminal terminal, Environment env, OptionSet options) throws FileNotFoundException {
@@ -311,7 +311,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         static String createRoleJson(RoleDescriptor rd) throws IOException {
             XContentBuilder builder = jsonBuilder();
             rd.toXContent(builder, ToXContent.EMPTY_PARAMS, true);
-            return builder.string();
+            return Strings.toString(builder);
         }
 
         void importRoles(Terminal terminal, Environment env, OptionSet options) throws FileNotFoundException {

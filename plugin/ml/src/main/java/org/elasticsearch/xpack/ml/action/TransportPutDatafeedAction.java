@@ -116,7 +116,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
                             " because user {} lacks permissions on the indices to be" +
                             " searched: {}",
-                    request.getDatafeed().getId(), username, builder.string()));
+                    request.getDatafeed().getId(), username, Strings.toString(builder)));
         }
     }
 

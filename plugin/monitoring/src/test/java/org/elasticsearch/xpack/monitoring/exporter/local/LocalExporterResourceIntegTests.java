@@ -11,15 +11,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -96,7 +93,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
             builder.field("version", version);
         }
 
-        return builder.endObject().bytes();
+        return BytesReference.bytes(builder.endObject());
     }
 
     private void putResources(final Integer version) throws Exception {
@@ -146,7 +143,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
                 }
             }
 
-            return builder.endObject().bytes();
+            return BytesReference.bytes(builder.endObject());
         } catch (final IOException e) {
             throw new RuntimeException("Failed to create pipeline", e);
         }

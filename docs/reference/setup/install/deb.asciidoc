@@ -13,6 +13,14 @@ NOTE: Elasticsearch requires Java 8 or later. Use the
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
 or an open-source distribution such as http://openjdk.java.net[OpenJDK].
 
+. <<deb-key,Import the {es} PGP key>>.
+. Download and install {es} <<install-deb,from our website>> or
+<<deb-repo,from our APT repository>>.
+include::{xes-repo-dir}/setup/xpack-tls.asciidoc[]
+. <<deb-running,Start {es}>>.
+. <<deb-check-running,Check that {es} is running>>.
+include::{xes-repo-dir}/setup/xpack-passwords.asciidoc[]
+
 [[deb-key]]
 ==== Import the Elasticsearch PGP Key
 
@@ -99,8 +107,6 @@ Duplicate sources.list entry https://artifacts.elastic.co/packages/{major-versio
 Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
 
-include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
-
 endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
@@ -128,10 +134,9 @@ sudo dpkg -i elasticsearch-{version}.deb
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
     `elasticsearch-{version}.deb: OK`.
 
-include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]    
-
 endif::[]
 
+[[deb-running]]
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]

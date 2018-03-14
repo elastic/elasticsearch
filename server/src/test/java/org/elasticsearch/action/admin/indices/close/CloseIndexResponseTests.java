@@ -19,42 +19,28 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
+public class CloseIndexResponseTests extends AbstractStreamableXContentTestCase<CloseIndexResponse> {
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.CoreMatchers.equalTo;
-
-public class CloseIndexResponseTests extends ESTestCase {
-
-    public void testFromToXContent() throws IOException {
-        final CloseIndexResponse closeIndexResponse = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(closeIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        BytesReference mutated;
-        if (randomBoolean()) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
-        
-        CloseIndexResponse parsedCloseIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedCloseIndexResponse = CloseIndexResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-        assertThat(parsedCloseIndexResponse.isAcknowledged(), equalTo(closeIndexResponse.isAcknowledged()));
+    @Override
+    protected CloseIndexResponse doParseInstance(XContentParser parser) {
+        return CloseIndexResponse.fromXContent(parser);
     }
-    
-    private static CloseIndexResponse createTestItem() {
-        boolean acknowledged = randomBoolean();
-        return new CloseIndexResponse(acknowledged);
+
+    @Override
+    protected CloseIndexResponse createTestInstance() {
+        return new CloseIndexResponse(randomBoolean());
+    }
+
+    @Override
+    protected CloseIndexResponse createBlankInstance() {
+        return new CloseIndexResponse();
+    }
+
+    @Override
+    protected CloseIndexResponse mutateInstance(CloseIndexResponse response) {
+        return new CloseIndexResponse(response.isAcknowledged() == false);
     }
 }

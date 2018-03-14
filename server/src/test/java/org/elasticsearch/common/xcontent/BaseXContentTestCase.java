@@ -342,7 +342,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -360,7 +360,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(random.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -748,7 +748,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             if (useStream) {
                 generator.writeRawField("bar", new ByteArrayInputStream(rawData));
             } else {
-                generator.writeRawField("bar", new BytesArray(rawData));
+                generator.writeRawField("bar", new BytesArray(rawData).streamInput());
             }
             generator.writeEndObject();
         }
@@ -785,7 +785,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
         XContentParser parser = xcontentType().xContent()
@@ -801,7 +801,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
             generator.writeEndObject();
         }
 
@@ -1015,7 +1015,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes());
+        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes().streamInput());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
@@ -1023,7 +1023,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
             assertEquals("Unknown Object [unknown]", e.getMessage());
             assertEquals("java.lang.Object", e.getCategoryClass());

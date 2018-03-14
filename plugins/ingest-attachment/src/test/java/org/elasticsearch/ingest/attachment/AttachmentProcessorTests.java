@@ -31,6 +31,7 @@ import org.junit.Before;
 import java.io.InputStream;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,8 +69,8 @@ public class AttachmentProcessorTests extends ESTestCase {
     @Before
     public void createStandardProcessor() {
         // We test the default behavior which is extracting all metadata but the raw_metadata
-        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field", "target_field",
-            RESERVED_PROPERTIES_KEYS, 10000, false, null);
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+            "target_field", RESERVED_PROPERTIES_KEYS, 10000, false, null);
     }
 
     public void testEnglishTextDocument() throws Exception {
@@ -470,10 +471,10 @@ public class AttachmentProcessorTests extends ESTestCase {
         return parseBase64Document(getAsBase64(file), processor);
     }
 
-    // Adding this method to more easily write the asciidoc documentation
     private Map<String, Object> parseBase64Document(String base64, AttachmentProcessor processor) {
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", base64);
+        document.putAll(optionalFields);
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
@@ -481,6 +482,46 @@ public class AttachmentProcessorTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         return attachmentData;
+    }
+
+    public void testIndexedChars() throws Exception {
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, null);
+
+        Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("language"), is("en"));
+        assertThat(attachmentData.get("content"), is("\"God Save the Queen"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_length"), is(19L));
+
+        processor = new AttachmentProcessor(randomAlphaOfLength(10), "source_field",
+            "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 19, false, "max_length");
+
+        attachmentData = parseDocument("text-in-english.txt", processor);
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("language"), is("en"));
+        assertThat(attachmentData.get("content"), is("\"God Save the Queen"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_length"), is(19L));
+
+        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("language"), is("sk"));
+        assertThat(attachmentData.get("content"), is("\"God Save"));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_length"), is(10L));
+
+        attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 100));
+
+        assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
+        assertThat(attachmentData.get("language"), is("en"));
+        assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
+        assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
+        assertThat(attachmentData.get("content_length"), is(56L));
     }
 
     private String getAsBase64(String filename) throws Exception {

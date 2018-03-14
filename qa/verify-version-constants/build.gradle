@@ -37,7 +37,6 @@ for (Version version : bwcVersions.indexCompatible) {
         mustRunAfter(precommit)
     }
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        distribution = 'zip'
         bwcVersion = version
         numBwcNodes = 1
         numNodes = 1

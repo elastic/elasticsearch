@@ -38,7 +38,6 @@ for (Version version : bwcVersions.wireCompatible) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    distribution = 'zip'
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
@@ -58,7 +57,6 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
     dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
     minimumMasterNodes = { 2 }
@@ -78,7 +76,6 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
     dependsOn mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop"
-    distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
     minimumMasterNodes = { 2 }

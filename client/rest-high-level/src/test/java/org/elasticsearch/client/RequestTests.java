@@ -37,9 +37,12 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -74,6 +77,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -531,6 +535,49 @@ public class RequestTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
+    }
+
+    public void testRefresh() {
+        String[] indices = randomIndicesNames(0, 5);
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(refreshRequest::indicesOptions, refreshRequest::indicesOptions, expectedParams);
+        Request request = Request.refresh(refreshRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_refresh");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testFlush() {
+        String[] indices = randomIndicesNames(0, 5);
+        FlushRequest flushRequest = new FlushRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(flushRequest::indicesOptions, flushRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            flushRequest.force(randomBoolean());
+        }
+        expectedParams.put("force", Boolean.toString(flushRequest.force()));
+        if (randomBoolean()) {
+            flushRequest.waitIfOngoing(randomBoolean());
+        }
+        expectedParams.put("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
+
+        Request request = Request.flush(flushRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
     }
 
     public void testUpdate() throws IOException {
@@ -1056,7 +1103,7 @@ public class RequestTests extends ESTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
         assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
     }
-    
+
     public void testRankEval() throws Exception {
         RankEvalSpec spec = new RankEvalSpec(
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),
@@ -1116,11 +1163,9 @@ public class RequestTests extends ESTestCase {
             if (randomBoolean()) {
                 randomAliases(createIndexRequest);
             }
-            setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, expectedParams);
             resizeRequest.setTargetIndex(createIndexRequest);
-        } else {
-            setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         }
+        setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
 
         Request request = function.apply(resizeRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
@@ -1130,7 +1175,7 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(resizeRequest, request.getEntity());
     }
-    
+
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
@@ -1142,6 +1187,44 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testRollover() throws IOException {
+        RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomTimeout(rolloverRequest::timeout, rolloverRequest.timeout(), expectedParams);
+        setRandomMasterTimeout(rolloverRequest, expectedParams);
+        if (randomBoolean()) {
+            rolloverRequest.dryRun(randomBoolean());
+            if (rolloverRequest.isDryRun()) {
+                expectedParams.put("dry_run", "true");
+            }
+        }
+        if (randomBoolean()) {
+            rolloverRequest.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            String type = randomAlphaOfLengthBetween(3, 10);
+            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
+        }
+        if (randomBoolean()) {
+            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
+        }
+        if (randomBoolean()) {
+            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
+        }
+        setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards, expectedParams);
+
+        Request request = Request.rollover(rolloverRequest);
+        if (rolloverRequest.getNewIndexName() == null) {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
+        } else {
+            assertEquals("/" + rolloverRequest.getAlias() + "/_rollover/" + rolloverRequest.getNewIndexName(), request.getEndpoint());
+        }
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

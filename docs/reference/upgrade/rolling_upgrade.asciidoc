@@ -69,6 +69,12 @@ GET _cat/nodes
 +
 --
 
+NOTE: Because <<_precedence_of_settings, transient
+settings take precedence over persistent settings>>, this overrides the
+persistent setting used to disable shard allocation in the first step. If you
+don't explicitly reenable shard allocation after a full cluster restart, the
+persistent setting is used and shard allocation remains disabled.
+
 Once the node has joined the cluster, reenable shard allocation to start using
 the node:
 

@@ -922,7 +922,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(values.get(3), equalTo("field\0value4"));
         assertThat(values.get(4), equalTo("field\0value5"));
         msm = doc.rootDoc().getFields(fieldType.minimumShouldMatchField.name())[0].numericValue().intValue();
-        assertThat(msm, equalTo(3));
+        assertThat(msm, equalTo(1));
     }
 
     private static byte[] subByteArray(byte[] source, int offset, int length) {

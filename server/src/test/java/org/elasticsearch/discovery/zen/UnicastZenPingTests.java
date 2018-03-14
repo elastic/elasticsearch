@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;

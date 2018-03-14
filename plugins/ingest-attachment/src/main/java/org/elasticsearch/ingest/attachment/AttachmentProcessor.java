@@ -47,6 +47,7 @@ import static org.elasticsearch.common.regex.Regex.simpleMatchToAutomaton;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
@@ -68,16 +69,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<String> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final String indexedCharsField;
     private final CharacterRunAutomaton runAutomaton;
 
     AttachmentProcessor(String tag, String field, String targetField, Set<String> properties,
-                        int indexedChars, boolean ignoreMissing, CharacterRunAutomaton automaton) {
+                        int indexedChars, boolean ignoreMissing, String indexedCharsField,
+                        CharacterRunAutomaton automaton) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
+        this.indexedCharsField = indexedCharsField;
         this.runAutomaton = automaton;
     }
 
@@ -95,6 +99,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
             return;
         } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
+        }
+
+        Integer indexedChars = this.indexedChars;
+
+        if (indexedCharsField != null) {
+            // If the user provided the number of characters to be extracted as part of the document, we use it
+            indexedChars = ingestDocument.getFieldValue(indexedCharsField, Integer.class, true);
+            if (indexedChars == null) {
+                // If the field does not exist we fall back to the global limit
+                indexedChars = this.indexedChars;
+            }
         }
 
         Metadata metadata = new Metadata();
@@ -215,6 +230,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
 
             final Set<String> properties;
 
@@ -226,7 +242,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 properties = RESERVED_PROPERTIES_KEYS;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, automaton);
+            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField, automaton);
         }
     }
 

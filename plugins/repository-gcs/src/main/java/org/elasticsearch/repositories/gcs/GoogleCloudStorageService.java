@@ -25,156 +25,122 @@ import com.google.api.client.http.HttpBackOffIOExceptionHandler;
 import com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
-import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.services.storage.Storage;
-import com.google.api.services.storage.StorageScopes;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
-interface GoogleCloudStorageService {
+public class GoogleCloudStorageService extends AbstractComponent {
 
-    /** A json credentials file loaded from secure settings. */
-    Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting("gcs.client.", "credentials_file",
-        key -> SecureSetting.secureFile(key, null));
+    /** Clients settings identified by client name. */
+    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
+
+    public GoogleCloudStorageService(final Environment environment, final Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        super(environment.settings());
+        this.clientsSettings = clientsSettings;
+    }
 
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects.
      *
-     * @param clientName     name of client settings to use from secure settings
-     * @param application    name of the application
-     * @param connectTimeout connection timeout for HTTP requests
-     * @param readTimeout    read timeout for HTTP requests
-     * @return a Client instance that can be used to manage objects
+     * @param clientName name of client settings to use from secure settings
+     * @return a Client instance that can be used to manage Storage objects
      */
-    Storage createClient(String clientName, String application,
-                         TimeValue connectTimeout, TimeValue readTimeout) throws Exception;
+    public Storage createClient(final String clientName) throws Exception {
+        final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
+        if (clientSettings == null) {
+            throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: " +
+                Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
+        }
+
+        HttpTransport transport = GoogleNetHttpTransport.newTrustedTransport();
+        HttpRequestInitializer requestInitializer =  createRequestInitializer(clientSettings);
+
+        Storage.Builder storage = new Storage.Builder(transport, JacksonFactory.getDefaultInstance(), requestInitializer);
+        if (Strings.hasLength(clientSettings.getApplicationName())) {
+            storage.setApplicationName(clientSettings.getApplicationName());
+        }
+        if (Strings.hasLength(clientSettings.getEndpoint())) {
+            storage.setRootUrl(clientSettings.getEndpoint());
+        }
+        return storage.build();
+    }
+
+    static HttpRequestInitializer createRequestInitializer(final GoogleCloudStorageClientSettings settings) throws IOException {
+        GoogleCredential credential = settings.getCredential();
+        if (credential == null) {
+            credential = GoogleCredential.getApplicationDefault();
+        }
+        return new DefaultHttpRequestInitializer(credential, toTimeout(settings.getConnectTimeout()), toTimeout(settings.getReadTimeout()));
+    }
+
+    /** Converts timeout values from the settings to a timeout value for the Google Cloud SDK **/
+    static Integer toTimeout(final TimeValue timeout) {
+        // Null or zero in settings means the default timeout
+        if (timeout == null || TimeValue.ZERO.equals(timeout)) {
+            return null;
+        }
+        // -1 means infinite timeout
+        if (TimeValue.MINUS_ONE.equals(timeout)) {
+            // 0 is the infinite timeout expected by Google Cloud SDK
+            return 0;
+        }
+        return Math.toIntExact(timeout.getMillis());
+    }
 
     /**
-     * Default implementation
+     * HTTP request initializer that set timeouts and backoff handler while deferring authentication to GoogleCredential.
+     * See https://cloud.google.com/storage/transfer/create-client#retry
      */
-    class InternalGoogleCloudStorageService extends AbstractComponent implements GoogleCloudStorageService {
+    static class DefaultHttpRequestInitializer implements HttpRequestInitializer {
 
-        /** Credentials identified by client name. */
-        private final Map<String, GoogleCredential> credentials;
+        private final Integer connectTimeout;
+        private final Integer readTimeout;
+        private final GoogleCredential credential;
 
-        InternalGoogleCloudStorageService(Environment environment, Map<String, GoogleCredential> credentials) {
-            super(environment.settings());
-            this.credentials = credentials;
+        DefaultHttpRequestInitializer(GoogleCredential credential, Integer connectTimeoutMillis, Integer readTimeoutMillis) {
+            this.credential = credential;
+            this.connectTimeout = connectTimeoutMillis;
+            this.readTimeout = readTimeoutMillis;
         }
 
         @Override
-        public Storage createClient(String clientName, String application,
-                                    TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
-            try {
-                GoogleCredential credential = getCredential(clientName);
-                NetHttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-
-                Storage.Builder storage = new Storage.Builder(httpTransport, JacksonFactory.getDefaultInstance(),
-                        new DefaultHttpRequestInitializer(credential, connectTimeout, readTimeout));
-                storage.setApplicationName(application);
-
-                logger.debug("initializing client with service account [{}/{}]",
-                        credential.getServiceAccountId(), credential.getServiceAccountUser());
-                return storage.build();
-            } catch (IOException e) {
-                throw new ElasticsearchException("Error when loading Google Cloud Storage credentials file", e);
+        public void initialize(HttpRequest request) {
+            if (connectTimeout != null) {
+                request.setConnectTimeout(connectTimeout);
             }
-        }
-
-        // pkg private for tests
-        GoogleCredential getCredential(String clientName) throws IOException {
-            GoogleCredential cred = credentials.get(clientName);
-            if (cred != null) {
-                return cred;
-            }
-            return getDefaultCredential();
-        }
-
-        // pkg private for tests
-        GoogleCredential getDefaultCredential() throws IOException {
-            return GoogleCredential.getApplicationDefault();
-        }
-
-        /**
-         * HTTP request initializer that set timeouts and backoff handler while deferring authentication to GoogleCredential.
-         * See https://cloud.google.com/storage/transfer/create-client#retry
-         */
-        class DefaultHttpRequestInitializer implements HttpRequestInitializer {
-
-            private final TimeValue connectTimeout;
-            private final TimeValue readTimeout;
-            private final GoogleCredential credential;
-
-            DefaultHttpRequestInitializer(GoogleCredential credential, TimeValue connectTimeout, TimeValue readTimeout) {
-                this.credential = credential;
-                this.connectTimeout = connectTimeout;
-                this.readTimeout = readTimeout;
+            if (readTimeout != null) {
+                request.setReadTimeout(readTimeout);
             }
 
-            @Override
-            public void initialize(HttpRequest request) throws IOException {
-                if (connectTimeout != null) {
-                    request.setConnectTimeout((int) connectTimeout.millis());
+            request.setIOExceptionHandler(new HttpBackOffIOExceptionHandler(newBackOff()));
+            request.setInterceptor(credential);
+
+            final HttpUnsuccessfulResponseHandler handler = new HttpBackOffUnsuccessfulResponseHandler(newBackOff());
+            request.setUnsuccessfulResponseHandler((req, resp, supportsRetry) -> {
+                    // Let the credential handle the response. If it failed, we rely on our backoff handler
+                    return credential.handleResponse(req, resp, supportsRetry) || handler.handleResponse(req, resp, supportsRetry);
                 }
-                if (readTimeout != null) {
-                    request.setReadTimeout((int) readTimeout.millis());
-                }
+            );
+        }
 
-                request.setIOExceptionHandler(new HttpBackOffIOExceptionHandler(newBackOff()));
-                request.setInterceptor(credential);
-
-                final HttpUnsuccessfulResponseHandler handler = new HttpBackOffUnsuccessfulResponseHandler(newBackOff());
-                request.setUnsuccessfulResponseHandler((req, resp, supportsRetry) -> {
-                        // Let the credential handle the response. If it failed, we rely on our backoff handler
-                        return credential.handleResponse(req, resp, supportsRetry) || handler.handleResponse(req, resp, supportsRetry);
-                    }
-                );
-            }
-
-            private ExponentialBackOff newBackOff() {
-                return new ExponentialBackOff.Builder()
-                        .setInitialIntervalMillis(100)
-                        .setMaxIntervalMillis(6000)
-                        .setMaxElapsedTimeMillis(900000)
-                        .setMultiplier(1.5)
-                        .setRandomizationFactor(0.5)
-                        .build();
-            }
+        private ExponentialBackOff newBackOff() {
+            return new ExponentialBackOff.Builder()
+                    .setInitialIntervalMillis(100)
+                    .setMaxIntervalMillis(6000)
+                    .setMaxElapsedTimeMillis(900000)
+                    .setMultiplier(1.5)
+                    .setRandomizationFactor(0.5)
+                    .build();
         }
     }
 
-    /** Load all secure credentials from the settings. */
-    static Map<String, GoogleCredential> loadClientCredentials(Settings settings) {
-        Map<String, GoogleCredential> credentials = new HashMap<>();
-        Iterable<Setting<InputStream>> iterable = CREDENTIALS_FILE_SETTING.getAllConcreteSettings(settings)::iterator;
-        for (Setting<InputStream> concreteSetting : iterable) {
-            try (InputStream credStream = concreteSetting.get(settings)) {
-                GoogleCredential credential = GoogleCredential.fromStream(credStream);
-                if (credential.createScopedRequired()) {
-                    credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-                }
-                credentials.put(CREDENTIALS_FILE_SETTING.getNamespace(concreteSetting), credential);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return credentials;
-    }
 }

@@ -31,20 +31,10 @@ import org.elasticsearch.cluster.ClusterName;
 import java.io.IOException;
 
 /**
- * This class is used to generate the Java Main API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/MainDocumentationIT.java[example]
- * --------------------------------------------------
+ * Documentation for miscellaneous APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
-public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
+public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testMain() throws IOException {
         RestHighLevelClient client = highLevelClient();
@@ -65,6 +55,14 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(version);
             assertNotNull(build);
         }
+    }
+
+    public void testPing() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        //tag::ping-execute
+        boolean response = client.ping();
+        //end::ping-execute
+        assertTrue(response);
     }
 
     public void testInitializationFromClientBuilder() throws IOException {

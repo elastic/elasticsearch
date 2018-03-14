@@ -44,7 +44,7 @@ public class TransformInputTests extends ESTestCase {
     private ScriptService scriptService;
 
     @Before
-    public void setupScriptService() throws Exception {
+    public void setupScriptService() {
         Map<String, ScriptEngine> engines = new HashMap<>();
         engines.put(MockScriptEngine.NAME, new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", s -> "2")));
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
@@ -54,7 +54,7 @@ public class TransformInputTests extends ESTestCase {
         scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
     }
 
-    public void testExecute() throws Exception {
+    public void testExecute() {
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap(), Collections.emptyMap());
         ScriptTransform scriptTransform = ScriptTransform.builder(script).build();
         TransformInput transformInput = new TransformInput(scriptTransform);
@@ -109,5 +109,26 @@ public class TransformInputTests extends ESTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
+    }
+
+    public void testTransformInputToXContentIsSameAsParsing() throws Exception {
+        Map<String, TransformFactory> transformFactories = Collections.singletonMap("script",
+                new ScriptTransformFactory(Settings.EMPTY, scriptService));
+        TransformRegistry registry = new TransformRegistry(Settings.EMPTY, transformFactories);
+        TransformInputFactory factory = new TransformInputFactory(Settings.EMPTY, registry);
+
+        XContentBuilder jsonBuilder = jsonBuilder().startObject().startObject("script")
+                .field("source", "1")
+                .field("lang", "mockscript")
+                .endObject().endObject();
+        XContentParser parser = createParser(jsonBuilder);
+
+        parser.nextToken();
+        TransformInput transformInput = factory.parseInput("whatever", parser);
+
+        XContentBuilder output = jsonBuilder();
+        transformInput.toXContent(output, ToXContent.EMPTY_PARAMS);
+
+        assertThat(jsonBuilder.string(), is(output.string()));
     }
 }

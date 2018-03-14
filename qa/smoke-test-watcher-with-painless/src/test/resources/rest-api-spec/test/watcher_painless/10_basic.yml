@@ -13,29 +13,46 @@
               "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
             },
             "input" : {
-              "search" : {
-                "request" : {
-                  "indices" : [ "logstash*" ],
-                  "body" : {
-                    "query" : {
-                      "bool": {
-                        "must" : {
-                          "match": {
-                            "response": 404
-                          }
-                        },
-                        "filter": {
-                          "range": {
-                            "@timestamp" : {
-                              "from": "{{ctx.trigger.scheduled_time}}||-5m",
-                              "to": "{{ctx.trigger.triggered_time}}"
+              "chain" : {
+                "inputs" : [
+                  {
+                    "first" : {
+                      "search" : {
+                        "request" : {
+                          "indices" : [ "logstash*" ],
+                          "body" : {
+                            "query" : {
+                              "bool": {
+                                "must" : {
+                                  "match": {
+                                    "response": 404
+                                  }
+                                },
+                                "filter": {
+                                  "range": {
+                                    "@timestamp" : {
+                                      "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                                      "to": "{{ctx.trigger.triggered_time}}"
+                                    }
+                                  }
+                                }
+                              }
                             }
                           }
                         }
                       }
                     }
+                  },
+                  {
+                    "second" : {
+                      "transform" : {
+                        "script" : {
+                          "source": "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]"
+                        }
+                      }
+                    }
                   }
-                }
+                ]
               }
             },
             "condition" : {
@@ -46,6 +63,12 @@
             },
             "actions" : {
               "email_admin" : {
+                "transform" : {
+                  "script" : {
+                    "source" : "return ['foo': 'bar']",
+                    "lang" : "painless"
+                  }
+                },
                 "email" : {
                   "to" : "someone@domain.host.com",
                   "subject" : "404 recently encountered"
@@ -54,6 +77,14 @@
             }
           }
   - match: { _id: "my_exe_watch" }
+
+  - do:
+      xpack.watcher.get_watch:
+        id: "my_exe_watch"
+
+  - match: { _id: "my_exe_watch" }
+  - match: { watch.actions.email_admin.transform.script.source: "return ['foo': 'bar']" }
+  - match: { watch.input.chain.inputs.1.second.transform.script.source: "return [ 'hits' : [ 'total' : ctx.payload.first.hits.total ]]" }
 
   - do:
       xpack.watcher.execute_watch:

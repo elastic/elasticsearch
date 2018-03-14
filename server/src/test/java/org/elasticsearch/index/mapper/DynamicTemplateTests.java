@@ -62,7 +62,7 @@ public class DynamicTemplateTests extends ESTestCase {
     }
 
     public void testParseInvalidRegex() {
-        for (String param : new String[] { "path_match", "match", "path_unmatch", "unmatch" }) {System.out.println(param);
+        for (String param : new String[] { "path_match", "match", "path_unmatch", "unmatch" }) {
             Map<String, Object> templateDef = new HashMap<>();
             templateDef.put("match", "foo");
             templateDef.put(param, "*a");

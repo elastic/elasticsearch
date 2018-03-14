@@ -172,23 +172,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3068")
-    public void testMonitoring() throws Exception {
-        waitForYellow(".monitoring-es-*");
-
-        if (runningAgainstOldCluster == false) {
-            waitForMonitoringTemplates();
-        }
-
-        // ensure that monitoring [re]starts and creates the core monitoring document, cluster_stats, for the current cluster
-        final Map<String, Object> response = toMap(client().performRequest("GET", "/"));
-        final Map<String, Object> version = (Map<String, Object>) response.get("version");
-        final String expectedVersion = (String) version.get("number");
-
-        waitForClusterStats(expectedVersion);
-    }
-
     public void testWatcher() throws Exception {
         if (runningAgainstOldCluster) {
             logger.info("Adding a watch on old cluster {}", oldClusterVersion);

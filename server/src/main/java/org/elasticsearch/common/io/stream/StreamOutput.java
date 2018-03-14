@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -852,6 +853,10 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IOException) {
                 writeVInt(17);
+            } else if (throwable instanceof EsRejectedExecutionException) {
+                writeVInt(18);
+                writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+                writeCause = false;
             } else {
                 ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {

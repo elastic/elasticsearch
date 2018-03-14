@@ -35,6 +35,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,6 +77,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -160,6 +162,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(foobars[0].getMessage(), "foobar");
             assertEquals(foobars[0].getCause().getClass(), IllegalArgumentException.class);
             assertEquals(foobars[0].getExceptionName(), "illegal_argument_exception");
+        }
+
+        {
+            final EsRejectedExecutionException esRejectedExecutionException = new EsRejectedExecutionException("rejected", randomBoolean());
+            final RemoteTransportException remoteTransportException =
+                    new RemoteTransportException("node", buildNewFakeTransportAddress(), "action", esRejectedExecutionException);
+            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(remoteTransportException);
+            assertThat(rootCauses, arrayWithSize(1));
+            assertThat(rootCauses[0].getExceptionName(), equalTo("es_rejected_execution_exception"));
+            assertThat(rootCauses[0].getMessage(), equalTo("rejected"));
         }
     }
 

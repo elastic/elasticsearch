@@ -68,6 +68,14 @@ artifacts  {
     nodeps nodepsJar
 }
 
+
+forbiddenApisMain {
+    signaturesURLs += file('src/forbidden/cli-signatures.txt').toURI().toURL()
+}
+forbiddenApisTest {
+    signaturesURLs += file('src/forbidden/cli-signatures.txt').toURI().toURL()
+}
+
 thirdPartyAudit.excludes = [
     // jLine's optional dependencies
     'org.apache.sshd.client.SshClient',

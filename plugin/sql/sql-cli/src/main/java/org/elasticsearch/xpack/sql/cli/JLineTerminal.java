@@ -71,7 +71,8 @@ public class JLineTerminal implements CliTerminal {
 
     @Override
     public void println(String text) {
-        terminal.writer().println(text);
+        print(text);
+        print("\n");
     }
 
     @Override
@@ -86,7 +87,7 @@ public class JLineTerminal implements CliTerminal {
 
     @Override
     public void println() {
-        terminal.writer().println();
+        print("\n");
     }
 
     @Override
@@ -168,7 +169,7 @@ public class JLineTerminal implements CliTerminal {
         }
 
         public void ln() {
-            terminal.writer().println(line.toAnsi(terminal));
+            println(line.toAnsi(terminal));
         }
 
         public void end() {

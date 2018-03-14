@@ -94,6 +94,8 @@ the `match` query but is supported for `match_phrase` and `match_phrase_prefix`.
 
 * The deprecated `le` (a synonym for `lte`) and `ge` (a synonym for `gte`) parameter of the `range` query have been removed.
 
+* The deprecated `types` and `_type` synonyms for the `type` parameter of the `ids` query have been removed
+
 * The deprecated multi term rewrite parameters `constant_score_auto`, `constant_score_filter` (synonyms for `constant_score`)
 have been removed.
 

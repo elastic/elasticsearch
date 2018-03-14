@@ -256,7 +256,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets an artificial document from which term vectors are requested for.
      */
     public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(documentBuilder.bytes(), true, documentBuilder.contentType());
+        return this.doc(BytesReference.bytes(documentBuilder), true, documentBuilder.contentType());
     }
 
     /**

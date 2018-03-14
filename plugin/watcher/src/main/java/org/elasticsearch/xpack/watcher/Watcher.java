@@ -370,7 +370,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                getClock(), threadPool, watchParser, clusterService, client);
+                getClock(), watchParser, clusterService, client);
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);

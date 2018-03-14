@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
@@ -86,7 +85,6 @@ public class ExecutionService extends AbstractComponent {
     private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
-    private final ThreadPool threadPool;
     private final WatchParser parser;
     private final ClusterService clusterService;
     private final Client client;
@@ -96,8 +94,7 @@ public class ExecutionService extends AbstractComponent {
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            Clock clock, ThreadPool threadPool, WatchParser parser, ClusterService clusterService,
-                            Client client) {
+            Clock clock, WatchParser parser, ClusterService clusterService, Client client) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -105,14 +102,13 @@ public class ExecutionService extends AbstractComponent {
         this.clock = clock;
         this.defaultThrottlePeriod = DEFAULT_THROTTLE_PERIOD_SETTING.get(settings);
         this.maxStopTimeout = Watcher.MAX_STOP_TIMEOUT_SETTING.get(settings);
-        this.threadPool = threadPool;
         this.parser = parser;
         this.clusterService = clusterService;
         this.client = client;
         this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
     }
 
-    public synchronized void start(ClusterState state) throws Exception {
+    public synchronized void start() throws Exception {
         if (started.get()) {
             return;
         }
@@ -183,13 +179,13 @@ public class ExecutionService extends AbstractComponent {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
-        Collections.sort(currentExecutions, Comparator.comparing(WatchExecutionSnapshot::executionTime));
+        currentExecutions.sort(Comparator.comparing(WatchExecutionSnapshot::executionTime));
         return currentExecutions;
     }
 
     public List<QueuedWatch> queuedWatches() {
         List<Runnable> snapshot = new ArrayList<>();
-        executor.tasks().forEach(t -> snapshot.add(t));
+        executor.tasks().forEach(snapshot::add);
         if (snapshot.isEmpty()) {
             return Collections.emptyList();
         }
@@ -201,8 +197,7 @@ public class ExecutionService extends AbstractComponent {
         }
 
         // Lets show the execution that pending the longest first:
-        // Note that the type parameters on comparing are required to make the comparing method work
-        Collections.sort(queuedWatches, Comparator.<QueuedWatch, DateTime>comparing(QueuedWatch::executionTime));
+        queuedWatches.sort(Comparator.<QueuedWatch, DateTime>comparing(QueuedWatch::executionTime));
         return queuedWatches;
     }
 
@@ -569,17 +564,17 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    public static class WatchExecution {
+    static class WatchExecution {
 
         private final WatchExecutionContext context;
         private final Thread executionThread;
 
-        public WatchExecution(WatchExecutionContext context, Thread executionThread) {
+        WatchExecution(WatchExecutionContext context, Thread executionThread) {
             this.context = context;
             this.executionThread = executionThread;
         }
 
-        public WatchExecutionSnapshot createSnapshot() {
+        WatchExecutionSnapshot createSnapshot() {
             return context.createSnapshot(executionThread);
         }
 

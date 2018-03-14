@@ -40,10 +40,10 @@ import java.util.List;
 import java.util.Map;
 
 
-public final class EngineDiskUtils {
-
-    private EngineDiskUtils() {
-    }
+/**
+ * This class contains utility methods for mutating the shard lucene index and translog as a preparation to be opened.
+ */
+public abstract class EngineDiskUtils {
 
     /**
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.

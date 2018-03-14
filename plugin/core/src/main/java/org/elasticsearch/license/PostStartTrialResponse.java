@@ -8,32 +8,55 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 class PostStartTrialResponse extends ActionResponse {
 
-    enum STATUS {
-        UPGRADED_TO_TRIAL,
-        TRIAL_ALREADY_ACTIVATED
+    enum Status {
+        UPGRADED_TO_TRIAL(true, null, RestStatus.OK),
+        TRIAL_ALREADY_ACTIVATED(false, "Operation failed: Trial was already activated.", RestStatus.FORBIDDEN);
+
+        private final boolean isTrialStarted;
+        private final String errorMessage;
+        private final RestStatus restStatus;
+
+        Status(boolean isTrialStarted, String errorMessage, RestStatus restStatus) {
+            this.isTrialStarted = isTrialStarted;
+            this.errorMessage = errorMessage;
+            this.restStatus = restStatus;
+        }
+
+        boolean isTrialStarted() {
+            return isTrialStarted;
+        }
+
+        String getErrorMessage() {
+            return errorMessage;
+        }
+
+        RestStatus getRestStatus() {
+            return restStatus;
+        }
     }
 
-    private STATUS status;
+    private Status status;
 
     PostStartTrialResponse() {
     }
 
-    PostStartTrialResponse(STATUS status) {
+    PostStartTrialResponse(Status status) {
         this.status = status;
     }
 
-    public STATUS getStatus() {
+    public Status getStatus() {
         return status;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        status = in.readEnum(STATUS.class);
+        status = in.readEnum(Status.class);
     }
 
     @Override

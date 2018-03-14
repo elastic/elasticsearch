@@ -5,13 +5,53 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialRequest> {
+
+    private String type;
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    public PostStartTrialRequest setType(String type) {
+        this.type = type;
+        return this;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        // TODO: Change to 6.3 after backport
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            type = in.readString();
+        } else {
+            type = "trial";
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        // TODO: Change to 6.3 after backport
+        Version version = Version.V_7_0_0_alpha1;
+        if (out.getVersion().onOrAfter(version)) {
+            out.writeString(type);
+        } else {
+            throw new IllegalArgumentException("All nodes in cluster must be version [" + version
+                    + "] or newer to use `type` parameter. Attempting to write to node with version [" + out.getVersion() + "].");
+        }
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -13,11 +12,9 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -36,12 +33,14 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -64,6 +63,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     // pkg private for tests
     static final TimeValue NON_BASIC_SELF_GENERATED_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
+
+    static final Set<String> VALID_TRIAL_TYPES = new HashSet<>(Arrays.asList("trial", "platinum", "gold"));
 
     /**
      * Duration of grace period after a license has expired
@@ -305,52 +306,13 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return license == LicensesMetaData.LICENSE_TOMBSTONE ? null : license;
     }
 
-    void startSelfGeneratedTrialLicense(final ActionListener<PostStartTrialResponse> listener) {
-        clusterService.submitStateUpdateTask("started self generated trial license",
-                new ClusterStateUpdateTask() {
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        LicensesMetaData licensesMetaData = oldState.metaData().custom(LicensesMetaData.TYPE);
-                        logger.debug("started self generated trial license: {}", licensesMetaData);
-
-                        if (licensesMetaData == null || licensesMetaData.isEligibleForTrial()) {
-                            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.STATUS.UPGRADED_TO_TRIAL));
-                        } else {
-                            listener.onResponse(new PostStartTrialResponse(PostStartTrialResponse.STATUS.TRIAL_ALREADY_ACTIVATED));
-                        }
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        LicensesMetaData currentLicensesMetaData = currentState.metaData().custom(LicensesMetaData.TYPE);
-
-                        if (currentLicensesMetaData == null || currentLicensesMetaData.isEligibleForTrial()) {
-                            long issueDate = clock.millis();
-                            MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                            long expiryDate = issueDate + NON_BASIC_SELF_GENERATED_LICENSE_DURATION.getMillis();
-
-                            License.Builder specBuilder = License.builder()
-                                    .uid(UUID.randomUUID().toString())
-                                    .issuedTo(clusterService.getClusterName().value())
-                                    .maxNodes(SELF_GENERATED_LICENSE_MAX_NODES)
-                                    .issueDate(issueDate)
-                                    .type("trial")
-                                    .expiryDate(expiryDate);
-                            License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder);
-                            LicensesMetaData newLicensesMetaData = new LicensesMetaData(selfGeneratedLicense, Version.CURRENT);
-                            mdBuilder.putCustom(LicensesMetaData.TYPE, newLicensesMetaData);
-                            return ClusterState.builder(currentState).metaData(mdBuilder).build();
-                        } else {
-                            return currentState;
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(String source, @Nullable Exception e) {
-                        logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        listener.onFailure(e);
-                    }
-                });
+    void startTrialLicense(PostStartTrialRequest request, final ActionListener<PostStartTrialResponse> listener) {
+        if (VALID_TRIAL_TYPES.contains(request.getType()) == false) {
+            throw new IllegalArgumentException("Cannot start trial of type [" + request.getType() + "]. Valid trial types are "
+                    + VALID_TRIAL_TYPES + ".");
+        }
+        StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
+        clusterService.submitStateUpdateTask("started trial license", task);
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {

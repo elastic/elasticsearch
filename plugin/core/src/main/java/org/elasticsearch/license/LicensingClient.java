@@ -7,6 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 public class LicensingClient {
 
@@ -48,7 +49,7 @@ public class LicensingClient {
         return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
     }
 
-    public void postUpgradeToTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
+    public void postStartTrial(PostStartTrialRequest request, ActionListener<PostStartTrialResponse> listener) {
         client.execute(PostStartTrialAction.INSTANCE, request, listener);
     }
 

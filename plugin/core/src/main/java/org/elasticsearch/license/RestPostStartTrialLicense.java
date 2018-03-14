@@ -11,7 +11,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
@@ -29,23 +28,26 @@ public class RestPostStartTrialLicense extends XPackRestHandler {
 
     @Override
     protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        return channel -> client.licensing().preparePostUpgradeToTrial().execute(
+        PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
+        startTrialRequest.setType(request.param("type", "trial"));
+        return channel -> client.licensing().postStartTrial(startTrialRequest,
                 new RestBuilderListener<PostStartTrialResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(PostStartTrialResponse response, XContentBuilder builder) throws Exception {
-                        PostStartTrialResponse.STATUS status = response.getStatus();
-                        if (status == PostStartTrialResponse.STATUS.TRIAL_ALREADY_ACTIVATED) {
+                        PostStartTrialResponse.Status status = response.getStatus();
+                        if (status.isTrialStarted()) {
+                            builder.startObject()
+                                    .field("trial_was_started", true)
+                                    .field("type", startTrialRequest.getType())
+                                    .endObject();
+                        } else {
                             builder.startObject()
                                     .field("trial_was_started", false)
-                                    .field("error_message", "Operation failed: Trial was already activated.")
+                                    .field("error_message", status.getErrorMessage())
                                     .endObject();
-                            return new BytesRestResponse(RestStatus.FORBIDDEN, builder);
-                        } else if (status == PostStartTrialResponse.STATUS.UPGRADED_TO_TRIAL) {
-                            builder.startObject().field("trial_was_started", true).endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        } else {
-                            throw new IllegalArgumentException("Unexpected status for PostStartTrialResponse: [" + status + "]");
+
                         }
+                        return new BytesRestResponse(status.getRestStatus(), builder);
                     }
                 });
     }

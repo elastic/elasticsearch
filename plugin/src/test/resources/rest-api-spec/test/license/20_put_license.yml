@@ -127,6 +127,12 @@ teardown:
   - match: { trial_was_started: false }
   - match: { error_message: "Operation failed: Trial was already activated." }
 ---
+"Trial license cannot be basic":
+  - do:
+      catch: bad_request
+      xpack.license.post_start_trial:
+        type: "basic"
+---
 "Can start basic license if do not already have basic":
   - do:
       xpack.license.get_basic_status: {}

@@ -99,9 +99,9 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     public static class Fields {
-        public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
-        public static final ParseField REQUEST = new ParseField("request", "request_cache");
-        public static final ParseField FIELDDATA = new ParseField("fielddata", "field_data");
+        public static final ParseField QUERY = new ParseField("query");
+        public static final ParseField REQUEST = new ParseField("request");
+        public static final ParseField FIELDDATA = new ParseField("fielddata");
         public static final ParseField FIELDS = new ParseField("fields");
     }
 

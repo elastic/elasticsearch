@@ -46,7 +46,7 @@ shards the index has. In order to maintain the exact same distribution as a pre 
 `index.number_of_routing_shards` must be set to the `index.number_of_shards` at index creation time.
 Note: if the number of routing shards equals the number of shards `_split` operations are not supported.
 
-==== Skipped background refresh on search idle shards.
+==== Skipped background refresh on search idle shards
 
 Shards belonging to an index that does not have an explicit
 `index.refresh_interval` configured will  no longer refresh in the background
@@ -55,3 +55,12 @@ traffic for `index.search.idle.after` seconds (defaults to `30s`). Searches
 that access a search idle shard will be "parked" until the next refresh
 happens.  Indexing requests with `wait_for_refresh` will also trigger
 a background refresh.
+
+==== Remove deprecated url parameters for Clear Indices Cache API
+
+The following previously deprecated url parameter have been removed:
+
+* `filter` - use `query` instead
+* `filter_cache` - use `query` instead
+* `request_cache` - use `request` instead
+* `field_data` - use `fielddata` instead

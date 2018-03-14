@@ -2111,7 +2111,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.openIndexAndRecoveryFromTranslog();
+        shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2138,14 +2138,6 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replica, primary, (shard, discoveryNode) ->
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
-                @Override
-                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
-                    // Shard is still inactive since we haven't started recovering yet
-                    assertFalse(replica.isActive());
-
-                }
-
                 @Override
                 public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
                     final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
@@ -2188,8 +2180,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
                     assertListenerCalled.accept(replica);
                 }
 

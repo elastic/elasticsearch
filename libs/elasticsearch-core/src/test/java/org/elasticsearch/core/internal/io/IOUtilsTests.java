@@ -53,7 +53,7 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     public void testCloseIterable() throws IOException {
-        runTestClose(Arrays::asList, IOUtils::close);
+        runTestClose((Function<Closeable[], List<Closeable>>) Arrays::asList, IOUtils::close);
     }
 
     private <T> void runTestClose(final Function<Closeable[], T> function, final CheckedConsumer<T, IOException> close) throws IOException {
@@ -74,7 +74,7 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     public void testCloseIterableWithIOExceptions() throws IOException {
-        runTestCloseWithIOExceptions(Arrays::asList, IOUtils::close);
+        runTestCloseWithIOExceptions((Function<Closeable[], List<Closeable>>) Arrays::asList, IOUtils::close);
     }
 
     private <T> void runTestCloseWithIOExceptions(
@@ -113,7 +113,7 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     public void testDeleteFilesIgnoringExceptionsIterable() throws IOException {
-        runDeleteFilesIgnoringExceptionsTest(Arrays::asList, IOUtils::deleteFilesIgnoringExceptions);
+        runDeleteFilesIgnoringExceptionsTest((Function<Path[], List<Path>>) Arrays::asList, IOUtils::deleteFilesIgnoringExceptions);
     }
 
     private <T> void runDeleteFilesIgnoringExceptionsTest(

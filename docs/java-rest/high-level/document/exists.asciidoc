@@ -7,7 +7,9 @@
 The `exists()` API is `true` if a document exists, and `false` otherwise.
 It uses `GetRequest` just like the <<java-rest-high-document-get>>.
 All of its <<java-rest-high-document-get-request-optional-arguments, optional arguments>>
-are supported.
+are supported. Since `exists()` only returns `true` or false, we recommend
+turning off fetching `_source` and any stored fields so the request is
+slightly lighter:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -16,10 +18,8 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-request]
 <1> Index
 <2> Type
 <3> Document id
-<4> Disable fetching `_source`. Since `exists()` just returns `true` or
-`false`, we don't need to ask Elasticsearch to load the `_source`.
-<5> Disable fetching stored fields. Since `exists()` just returns `true`
-or `false`, we don't need to ask Elasticsearch to load stored fields.
+<4> Disable fetching `_source`.
+<5> Disable fetching stored fields.
 
 [[java-rest-high-document-exists-sync]]
 ==== Synchronous Execution

@@ -75,6 +75,14 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         assertTrue(body2.contains("\"acknowledged\":true"));
         assertTrue(body2.contains("\"basic_was_started\":true"));
 
+        assertBusy(() -> {
+            GetLicenseResponse currentLicense = licensingClient.prepareGetLicense().get();
+            assertEquals("basic", currentLicense.license().type());
+        });
+
+        long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
+        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
+
         Response response3 = restClient.performRequest("GET", "/_xpack/license/basic_status");
         String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response3.getStatusLine().getStatusCode());

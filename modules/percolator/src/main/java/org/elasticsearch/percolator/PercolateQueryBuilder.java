@@ -57,6 +57,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -273,7 +274,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         if (documents.isEmpty() == false) {
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = XContentType.readFrom(in);
+                documentXContentType = in.readEnum(XContentType.class);
             } else {
                 documentXContentType = XContentFactory.xContentType(documents.iterator().next());
             }
@@ -330,7 +331,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeOptionalBytesReference(doc);
         }
         if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            documentXContentType.writeTo(out);
+            out.writeEnum(documentXContentType);
         }
     }
 
@@ -345,7 +346,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (documents.isEmpty() == false) {
             builder.startArray(DOCUMENTS_FIELD.getPreferredName());
             for (BytesReference document : documents) {
-                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, document)) {
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE, document)) {
                     parser.nextToken();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
                 }
@@ -731,8 +733,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         BytesRef qbSource = binaryDocValues.binaryValue();
                         if (qbSource.length > 0) {
                             XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                            try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,
-                                qbSource.offset, qbSource.length)) {
+                            try (XContentParser sourceParser = xContent
+                                    .createParser(context.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE,
+                                        qbSource.bytes, qbSource.offset, qbSource.length)) {
                                 return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
                             }
                         } else {

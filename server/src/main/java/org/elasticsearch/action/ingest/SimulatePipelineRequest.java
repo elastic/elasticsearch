@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
@@ -75,7 +76,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         verbose = in.readBoolean();
         source = in.readBytesReference();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         } else {
             xContentType = XContentFactory.xContentType(source);
         }
@@ -122,7 +123,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
     }
 
@@ -195,8 +196,17 @@ public class SimulatePipelineRequest extends ActionRequest {
                 dataMap, MetaData.ROUTING.getFieldName());
             String parent = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, MetaData.PARENT.getFieldName());
+            Long version = null;
+            if (dataMap.containsKey(MetaData.VERSION.getFieldName())) {
+                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, MetaData.VERSION.getFieldName());
+            }
+            VersionType versionType = null;
+            if (dataMap.containsKey(MetaData.VERSION_TYPE.getFieldName())) {
+                versionType = VersionType.fromString(ConfigurationUtils.readStringProperty(null, null, dataMap,
+                    MetaData.VERSION_TYPE.getFieldName()));
+            }
             IngestDocument ingestDocument =
-                new IngestDocument(index, type, id, routing, parent, document);
+                new IngestDocument(index, type, id, routing, parent, version, versionType, document);
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

@@ -63,8 +63,7 @@ conflicting document was updated between the start of the `_update_by_query`
 and the time when it attempted to update the document. This is fine because
 that update will have picked up the online mapping update.
 
-Back to the API format, you can limit `_update_by_query` to a single type. This
-will only update `tweet` documents from the `twitter` index:
+Back to the API format, this will update tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -151,7 +150,7 @@ types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_update_by_query
+POST twitter,blog/_doc,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]

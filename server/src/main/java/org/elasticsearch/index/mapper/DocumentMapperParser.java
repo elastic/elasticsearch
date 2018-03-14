@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -162,7 +163,8 @@ public class DocumentMapperParser {
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, source)) {
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)) {
             root = parser.mapOrdered();
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse mapping definition", e);

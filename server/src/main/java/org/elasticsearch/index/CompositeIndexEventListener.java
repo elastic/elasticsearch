@@ -24,7 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -52,7 +52,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
         this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
-        this.logger = ServerLoggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
     }
 
     @Override

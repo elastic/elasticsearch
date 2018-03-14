@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -52,7 +49,7 @@ public interface XContent {
      */
     static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"));
+        return Booleans.parseBoolean(System.getProperty("es.xcontent.strict_duplicate_detection", "true"), true);
     }
 
     /**
@@ -105,80 +102,8 @@ public interface XContent {
             DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
 
     /**
-     * Creates a parser over the provided bytes.
-     */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException;
-
-    /**
      * Creates a parser over the provided reader.
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, Reader reader) throws IOException;
-
-    /**
-     * Creates a parser over the provided string content using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, String)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content);
-    }
-
-    /**
-     * Creates a parser over the provided input stream using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, InputStream)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, is);
-    }
-
-    /**
-     * Creates a parser over the provided bytes using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, byte[])} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, data);
-    }
-
-    /**
-     * Creates a parser over the provided bytes using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, byte[], int, int)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, data, offset, length);
-    }
-
-    /**
-     * Creates a parser over the provided bytes using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes);
-    }
-
-    /**
-     * Creates a parser over the provided reader using
-     * {@link LoggingDeprecationHandler}.
-     * @deprecated This is a temporary shim so we can migrate all calls to createParser incrementally.
-     *      Use {@link #createParser(NamedXContentRegistry, DeprecationHandler, Reader)} instead.
-     */
-    @Deprecated
-    default XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException {
-        return createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, reader);
-    }
 }

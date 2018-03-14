@@ -20,17 +20,15 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -56,11 +54,6 @@ public class RestOpenIndexAction extends BaseRestHandler {
         if (waitForActiveShards != null) {
             openIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        return channel -> client.admin().indices().open(openIndexRequest, new AcknowledgedRestListener<OpenIndexResponse>(channel) {
-            @Override
-            protected void addCustomFields(XContentBuilder builder, OpenIndexResponse response) throws IOException {
-                builder.field("shards_acknowledged", response.isShardsAcknowledged());
-            }
-        });
+        return channel -> client.admin().indices().open(openIndexRequest, new RestToXContentListener<>(channel));
     }
 }

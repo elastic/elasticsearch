@@ -430,7 +430,7 @@ class BuildPlugin implements Plugin<Project> {
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
-                options.forkOptions.memoryMaximumSize = "1g"
+                options.forkOptions.memoryMaximumSize = "512m"
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -558,7 +558,7 @@ class BuildPlugin implements Plugin<Project> {
         return {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
-            ifNoTests 'fail'
+            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
@@ -582,8 +582,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // default test sysprop values
-            systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

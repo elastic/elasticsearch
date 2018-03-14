@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -402,7 +403,8 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             factory.predict(predict);
         }
         if (model != null) {
-            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, parser.getTokenLocation());
+            MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model,
+                parser.getTokenLocation(), parser.getDeprecationHandler());
             MovAvgModel movAvgModel;
             try {
                 movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window());

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -129,6 +130,6 @@ public class TransformInputTests extends ESTestCase {
         XContentBuilder output = jsonBuilder();
         transformInput.toXContent(output, ToXContent.EMPTY_PARAMS);
 
-        assertThat(jsonBuilder.string(), is(output.string()));
+        assertThat(Strings.toString(jsonBuilder), is(Strings.toString(output)));
     }
 }

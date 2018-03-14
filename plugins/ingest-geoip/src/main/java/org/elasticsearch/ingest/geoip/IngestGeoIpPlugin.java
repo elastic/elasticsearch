@@ -23,7 +23,7 @@ import com.maxmind.db.NoCache;
 import com.maxmind.db.NodeCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;

@@ -163,7 +163,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testInfo() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
-                Build.CURRENT, true);
+                Build.CURRENT);
         mockResponse(testInfo);
         MainResponse receivedInfo = restHighLevelClient.info(headers);
         assertEquals(testInfo, receivedInfo);

@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -686,12 +686,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         movePlugin(tmpRoot, destination);
-        for (PluginInfo info : pluginInfos) {
-            if (info.requiresKeystore()) {
-                createKeystoreIfNeeded(terminal, env, info);
-                break;
-            }
-        }
         String[] plugins = pluginInfos.stream().map(PluginInfo::getName).toArray(String[]::new);
         terminal.println("-> Installed " + metaInfo.getName() + " with: " + Strings.arrayToCommaDelimitedString(plugins));
     }
@@ -716,9 +710,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
                                   env.configFile().resolve(info.getName()), deleteOnFailure);
         movePlugin(tmpRoot, destination);
-        if (info.requiresKeystore()) {
-            createKeystoreIfNeeded(terminal, env, info);
-        }
         terminal.println("-> Installed " + info.getName());
     }
 
@@ -822,15 +813,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
-    }
-
-    private void createKeystoreIfNeeded(Terminal terminal, Environment env, PluginInfo info) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-            keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), new char[0]);
-        }
     }
 
     private static void setOwnerGroup(final Path path, final PosixFileAttributes attributes) throws IOException {

@@ -1,0 +1,59 @@
+[[java-rest-high-document-exists]]
+=== Exists API
+
+[[java-rest-high-document-exists-request]]
+==== Exists Request
+
+The `exists()` API is `true` if a document exists, and `false` otherwise.
+It uses `GetRequest` just like the <<java-rest-high-document-get>>.
+All of its <<java-rest-high-document-get-request-optional-arguments, optional arguments>>
+are supported.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-request]
+--------------------------------------------------
+<1> Index
+<2> Type
+<3> Document id
+<4> Disable fetching `_source`. Since `exists()` just returns `true` or
+`false`, we don't need to ask Elasticsearch to load the `_source`.
+<5> Disable fetching stored fields. Since `exists()` just returns `true`
+or `false`, we don't need to ask Elasticsearch to load stored fields.
+
+[[java-rest-high-document-exists-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute]
+--------------------------------------------------
+
+[[java-rest-high-document-exists-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of `exists()` requires both the `GetRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous
+method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute-async]
+--------------------------------------------------
+<1> The `GetRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `GetResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument.
+<2> Called in case of failure. The raised exception is provided as an argument.

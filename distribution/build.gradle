@@ -265,6 +265,12 @@ subprojects {
         'def': "#-XX:HeapDumpPath=/heap/dump/path"
       ],
 
+      'error.file': [
+        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
+        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
+        'def': "#-XX:ErrorFile=/error/file/path"
+      ],
+
       'stopping.timeout': [
         'rpm': 86400,
       ],

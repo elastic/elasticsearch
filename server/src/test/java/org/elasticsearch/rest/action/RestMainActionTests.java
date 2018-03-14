@@ -49,7 +49,7 @@ public class RestMainActionTests extends ESTestCase {
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -76,7 +76,7 @@ public class RestMainActionTests extends ESTestCase {
         final Build build = Build.CURRENT;
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();

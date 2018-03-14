@@ -41,7 +41,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         String nodeName = randomAlphaOfLength(10);
         Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
-        return new MainResponse(nodeName, version, clusterName, clusterUuid , build, true);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         Build build = new Build(Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
         Version version = Version.CURRENT;
-        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build, true);
+        MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{"
@@ -80,12 +80,11 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
     @Override
     protected MainResponse mutateInstance(MainResponse mutateInstance) {
         String clusterUuid = mutateInstance.getClusterUuid();
-        boolean available = mutateInstance.isAvailable();
         Build build = mutateInstance.getBuild();
         Version version = mutateInstance.getVersion();
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
-        switch (randomIntBetween(0, 5)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 clusterUuid = clusterUuid + randomAlphaOfLength(5);
                 break;
@@ -93,19 +92,16 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 nodeName = nodeName + randomAlphaOfLength(5);
                 break;
             case 2:
-                available = !available;
-                break;
-            case 3:
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
                 break;
-            case 4:
+            case 3:
                 version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
                 break;
-            case 5:
+            case 4:
                 clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
                 break;
         }
-        return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);
+        return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }
 }

@@ -23,7 +23,7 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.cloud.gce.util.GCEAccessControllerUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -151,7 +151,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
             return new GceInstancesService() {
                 @Override
                 public Collection<Instance> instances() {
-                    return Access.doPrivileged(() -> {
+                    return GCEAccessControllerUtil.doPrivileged(() -> {
                         final List<Instance> instances = new ArrayList<>();
 
                         for (DiscoveryNode discoveryNode : nodes.values()) {
@@ -167,7 +167,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
                         }
 
                         return instances;
-                    });
+                    }, GCEAccessControllerUtil.ctx);
                 }
 
                 @Override

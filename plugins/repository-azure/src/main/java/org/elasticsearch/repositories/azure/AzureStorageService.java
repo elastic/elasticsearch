@@ -67,17 +67,23 @@ public interface AzureStorageService {
         return new InputStream() {
             @Override
             public int read() throws IOException {
-                return SocketAccess.doPrivilegedIOException(stream::read);
+                return AzureAccessControllerUtil.doPrivilegedException(stream::read, AzureAccessControllerUtil.ctx);
             }
 
             @Override
             public int read(byte[] b) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
+                return AzureAccessControllerUtil.doPrivilegedException(
+                    () -> stream.read(b),
+                    AzureAccessControllerUtil.ctx
+                );
             }
 
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
+                return AzureAccessControllerUtil.doPrivilegedException(
+                    () -> stream.read(b, off, len),
+                    AzureAccessControllerUtil.ctx
+                );
             }
         };
     }

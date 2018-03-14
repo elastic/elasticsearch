@@ -87,7 +87,10 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
 
-        Storage client = SocketAccess.doPrivilegedIOException(() -> storageService.createClient(clientName));
+        Storage client = GCSAccessControllerUtil.doPrivilegedException(
+            () -> storageService.createClient(clientName),
+            GCSAccessControllerUtil.ctx
+        );
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
 

@@ -73,7 +73,10 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return SocketAccess.doPrivileged(() -> blobStore.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
+            return S3AccessControllerUtil.doPrivileged(
+                () -> blobStore.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)),
+                S3AccessControllerUtil.ctx
+            );
         } catch (Exception e) {
             throw new BlobStoreException("Failed to check if blob [" + blobName +"] exists", e);
         }
@@ -82,7 +85,10 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         try {
-            S3Object s3Object = SocketAccess.doPrivileged(() -> blobStore.client().getObject(blobStore.bucket(), buildKey(blobName)));
+            S3Object s3Object = S3AccessControllerUtil.doPrivileged(
+                () -> blobStore.client().getObject(blobStore.bucket(), buildKey(blobName)),
+                S3AccessControllerUtil.ctx
+            );
             return s3Object.getObjectContent();
         } catch (AmazonClientException e) {
             if (e instanceof AmazonS3Exception) {
@@ -100,14 +106,14 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("Blob [" + blobName + "] already exists, cannot overwrite");
         }
 
-        SocketAccess.doPrivilegedIOException(() -> {
+        S3AccessControllerUtil.doPrivilegedException(() -> {
             if (blobSize <= blobStore.bufferSizeInBytes()) {
                 executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             } else {
                 executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             }
             return null;
-        });
+        }, S3AccessControllerUtil.ctx);
     }
 
     @Override
@@ -117,7 +123,10 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
 
         try {
-            SocketAccess.doPrivilegedVoid(() -> blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName)));
+            S3AccessControllerUtil.doPrivilegedVoid(
+                () -> blobStore.client().deleteObject(blobStore.bucket(), buildKey(blobName)),
+                S3AccessControllerUtil.ctx
+            );
         } catch (AmazonClientException e) {
             throw new IOException("Exception when deleting blob [" + blobName + "]", e);
         }
@@ -128,7 +137,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         return AccessController.doPrivileged((PrivilegedAction<Map<String, BlobMetaData>>) () -> {
             MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
             AmazonS3 client = blobStore.client();
-            SocketAccess.doPrivilegedVoid(() -> {
+            S3AccessControllerUtil.doPrivilegedVoid(() -> {
                 ObjectListing prevListing = null;
                 while (true) {
                     ObjectListing list;
@@ -151,7 +160,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                         break;
                     }
                 }
-            });
+            }, S3AccessControllerUtil.ctx);
             return blobsBuilder.immutableMap();
         });
     }
@@ -168,10 +177,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                 request.setNewObjectMetadata(objectMetadata);
             }
 
-            SocketAccess.doPrivilegedVoid(() -> {
+            S3AccessControllerUtil.doPrivilegedVoid(() -> {
                 blobStore.client().copyObject(request);
                 blobStore.client().deleteObject(blobStore.bucket(), buildKey(sourceBlobName));
-            });
+            }, S3AccessControllerUtil.ctx);
 
         } catch (AmazonS3Exception e) {
             throw new IOException(e);

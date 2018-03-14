@@ -17,45 +17,53 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.gcs;
+package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.StorageException;
+import java.security.AccessControlContext;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;
+import java.net.URISyntaxException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import org.elasticsearch.common.AccessControllerUtil;
 
 /**
- * This plugin uses google api/client libraries to connect to google cloud services. For these remote calls the plugin
- * needs {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access
- * in {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ * This plugin uses azure libraries to connect to azure storage services. For these remote calls the plugin needs
+ * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-final class SocketAccess {
+final class AzureAccessControllerUtil extends AccessControllerUtil {
 
-    private SocketAccess() {}
+    static final AccessControlContext ctx = AccessController.getContext();
 
-    public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
-        SpecialPermission.check();
-        try {
-            return AccessController.doPrivileged(operation);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
-        }
-    }
+    private AzureAccessControllerUtil() {}
 
-    public static void doPrivilegedVoidIOException(CheckedRunnable<IOException> action) throws IOException {
+    // parent class can't handle multiple unrelated exceptions.
+    static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
         SpecialPermission.check();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                action.run();
+                action.executeCouldThrow();
                 return null;
             });
         } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
+            Throwable cause = e.getCause();
+            if (cause instanceof StorageException) {
+                throw (StorageException) cause;
+            } else {
+                throw (URISyntaxException) cause;
+            }
         }
     }
+
+    @FunctionalInterface
+    interface StorageRunnable {
+        void executeCouldThrow() throws StorageException, URISyntaxException, IOException;
+    }
+
 }

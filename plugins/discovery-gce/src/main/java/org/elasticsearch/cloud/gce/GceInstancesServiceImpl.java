@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cloud.gce;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.cloud.gce.util.Access;
+import org.elasticsearch.cloud.gce.util.GCEAccessControllerUtil;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -64,10 +65,11 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
-                    Compute.Instances.List list = client().instances().list(project, zoneId);
-                    return list.execute();
-                });
+                InstanceList instanceList = GCEAccessControllerUtil.<InstanceList, IOException>doPrivilegedException(
+                    () -> {
+                        Compute.Instances.List list = client().instances().list(project, zoneId);
+                        return list.execute();
+                    }, GCEAccessControllerUtil.ctx);
                 // assist type inference
                 return instanceList.isEmpty() || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
@@ -145,7 +147,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            Access.doPrivilegedIOException(credential::refreshToken);
+            GCEAccessControllerUtil.doPrivilegedException(credential::refreshToken, GCEAccessControllerUtil.ctx);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

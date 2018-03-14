@@ -146,14 +146,18 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         try {
             url = new URL(azMetadataUrl);
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            urlConnection = Ec2AccessControllerUtil.doPrivilegedException(
+                url::openConnection,
+                Ec2AccessControllerUtil.ctx);
             urlConnection.setConnectTimeout(2000);
         } catch (IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
             throw new UncheckedIOException(e);
         }
 
-        try (InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+        try (InputStream in = Ec2AccessControllerUtil.doPrivilegedException(
+            urlConnection::getInputStream,
+            Ec2AccessControllerUtil.ctx);
              BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
 
             String metadataResult = urlReader.readLine();

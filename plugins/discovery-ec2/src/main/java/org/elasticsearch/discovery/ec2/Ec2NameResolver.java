@@ -98,9 +98,15 @@ class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            URLConnection urlConnection = Ec2AccessControllerUtil.doPrivilegedException(
+                url::openConnection,
+                Ec2AccessControllerUtil.ctx
+            );
             urlConnection.setConnectTimeout(2000);
-            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+            in = Ec2AccessControllerUtil.doPrivilegedException(
+                urlConnection::getInputStream,
+                Ec2AccessControllerUtil.ctx
+            );
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
             String metadataResult = urlReader.readLine();

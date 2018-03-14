@@ -68,12 +68,12 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         // Also, if invalid security credentials are used to execute this method, the
         // client is not able to distinguish between bucket permission errors and
         // invalid credential errors, and this method could return an incorrect result.
-        SocketAccess.doPrivilegedVoid(() -> {
+        S3AccessControllerUtil.doPrivilegedVoid(() -> {
             if (client.doesBucketExist(bucket) == false) {
                 throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
                                                    " creating an s3 snapshot repository backed by it.");
             }
-        });
+        }, S3AccessControllerUtil.ctx);
     }
 
     @Override

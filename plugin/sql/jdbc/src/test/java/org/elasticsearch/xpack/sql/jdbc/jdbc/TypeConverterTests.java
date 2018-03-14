@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -53,7 +54,7 @@ public class TypeConverterTests extends ESTestCase {
         SqlQueryResponse.value(builder, AbstractSqlRequest.Mode.JDBC, value);
         builder.endObject();
         builder.close();
-        Object copy = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2().get("value");
+        Object copy = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2().get("value");
         return TypeConverter.convert(copy, type);
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 
 /**
@@ -49,7 +50,9 @@ public class BytesReferenceMonitoringDoc extends MonitoringDoc {
     @Override
     protected void innerToXContent(final XContentBuilder builder, final Params params) throws IOException {
         if (source.length() > 0) {
-            builder.rawField(getType(), source, xContentType);
+            try (InputStream stream = source.streamInput()) {
+                builder.rawField(getType(), stream, xContentType);
+            }
         } else {
             builder.nullField(getType());
         }

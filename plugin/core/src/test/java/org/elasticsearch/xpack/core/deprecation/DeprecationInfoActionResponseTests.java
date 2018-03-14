@@ -65,7 +65,7 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         mapping.endObject().endObject();
 
         MetaData metadata = MetaData.builder().put(IndexMetaData.builder("test")
-            .putMapping("testUnderscoreAll", mapping.string())
+            .putMapping("testUnderscoreAll", Strings.toString(mapping))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0))

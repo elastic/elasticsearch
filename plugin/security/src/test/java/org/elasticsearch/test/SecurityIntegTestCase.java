@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -448,7 +449,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
                 assertTrue("security index mapping not sufficient to read:\n" +
-                                clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject().string(),
+                                Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
                         securityIndexMappingSufficientToRead(clusterState, logger));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {

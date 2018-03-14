@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -67,7 +68,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         mapping.endObject();
 
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .putMapping("testBooleanCoercion", mapping.string())
+            .putMapping("testBooleanCoercion", Strings.toString(mapping))
             .settings(settings(Version.V_5_6_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -108,7 +109,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         mapping.endObject();
 
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .putMapping("test", mapping.string())
+            .putMapping("test", Strings.toString(mapping))
             .settings(settings(Version.V_5_6_0))
             .numberOfShards(1)
             .numberOfReplicas(0)

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -640,8 +641,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().startObject("version")
-                    .field("number", v.toString()).endObject().endObject().bytes().utf8ToString()));
+                BytesReference.bytes(jsonBuilder().startObject().startObject("version")
+                    .field("number", v.toString()).endObject().endObject()).utf8ToString()));
     }
 
     private void enqueueSetupResponses(final MockWebServer webServer,

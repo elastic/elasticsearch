@@ -7,6 +7,7 @@ package org.elasticsearch.license;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,7 +57,7 @@ public class LicenseVerifier {
             license.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
             Signature rsa = Signature.getInstance("SHA512withRSA");
             rsa.initVerify(CryptUtils.readEncryptedPublicKey(encryptedPublicKeyData));
-            BytesRefIterator iterator = contentBuilder.bytes().iterator();
+            BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 rsa.update(ref.bytes, ref.offset, ref.length);

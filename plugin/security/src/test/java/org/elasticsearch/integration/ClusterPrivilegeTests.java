@@ -8,9 +8,9 @@ package org.elasticsearch.integration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.AfterClass;
@@ -125,8 +125,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatSnapshotAndRestore() throws Exception {
-        String repoJson = jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
-                repositoryLocation.toString()).endObject().endObject().string();
+        String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
+                repositoryLocation.toString()).endObject().endObject());
         assertAccessIsDenied("user_b", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsDenied("user_c", "PUT", "/_snapshot/my-repo", repoJson);
         assertAccessIsAllowed("user_a", "PUT", "/_snapshot/my-repo", repoJson);

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -97,7 +98,7 @@ public class HttpEmailAttachementParserTests extends ESTestCase {
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
         attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
-        assertThat(toXcontentBuilder.string(), is(builder.string()));
+        assertThat(Strings.toString(toXcontentBuilder), is(Strings.toString(builder)));
 
         assertThat(attachments.get(0).inline(), is(isInline));
     }

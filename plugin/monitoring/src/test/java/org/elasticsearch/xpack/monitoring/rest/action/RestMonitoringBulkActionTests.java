@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -143,7 +144,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             error.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            errorJson = builder.string();
+            errorJson = Strings.toString(builder);
         }
 
         assertThat(restResponse.status(), is(RestStatus.INTERNAL_SERVER_ERROR));

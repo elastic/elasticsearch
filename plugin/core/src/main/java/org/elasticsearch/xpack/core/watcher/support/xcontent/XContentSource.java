@@ -48,7 +48,7 @@ public class XContentSource implements ToXContent {
      * Constructs a new xcontent source from the bytes of the given xcontent builder
      */
     public XContentSource(XContentBuilder builder) {
-        this(builder.bytes(), builder.contentType());
+        this(BytesReference.bytes(builder), builder.contentType());
     }
 
     /**

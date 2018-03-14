@@ -116,7 +116,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
                 1L,
                 true,
-                jsonBuilder().map(values).bytes(),
+                BytesReference.bytes(jsonBuilder().map(values)),
                 Collections.emptyMap());
 
         final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
@@ -219,7 +219,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.ROLES.getPreferredName(), roles);
         values.put(User.Fields.ENABLED.getPreferredName(), Boolean.TRUE);
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
-        final BytesReference source = jsonBuilder().map(values).bytes();
+        final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
                 SecurityLifecycleService.SECURITY_INDEX_NAME,
                 NativeUsersStore.INDEX_TYPE,

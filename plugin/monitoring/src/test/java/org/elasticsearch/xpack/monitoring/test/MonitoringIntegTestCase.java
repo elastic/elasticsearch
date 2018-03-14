@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -160,15 +159,10 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     private Tuple<String, String> monitoringPipeline(final String pipelineId) {
-        try {
-            final XContentType json = XContentType.JSON;
+        final XContentType json = XContentType.JSON;
 
-            return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                               MonitoringTemplateUtils.loadPipeline(pipelineId, json).string());
-        } catch (final IOException e) {
-            // destroy whatever test is running
-            throw new AssertionError("Unable to use pipeline as JSON string [" + pipelineId + "]", e);
-        }
+        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
+                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
     }
 
     protected List<Tuple<String, String>> monitoringPipelines() {

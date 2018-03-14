@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,8 +33,8 @@ public class DataAttachmentParserTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder().startObject().startObject(id)
                 .startObject(DataAttachmentParser.TYPE).field("format", randomFrom("yaml", "json")).endObject()
                 .endObject().endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
-        logger.info("JSON: {}", builder.string());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        logger.info("JSON: {}", Strings.toString(builder));
 
         EmailAttachments emailAttachments = emailAttachmentsParser.parse(parser);
         assertThat(emailAttachments.getAttachments(), hasSize(1));
@@ -41,7 +43,7 @@ public class DataAttachmentParserTests extends ESTestCase {
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>(emailAttachments.getAttachments());
         attachments.get(0).toXContent(toXcontentBuilder, ToXContent.EMPTY_PARAMS);
         toXcontentBuilder.endObject();
-        assertThat(toXcontentBuilder.string(), is(builder.string()));
+        assertThat(Strings.toString(toXcontentBuilder), is(Strings.toString(builder)));
     }
 
 }

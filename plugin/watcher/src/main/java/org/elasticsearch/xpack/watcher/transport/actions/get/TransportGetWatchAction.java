@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -74,8 +75,8 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                                     .build());
                             watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
-                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(), builder.bytes(),
-                                    XContentType.JSON));
+                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(),
+                                            BytesReference.bytes(builder), XContentType.JSON));
                         }
                     } else {
                         listener.onResponse(new GetWatchResponse(request.getId()));

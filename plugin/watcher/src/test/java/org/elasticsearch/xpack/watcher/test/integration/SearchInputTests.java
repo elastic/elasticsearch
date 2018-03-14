@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -167,7 +168,7 @@ public class SearchInputTests extends ESTestCase {
                 .startArray("indices").value("foo").endArray().endObject().endObject();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(NamedXContentRegistry.EMPTY,
-                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput())) {
+                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder).streamInput())) {
 
             parser.nextToken(); // advance past the first starting object
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -181,7 +182,7 @@ public class HipChatActionTests extends ESTestCase {
         }
         builder.endObject();
 
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("hipchat action json [{}]", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -254,7 +255,7 @@ public class HipChatActionTests extends ESTestCase {
 
         XContentBuilder jsonBuilder = jsonBuilder();
         action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("{}", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -283,9 +284,9 @@ public class HipChatActionTests extends ESTestCase {
             builder.startObject();
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            builder.string();
+            Strings.toString(builder);
             try (XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, builder.string())) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
                 parser.map();
             }
         }

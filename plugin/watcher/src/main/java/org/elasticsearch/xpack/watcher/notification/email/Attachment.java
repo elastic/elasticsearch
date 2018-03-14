@@ -231,7 +231,7 @@ public abstract class Attachment extends BodyPartSource {
             try {
                 XContentBuilder builder = XContentBuilder.builder(type.xContent()).prettyPrint();
                 content.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return BytesReference.toBytes(builder.bytes());
+                return BytesReference.toBytes(BytesReference.bytes(builder));
             } catch (IOException ioe) {
                 throw new ElasticsearchException("could not create an xcontent attachment [" + name + "]", ioe);
             }

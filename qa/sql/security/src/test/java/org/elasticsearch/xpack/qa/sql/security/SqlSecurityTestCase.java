@@ -477,7 +477,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         }
         user.endObject();
         client().performRequest("PUT", "/_xpack/security/user/" + name, emptyMap(),
-                new StringEntity(user.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(user), ContentType.APPLICATION_JSON));
     }
 
     /**

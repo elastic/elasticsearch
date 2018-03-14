@@ -8,6 +8,7 @@ package org.elasticsearch.multi_node;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -58,7 +59,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            final StringEntity entity = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             client().performRequest("PUT", "test-index", Collections.emptyMap(), entity);
         }
 
@@ -74,7 +75,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
                     builder.field("foo", i);
                 }
                 builder.endObject();
-                final StringEntity entity = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
                 client().performRequest("PUT", "/test-index/test-type/" + i, Collections.emptyMap(), entity);
             }
         }

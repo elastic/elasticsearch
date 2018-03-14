@@ -600,7 +600,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             xContentObject.toXContent(builder, EMPTY_PARAMS);
 
-            final Map<String, Object> map = XContentHelper.convertToMap(xContentType.xContent(), builder.string(), false);
+            final Map<String, Object> map = XContentHelper.convertToMap(xContentType.xContent(), Strings.toString(builder), false);
 
             // remove extraneous fields not actually wanted from the response
             map.remove("_score");

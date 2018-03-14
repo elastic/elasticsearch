@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -130,7 +131,7 @@ public class V1AccountTests extends ESTestCase {
                         .toString())
                 .build();
 
-        logger.info("expected (r1): {}", jsonBuilder().value(req1).bytes().utf8ToString());
+        logger.info("expected (r1): {}", BytesReference.bytes(jsonBuilder().value(req1)).utf8ToString());
 
         HttpResponse res1 = mock(HttpResponse.class);
         when(res1.status()).thenReturn(200);
@@ -153,7 +154,7 @@ public class V1AccountTests extends ESTestCase {
                         .toString())
                 .build();
 
-        logger.info("expected (r2): {}", jsonBuilder().value(req2).bytes().utf8ToString());
+        logger.info("expected (r2): {}", BytesReference.bytes(jsonBuilder().value(req2)).utf8ToString());
 
         HttpResponse res2 = mock(HttpResponse.class);
         when(res2.status()).thenReturn(200);

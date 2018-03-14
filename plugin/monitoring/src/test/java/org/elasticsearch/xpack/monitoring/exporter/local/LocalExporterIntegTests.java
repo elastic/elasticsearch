@@ -317,7 +317,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 }
             }
             builder.endObject();
-            source = builder.bytes();
+            source = BytesReference.bytes(builder);
         }
 
         return MonitoringTestUtils.randomMonitoringBulkDoc(random(), xContentType, source, system, "doc");

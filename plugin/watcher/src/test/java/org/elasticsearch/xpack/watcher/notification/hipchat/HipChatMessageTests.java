@@ -43,7 +43,7 @@ public class HipChatMessageTests extends ESTestCase {
         } else {
             msg.toXContent(builder, ToXContent.EMPTY_PARAMS, includeTarget);
         }
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -203,7 +203,7 @@ public class HipChatMessageTests extends ESTestCase {
             jsonBuilder.field("notify", notify);
         }
 
-        BytesReference bytes = jsonBuilder.endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(jsonBuilder.endObject());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
@@ -259,7 +259,7 @@ public class HipChatMessageTests extends ESTestCase {
 
         XContentBuilder jsonBuilder = jsonBuilder();
         template.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        BytesReference bytes = jsonBuilder.bytes();
+        BytesReference bytes = BytesReference.bytes(jsonBuilder);
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();

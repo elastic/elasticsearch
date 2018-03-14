@@ -11,8 +11,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -505,6 +505,6 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     }
 
     protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
-        return JsonXContent.contentBuilder().map(keyValueMap).string() + "\n";
+        return Strings.toString(JsonXContent.contentBuilder().map(keyValueMap)) + "\n";
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -110,7 +111,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
             ObjectPath  source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                source = ObjectPath.createFromXContent(builder.contentType().xContent(), builder.bytes());
+                source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));
             }
             assertThat(source.evaluate("enabled_exporters"), is(notNullValue()));
             if (localCount > 0) {

@@ -290,12 +290,12 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final XContentType xContentType = randomFrom(XContentType.values());
-        final BytesReference source = XContentBuilder.builder(xContentType.xContent())
+        final BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
                                                         .startObject()
                                                             .startObject("_foo")
                                                                 .field("_bar", "_baz")
                                                             .endObject()
-                                                        .endObject().bytes();
+                                                        .endObject());
 
         final MonitoringBulkDoc monitoringBulkDoc =
                 new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 1502107402133L, 15_000L, source, xContentType);

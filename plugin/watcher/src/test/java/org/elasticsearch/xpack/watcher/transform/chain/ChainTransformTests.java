@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.transform.chain;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -124,7 +125,7 @@ public class ChainTransformTests extends ESTestCase {
                 .startObject().field("named", "name4").endObject()
                 .endArray();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
         ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser);
         assertThat(executable, notNullValue());

@@ -117,7 +117,7 @@ public class WatcherUtilsTests extends ESTestCase {
             SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder builder = jsonBuilder();
             builder.value(sourceBuilder);
-            expectedSource = builder.bytes();
+            expectedSource = BytesReference.bytes(builder);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedSource);
         }
@@ -195,7 +195,7 @@ public class WatcherUtilsTests extends ESTestCase {
             XContentBuilder searchSourceJsonBuilder = jsonBuilder();
             searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
             source = XContentHelper.toXContent(searchSourceBuilder, XContentType.JSON, false);
-            builder.rawField("body", source);
+            builder.rawField("body", source.streamInput());
         }
         Script template = null;
         boolean stored = false;

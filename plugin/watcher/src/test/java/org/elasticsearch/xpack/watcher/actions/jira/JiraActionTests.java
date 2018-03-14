@@ -63,7 +63,7 @@ public class JiraActionTests extends ESTestCase {
                     .field("fields", issueDefaults)
                 .endObject();
 
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("jira action json [{}]", bytes.utf8ToString());
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
@@ -82,7 +82,7 @@ public class JiraActionTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         action.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("{}", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();

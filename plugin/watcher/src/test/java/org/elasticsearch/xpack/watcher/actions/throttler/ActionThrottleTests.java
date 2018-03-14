@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -280,7 +281,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
 
     public void testFailingActionDoesGetThrottled() throws Exception {
         // create a mapping with a wrong @timestamp field, so that the index action of the watch below will fail
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("bar")
                 .startObject("properties")
@@ -289,7 +290,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).get();
 

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -204,7 +205,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             hitsArray[i] = new SearchHit(randomInt());
             XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
             modelSnapshots.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-            hitsArray[i].sourceRef(jsonBuilder.bytes());
+            hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));
         }
         SearchHits hits = new SearchHits(hitsArray, hitsArray.length, 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);

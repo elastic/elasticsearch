@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license.licensor;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -48,7 +49,7 @@ public class TestUtils {
         license.toInnerXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
-        return builder.string();
+        return Strings.toString(builder);
     }
 
     public static String dateMathString(String time, final long now) {
@@ -133,7 +134,7 @@ public class TestUtils {
         licenses.field("version", licenseSpec.version);
         licenses.endObject();
         licenses.endObject();
-        return licenses.string();
+        return Strings.toString(licenses);
     }
 
     public static void assertLicenseSpec(LicenseSpec spec, License license) {

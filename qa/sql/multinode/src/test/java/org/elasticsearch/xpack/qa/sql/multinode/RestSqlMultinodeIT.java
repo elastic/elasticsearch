@@ -74,7 +74,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         }
         index.endObject();
         index.endObject();
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity(index.string(), ContentType.APPLICATION_JSON));
+        client().performRequest("PUT", "/test", emptyMap(), new StringEntity(Strings.toString(index), ContentType.APPLICATION_JSON));
         int documents = between(10, 100);
         createTestData(documents);
 

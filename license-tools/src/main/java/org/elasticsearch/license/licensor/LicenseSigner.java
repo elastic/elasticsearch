@@ -7,6 +7,7 @@ package org.elasticsearch.license.licensor;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -61,7 +62,7 @@ public class LicenseSigner {
         try {
             final Signature rsa = Signature.getInstance("SHA512withRSA");
             rsa.initSign(CryptUtils.readEncryptedPrivateKey(Files.readAllBytes(privateKeyPath)));
-            final BytesRefIterator iterator = contentBuilder.bytes().iterator();
+            final BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
             while((ref = iterator.next()) != null) {
                 rsa.update(ref.bytes, ref.offset, ref.length);

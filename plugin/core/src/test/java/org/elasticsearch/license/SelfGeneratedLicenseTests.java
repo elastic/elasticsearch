@@ -98,7 +98,7 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
         try {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             spec.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-            byte[] encrypt = encrypt(BytesReference.toBytes(contentBuilder.bytes()));
+            byte[] encrypt = encrypt(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
             byte[] bytes = new byte[4 + 4 + encrypt.length];
             ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
             byteBuffer.putInt(-spec.version())

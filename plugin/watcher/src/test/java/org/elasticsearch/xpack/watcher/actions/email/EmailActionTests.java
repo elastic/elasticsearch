@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.actions.email;
 
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
@@ -278,7 +279,7 @@ public class EmailActionTests extends ESTestCase {
         }
         builder.endObject();
 
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("email action json [{}]", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -373,7 +374,7 @@ public class EmailActionTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, params);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         logger.info("{}", bytes.utf8ToString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
@@ -441,7 +442,7 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject();
         XContentParser parser = createParser(builder);
-        logger.info("JSON: {}", builder.string());
+        logger.info("JSON: {}", Strings.toString(builder));
 
         parser.nextToken();
 
@@ -476,7 +477,7 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject();
         XContentParser parser = createParser(builder);
-        logger.info("JSON: {}", builder.string());
+        logger.info("JSON: {}", Strings.toString(builder));
 
         parser.nextToken();
 

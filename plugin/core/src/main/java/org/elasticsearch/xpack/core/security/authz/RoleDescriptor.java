@@ -377,7 +377,7 @@ public class RoleDescriptor implements ToXContentObject {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
-                    query = builder.bytes();
+                    query = BytesReference.bytes(builder);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     final String text = parser.text();
                     if (text.isEmpty() == false) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,7 +49,7 @@ public class ScheduledEventsWriter {
                 contentBuilder.startArray();
                 event.toDetectionRule(bucketSpan).toXContent(contentBuilder, null);
                 contentBuilder.endArray();
-                eventContent.append(contentBuilder.string());
+                eventContent.append(Strings.toString(contentBuilder));
             }
 
             eventContent.append(NEW_LINE);

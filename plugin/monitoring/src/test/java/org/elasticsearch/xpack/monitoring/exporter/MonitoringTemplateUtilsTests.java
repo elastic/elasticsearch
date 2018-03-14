@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -83,7 +84,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
     }
 
     public void testEmptyPipeline() throws IOException {
-        final String json = MonitoringTemplateUtils.emptyPipeline(XContentType.JSON).string();
+        final String json = Strings.toString(MonitoringTemplateUtils.emptyPipeline(XContentType.JSON));
 
         // ensure the description contains the API version
         assertThat(json, containsString("Monitoring API version " + MonitoringTemplateUtils.TEMPLATE_VERSION));

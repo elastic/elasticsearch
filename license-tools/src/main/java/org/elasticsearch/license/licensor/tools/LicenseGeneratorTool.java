@@ -7,11 +7,11 @@ package org.elasticsearch.license.licensor.tools;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.PathUtils;
@@ -100,7 +100,7 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
         builder.endObject();
         builder.endObject();
         builder.flush();
-        terminal.println(builder.string());
+        terminal.println(Strings.toString(builder));
     }
 
     @SuppressForbidden(reason = "Parsing command line path")

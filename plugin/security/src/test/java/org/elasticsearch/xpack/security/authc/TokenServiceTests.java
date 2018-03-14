@@ -26,6 +26,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -600,7 +601,7 @@ public class TokenServiceTests extends ESTestCase {
                     userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     sourceMap.put("access_token",
                             Collections.singletonMap("user_token",
-                                    XContentHelper.convertToMap(XContentType.JSON.xContent(), builder.string(), false)));
+                                    XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false)));
                 }
                 when(getResponse.getSource()).thenReturn(sourceMap);
             }

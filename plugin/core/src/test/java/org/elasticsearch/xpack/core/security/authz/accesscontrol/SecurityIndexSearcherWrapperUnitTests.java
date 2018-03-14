@@ -37,6 +37,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -453,11 +454,11 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
 
         XContentBuilder builder = jsonBuilder();
-        String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
+        String query = Strings.toString(new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS));
         Script script = new Script(ScriptType.INLINE, "mustache", query, Collections.singletonMap("custom", "value"));
         builder = jsonBuilder().startObject().field("template");
         script.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String querySource = builder.endObject().string();
+        String querySource = Strings.toString(builder.endObject());
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
@@ -484,7 +485,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(indexSettings, null, null, threadContext, licenseState, scriptService);
         XContentBuilder builder = jsonBuilder();
-        String querySource =  new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
+        String querySource =  Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
         String result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
         assertThat(result, sameInstance(querySource));
         verifyZeroInteractions(scriptService);

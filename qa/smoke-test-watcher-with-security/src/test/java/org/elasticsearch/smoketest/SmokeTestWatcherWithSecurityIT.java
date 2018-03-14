@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -265,7 +266,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        StringEntity entity = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
 
         Response response = client().performRequest("PUT", "_xpack/watcher/watch/my_watch", Collections.emptyMap(), entity);
         assertOK(response);
@@ -288,7 +289,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                         .endObject().endArray();
                 builder.endObject();
 
-                StringEntity entity = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+                StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
                 Response response = client().performRequest("POST", ".watcher-history-*/_search", Collections.emptyMap(), entity);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");

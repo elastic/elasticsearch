@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -216,7 +217,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 builder.map(definition);
-                this.definition = Settings.builder().loadFromSource(builder.string(), builder.contentType()).build();
+                this.definition = Settings.builder().loadFromSource(Strings.toString(builder), builder.contentType()).build();
             } catch (IOException e) {
                 throw new IllegalArgumentException("Failed to parse [" + definition + "] in [" + field.getPreferredName() + "]", e);
             }

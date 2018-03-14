@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -338,7 +337,7 @@ public class HttpInputTests extends ESTestCase {
 
         try (XContentBuilder builder = jsonBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference bytes = builder.bytes();
+            BytesReference bytes = BytesReference.bytes(builder);
             try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput())) {
                 Map<String, Object> data = parser.map();

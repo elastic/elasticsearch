@@ -61,7 +61,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
 
     public void testParserEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         DailySchedule schedule = new DailySchedule.Parser().parse(parser);
@@ -79,7 +79,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .array("minute", time.minute())
                 .endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         DailySchedule schedule = new DailySchedule.Parser().parse(parser);
@@ -97,7 +97,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .field("minute", time.minute)
                 .endObject()
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -114,7 +114,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .field("at", timeStr)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         DailySchedule schedule = new DailySchedule.Parser().parse(parser);
@@ -128,7 +128,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .field("at", invalidDayTimeStr())
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -145,7 +145,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .array("at", (Object[]) times)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         DailySchedule schedule = new DailySchedule.Parser().parse(parser);
@@ -162,7 +162,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .array("at", (Object[]) times)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
@@ -179,7 +179,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .array("at", (Object[]) times)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         DailySchedule schedule = new DailySchedule.Parser().parse(parser);
@@ -196,7 +196,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .array("at", times)
                 .endObject();
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {

@@ -84,7 +84,7 @@ public class GetDatafeedStatsActionResponseTests extends AbstractStreamableTestC
         BytesReference bytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            bytes = builder.bytes();
+            bytes = BytesReference.bytes(builder);
         }
 
         Map<String, Object> dfStatsMap = XContentHelper.convertToMap(bytes, randomBoolean(), xContentType).v2();

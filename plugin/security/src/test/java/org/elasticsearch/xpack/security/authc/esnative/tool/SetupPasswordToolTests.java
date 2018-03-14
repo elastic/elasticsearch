@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -210,7 +210,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             ElasticsearchException.generateFailureXContent(builder, ToXContent.EMPTY_PARAMS, illegalArgException, true);
             builder.field("status", RestStatus.BAD_REQUEST.getStatus());
             builder.endObject();
-            securityPluginQueryResponseBody = builder.string();
+            securityPluginQueryResponseBody = Strings.toString(builder);
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
@@ -241,7 +241,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             builder.startObject();
             builder.field("features", xpackInfo.getFeatureSetsInfo());
             builder.endObject();
-            securityPluginQueryResponseBody = builder.string();
+            securityPluginQueryResponseBody = Strings.toString(builder);
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
@@ -272,7 +272,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             builder.startObject();
             builder.field("features", xpackInfo.getFeatureSetsInfo());
             builder.endObject();
-            securityPluginQueryResponseBody = builder.string();
+            securityPluginQueryResponseBody = Strings.toString(builder);
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
@@ -303,7 +303,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             builder.startObject();
             builder.field("features", xpackInfo.getFeatureSetsInfo());
             builder.endObject();
-            securityPluginQueryResponseBody = builder.string();
+            securityPluginQueryResponseBody = Strings.toString(builder);
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))

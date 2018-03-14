@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -137,7 +138,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         // now lets execute the watch manually
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().field("key", "value").endObject().bytes().utf8ToString()));
+                BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")
@@ -209,7 +210,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         // now lets execute the watch manually
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().field("key", "value").endObject().bytes().utf8ToString()));
+                BytesReference.bytes(jsonBuilder().startObject().field("key", "value").endObject()).utf8ToString()));
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(UTC), new DateTime(UTC));
         ExecuteWatchResponse executeResponse = watcherClient.prepareExecuteWatch("_id")

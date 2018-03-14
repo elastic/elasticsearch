@@ -104,7 +104,9 @@ public class JiraIssue implements ToXContentObject {
                 builder.field(Field.RESPONSE.getPreferredName(), response, params);
             }
         } else {
-            builder.rawField(Field.RESULT.getPreferredName(), response.body());
+            try (InputStream stream = response.body().streamInput()) {
+                builder.rawField(Field.RESULT.getPreferredName(), stream);
+            }
         }
         return builder.endObject();
     }

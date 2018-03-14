@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -846,7 +847,7 @@ public class JobProviderTests extends ESTestCase {
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(exists);
-        when(getResponse.getSourceAsBytesRef()).thenReturn(XContentFactory.jsonBuilder().map(source).bytes());
+        when(getResponse.getSourceAsBytesRef()).thenReturn(BytesReference.bytes(XContentFactory.jsonBuilder().map(source)));
         return getResponse;
     }
 
@@ -863,7 +864,7 @@ public class JobProviderTests extends ESTestCase {
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
             SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), new Text("foo"), fields)
-                    .sourceRef(XContentFactory.jsonBuilder().map(_source).bytes());
+                    .sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);
         }

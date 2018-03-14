@@ -100,7 +100,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
             indexResponseToXContent(builder, response);
-            bytesReference = builder.bytes();
+            bytesReference = BytesReference.bytes(builder);
         }
         return new IndexAction.Result(Status.SUCCESS, new XContentSource(bytesReference, XContentType.JSON));
     }
@@ -148,11 +148,12 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             // different error states, depending on how successful the bulk operation was
             long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
             if (failures == 0) {
-                return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+                return new IndexAction.Result(Status.SUCCESS, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
             } else if (failures == bulkResponse.getItems().length) {
-                return new IndexAction.Result(Status.FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+                return new IndexAction.Result(Status.FAILURE, new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
             } else {
-                return new IndexAction.Result(Status.PARTIAL_FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+                return new IndexAction.Result(Status.PARTIAL_FAILURE,
+                        new XContentSource(BytesReference.bytes(jsonBuilder), XContentType.JSON));
             }
         }
     }

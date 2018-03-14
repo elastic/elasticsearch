@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -112,7 +113,7 @@ public class TestUtils {
         licenses.endObject();
         licenses.endArray();
         licenses.endObject();
-        return licenses.string();
+        return Strings.toString(licenses);
     }
 
     public static License generateLicenses(LicenseSpec spec) {
@@ -223,7 +224,7 @@ public class TestUtils {
         license.toInnerXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
-        return builder.string();
+        return Strings.toString(builder);
     }
 
     public static License generateSignedLicense(TimeValue expiryDuration) throws Exception {

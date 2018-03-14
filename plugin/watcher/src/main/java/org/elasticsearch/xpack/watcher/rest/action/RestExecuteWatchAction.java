@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -105,7 +106,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                     } else if (Field.WATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                         XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
                         XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
-                        builder.setWatchSource(watcherSource.bytes(), parser.contentType());
+                        builder.setWatchSource(BytesReference.bytes(watcherSource), parser.contentType());
                     } else if (Field.ACTION_MODES.match(currentFieldName, parser.getDeprecationHandler())) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -366,7 +367,7 @@ public class QueryContainer {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
             SourceGenerator.sourceBuilder(this, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new RuntimeException("error rendering", e);
         }

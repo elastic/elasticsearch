@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.put;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -23,7 +24,8 @@ public class PutWatchSerializationTests extends ESTestCase {
         request.setId(randomAlphaOfLength(10));
         request.setActive(randomBoolean());
         request.setSource(
-                new BytesArray(JsonXContent.contentBuilder().startObject().field("foo", randomAlphaOfLength(20)).endObject().string()),
+                new BytesArray(Strings.toString(JsonXContent.contentBuilder().startObject().field("foo",
+                                        randomAlphaOfLength(20)).endObject())),
                 XContentType.JSON);
 
         BytesStreamOutput streamOutput = new BytesStreamOutput();
@@ -42,7 +44,8 @@ public class PutWatchSerializationTests extends ESTestCase {
         request.setId(randomAlphaOfLength(10));
         request.setActive(randomBoolean());
         request.setSource(
-                new BytesArray(JsonXContent.contentBuilder().startObject().field("foo", randomAlphaOfLength(20)).endObject().string()),
+                new BytesArray(Strings.toString(JsonXContent.contentBuilder().startObject().field("foo",
+                                        randomAlphaOfLength(20)).endObject())),
                 XContentType.JSON);
         assertEquals(XContentType.JSON, request.xContentType());
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -149,7 +150,7 @@ public class UserAccountTests extends ESTestCase {
                 }))
                 .build();
 
-        logger.info("expected (r1): {}", jsonBuilder().value(reqR1).bytes().utf8ToString());
+        logger.info("expected (r1): {}", BytesReference.bytes(jsonBuilder().value(reqR1)).utf8ToString());
 
         HttpResponse resR1 = mock(HttpResponse.class);
         when(resR1.status()).thenReturn(200);
@@ -176,7 +177,7 @@ public class UserAccountTests extends ESTestCase {
                 }))
                 .build();
 
-        logger.info("expected (r2): {}", jsonBuilder().value(reqR1).bytes().utf8ToString());
+        logger.info("expected (r2): {}", BytesReference.bytes(jsonBuilder().value(reqR1)).utf8ToString());
 
         HttpResponse resR2 = mock(HttpResponse.class);
         when(resR2.status()).thenReturn(200);
@@ -200,7 +201,7 @@ public class UserAccountTests extends ESTestCase {
                 }))
                 .build();
 
-        logger.info("expected (u1): {}", jsonBuilder().value(reqU1).bytes().utf8ToString());
+        logger.info("expected (u1): {}", BytesReference.bytes(jsonBuilder().value(reqU1)).utf8ToString());
 
         HttpResponse resU1 = mock(HttpResponse.class);
         when(resU1.status()).thenReturn(200);
@@ -224,7 +225,7 @@ public class UserAccountTests extends ESTestCase {
                 }))
                 .build();
 
-        logger.info("expected (u2): {}", jsonBuilder().value(reqU2).bytes().utf8ToString());
+        logger.info("expected (u2): {}", BytesReference.bytes(jsonBuilder().value(reqU2)).utf8ToString());
 
         HttpResponse resU2 = mock(HttpResponse.class);
         when(resU2.status()).thenReturn(200);

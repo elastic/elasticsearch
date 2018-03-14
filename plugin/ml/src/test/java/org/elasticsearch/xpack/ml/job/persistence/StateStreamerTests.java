@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -82,7 +83,7 @@ public class StateStreamerTests extends ESTestCase {
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(exists);
-        when(getResponse.getSourceAsBytesRef()).thenReturn(XContentFactory.jsonBuilder().map(source).bytes());
+        when(getResponse.getSourceAsBytesRef()).thenReturn(BytesReference.bytes(XContentFactory.jsonBuilder().map(source)));
         return getResponse;
     }
 }

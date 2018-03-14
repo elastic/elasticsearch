@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -81,7 +81,7 @@ public class JiraAccount {
             builder.startObject();
             settings.getAsSettings(ISSUE_DEFAULTS_SETTING).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (InputStream stream = builder.bytes().streamInput();
+            try (InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser parser = XContentType.JSON.xContent()
                          .createParser(new NamedXContentRegistry(Collections.emptyList()), LoggingDeprecationHandler.INSTANCE, stream)) {
                 this.issueDefaults = Collections.unmodifiableMap(parser.map());

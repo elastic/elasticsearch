@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -168,7 +169,7 @@ public class CompareConditionTests extends ESTestCase {
         builder.endObject();
         builder.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
 
         CompareCondition condition = CompareCondition.parse(ClockMock.frozen(), "_id", parser);
@@ -186,7 +187,7 @@ public class CompareConditionTests extends ESTestCase {
         builder.endObject();
         builder.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);
             fail("Expected ElasticsearchParseException");
@@ -204,7 +205,7 @@ public class CompareConditionTests extends ESTestCase {
         builder.endObject();
         builder.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);
@@ -224,7 +225,7 @@ public class CompareConditionTests extends ESTestCase {
         builder.endObject();
         builder.endObject();
 
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
         try {
             CompareCondition.parse(ClockMock.frozen(), "_id", parser);

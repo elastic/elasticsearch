@@ -17,6 +17,7 @@ import java.util.Locale;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -345,7 +346,7 @@ public class License implements ToXContentObject {
         try {
             final XContentBuilder builder = XContentFactory.jsonBuilder();
             toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException e) {
             return "";
         }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -144,13 +145,13 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         WatcherParams watcherParams = WatcherParams.builder().hideSecrets(isPasswordEncrypted).build();
         attachments.get(0).toXContent(toXcontentBuilder, watcherParams);
         toXcontentBuilder.endObject();
-        assertThat(toXcontentBuilder.string(), is(builder.string()));
+        assertThat(Strings.toString(toXcontentBuilder), is(Strings.toString(builder)));
 
         XContentBuilder attachmentXContentBuilder = jsonBuilder().startObject();
         ReportingAttachment attachment = new ReportingAttachment(id, dashboardUrl, isInline, interval, retries, auth, proxy);
         attachment.toXContent(attachmentXContentBuilder, watcherParams);
         attachmentXContentBuilder.endObject();
-        assertThat(attachmentXContentBuilder.string(), is(builder.string()));
+        assertThat(Strings.toString(attachmentXContentBuilder), is(Strings.toString(builder)));
 
         assertThat(attachments.get(0).inline(), is(isInline));
     }

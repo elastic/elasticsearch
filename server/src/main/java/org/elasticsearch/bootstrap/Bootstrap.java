@@ -292,12 +292,6 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
-        try {
-            environment.validateTmpFile();
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);

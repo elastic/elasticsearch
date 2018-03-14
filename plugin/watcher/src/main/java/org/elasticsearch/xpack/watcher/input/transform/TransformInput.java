@@ -42,7 +42,7 @@ public class TransformInput implements Input {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        transform.toXContent(builder, params);
+        builder.startObject().field(transform.type(), transform, params).endObject();
         return builder;
     }
 

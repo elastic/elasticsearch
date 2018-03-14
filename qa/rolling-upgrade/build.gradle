@@ -29,7 +29,7 @@ task bwcTest {
   group = 'verification'
 }
 
-for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
+for (Version version : bwcVersions.wireCompatible) {
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -38,7 +38,6 @@ for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
 
   Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-    distribution = 'zip'
     bwcVersion = version
     numBwcNodes = 2
     numNodes = 2
@@ -58,7 +57,6 @@ for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
 
   configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
     dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-    distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
     minimumMasterNodes = { 2 }
@@ -78,7 +76,6 @@ for (Version version : versionCollection.versionsWireCompatibleWithCurrent) {
 
   configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
     dependsOn mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop"
-    distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
     minimumMasterNodes = { 2 }
@@ -110,7 +107,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
+    for (final def version : bwcVersions.snapshotsWireCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

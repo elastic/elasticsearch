@@ -34,24 +34,29 @@ public class Version {
     final int revision
     final int id
     final boolean snapshot
-    final String branch
     /**
-     * Suffix on the version name. Unlike Version.java the build does not
-     * consider alphas and betas different versions, it just preserves the
-     * suffix that the version was declared with in Version.java.
+     * Suffix on the version name.
      */
     final String suffix
 
     public Version(int major, int minor, int revision,
-            String suffix, boolean snapshot, String branch) {
+            String suffix, boolean snapshot) {
         this.major = major
         this.minor = minor
         this.revision = revision
         this.snapshot = snapshot
         this.suffix = suffix
-        this.branch = branch
-        this.id = major * 100000 + minor * 1000 + revision * 10 +
-            (snapshot ? 1 : 0)
+
+        int suffixOffset = 0
+        if (suffix.contains("alpha")) {
+          suffixOffset += Integer.parseInt(suffix.substring(6))
+        } else if (suffix.contains("beta")) {
+          suffixOffset += 25 + Integer.parseInt(suffix.substring(5))
+        } else if (suffix.contains("rc")) {
+          suffixOffset += 50 + Integer.parseInt(suffix.substring(3));
+        }
+
+        this.id = major * 1000000 + minor * 10000 + revision * 100 + suffixOffset
     }
 
     public static Version fromString(String s) {
@@ -60,7 +65,7 @@ public class Version {
             throw new InvalidUserDataException("Invalid version [${s}]")
         }
         return new Version(m.group(1) as int, m.group(2) as int,
-            m.group(3) as int, m.group(4) ?: '', m.group(5) != null, null)
+            m.group(3) as int, m.group(4) ?: '', m.group(5) != null)
     }
 
     @Override

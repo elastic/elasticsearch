@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -115,7 +114,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         int successfulShards = 0;
         int failedShards = 0;
         boolean valid = true;
-        List<ShardOperationFailedException> shardFailures = null;
+        List<DefaultShardOperationFailedException> shardFailures = null;
         List<QueryExplanation> queryExplanations = null;
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);

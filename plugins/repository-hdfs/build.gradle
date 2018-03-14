@@ -114,7 +114,7 @@ for (String principal : principals) {
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
   project.tasks.create(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture
-    executable = new File(project.javaHome, 'bin/java')
+    executable = new File(project.runtimeJavaHome, 'bin/java')
     env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
 
     final List<String> miniHDFSArgs = []
@@ -124,7 +124,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
       dependsOn krb5kdcFixture, krb5AddPrincipals
       Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5Config}");
-      if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
         miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
       }
     }
@@ -170,7 +170,7 @@ project.afterEvaluate {
 
       restIntegTestTask.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
       jvmArgs = jvmArgs + " " + "-Djava.security.krb5.conf=${krb5conf}"
-      if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
         jvmArgs = jvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
       }
 
@@ -181,7 +181,7 @@ project.afterEvaluate {
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
         restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
-        if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+        if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
           restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
         }
 

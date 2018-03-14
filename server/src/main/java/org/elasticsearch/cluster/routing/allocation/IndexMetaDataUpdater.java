@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -72,19 +73,12 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
 
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-        if (failedShard.active() && unassignedInfo.getReason() != UnassignedInfo.Reason.NODE_LEFT) {
-            removeAllocationId(failedShard);
-
-            if (failedShard.primary()) {
-                Updates updates = changes(failedShard.shardId());
-                if (updates.firstFailedPrimary == null) {
-                    // more than one primary can be failed (because of batching, primary can be failed, replica promoted and then failed...)
-                    updates.firstFailedPrimary = failedShard;
-                }
-            }
-        }
-
         if (failedShard.active() && failedShard.primary()) {
+            Updates updates = changes(failedShard.shardId());
+            if (updates.firstFailedPrimary == null) {
+                // more than one primary can be failed (because of batching, primary can be failed, replica promoted and then failed...)
+                updates.firstFailedPrimary = failedShard;
+            }
             increasePrimaryTerm(failedShard.shardId());
         }
     }
@@ -217,7 +211,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      * Removes allocation ids from the in-sync set for shard copies for which there is no routing entries in the routing table.
      * This method is called in AllocationService before any changes to the routing table are made.
      */
-    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards) {
+    public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards, Logger logger) {
         MetaData oldMetaData = clusterState.metaData();
         RoutingTable oldRoutingTable = clusterState.routingTable();
         MetaData.Builder metaDataBuilder = null;
@@ -245,6 +239,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                     }
                     indexMetaDataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);
                 }
+                logger.warn("{} marking unavailable shards as stale: {}", shardEntry.getKey(), idsToRemove);
             }
 
             if (indexMetaDataBuilder != null) {
@@ -286,8 +281,10 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     /**
      * Remove allocation id of this shard from the set of in-sync shard copies
      */
-    private void removeAllocationId(ShardRouting shardRouting) {
-        changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
+    void removeAllocationId(ShardRouting shardRouting) {
+        if (shardRouting.active()) {
+            changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
+        }
     }
 
     /**

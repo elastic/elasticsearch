@@ -44,6 +44,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     LongArray counts;
     DoubleArray sums;
+    DoubleArray compensations;
     DocValueFormat format;
 
     public AvgAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext context,
@@ -55,6 +56,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -76,15 +78,29 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
             public void collect(int doc, long bucket) throws IOException {
                 counts = bigArrays.grow(counts, bucket + 1);
                 sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     counts.increment(bucket, valueCount);
-                    double sum = 0;
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+
                     for (int i = 0; i < valueCount; i++) {
-                        sum += values.nextValue();
+                        double value = values.nextValue();
+                        if (Double.isFinite(value) == false) {
+                            sum += value;
+                        } else if (Double.isFinite(sum)) {
+                            double corrected = value - compensation;
+                            double newSum = sum + corrected;
+                            compensation = (newSum - sum) - corrected;
+                            sum = newSum;
+                        }
                     }
-                    sums.increment(bucket, sum);
+                    sums.set(bucket, sum);
+                    compensations.set(bucket, compensation);
                 }
             }
         };
@@ -113,7 +129,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void doClose() {
-        Releasables.close(counts, sums);
+        Releasables.close(counts, sums, compensations);
     }
 
 }

@@ -39,7 +39,6 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         assertNull(lookup.get("foo"));
-        assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertTrue(names.isEmpty());
@@ -51,7 +50,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testDefaultMapping() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         try {
-            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, Collections.emptyList(), randomBoolean());
+            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, Collections.emptyList());
             fail();
         } catch (IllegalArgumentException expected) {
             assertEquals("Default mappings should not be added to the lookup", expected.getMessage());
@@ -61,15 +60,11 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testAddNewField() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         MockFieldMapper f = new MockFieldMapper("foo");
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type", newList(f), randomBoolean());
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type", newList(f));
         assertNull(lookup.get("foo"));
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup2.get("foo"));
         assertNull(lookup.get("bar"));
-        assertEquals(Collections.emptySet(), lookup.getTypes("foo"));
-        assertEquals(Collections.emptySet(), lookup.getTypes("bar"));
-        assertEquals(Collections.singleton("type"), lookup2.getTypes("foo"));
-        assertEquals(Collections.emptySet(), lookup2.getTypes("bar"));
         assertEquals(1, size(lookup2.iterator()));
     }
 
@@ -77,8 +72,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), true);
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), true);
+        lookup = lookup.copyAndAddAll("type1", newList(f));
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2));
 
         assertEquals(1, size(lookup2.iterator()));
         assertSame(f.fieldType(), lookup2.get("foo"));
@@ -89,8 +84,8 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("bar");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type1", newList(f), randomBoolean());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
+        lookup = lookup.copyAndAddAll("type1", newList(f));
+        FieldTypeLookup lookup2 = lookup.copyAndAddAll("type2", newList(f2));
 
         assertSame(f.fieldType(), lookup2.get("foo"));
         assertSame(f2.fieldType(), lookup2.get("bar"));
@@ -102,7 +97,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f2 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
         try {
-            lookup.copyAndAddAll("type2", newList(f2), randomBoolean());
+            lookup.copyAndAddAll("type2", newList(f2));
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [foo] has different [index_name]"));
         }
@@ -111,20 +106,13 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testCheckCompatibilityMismatchedTypes() {
         FieldMapper f1 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
+        lookup = lookup.copyAndAddAll("type", newList(f1));
 
         OtherFakeFieldType ft2 = new OtherFakeFieldType();
         ft2.setName("foo");
         FieldMapper f2 = new MockFieldMapper("foo", ft2);
         try {
-            lookup.copyAndAddAll("type2", newList(f2), false);
-            fail("expected type mismatch");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
-        }
-        // fails even if updateAllTypes == true
-        try {
-            lookup.copyAndAddAll("type2", newList(f2), true);
+            lookup.copyAndAddAll("type2", newList(f2));
             fail("expected type mismatch");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("cannot be changed from type [faketype] to [otherfaketype]"));
@@ -134,35 +122,21 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testCheckCompatibilityConflict() {
         FieldMapper f1 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
+        lookup = lookup.copyAndAddAll("type", newList(f1));
 
         MappedFieldType ft2 = new MockFieldMapper.FakeFieldType();
         ft2.setName("foo");
         ft2.setBoost(2.0f);
         FieldMapper f2 = new MockFieldMapper("foo", ft2);
-        try {
-            // different type
-            lookup.copyAndAddAll("type2", newList(f2), false);
-            fail("expected conflict");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("to update [boost] across all types"));
-        }
-        lookup.copyAndAddAll("type", newList(f2), false); // boost is updateable, so ok since we are implicitly updating all types
-        lookup.copyAndAddAll("type2", newList(f2), true); // boost is updateable, so ok if forcing
+        lookup.copyAndAddAll("type", newList(f2)); // boost is updateable, so ok since we are implicitly updating all types
+        lookup.copyAndAddAll("type2", newList(f2)); // boost is updateable, so ok if forcing
         // now with a non changeable setting
         MappedFieldType ft3 = new MockFieldMapper.FakeFieldType();
         ft3.setName("foo");
         ft3.setStored(true);
         FieldMapper f3 = new MockFieldMapper("foo", ft3);
         try {
-            lookup.copyAndAddAll("type2", newList(f3), false);
-            fail("expected conflict");
-        } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("has different [store] values"));
-        }
-        // even with updateAllTypes == true, incompatible
-        try {
-            lookup.copyAndAddAll("type2", newList(f3), true);
+            lookup.copyAndAddAll("type2", newList(f3));
             fail("expected conflict");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("has different [store] values"));
@@ -173,7 +147,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         MockFieldMapper f1 = new MockFieldMapper("foo");
         MockFieldMapper f2 = new MockFieldMapper("bar");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1, f2), randomBoolean());
+        lookup = lookup.copyAndAddAll("type", newList(f1, f2));
         Collection<String> names = lookup.simpleMatchToFullName("b*");
         assertFalse(names.contains("foo"));
         assertTrue(names.contains("bar"));
@@ -182,7 +156,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testIteratorImmutable() {
         MockFieldMapper f1 = new MockFieldMapper("foo");
         FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll("type", newList(f1), randomBoolean());
+        lookup = lookup.copyAndAddAll("type", newList(f1));
 
         try {
             Iterator<MappedFieldType> itr = lookup.iterator();

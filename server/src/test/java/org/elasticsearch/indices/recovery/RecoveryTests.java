@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
@@ -31,7 +32,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -43,7 +43,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogConfig;
 
 import java.util.HashMap;
 import java.util.List;
@@ -51,7 +50,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -185,7 +183,6 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.indexDocs(nonFlushedDocs);
 
             IndexShard replica = shards.getReplicas().get(0);
-            final String translogUUID = replica.getTranslog().getTranslogUUID();
             final String historyUUID = replica.getHistoryUUID();
             Translog.TranslogGeneration translogGeneration = replica.getTranslog().getGeneration();
             shards.removeReplica(replica);
@@ -203,13 +200,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
-                final TranslogConfig translogConfig =
-                    new TranslogConfig(replica.shardId(), replica.shardPath().resolveTranslog(), replica.indexSettings(),
-                        BigArrays.NON_RECYCLING_INSTANCE);
-                try (Translog translog = new Translog(translogConfig, null, createTranslogDeletionPolicy(), () -> flushedDocs)) {
-                    translogUUIDtoUse = translog.getTranslogUUID();
-                    translogGenToUse = translog.currentFileGeneration();
-                }
+                translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs, replica.shardId());
+                translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
                 translogGenToUse = translogGeneration.translogFileGeneration;
@@ -306,4 +298,30 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
+    /**
+     * This test makes sure that there is no infinite loop of flushing (the condition `shouldPeriodicallyFlush` eventually is false)
+     * in peer-recovery if a primary sends a fully-baked index commit.
+     */
+    public void testShouldFlushAfterPeerRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            int numDocs = shards.indexDocs(between(10, 100));
+            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            shards.flush();
+
+            final IndexShard replica = shards.addReplica();
+            IndexMetaData.Builder builder = IndexMetaData.builder(replica.indexSettings().getIndexMetaData());
+            long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, translogSizeOnPrimary);
+            builder.settings(Settings.builder().put(replica.indexSettings().getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")
+            );
+            replica.indexSettings().updateIndexMetaData(builder.build());
+            replica.onSettingsChanged();
+            shards.recoverReplica(replica);
+            // Make sure the flushing will eventually be completed (eg. `shouldPeriodicallyFlush` is false)
+            assertBusy(() -> assertThat(getEngine(replica).shouldPeriodicallyFlush(), equalTo(false)));
+            assertThat(replica.getTranslog().totalOperations(), equalTo(numDocs));
+            shards.assertAllEqual(numDocs);
+        }
+    }
 }

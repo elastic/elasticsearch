@@ -117,6 +117,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 }
                 MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                 for (String templateName : templateNames) {
+                    logger.info("removing template [{}]", templateName);
                     metaData.removeTemplate(templateName);
                 }
                 return ClusterState.builder(currentState).metaData(metaData).build();
@@ -185,6 +186,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
                 MetaData.Builder builder = MetaData.builder(currentState.metaData()).put(template);
 
+                logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
                 return ClusterState.builder(currentState).metaData(builder).build();
             }
 
@@ -250,7 +252,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
 
-            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
+            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE);
 
         } finally {
             if (createdIndex != null) {

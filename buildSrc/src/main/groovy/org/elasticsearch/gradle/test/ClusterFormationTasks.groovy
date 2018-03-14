@@ -23,6 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
 import org.gradle.api.AntBuilder
@@ -118,7 +119,7 @@ class ClusterFormationTasks {
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
-        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
+        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config.nodeStartupWaitSeconds)
         runner.dependsOn(wait)
 
         return nodes
@@ -138,8 +139,8 @@ class ClusterFormationTasks {
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
     static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, String elasticsearchVersion) {
         verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
-        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin');
-        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${extension.name}:${elasticsearchVersion}@zip")
+        final String pluginName = findPluginName(pluginProject)
+        project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
     }
 
     /**
@@ -449,7 +450,7 @@ class ClusterFormationTasks {
                 configuration = project.configurations.create(configurationName)
             }
 
-            final String depName = pluginProject.extensions.findByName('esplugin').name
+            final String depName = findPluginName(pluginProject)
 
             Dependency dep = bwcPlugins.dependencies.find {
                 it.name == depName
@@ -575,10 +576,10 @@ class ClusterFormationTasks {
         return start
     }
 
-    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
+    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {
@@ -600,12 +601,30 @@ class ClusterFormationTasks {
                     }
                 }
             }
+            if (ant.properties.containsKey("failed${name}".toString())) {
+                waitFailed(project, nodes, logger, "Failed to start elasticsearch: timed out after ${waitSeconds} seconds")
+            }
+
             boolean anyNodeFailed = false
             for (NodeInfo node : nodes) {
-                anyNodeFailed |= node.failedMarker.exists()
+                if (node.failedMarker.exists()) {
+                    logger.error("Failed to start elasticsearch: ${node.failedMarker.toString()} exists")
+                    anyNodeFailed = true
+                }
             }
-            if (ant.properties.containsKey("failed${name}".toString()) || anyNodeFailed) {
+            if (anyNodeFailed) {
                 waitFailed(project, nodes, logger, 'Failed to start elasticsearch')
+            }
+
+            // make sure all files exist otherwise we haven't fully started up
+            boolean missingFile = false
+            for (NodeInfo node : nodes) {
+                missingFile |= node.pidFile.exists() == false
+                missingFile |= node.httpPortsFile.exists() == false
+                missingFile |= node.transportPortsFile.exists() == false
+            }
+            if (missingFile) {
+                waitFailed(project, nodes, logger, 'Elasticsearch did not complete startup in time allotted')
             }
 
             // go through each node checking the wait condition
@@ -655,7 +674,7 @@ class ClusterFormationTasks {
                 String pid = node.pidFile.getText('UTF-8')
                 ByteArrayOutputStream output = new ByteArrayOutputStream()
                 project.exec {
-                    commandLine = ["${project.javaHome}/bin/jstack", pid]
+                    commandLine = ["${project.runtimeJavaHome}/bin/jstack", pid]
                     standardOutput = output
                 }
                 output.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
@@ -699,7 +718,7 @@ class ClusterFormationTasks {
     }
 
     private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
-        return Paths.get(project.javaHome.toString(), "bin/" + jpsExecutableName).toFile()
+        return Paths.get(project.runtimeJavaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -753,9 +772,19 @@ class ClusterFormationTasks {
     }
 
     static void verifyProjectHasBuildPlugin(String name, String version, Project project, Project pluginProject) {
-        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+        if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
-                    "[${project.path}] dependencies: the plugin is not an esplugin")
+                    "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")
+        }
+    }
+
+    /** Find the plugin name in the given project, whether a regular plugin or meta plugin. */
+    static String findPluginName(Project pluginProject) {
+        PluginPropertiesExtension extension = pluginProject.extensions.findByName('esplugin')
+        if (extension != null) {
+            return extension.name
+        } else {
+            return pluginProject.extensions.findByName('es_meta_plugin').name
         }
     }
 }

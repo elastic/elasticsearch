@@ -27,6 +27,7 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -47,15 +48,18 @@ public class ESSelectorTests extends ESTestCase {
         selector = new TestSelector(handler, rawSelector);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testQueueChannelForClosed() throws IOException {
         NioChannel channel = mock(NioChannel.class);
-        when(channel.getSelector()).thenReturn(selector);
+        ChannelContext context = mock(ChannelContext.class);
+        when(channel.getContext()).thenReturn(context);
+        when(context.getSelector()).thenReturn(selector);
 
         selector.queueChannelClose(channel);
 
         selector.singleLoop();
 
-        verify(handler).handleClose(channel);
+        verify(handler).handleClose(context);
     }
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {

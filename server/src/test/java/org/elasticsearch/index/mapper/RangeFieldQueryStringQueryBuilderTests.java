@@ -61,7 +61,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
             DOUBLE_RANGE_FIELD_NAME, "type=double_range",
             DATE_RANGE_FIELD_NAME, "type=date_range",
             IP_RANGE_FIELD_NAME, "type=ip_range"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
 
     }
 

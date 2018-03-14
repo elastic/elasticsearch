@@ -129,7 +129,6 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
                 .setSource(childMapping(true))
-                .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
         Index test = resolveIndex("test");

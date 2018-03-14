@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -110,7 +110,7 @@ public class RestRecoveryActionTests extends ESTestCase {
         Randomness.shuffle(shuffle);
         shardRecoveryStates.put("index", shuffle);
 
-        final List<ShardOperationFailedException> shardFailures = new ArrayList<>();
+        final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final RecoveryResponse response = new RecoveryResponse(
                 totalShards,
                 successfulShards,

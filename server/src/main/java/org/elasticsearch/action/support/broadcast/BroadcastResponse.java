@@ -20,45 +20,64 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.rest.action.RestActions;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Base class for all broadcast operation based responses.
  */
-public class BroadcastResponse extends ActionResponse {
-    private static final ShardOperationFailedException[] EMPTY = new ShardOperationFailedException[0];
+public class BroadcastResponse extends ActionResponse implements ToXContentFragment {
+
+    public static final DefaultShardOperationFailedException[] EMPTY = new DefaultShardOperationFailedException[0];
+
+    private static final ParseField _SHARDS_FIELD = new ParseField("_shards");
+    private static final ParseField TOTAL_FIELD = new ParseField("total");
+    private static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
+    private static final ParseField FAILED_FIELD = new ParseField("failed");
+    private static final ParseField FAILURES_FIELD = new ParseField("failures");
+
     private int totalShards;
     private int successfulShards;
     private int failedShards;
-    private ShardOperationFailedException[] shardFailures = EMPTY;
+    private DefaultShardOperationFailedException[] shardFailures = EMPTY;
+
+    protected static <T extends BroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
+        ConstructingObjectParser<BroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>("_shards", true,
+            arg -> new BroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3]));
+        shardsParser.declareInt(constructorArg(), TOTAL_FIELD);
+        shardsParser.declareInt(constructorArg(), SUCCESSFUL_FIELD);
+        shardsParser.declareInt(constructorArg(), FAILED_FIELD);
+        shardsParser.declareObjectArray(optionalConstructorArg(),
+            (p, c) -> DefaultShardOperationFailedException.fromXContent(p), FAILURES_FIELD);
+        PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
+    }
 
     public BroadcastResponse() {
     }
 
     public BroadcastResponse(int totalShards, int successfulShards, int failedShards,
-                             List<? extends ShardOperationFailedException> shardFailures) {
-        assertNoShardNotAvailableFailures(shardFailures);
+                             List<DefaultShardOperationFailedException> shardFailures) {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = shardFailures == null ? EMPTY :
-                shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
-    }
-
-    private void assertNoShardNotAvailableFailures(List<? extends ShardOperationFailedException> shardFailures) {
-        if (shardFailures != null) {
-            for (Object e : shardFailures) {
-                assert (e instanceof ShardNotFoundException) == false : "expected no ShardNotFoundException failures, but got " + e;
-            }
+        if (shardFailures == null) {
+            this.shardFailures = EMPTY;
+        } else {
+            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
         }
     }
 
@@ -97,7 +116,7 @@ public class BroadcastResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public ShardOperationFailedException[] getShardFailures() {
+    public DefaultShardOperationFailedException[] getShardFailures() {
         return shardFailures;
     }
 
@@ -109,7 +128,7 @@ public class BroadcastResponse extends ActionResponse {
         failedShards = in.readVInt();
         int size = in.readVInt();
         if (size > 0) {
-            shardFailures = new ShardOperationFailedException[size];
+            shardFailures = new DefaultShardOperationFailedException[size];
             for (int i = 0; i < size; i++) {
                 shardFailures[i] = readShardOperationFailed(in);
             }
@@ -123,8 +142,14 @@ public class BroadcastResponse extends ActionResponse {
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
         out.writeVInt(shardFailures.length);
-        for (ShardOperationFailedException exp : shardFailures) {
+        for (DefaultShardOperationFailedException exp : shardFailures) {
             exp.writeTo(out);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        RestActions.buildBroadcastShardsHeader(builder, params, this);
+        return builder;
     }
 }

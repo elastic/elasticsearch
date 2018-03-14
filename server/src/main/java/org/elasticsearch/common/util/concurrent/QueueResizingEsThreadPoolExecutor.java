@@ -167,7 +167,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
 
             // Calculate the new desired queue size
             try {
-                final double lambda = calculateLambda(tasksPerFrame, totalNanos);
+                final double lambda = calculateLambda(tasksPerFrame, Math.max(totalNanos, 1L));
                 final int desiredQueueSize = calculateL(lambda, targetedResponseTimeNanos);
                 final int oldCapacity = workQueue.capacity();
 
@@ -197,7 +197,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                 }
             } catch (ArithmeticException e) {
                 // There was an integer overflow, so just log about it, rather than adjust the queue size
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                                 "failed to calculate optimal queue size for [{}] thread pool, " +
                                 "total frame time [{}ns], tasks [{}], task execution time [{}ns]",
                                 getName(), totalRuntime, tasksPerFrame, totalNanos),

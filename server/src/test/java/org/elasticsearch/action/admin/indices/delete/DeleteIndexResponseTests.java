@@ -20,17 +20,10 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
-
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-
-public class DeleteIndexResponseTests extends ESTestCase {
+public class DeleteIndexResponseTests extends AbstractStreamableXContentTestCase<DeleteIndexResponse> {
 
     public void testToXContent() {
         DeleteIndexResponse response = new DeleteIndexResponse(true);
@@ -38,48 +31,23 @@ public class DeleteIndexResponseTests extends ESTestCase {
         assertEquals("{\"acknowledged\":true}", output);
     }
 
-    public void testToAndFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected DeleteIndexResponse doParseInstance(XContentParser parser) {
+        return DeleteIndexResponse.fromXContent(parser);
     }
 
-    /**
-     * This test adds random fields and objects to the xContent rendered out to
-     * ensure we can parse it back to be forward compatible with additions to
-     * the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+    @Override
+    protected DeleteIndexResponse createTestInstance() {
+        return new DeleteIndexResponse(randomBoolean());
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-
-        final DeleteIndexResponse deleteIndexResponse = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(deleteIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
-        DeleteIndexResponse parsedDeleteIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedDeleteIndexResponse = DeleteIndexResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertEquals(deleteIndexResponse.isAcknowledged(), parsedDeleteIndexResponse.isAcknowledged());
+    @Override
+    protected DeleteIndexResponse createBlankInstance() {
+        return new DeleteIndexResponse();
     }
 
-    /**
-     * Returns a random {@link DeleteIndexResponse}.
-     */
-    private static DeleteIndexResponse createTestItem() throws IOException {
-        boolean acknowledged = randomBoolean();
-
-        return new DeleteIndexResponse(acknowledged);
+    @Override
+    protected DeleteIndexResponse mutateInstance(DeleteIndexResponse response) {
+        return new DeleteIndexResponse(response.isAcknowledged() == false);
     }
 }

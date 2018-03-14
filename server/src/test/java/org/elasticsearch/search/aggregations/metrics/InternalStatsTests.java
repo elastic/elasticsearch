@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.stats.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.stats.ParsedStats;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +50,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
     }
 
     protected InternalStats createInstance(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+                                           List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 
@@ -72,6 +74,54 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(expectedSum, reduced.getSum(), 1e-7);
         assertEquals(expectedMin, reduced.getMin(), 0d);
         assertEquals(expectedMax, reduced.getMax(), 0d);
+    }
+
+    public void testSummationAccuracy() {
+        double[] values = new double[]{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7};
+        verifyStatsOfDoubles(values, 13.5, 0.9, 0d);
+
+        int n = randomIntBetween(5, 10);
+        values = new double[n];
+        double sum = 0;
+        for (int i = 0; i < n; i++) {
+            values[i] = frequently()
+                ? randomFrom(Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+                : randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+            sum += values[i];
+        }
+        verifyStatsOfDoubles(values, sum, sum / n, TOLERANCE);
+
+        // Summing up some big double values and expect infinity result
+        n = randomIntBetween(5, 10);
+        double[] largeValues = new double[n];
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = Double.MAX_VALUE;
+        }
+        verifyStatsOfDoubles(largeValues, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0d);
+
+        for (int i = 0; i < n; i++) {
+            largeValues[i] = -Double.MAX_VALUE;
+        }
+        verifyStatsOfDoubles(largeValues, Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+    }
+
+    private void verifyStatsOfDoubles(double[] values, double expectedSum, double expectedAvg, double delta) {
+        List<InternalAggregation> aggregations = new ArrayList<>(values.length);
+        double max = Double.NEGATIVE_INFINITY;
+        double min = Double.POSITIVE_INFINITY;
+        for (double value : values) {
+            max = Math.max(max, value);
+            min = Math.min(min, value);
+            aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null, null));
+        }
+        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null, null);
+        InternalStats reduced = internalStats.doReduce(aggregations, null);
+        assertEquals("dummy2", reduced.getName());
+        assertEquals(values.length, reduced.getCount());
+        assertEquals(expectedSum, reduced.getSum(), delta);
+        assertEquals(expectedAvg, reduced.getAvg(), delta);
+        assertEquals(min, reduced.getMin(), 0d);
+        assertEquals(max, reduced.getMax(), 0d);
     }
 
     @Override

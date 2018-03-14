@@ -70,7 +70,7 @@ final class Natives {
 
     static void tryVirtualLock() {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot mlockall because JNA is not available");
+            logger.warn("cannot virtual lock because JNA is not available");
             return;
         }
         JNANatives.tryVirtualLock();

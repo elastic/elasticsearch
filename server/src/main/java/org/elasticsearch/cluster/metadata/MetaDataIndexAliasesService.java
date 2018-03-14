@@ -133,7 +133,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     Function<String, IndexMetaData> indexLookup = name -> metadata.get(name);
                     aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
                     if (Strings.hasLength(filter)) {
-                        IndexService indexService = indices.get(index.getIndex());
+                        IndexService indexService = indices.get(index.getIndex().getName());
                         if (indexService == null) {
                             indexService = indicesService.indexService(index.getIndex());
                             if (indexService == null) {
@@ -144,7 +144,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
-                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY, false);
+                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY);
                             }
                             indices.put(action.getIndex(), indexService);
                         }

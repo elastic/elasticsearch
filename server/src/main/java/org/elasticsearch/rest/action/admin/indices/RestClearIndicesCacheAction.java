@@ -26,6 +26,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -83,13 +84,13 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (Fields.QUERY.match(entry.getKey())) {
+            if (Fields.QUERY.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
-            } else if (Fields.REQUEST.match(entry.getKey())) {
+            } else if (Fields.REQUEST.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
                 clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
-            } else if (Fields.FIELD_DATA.match(entry.getKey())) {
+            } else if (Fields.FIELDDATA.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
-            } else  if (Fields.FIELDS.match(entry.getKey())) {
+            } else  if (Fields.FIELDS.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
                 clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
             }
         }
@@ -100,7 +101,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     public static class Fields {
         public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
         public static final ParseField REQUEST = new ParseField("request", "request_cache");
-        public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
+        public static final ParseField FIELDDATA = new ParseField("fielddata", "field_data");
         public static final ParseField FIELDS = new ParseField("fields");
     }
 

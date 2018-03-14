@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +34,6 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.Objects.requireNonNull;
 
 public class NamedXContentRegistry {
     /**
@@ -134,7 +131,7 @@ public class NamedXContentRegistry {
         if (entry == null) {
             throw new UnknownNamedObjectException(parser.getTokenLocation(), categoryClass, name);
         }
-        if (false == entry.name.match(name)) {
+        if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
             throw new ParsingException(parser.getTokenLocation(),
@@ -143,50 +140,4 @@ public class NamedXContentRegistry {
         return categoryClass.cast(entry.parser.parse(parser, context));
     }
 
-    /**
-     * Thrown when {@link NamedXContentRegistry#parseNamedObject(Class, String, XContentParser, Object)} is called with an unregistered
-     * name. When this bubbles up to the rest layer it is converted into a response with {@code 400 BAD REQUEST} status.
-     */
-    public static class UnknownNamedObjectException extends ParsingException {
-        private final String categoryClass;
-        private final String name;
-
-        public UnknownNamedObjectException(XContentLocation contentLocation, Class<?> categoryClass,
-                String name) {
-            super(contentLocation, "Unknown " + categoryClass.getSimpleName() + " [" + name + "]");
-            this.categoryClass = requireNonNull(categoryClass, "categoryClass is required").getName();
-            this.name = requireNonNull(name, "name is required");
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public UnknownNamedObjectException(StreamInput in) throws IOException {
-            super(in);
-            categoryClass = in.readString();
-            name = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(categoryClass);
-            out.writeString(name);
-        }
-
-        /**
-         * Category class that was missing a parser. This is a String instead of a class because the class might not be on the classpath
-         * of all nodes or it might be exclusive to a plugin or something.
-         */
-        public String getCategoryClass() {
-            return categoryClass;
-        }
-
-        /**
-         * Name of the missing parser.
-         */
-        public String getName() {
-            return name;
-        }
-    }
 }

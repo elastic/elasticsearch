@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -249,7 +249,7 @@ public class TransportService extends AbstractLifecycleComponent {
                         public void onRejection(Exception e) {
                             // if we get rejected during node shutdown we don't wanna bubble it up
                             logger.debug(
-                                (Supplier<?>) () -> new ParameterizedMessage(
+                                () -> new ParameterizedMessage(
                                     "failed to notify response handler on rejection, action: {}",
                                     holderToNotify.action()),
                                 e);
@@ -257,7 +257,7 @@ public class TransportService extends AbstractLifecycleComponent {
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
+                                () -> new ParameterizedMessage(
                                     "failed to notify response handler on exception, action: {}",
                                     holderToNotify.action()),
                                 e);
@@ -329,7 +329,7 @@ public class TransportService extends AbstractLifecycleComponent {
             return;
         }
         transport.connectToNode(node, connectionProfile, (newConnection, actualProfile) -> {
-            // We don't validate cluster names to allow for tribe node connections.
+            // We don't validate cluster names to allow for CCS connections.
             final DiscoveryNode remote = handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true);
             if (node.equals(remote) == false) {
                 throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -611,7 +611,7 @@ public class TransportService extends AbstractLifecycleComponent {
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            () -> new ParameterizedMessage(
                                 "failed to notify response handler on rejection, action: {}",
                                 holderToNotify.action()),
                             e);
@@ -619,7 +619,7 @@ public class TransportService extends AbstractLifecycleComponent {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                            () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",
                                 holderToNotify.action()),
                             e);
@@ -667,8 +667,7 @@ public class TransportService extends AbstractLifecycleComponent {
                             channel.sendResponse(e);
                         } catch (Exception inner) {
                             inner.addSuppressed(e);
-                            logger.warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
+                            logger.warn(() -> new ParameterizedMessage(
                                     "failed to notify channel of error message for action [{}]", action), inner);
                         }
                     }
@@ -681,7 +680,7 @@ public class TransportService extends AbstractLifecycleComponent {
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "failed to notify channel of error message for action [{}]", action), inner);
             }
         }
@@ -1191,7 +1190,7 @@ public class TransportService extends AbstractLifecycleComponent {
                 handler.handleException(rtx);
             } catch (Exception e) {
                 logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "failed to handle exception for action [{}], handler [{}]", action, handler), e);
             }
         }

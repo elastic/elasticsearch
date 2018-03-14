@@ -249,7 +249,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testIndexRemovalOnFailure() throws Exception {
-        doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject(), anyBoolean());
+        doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject());
 
         expectThrows(RuntimeException.class, this::executeTask);
 
@@ -333,7 +333,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private Map<String, Map<String, Object>> getMappingsFromResponse() {
         final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
-        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
+        verify(mapper).merge(argument.capture(), anyObject());
         return argument.getValue();
     }
 

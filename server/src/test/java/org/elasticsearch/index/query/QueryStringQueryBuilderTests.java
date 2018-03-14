@@ -835,7 +835,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
-            MapperService.MergeReason.MAPPING_UPDATE, true);
+            MapperService.MergeReason.MAPPING_UPDATE);
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
             Query query = queryBuilder.toQuery(context);
@@ -848,7 +848,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
                         "_field_names", "enabled=true").string()),
-                MapperService.MergeReason.MAPPING_UPDATE, true);
+                MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 
@@ -1049,6 +1049,33 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .fuzzyTranspositions(false)
             .toQuery(createShardContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
+    }
+
+    public void testWithStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+    }
+
+    public void testWithPrefixStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the* quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
         assertEquals(expected, query);
     }
 

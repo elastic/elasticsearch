@@ -44,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
@@ -58,7 +59,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportRolloverActionTests extends ESTestCase {
 
-    public void testDocStatsSelectionFromPrimariesOnly() throws Exception {
+    public void testDocStatsSelectionFromPrimariesOnly() {
         long docsInPrimaryShards = 100;
         long docsInShards = 200;
 
@@ -70,7 +71,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
     }
 
-    public void testEvaluateConditions() throws Exception {
+    public void testEvaluateConditions() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
@@ -89,29 +90,29 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         final Set<Condition> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
-        Set<Condition.Result> results = evaluateConditions(conditions,
+        Map<String, Boolean> results = evaluateConditions(conditions,
             new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)), metaData);
         assertThat(results.size(), equalTo(3));
-        for (Condition.Result result : results) {
-            assertThat(result.matched, equalTo(true));
+        for (Boolean matched : results.values()) {
+            assertThat(matched, equalTo(true));
         }
 
         results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metaData);
         assertThat(results.size(), equalTo(3));
-        for (Condition.Result result : results) {
-            if (result.condition instanceof MaxAgeCondition) {
-                assertThat(result.matched, equalTo(true));
-            } else if (result.condition instanceof MaxDocsCondition) {
-                assertThat(result.matched, equalTo(false));
-            } else if (result.condition instanceof MaxSizeCondition) {
-                assertThat(result.matched, equalTo(false));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
-                fail("unknown condition result found " + result.condition);
+                fail("unknown condition result found " + entry.getKey());
             }
         }
     }
 
-    public void testEvaluateWithoutDocStats() throws Exception {
+    public void testEvaluateWithoutDocStats() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
@@ -128,23 +129,23 @@ public class TransportRolloverActionTests extends ESTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(randomIntBetween(5, 10)).getMillis())
             .settings(settings)
             .build();
-        Set<Condition.Result> results = evaluateConditions(conditions, null, metaData);
+        Map<String, Boolean> results = evaluateConditions(conditions, null, metaData);
         assertThat(results.size(), equalTo(3));
 
-        for (Condition.Result result : results) {
-            if (result.condition instanceof MaxAgeCondition) {
-                assertThat(result.matched, equalTo(true));
-            } else if (result.condition instanceof MaxDocsCondition) {
-                assertThat(result.matched, equalTo(false));
-            } else if (result.condition instanceof MaxSizeCondition) {
-                assertThat(result.matched, equalTo(false));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
-                fail("unknown condition result found " + result.condition);
+                fail("unknown condition result found " + entry.getKey());
             }
         }
     }
 
-    public void testCreateUpdateAliasRequest() throws Exception {
+    public void testCreateUpdateAliasRequest() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);
         String targetIndex = randomAlphaOfLength(10);
@@ -171,7 +172,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertTrue(foundRemove);
     }
 
-    public void testValidation() throws Exception {
+    public void testValidation() {
         String index1 = randomAlphaOfLength(10);
         String alias = randomAlphaOfLength(10);
         String index2 = randomAlphaOfLength(10);
@@ -206,7 +207,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         TransportRolloverAction.validate(metaData, new RolloverRequest(alias, randomAlphaOfLength(10)));
     }
 
-    public void testGenerateRolloverIndexName() throws Exception {
+    public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         expectThrows(IllegalArgumentException.class, () ->
@@ -224,12 +225,12 @@ public class TransportRolloverActionTests extends ESTestCase {
             indexNameExpressionResolver));
     }
 
-    public void testCreateIndexRequest() throws Exception {
+    public void testCreateIndexRequest() {
         String alias = randomAlphaOfLength(10);
         String rolloverIndex = randomAlphaOfLength(10);
         final RolloverRequest rolloverRequest = new RolloverRequest(alias, randomAlphaOfLength(10));
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
-        rolloverRequest.setWaitForActiveShards(activeShardCount);
+        rolloverRequest.getCreateIndexRequest().waitForActiveShards(activeShardCount);
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -244,7 +245,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
     }
 
-    public void testRejectDuplicateAlias() throws Exception {
+    public void testRejectDuplicateAlias() {
         final IndexTemplateMetaData template = IndexTemplateMetaData.builder("test-template")
             .patterns(Arrays.asList("foo-*", "bar-*"))
             .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write"))
@@ -271,7 +272,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         return response;
     }
 
-    private IndexMetaData createMetaData() {
+    private static IndexMetaData createMetaData() {
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -284,7 +285,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
     }
 
-    private Condition createTestCondition() {
+    private static Condition createTestCondition() {
         final Condition condition = mock(Condition.class);
         when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
         return condition;

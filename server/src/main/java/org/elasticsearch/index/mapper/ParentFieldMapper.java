@@ -34,6 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -116,7 +117,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (FIELDDATA.match(fieldName)) {
+                } else if (FIELDDATA.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     // for bw compat only
                     Map<String, Object> fieldDataSettings = nodeMapValue(fieldNode, "fielddata");
                     if (fieldDataSettings.containsKey("loading")) {
@@ -301,17 +302,18 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+    protected void doMerge(Mapper mergeWith) {
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
-        super.doMerge(mergeWith, updateAllTypes);
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
             throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
         }
-
-        if (active()) {
-            fieldType = currentFieldType;
+        // If fieldMergeWith is not active it means the user provided a mapping
+        // update that does not explicitly configure the _parent field, so we
+        // ignore it.
+        if (fieldMergeWith.active()) {
+            super.doMerge(mergeWith);
         }
+
     }
 
     /**

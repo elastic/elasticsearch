@@ -358,7 +358,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "keyword").field("normalizer", "my_lowercase").endObject().endObject()
                 .endObject().endObject().string();
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -366,9 +366,9 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> indexService.mapperService().merge("type",
-                        new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+                        new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertEquals(
-                "Mapper for [field] conflicts with existing mapping in other types:\n[mapper [field] has different [normalizer]]",
+                "Mapper for [field] conflicts with existing mapping:\n[mapper [field] has different [normalizer]]",
                 e.getMessage());
     }
 

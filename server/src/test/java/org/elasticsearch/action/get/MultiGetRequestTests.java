@@ -20,15 +20,21 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MultiGetRequestTests extends ESTestCase {
 
@@ -129,4 +135,59 @@ public class MultiGetRequestTests extends ESTestCase {
 
         assertEquals(2, multiGetRequest.getItems().size());
     }
+
+    public void testXContentSerialization() throws IOException {
+        for (int runs = 0; runs < 20; runs++) {
+            MultiGetRequest expected = createTestInstance();
+            XContentType xContentType = randomFrom(XContentType.values());
+            BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
+            XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled);
+            MultiGetRequest actual = new MultiGetRequest();
+            actual.add(null, null, null, null, null, parser, true);
+            assertThat(parser.nextToken(), nullValue());
+
+            assertThat(actual.items.size(), equalTo(expected.items.size()));
+            for (int i = 0; i < expected.items.size(); i++) {
+                MultiGetRequest.Item expectedItem = expected.items.get(i);
+                MultiGetRequest.Item actualItem = actual.items.get(i);
+                assertThat(actualItem, equalTo(expectedItem));
+            }
+        }
+    }
+
+    private MultiGetRequest createTestInstance() {
+        int numItems = randomIntBetween(0, 128);
+        MultiGetRequest request = new MultiGetRequest();
+        for (int i = 0; i < numItems; i++) {
+            MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4));
+            if (randomBoolean()) {
+                item.version(randomNonNegativeLong());
+            }
+            if (randomBoolean()) {
+                item.versionType(randomFrom(VersionType.values()));
+            }
+            if (randomBoolean()) {
+                FetchSourceContext fetchSourceContext;
+                if (randomBoolean()) {
+                    fetchSourceContext = new FetchSourceContext(true, generateRandomStringArray(16, 8, false),
+                            generateRandomStringArray(5, 4, false));
+                } else {
+                    fetchSourceContext = new FetchSourceContext(false);
+                }
+                item.fetchSourceContext(fetchSourceContext);
+            }
+            if (randomBoolean()) {
+                item.storedFields(generateRandomStringArray(16, 8, false));
+            }
+            if (randomBoolean()) {
+                item.routing(randomAlphaOfLength(4));
+            }
+            if (randomBoolean()) {
+                item.parent(randomAlphaOfLength(4));
+            }
+            request.add(item);
+        }
+        return request;
+    }
+
 }

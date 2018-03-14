@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -34,9 +35,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -67,6 +70,41 @@ public class DiscoveryNodesTests extends ESTestCase {
                 fail("resolveNode shouldn't have failed for [" + nodeSelector.selector + "]");
             }
         }
+    }
+
+    public void testAll() {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        final String[] allNodes =
+                StreamSupport.stream(discoveryNodes.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes(), arrayContainingInAnyOrder(allNodes));
+        assertThat(discoveryNodes.resolveNodes(new String[0]), arrayContainingInAnyOrder(allNodes));
+        assertThat(discoveryNodes.resolveNodes("_all"), arrayContainingInAnyOrder(allNodes));
+
+        final String[] nonMasterNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                        .map(n -> n.value)
+                        .filter(n -> n.isMasterNode() == false)
+                        .map(DiscoveryNode::getId)
+                        .toArray(String[]::new);
+        assertThat(discoveryNodes.resolveNodes("_all", "master:false"), arrayContainingInAnyOrder(nonMasterNodes));
+
+        assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
+    }
+
+    public void testCoordinatorOnlyNodes() {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+
+        final String[] coordinatorOnlyNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                    .map(n -> n.value)
+                    .filter(n -> n.isDataNode() == false && n.isIngestNode() == false && n.isMasterNode() == false)
+                    .map(DiscoveryNode::getId)
+                    .toArray(String[]::new);
+
+        assertThat(
+                discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
+                arrayContainingInAnyOrder(coordinatorOnlyNodes));
     }
 
     public void testResolveNodesIds() {
@@ -113,7 +151,9 @@ public class DiscoveryNodesTests extends ESTestCase {
                 // change an attribute
                 Map<String, String> attrs = new HashMap<>(node.getAttributes());
                 attrs.put("new", "new");
-                node = new DiscoveryNode(node.getName(), node.getId(), node.getAddress(), attrs, node.getRoles(), node.getVersion());
+                final TransportAddress nodeAddress = node.getAddress();
+                node = new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), nodeAddress.address().getHostString(),
+                    nodeAddress.getAddress(), nodeAddress, attrs, node.getRoles(), node.getVersion());
             }
             nodesB.add(node);
         }
@@ -140,15 +180,21 @@ public class DiscoveryNodesTests extends ESTestCase {
 
         DiscoveryNodes.Delta delta = discoNodesB.delta(discoNodesA);
 
-        if (masterB == null || Objects.equals(masterAId, masterBId)) {
-            assertFalse(delta.masterNodeChanged());
+        if (masterA == null) {
             assertThat(delta.previousMasterNode(), nullValue());
+        } else {
+            assertThat(delta.previousMasterNode().getId(), equalTo(masterAId));
+        }
+        if (masterB == null) {
             assertThat(delta.newMasterNode(), nullValue());
         } else {
-            assertTrue(delta.masterNodeChanged());
             assertThat(delta.newMasterNode().getId(), equalTo(masterBId));
-            assertThat(delta.previousMasterNode() != null ? delta.previousMasterNode().getId() : null,
-                equalTo(masterAId));
+        }
+
+        if (Objects.equals(masterAId, masterBId)) {
+            assertFalse(delta.masterNodeChanged());
+        } else {
+            assertTrue(delta.masterNodeChanged());
         }
 
         Set<DiscoveryNode> newNodes = new HashSet<>(nodesB);

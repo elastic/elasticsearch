@@ -20,8 +20,8 @@ A `bucket_sort` aggregation looks like this in isolation:
 {
     "bucket_sort": {
         "sort": [
-            {"sort_field_1": {"order": "asc"},<1>
-            {"sort_field_2": {"order": "desc"},
+            {"sort_field_1": {"order": "asc"}},<1>
+            {"sort_field_2": {"order": "desc"}},
             "sort_field_3"
         ],
         "from": 1,

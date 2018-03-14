@@ -164,7 +164,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
         MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
         assertThat(mapper.type(), equalTo("my_type"));
@@ -178,12 +178,12 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0).build();
         MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.merge("my_type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE, false);
+        mapperService.merge("my_type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         DocumentMapper mapper = mapperService.documentMapper("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
@@ -194,10 +194,10 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
         docMapper = parser.parse("type", docMapper.mappingSource());
         if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
         } else {
             try {
-                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), false);
+                docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping());
                 fail();
             } catch (IllegalArgumentException e) {
                 for (String conflict : conflicts) {

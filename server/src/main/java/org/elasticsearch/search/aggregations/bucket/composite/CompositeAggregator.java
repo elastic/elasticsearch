@@ -23,7 +23,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -40,11 +44,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
     private final List<String> sourceNames;
+    private final List<DocValueFormat> formats;
     private final boolean canEarlyTerminate;
 
     private final TreeMap<Integer, Integer> keys;
@@ -56,12 +62,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
     CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
                             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData,
-                            int size, CompositeValuesSourceConfig[] sources, List<String> sourceNames,
-                            CompositeKey rawAfterKey) throws IOException {
+                            int size, CompositeValuesSourceConfig[] sources, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.size = size;
         this.sources = sources;
-        this.sourceNames = sourceNames;
+        this.sourceNames = Arrays.stream(sources).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
+        this.formats = Arrays.stream(sources).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         // we use slot 0 to fill the current document (size+1).
         this.array = new CompositeValuesComparator(context.searcher().getIndexReader(), sources, size+1);
         if (rawAfterKey != null) {
@@ -87,6 +93,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
         // Replay all documents that contain at least one top bucket (collected during the first pass).
         grow(keys.size()+1);
+        final boolean needsScores = needsScores();
+        Weight weight = null;
+        if (needsScores) {
+            Query query = context.query();
+            weight = context.searcher().createNormalizedWeight(query, true);
+        }
         for (LeafContext context : contexts) {
             DocIdSetIterator docIdSetIterator = context.docIdSet.iterator();
             if (docIdSetIterator == null) {
@@ -95,7 +107,21 @@ final class CompositeAggregator extends BucketsAggregator {
             final CompositeValuesSource.Collector collector =
                 array.getLeafCollector(context.ctx, getSecondPassCollector(context.subCollector));
             int docID;
+            DocIdSetIterator scorerIt = null;
+            if (needsScores) {
+                Scorer scorer = weight.scorer(context.ctx);
+                // We don't need to check if the scorer is null
+                // since we are sure that there are documents to replay (docIdSetIterator it not empty).
+                scorerIt = scorer.iterator();
+                context.subCollector.setScorer(scorer);
+            }
             while ((docID = docIdSetIterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (needsScores) {
+                    assert scorerIt.docID() < docID;
+                    scorerIt.advance(docID);
+                    // aggregations should only be replayed on matching documents
+                    assert scorerIt.docID() == docID;
+                }
                 collector.collect(docID);
             }
         }
@@ -108,15 +134,18 @@ final class CompositeAggregator extends BucketsAggregator {
             CompositeKey key = array.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
             int docCount = bucketDocCount(slot);
-            buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, key, reverseMuls, docCount, aggs);
+            buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
-        return new InternalComposite(name, size, sourceNames, Arrays.asList(buckets), reverseMuls, pipelineAggregators(), metaData());
+        CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
+        return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
+            pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         final int[] reverseMuls = getReverseMuls();
-        return new InternalComposite(name, size, sourceNames, Collections.emptyList(), reverseMuls, pipelineAggregators(), metaData());
+        return new InternalComposite(name, size, sourceNames, formats, Collections.emptyList(), null, reverseMuls,
+            pipelineAggregators(), metaData());
     }
 
     @Override

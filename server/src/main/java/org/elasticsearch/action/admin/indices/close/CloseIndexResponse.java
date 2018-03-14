@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -29,6 +31,12 @@ import java.io.IOException;
  * A response for a close index action.
  */
 public class CloseIndexResponse extends AcknowledgedResponse {
+    private static final ConstructingObjectParser<CloseIndexResponse, Void> PARSER = new ConstructingObjectParser<>("close_index", true,
+            args -> new CloseIndexResponse((boolean) args[0]));
+
+    static {
+        declareAcknowledgedField(PARSER);
+    }
 
     CloseIndexResponse() {
     }
@@ -47,5 +55,9 @@ public class CloseIndexResponse extends AcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+    }
+
+    public static CloseIndexResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

@@ -20,10 +20,11 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -62,15 +63,20 @@ final class Spawner implements Closeable {
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        final Path pluginsFile = environment.pluginsFile();
-        if (!Files.exists(pluginsFile)) {
-            throw new IllegalStateException("plugins directory [" + pluginsFile + "] not found");
+        spawnControllers(environment.pluginsFile(), "plugins", environment.tmpFile());
+        spawnControllers(environment.modulesFile(), "modules", environment.tmpFile());
+    }
+
+    /** Spawn controllers in plugins found within the given directory. */
+    private void spawnControllers(Path pluginsDir, String type, Path tmpDir) throws IOException {
+        if (!Files.exists(pluginsDir)) {
+            throw new IllegalStateException(type + " directory [" + pluginsDir + "] not found");
         }
         /*
          * For each plugin, attempt to spawn the controller daemon. Silently ignore any plugin that
          * don't include a controller for the correct platform.
          */
-        List<Path> paths = PluginInfo.extractAllPlugins(pluginsFile);
+        List<Path> paths = PluginsService.findPluginDirs(pluginsDir);
         for (Path plugin : paths) {
             final PluginInfo info = PluginInfo.readFromProperties(plugin);
             final Path spawnPath = Platforms.nativeControllerPath(plugin);
@@ -84,8 +90,7 @@ final class Spawner implements Closeable {
                     plugin.getFileName());
                 throw new IllegalArgumentException(message);
             }
-            final Process process =
-                spawnNativePluginController(spawnPath, environment.tmpFile());
+            final Process process = spawnNativePluginController(spawnPath, tmpDir);
             processes.add(process);
         }
     }

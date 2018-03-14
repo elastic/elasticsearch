@@ -19,7 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.SecureSM;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -28,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -53,8 +54,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
@@ -163,17 +162,9 @@ final class Security {
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
         // collect up set of plugins and modules by listing directories.
-        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginInfo.extractAllPlugins(environment.pluginsFile()));
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(PluginsService.findPluginDirs(environment.pluginsFile()));
+        pluginsAndModules.addAll(PluginsService.findPluginDirs(environment.modulesFile()));
 
-        if (Files.exists(environment.modulesFile())) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path module : stream) {
-                    if (pluginsAndModules.add(module) == false) {
-                        throw new IllegalStateException("duplicate module: " + module);
-                    }
-                }
-            }
-        }
         // now process each one
         for (Path plugin : pluginsAndModules) {
             Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);

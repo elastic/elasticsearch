@@ -181,6 +181,37 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+    public void testTerminateAfterWithFilter() throws Exception {
+        Directory dir = newDirectory();
+        final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
+        IndexWriterConfig iwc = newIndexWriterConfig()
+            .setIndexSort(sort);
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
+        Document doc = new Document();
+        for (int i = 0; i < 10; i++) {
+            doc.add(new StringField("foo", Integer.toString(i), Store.NO));
+        }
+        w.addDocument(doc);
+        w.close();
+
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher contextSearcher = new IndexSearcher(reader);
+        TestSearchContext context = new TestSearchContext(null, indexShard);
+        context.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.terminateAfter(1);
+        context.setSize(10);
+        for (int i = 0; i < 10; i++) {
+            context.parsedPostFilter(new ParsedQuery(new TermQuery(new Term("foo", Integer.toString(i)))));
+            QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
+            assertEquals(1, context.queryResult().topDocs().totalHits);
+            assertThat(context.queryResult().topDocs().scoreDocs.length, equalTo(1));
+        }
+        reader.close();
+        dir.close();
+    }
+
+
     public void testMinScoreDisablesCountOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
@@ -346,6 +377,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().totalHits, equalTo(1L));
             assertThat(context.queryResult().topDocs().scoreDocs.length, equalTo(1));
+            assertThat(collector.getTotalHits(), equalTo(1));
+            context.queryCollectors().clear();
         }
         {
             context.setSize(0);

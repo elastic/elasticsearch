@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
@@ -77,9 +77,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         if (randomBoolean()) {
             // make between 0 and 5 different values of the same type
             String fieldName;
-            do {
-                fieldName = getRandomFieldName();
-            } while (fieldName.equals(GEO_POINT_FIELD_NAME) || fieldName.equals(GEO_SHAPE_FIELD_NAME));
+            fieldName = randomValueOtherThanMany(choice -> choice.equals(GEO_POINT_FIELD_NAME) || choice.equals(GEO_SHAPE_FIELD_NAME)
+                    || choice.equals(INT_RANGE_FIELD_NAME) || choice.equals(DATE_RANGE_FIELD_NAME), () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {
                 values[i] = getRandomValueForFieldName(fieldName);

@@ -18,16 +18,21 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.Strings;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -100,7 +105,43 @@ public class SettingsFilterTests extends ESTestCase {
                 .build(),
             "a.b.*.d"
         );
+    }
 
+    public void testFilteredSettingIsNotLogged() throws Exception {
+        Settings oldSettings = Settings.builder().put("key", "old").build();
+        Settings newSettings = Settings.builder().put("key", "new").build();
+
+        Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
+            new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
+            new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
+            new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
+        );
+    }
+
+    public void testRegularSettingUpdateIsFullyLogged() throws Exception {
+        Settings oldSettings = Settings.builder().put("key", "old").build();
+        Settings newSettings = Settings.builder().put("key", "new").build();
+
+        Setting<String> regularSetting = Setting.simpleString("key");
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
+            new MockLogAppender.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO,
+            "updating [key] from [old] to [new]"));
+    }
+
+    private void assertExpectedLogMessages(Consumer<Logger> consumer,
+                                           MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
+        Logger testLogger = Loggers.getLogger("org.elasticsearch.test");
+        MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(testLogger, appender);
+        try {
+            appender.start();
+            Arrays.stream(expectations).forEach(appender::addExpectation);
+            consumer.accept(testLogger);
+            appender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(testLogger, appender);
+        }
     }
 
     private void testFiltering(Settings source, Settings filtered, String... patterns) throws IOException {

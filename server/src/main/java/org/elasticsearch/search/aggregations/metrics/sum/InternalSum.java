@@ -35,7 +35,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     private final double sum;
 
     public InternalSum(String name, double sum, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+                       Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.sum = sum;
         this.format = formatter;
@@ -73,9 +73,20 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        // Compute the sum of double values with Kahan summation algorithm which is more
+        // accurate than naive summation.
         double sum = 0;
+        double compensation = 0;
         for (InternalAggregation aggregation : aggregations) {
-            sum += ((InternalSum) aggregation).sum;
+            double value = ((InternalSum) aggregation).sum;
+            if (Double.isFinite(value) == false) {
+                sum += value;
+            } else if (Double.isFinite(sum)) {
+                double corrected = value - compensation;
+                double newSum = sum + corrected;
+                compensation = (newSum - sum) - corrected;
+                sum = newSum;
+            }
         }
         return new InternalSum(name, sum, format, pipelineAggregators(), getMetaData());
     }

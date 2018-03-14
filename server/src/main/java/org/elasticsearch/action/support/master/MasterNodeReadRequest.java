@@ -51,6 +51,11 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
         return (Request) this;
     }
 
+    /**
+     * Return local information, do not retrieve the state from master node (default: false).
+     * @return <code>true</code> if local information is to be returned;
+     * <code>false</code> if information is to be retrieved from master node (default).
+     */
     public final boolean local() {
         return local;
     }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -341,7 +342,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(randomBytesRef.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -359,7 +360,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
         assertTrue(parser.nextToken().isValue());
-        assertThat(parser.utf8Bytes().utf8ToString(), equalTo(random.utf8ToString()));
+        assertThat(new BytesRef(parser.charBuffer()).utf8ToString(), equalTo(random.utf8ToString()));
         assertSame(parser.nextToken(), Token.END_OBJECT);
         assertNull(parser.nextToken());
     }
@@ -534,7 +535,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             final String expected = o.getKey();
             assertResult(expected, () -> builder().startObject().field("objects", o.getValue()).endObject());
             assertResult(expected, () -> builder().startObject().field("objects").value(o.getValue()).endObject());
-            assertResult(expected, () -> builder().startObject().field("objects").values(o.getValue()).endObject());
             assertResult(expected, () -> builder().startObject().array("objects", o.getValue()).endObject());
         }
     }
@@ -748,12 +748,13 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             if (useStream) {
                 generator.writeRawField("bar", new ByteArrayInputStream(rawData));
             } else {
-                generator.writeRawField("bar", new BytesArray(rawData));
+                generator.writeRawField("bar", new BytesArray(rawData).streamInput());
             }
             generator.writeEndObject();
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("bar", parser.currentName());
@@ -784,10 +785,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("foo", parser.currentName());
@@ -799,11 +801,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
             generator.writeEndObject();
         }
 
-        parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
+        parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -831,7 +834,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, serialized);
+        XContentParser parser = xcontentType().xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, serialized);
         Map<String, Object> map = parser.map();
         assertEquals("bar", map.get("foo"));
         assertEquals(bigInteger, map.get("bigint"));
@@ -855,19 +859,19 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testEnsureNoSelfReferences() throws IOException {
-        XContentBuilder.ensureNoSelfReferences(emptyMap());
-        XContentBuilder.ensureNoSelfReferences(null);
+        CollectionUtils.ensureNoSelfReferences(emptyMap());
+        CollectionUtils.ensureNoSelfReferences(null);
 
         Map<String, Object> map = new HashMap<>();
         map.put("field", map);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     /**
      * Test that the same map written multiple times do not trigger the self-reference check in
-     * {@link XContentBuilder#ensureNoSelfReferences(Object)}
+     * {@link CollectionUtils#ensureNoSelfReferences(Object)}
      */
     public void testRepeatedMapsAndNoSelfReferences() throws Exception {
         Map<String, Object> mapB = singletonMap("b", "B");
@@ -900,7 +904,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map1.put("map0", map0); // map 1 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingMapsTwoLevels() throws IOException {
@@ -918,7 +922,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map2.put("map0", map0); // map 2 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingObjectsArray() throws IOException {
@@ -931,13 +935,13 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
 
         e = expectThrows(IllegalArgumentException.class, () -> builder()
                 .startObject()
                 .array("field", values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterable() throws IOException {
@@ -950,7 +954,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", (Iterable) values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterableOneLevel() throws IOException {
@@ -965,7 +969,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                 .field("field", (Iterable) values)
                 .endObject());
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testSelfReferencingIterableTwoLevels() throws IOException {
@@ -985,7 +989,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         map2.put("map0", map0); // map 2 -> map 0 loop
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
-        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself"));
     }
 
     public void testChecksForDuplicates() throws Exception {
@@ -1011,7 +1015,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
         XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
         b.value("test");
-        XContentParser p = xcontentType().xContent().createParser(registry, b.bytes());
+        XContentParser p = xcontentType().xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, b.bytes().streamInput());
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
@@ -1019,7 +1023,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
             assertEquals("Unknown Object [unknown]", e.getMessage());
             assertEquals("java.lang.Object", e.getCategoryClass());
@@ -1030,7 +1034,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
         }
         {
-            XContentParser emptyRegistryParser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, new byte[] {});
+            XContentParser emptyRegistryParser = xcontentType().xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {});
             Exception e = expectThrows(ElasticsearchException.class,
                     () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("namedObject is not supported for this parser", e.getMessage());

@@ -31,7 +31,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -62,7 +65,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");
     private static final ParseField LEFT_FIELD = new ParseField("left");
@@ -72,6 +74,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     private static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
+    private static final ParseField WKT_FIELD = new ParseField("wkt");
+
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
     private final String fieldName;
@@ -378,11 +382,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public static GeoBoundingBoxQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
 
-        double top = Double.NaN;
-        double bottom = Double.NaN;
-        double left = Double.NaN;
-        double right = Double.NaN;
-
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
         String currentFieldName = null;
@@ -390,67 +389,29 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         GeoValidationMethod validationMethod = null;
         boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-        GeoPoint sparse = new GeoPoint();
-
+        Rectangle bbox = null;
         String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                fieldName = currentFieldName;
-
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                        token = parser.nextToken();
-                        if (FIELD_FIELD.match(currentFieldName)) {
-                            fieldName = parser.text();
-                        } else if (TOP_FIELD.match(currentFieldName)) {
-                            top = parser.doubleValue();
-                        } else if (BOTTOM_FIELD.match(currentFieldName)) {
-                            bottom = parser.doubleValue();
-                        } else if (LEFT_FIELD.match(currentFieldName)) {
-                            left = parser.doubleValue();
-                        } else if (RIGHT_FIELD.match(currentFieldName)) {
-                            right = parser.doubleValue();
-                        } else {
-                            if (TOP_LEFT_FIELD.match(currentFieldName)) {
-                                GeoUtils.parseGeoPoint(parser, sparse);
-                                top = sparse.getLat();
-                                left = sparse.getLon();
-                            } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName)) {
-                                GeoUtils.parseGeoPoint(parser, sparse);
-                                bottom = sparse.getLat();
-                                right = sparse.getLon();
-                            } else if (TOP_RIGHT_FIELD.match(currentFieldName)) {
-                                GeoUtils.parseGeoPoint(parser, sparse);
-                                top = sparse.getLat();
-                                right = sparse.getLon();
-                            } else if (BOTTOM_LEFT_FIELD.match(currentFieldName)) {
-                                GeoUtils.parseGeoPoint(parser, sparse);
-                                bottom = sparse.getLat();
-                                left = sparse.getLon();
-                            } else {
-                                throw new ElasticsearchParseException("failed to parse [{}] query. unexpected field [{}]",
-                                        NAME, currentFieldName);
-                            }
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("failed to parse [{}] query. field name expected but [{}] found",
-                                NAME, token);
-                    }
+                try {
+                    bbox = parseBoundingBox(parser);
+                    fieldName = currentFieldName;
+                } catch (Exception e) {
+                    throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
                 }
             } else if (token.isValue()) {
-                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
-                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (TYPE_FIELD.match(currentFieldName)) {
+                } else if (TYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     type = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. unexpected field [{}]",
@@ -459,8 +420,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        final GeoPoint topLeft = sparse.reset(top, left);  //just keep the object
-        final GeoPoint bottomRight = new GeoPoint(bottom, right);
+        if (bbox == null) {
+            throw new ElasticsearchParseException("failed to parse [{}] query. bounding box not provided", NAME);
+        }
+
+        final GeoPoint topLeft = new GeoPoint(bbox.maxLat, bbox.minLon);  //just keep the object
+        final GeoPoint bottomRight = new GeoPoint(bbox.minLat, bbox.maxLon);
+
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         builder.setCorners(topLeft, bottomRight);
         builder.queryName(queryName);
@@ -492,5 +458,70 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public static Rectangle parseBoundingBox(XContentParser parser) throws IOException, ElasticsearchParseException {
+        XContentParser.Token token = parser.currentToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse bounding box. Expected start object but found [{}]", token);
+        }
+
+        double top = Double.NaN;
+        double bottom = Double.NaN;
+        double left = Double.NaN;
+        double right = Double.NaN;
+
+        String currentFieldName;
+        GeoPoint sparse = new GeoPoint();
+        EnvelopeBuilder envelope = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+                token = parser.nextToken();
+                if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    envelope = (EnvelopeBuilder)(GeoWKTParser.parseExpectedType(parser, GeoShapeType.ENVELOPE));
+                } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    top = parser.doubleValue();
+                } else if (BOTTOM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    bottom = parser.doubleValue();
+                } else if (LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    left = parser.doubleValue();
+                } else if (RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    right = parser.doubleValue();
+                } else {
+                    if (TOP_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        top = sparse.getLat();
+                        left = sparse.getLon();
+                    } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        bottom = sparse.getLat();
+                        right = sparse.getLon();
+                    } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        top = sparse.getLat();
+                        right = sparse.getLon();
+                    } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        GeoUtils.parseGeoPoint(parser, sparse);
+                        bottom = sparse.getLat();
+                        left = sparse.getLon();
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse bounding box. unexpected field [{}]", currentFieldName);
+                    }
+                }
+            } else {
+                throw new ElasticsearchParseException("failed to parse bounding box. field name expected but [{}] found", token);
+            }
+        }
+        if (envelope != null) {
+            if ((Double.isNaN(top) || Double.isNaN(bottom) || Double.isNaN(left) || Double.isNaN(right)) == false) {
+                throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
+                    + "using well-known text and explicit corners.");
+            }
+            org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
+            return new Rectangle(r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+        }
+        return new Rectangle(bottom, top, left, right);
     }
 }

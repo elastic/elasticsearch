@@ -31,12 +31,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -194,27 +195,31 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     protected abstract int doHashCode();
 
     /**
-     * This helper method checks if the object passed in is a string, if so it
-     * converts it to a {@link BytesRef}.
+     * This helper method checks if the object passed in is a string or {@link CharBuffer},
+     * if so it converts it to a {@link BytesRef}.
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    static Object convertToBytesRefIfString(Object obj) {
+    static Object maybeConvertToBytesRef(Object obj) {
         if (obj instanceof String) {
             return BytesRefs.toBytesRef(obj);
+        } else if (obj instanceof CharBuffer) {
+            return new BytesRef((CharBuffer) obj);
         }
         return obj;
     }
 
     /**
-     * This helper method checks if the object passed in is a {@link BytesRef}, if so it
-     * converts it to a utf8 string.
+     * This helper method checks if the object passed in is a {@link BytesRef} or {@link CharBuffer},
+     * if so it converts it to a utf8 string.
      * @param obj the input object
-     * @return the same input object or a utf8 string if input was of type {@link BytesRef}
+     * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
      */
-    static Object convertToStringIfBytesRef(Object obj) {
+    static Object maybeConvertToString(Object obj) {
         if (obj instanceof BytesRef) {
             return ((BytesRef) obj).utf8ToString();
+        } else if (obj instanceof CharBuffer) {
+            return new BytesRef((CharBuffer) obj).utf8ToString();
         }
         return obj;
     }

@@ -94,12 +94,18 @@ reenable allocation.
 ------------------------------------------------------
 PUT _cluster/settings
 {
-  "persistent": {
+  "transient": {
     "cluster.routing.allocation.enable": "all"
   }
 }
 ------------------------------------------------------
 // CONSOLE
+
+NOTE: Because <<_precedence_of_settings, transient
+settings take precedence over persistent settings>>, this overrides the
+persistent setting used to disable shard allocation in the first step. If you
+don't explicitly reenable shard allocation after a full cluster restart, the
+persistent setting is used and shard allocation remains disabled.
 
 Once allocation is reenabled, the cluster starts allocating replica shards to
 the data nodes. At this point it is safe to resume indexing and searching,

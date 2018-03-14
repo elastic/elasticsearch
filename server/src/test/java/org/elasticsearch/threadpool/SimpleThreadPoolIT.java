@@ -95,8 +95,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             }
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
                     Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote("node_tribe2") + ")";
+                    Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) +")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
         }
     }

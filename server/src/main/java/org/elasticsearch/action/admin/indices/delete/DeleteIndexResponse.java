@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -32,7 +31,7 @@ import java.io.IOException;
 /**
  * A response for a delete index action.
  */
-public class DeleteIndexResponse extends AcknowledgedResponse implements ToXContentObject {
+public class DeleteIndexResponse extends AcknowledgedResponse {
 
     private static final ConstructingObjectParser<DeleteIndexResponse, Void> PARSER = new ConstructingObjectParser<>("delete_index",
         true, args -> new DeleteIndexResponse((boolean) args[0]));
@@ -60,15 +59,7 @@ public class DeleteIndexResponse extends AcknowledgedResponse implements ToXCont
         writeAcknowledged(out);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        addAcknowledgedField(builder);
-        builder.endObject();
-        return builder;
-    }
-
-    public static DeleteIndexResponse fromXContent(XContentParser parser) throws IOException {
+    public static DeleteIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

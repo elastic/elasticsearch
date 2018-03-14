@@ -27,20 +27,17 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.message.MessageFactory;
-import org.elasticsearch.common.Classes;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static javax.security.auth.login.Configuration.getConfiguration;
 import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 
 /**
@@ -49,6 +46,12 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
 public class Loggers {
 
     public static final String SPACE = " ";
+
+    public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
+        new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<Level> LOG_LEVEL_SETTING =
+        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.Dynamic,
+            Setting.Property.NodeScope));
 
     public static Logger getLogger(Class<?> clazz, Settings settings, ShardId shardId, String... prefixes) {
         return getLogger(clazz, settings, shardId.getIndex(), asArrayList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
@@ -64,17 +67,17 @@ public class Loggers {
     }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, Index index, String... prefixes) {
-        return getLogger(clazz, settings, asArrayList(SPACE, index.getName(), prefixes).toArray(new String[0]));
+        return getLogger(clazz, settings, asArrayList(Loggers.SPACE, index.getName(), prefixes).toArray(new String[0]));
     }
 
     public static Logger getLogger(Class<?> clazz, Settings settings, String... prefixes) {
         final List<String> prefixesList = prefixesList(settings, prefixes);
-        return getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
+        return Loggers.getLogger(clazz, prefixesList.toArray(new String[prefixesList.size()]));
     }
 
     public static Logger getLogger(String loggerName, Settings settings, String... prefixes) {
         final List<String> prefixesList = prefixesList(settings, prefixes);
-        return getLogger(loggerName, prefixesList.toArray(new String[prefixesList.size()]));
+        return Loggers.getLogger(loggerName, prefixesList.toArray(new String[prefixesList.size()]));
     }
 
     private static List<String> prefixesList(Settings settings, String... prefixes) {

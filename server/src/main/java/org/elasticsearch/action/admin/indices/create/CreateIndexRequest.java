@@ -37,6 +37,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,9 +56,9 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -69,9 +71,9 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final ParseField MAPPINGS = new ParseField("mappings");
-    private static final ParseField SETTINGS = new ParseField("settings");
-    private static final ParseField ALIASES = new ParseField("aliases");
+    public static final ParseField MAPPINGS = new ParseField("mappings");
+    public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField ALIASES = new ParseField("aliases");
 
     private String cause = "";
 
@@ -84,8 +86,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     private final Set<Alias> aliases = new HashSet<>();
 
     private final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
-
-    private boolean updateAllTypes = false;
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
@@ -318,7 +318,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
+        try (XContentParser parser = XContentHelper
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -371,7 +372,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        source(XContentHelper.convertToMap(source, false, xContentType).v2());
+        source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 
@@ -379,17 +380,17 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the settings and mappings as a single source.
      */
     @SuppressWarnings("unchecked")
-    public CreateIndexRequest source(Map<String, ?> source) {
+    public CreateIndexRequest source(Map<String, ?> source, DeprecationHandler deprecationHandler) {
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
-            if (SETTINGS.match(name)) {
+            if (SETTINGS.match(name, deprecationHandler)) {
                 settings((Map<String, Object>) entry.getValue());
-            } else if (MAPPINGS.match(name)) {
+            } else if (MAPPINGS.match(name, deprecationHandler)) {
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
-            } else if (ALIASES.match(name)) {
+            } else if (ALIASES.match(name, deprecationHandler)) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 // maybe custom?
@@ -427,17 +428,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     public Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
-    }
-
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public boolean updateAllTypes() {
-        return updateAllTypes;
-    }
-
-    /** See {@link #updateAllTypes()} */
-    public CreateIndexRequest updateAllTypes(boolean updateAllTypes) {
-        this.updateAllTypes = updateAllTypes;
-        return this;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -499,7 +489,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(Alias.read(in));
         }
-        updateAllTypes = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readBoolean(); // updateAllTypes
+        }
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
@@ -523,14 +515,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Alias alias : aliases) {
             alias.writeTo(out);
         }
-        out.writeBoolean(updateAllTypes);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(true); // updateAllTypes
+        }
         waitForActiveShards.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
 
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(SETTINGS.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
@@ -550,8 +549,6 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, IndexMetaData.Custom> entry : customs.entrySet()) {
             builder.field(entry.getKey(), entry.getValue(), params);
         }
-
-        builder.endObject();
         return builder;
     }
 }

@@ -26,18 +26,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 
@@ -60,7 +61,7 @@ public class CreateIndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testTopLevelKeys() throws IOException {
+    public void testTopLevelKeys() {
         String createIndex =
                 "{\n"
                 + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
@@ -109,33 +110,38 @@ public class CreateIndexRequestTests extends ESTestCase {
 
     public void testToAndFromXContent() throws IOException {
 
-        final CreateIndexRequest createIndexRequest = createTestItem();
+        final CreateIndexRequest createIndexRequest = RandomCreateIndexGenerator.randomCreateIndexRequest();
 
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(createIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
-        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest(createIndexRequest.index());
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         parsedCreateIndexRequest.source(originalBytes, xContentType);
 
         assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
         assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
         assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
+
+        BytesReference finalBytes = toShuffledXContent(parsedCreateIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    private void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
+    public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
         assertEquals(expected.keySet(), actual.keySet());
 
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             String expectedValue = expectedEntry.getValue();
             String actualValue = actual.get(expectedEntry.getKey());
-            XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expectedValue);
-            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actualValue);
-            assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
+            XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, expectedValue);
+            XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, actualValue);
+            assertEquals(expectedJson.map(), actualJson.map());
         }
     }
 
-    private static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
+    public static void assertAliasesEqual(Set<Alias> expected, Set<Alias> actual) throws IOException {
         assertEquals(expected, actual);
 
         for (Alias expectedAlias : expected) {
@@ -148,98 +154,5 @@ public class CreateIndexRequestTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Returns a random {@link CreateIndexRequest}.
-     */
-    private static CreateIndexRequest createTestItem() throws IOException {
-        String index = randomAlphaOfLength(5);
-
-        CreateIndexRequest request = new CreateIndexRequest(index);
-
-        int aliasesNo = randomIntBetween(0, 2);
-        for (int i = 0; i < aliasesNo; i++) {
-            request.alias(randomAlias());
-        }
-
-        if (randomBoolean()) {
-            String type = randomAlphaOfLength(5);
-            request.mapping(type, randomMapping(type));
-        }
-
-        if (randomBoolean()) {
-            request.settings(randomIndexSettings());
-        }
-
-        return request;
-    }
-
-    private static Settings randomIndexSettings() {
-        Settings.Builder builder = Settings.builder();
-
-        if (randomBoolean()) {
-            int numberOfShards = randomIntBetween(1, 10);
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards);
-        }
-
-        if (randomBoolean()) {
-            int numberOfReplicas = randomIntBetween(1, 10);
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
-        }
-
-        return builder.build();
-    }
-
-    private static XContentBuilder randomMapping(String type) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().startObject(type);
-
-        randomMappingFields(builder, true);
-
-        builder.endObject().endObject();
-        return builder;
-    }
-
-    private static void randomMappingFields(XContentBuilder builder, boolean allowObjectField) throws IOException {
-        builder.startObject("properties");
-
-        int fieldsNo = randomIntBetween(0, 5);
-        for (int i = 0; i < fieldsNo; i++) {
-            builder.startObject(randomAlphaOfLength(5));
-
-            if (allowObjectField && randomBoolean()) {
-                randomMappingFields(builder, false);
-            } else {
-                builder.field("type", "text");
-            }
-
-            builder.endObject();
-        }
-
-        builder.endObject();
-    }
-
-    private static Alias randomAlias() {
-        Alias alias = new Alias(randomAlphaOfLength(5));
-
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                alias.routing(randomAlphaOfLength(5));
-            } else {
-                if (randomBoolean()) {
-                    alias.indexRouting(randomAlphaOfLength(5));
-                }
-                if (randomBoolean()) {
-                    alias.searchRouting(randomAlphaOfLength(5));
-                }
-            }
-        }
-
-        if (randomBoolean()) {
-            alias.filter("{\"term\":{\"year\":2016}}");
-        }
-
-        return alias;
     }
 }

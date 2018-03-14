@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -69,7 +69,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
 
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<ShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {

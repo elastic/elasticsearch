@@ -56,7 +56,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     private void addFile(KeyStoreWrapper keystore, String setting, Path file) throws Exception {
         keystore.setFile(setting, Files.readAllBytes(file));
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), new char[0]);
     }
 
     public void testMissingPromptCreate() throws Exception {

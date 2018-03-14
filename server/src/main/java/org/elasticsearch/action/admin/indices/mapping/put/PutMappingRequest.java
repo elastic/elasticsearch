@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -57,7 +59,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see PutMappingResponse
  */
-public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
+public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable, ToXContentObject {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
@@ -72,7 +74,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String source;
 
-    private boolean updateAllTypes = false;
     private Index concreteIndex;
 
     public PutMappingRequest() {
@@ -290,17 +291,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
-    /** True if all fields that span multiple types should be updated, false otherwise */
-    public boolean updateAllTypes() {
-        return updateAllTypes;
-    }
-
-    /** See {@link #updateAllTypes()} */
-    public PutMappingRequest updateAllTypes(boolean updateAllTypes) {
-        this.updateAllTypes = updateAllTypes;
-        return this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -312,7 +302,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             // we do not know the format from earlier versions so convert if necessary
             source = XContentHelper.convertToJson(new BytesArray(source), false, false, XContentFactory.xContentType(source));
         }
-        updateAllTypes = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readBoolean(); // updateAllTypes
+        }
         concreteIndex = in.readOptionalWriteable(Index::new);
     }
 
@@ -323,7 +315,21 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        out.writeBoolean(updateAllTypes);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(true); // updateAllTypes
+        }
         out.writeOptionalWriteable(concreteIndex);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (source != null) {
+            try (InputStream stream = new BytesArray(source).streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
+        } else {
+            builder.startObject().endObject();
+        }
+        return builder;
     }
 }

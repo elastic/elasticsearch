@@ -539,7 +539,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FIELDS_FIELD.match(currentFieldName)) {
+                if (FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> fields = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
@@ -550,15 +550,15 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                             "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (QUERY_FIELD.match(currentFieldName)) {
+                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryBody = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (ANALYZER_FIELD.match(currentFieldName)) {
+                } else if (ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     analyzerName = parser.text();
-                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName)) {
+                } else if (DEFAULT_OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     defaultOperator = Operator.fromString(parser.text());
-                } else if (FLAGS_FIELD.match(currentFieldName)) {
+                } else if (FLAGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
@@ -569,29 +569,29 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if (LOCALE_FIELD.match(currentFieldName)) {
+                } else if (LOCALE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName)) {
+                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore, deprecated setting
-                } else if (LENIENT_FIELD.match(currentFieldName)) {
+                } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     lenient = parser.booleanValue();
-                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName)) {
+                } else if (ANALYZE_WILDCARD_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     analyzeWildcard = parser.booleanValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName)) {
+                } else if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName)) {
+                } else if (QUOTE_FIELD_SUFFIX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     quoteFieldSuffix = parser.textOrNull();
-                } else if (ALL_FIELDS_FIELD.match(currentFieldName)) {
+                } else if (ALL_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // Ignore deprecated option
-                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName)) {
+                } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
-                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_PREFIX_LENGTH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyPrefixLenght = parser.intValue();
-                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_MAX_EXPANSIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyMaxExpansions = parser.intValue();
-                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName)) {
+                } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME +

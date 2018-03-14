@@ -38,6 +38,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -712,4 +713,79 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 
+    public void testSettingsGroupUpdater() {
+        Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
+        Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+            Arrays.asList(intSetting, intSetting2));
+
+        Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
+        Settings previous = Settings.builder().put("prefix.foo", 321).put("prefix.same", 5555).build();
+        assertTrue(updater.apply(current, previous));
+    }
+
+    public void testSettingsGroupUpdaterRemoval() {
+        Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
+        Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+            Arrays.asList(intSetting, intSetting2));
+
+        Settings current = Settings.builder().put("prefix.same", 5555).build();
+        Settings previous = Settings.builder().put("prefix.foo", 321).put("prefix.same", 5555).build();
+        assertTrue(updater.apply(current, previous));
+    }
+
+    public void testSettingsGroupUpdaterWithAffixSetting() {
+        Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
+        Setting.AffixSetting<String> prefixKeySetting =
+            Setting.prefixKeySetting("prefix.foo.bar.", key -> Setting.simpleString(key, Property.NodeScope, Property.Dynamic));
+        Setting.AffixSetting<String> affixSetting =
+            Setting.affixKeySetting("prefix.foo.", "suffix", key -> Setting.simpleString(key,Property.NodeScope, Property.Dynamic));
+
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {}, logger,
+            Arrays.asList(intSetting, prefixKeySetting, affixSetting));
+
+        Settings.Builder currentSettingsBuilder = Settings.builder()
+            .put("prefix.foo.bar.baz", "foo")
+            .put("prefix.foo.infix.suffix", "foo");
+        Settings.Builder previousSettingsBuilder = Settings.builder()
+            .put("prefix.foo.bar.baz", "foo")
+            .put("prefix.foo.infix.suffix", "foo");
+        boolean removePrefixKeySetting = randomBoolean();
+        boolean changePrefixKeySetting = randomBoolean();
+        boolean removeAffixKeySetting = randomBoolean();
+        boolean changeAffixKeySetting = randomBoolean();
+        boolean removeAffixNamespace = randomBoolean();
+
+        if (removePrefixKeySetting) {
+            previousSettingsBuilder.remove("prefix.foo.bar.baz");
+        }
+        if (changePrefixKeySetting) {
+            currentSettingsBuilder.put("prefix.foo.bar.baz", "bar");
+        }
+        if (removeAffixKeySetting) {
+            previousSettingsBuilder.remove("prefix.foo.infix.suffix");
+        }
+        if (changeAffixKeySetting) {
+            currentSettingsBuilder.put("prefix.foo.infix.suffix", "bar");
+        }
+        if (removeAffixKeySetting == false && changeAffixKeySetting == false && removeAffixNamespace) {
+            currentSettingsBuilder.remove("prefix.foo.infix.suffix");
+            currentSettingsBuilder.put("prefix.foo.infix2.suffix", "bar");
+            previousSettingsBuilder.put("prefix.foo.infix2.suffix", "bar");
+        }
+
+        boolean expectedChange = removeAffixKeySetting || removePrefixKeySetting || changeAffixKeySetting || changePrefixKeySetting
+            || removeAffixNamespace;
+        assertThat(updater.apply(currentSettingsBuilder.build(), previousSettingsBuilder.build()), is(expectedChange));
+    }
+
+    public void testAffixNamespacesWithGroupSetting() {
+        final Setting.AffixSetting<Settings> affixSetting =
+            Setting.affixKeySetting("prefix.","suffix",
+                (key) -> Setting.groupSetting(key + ".", Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+        assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix", "anything").build()), hasSize(1));
+        assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
+    }
 }

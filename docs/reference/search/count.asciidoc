@@ -30,7 +30,7 @@ NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
 
 Both examples above do the same thing, which is count the number of
-tweets from the twitter index for a certain user. The result is:
+tweets from the `twitter` index for a certain user. The result is:
 
 [source,js]
 --------------------------------------------------

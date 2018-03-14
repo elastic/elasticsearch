@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,6 +52,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     private ValueType valueType = null;
     private Object missing = null;
     private SortOrder order = SortOrder.ASC;
+    private String format = null;
 
     CompositeValuesSourceBuilder(String name) {
         this(name, null);
@@ -72,6 +74,11 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         this.missing = in.readGenericValue();
         this.order = SortOrder.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            this.format = in.readOptionalString();
+        } else {
+            this.format = null;
+        }
     }
 
     @Override
@@ -90,6 +97,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         out.writeGenericValue(missing);
         order.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeOptionalString(format);
+        }
         innerWriteTo(out);
     }
 
@@ -112,6 +122,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());
         }
+        if (format != null) {
+            builder.field("format", format);
+        }
         builder.field("order", order);
         doXContentBody(builder, params);
         builder.endObject();
@@ -120,7 +133,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     @Override
     public final int hashCode() {
-        return Objects.hash(field, missing, script, valueType, order, innerHashCode());
+        return Objects.hash(field, missing, script, valueType, order, format, innerHashCode());
     }
 
     protected abstract int innerHashCode();
@@ -137,6 +150,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             Objects.equals(valueType, that.valueType()) &&
             Objects.equals(missing, that.missing()) &&
             Objects.equals(order, that.order()) &&
+            Objects.equals(format, that.format()) &&
             innerEquals(that);
     }
 
@@ -255,6 +269,24 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
+     * Sets the format to use for the output of the aggregation.
+     */
+    public AB format(String format) {
+        if (format == null) {
+            throw new IllegalArgumentException("[format] must not be null: [" + name + "]");
+        }
+        this.format = format;
+        return (AB) this;
+    }
+
+    /**
+     * Gets the format to use for the output of the aggregation.
+     */
+    public String format() {
+        return format;
+    }
+
+    /**
      * Creates a {@link CompositeValuesSourceConfig} for this source.
      *
      * @param context   The search context for this source.
@@ -271,7 +303,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
 
     public final CompositeValuesSourceConfig build(SearchContext context, int pos, int numPos, SortField sortField) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
-            valueType, field, script, missing, null, null);
+            valueType, field, script, missing, null, format);
         return innerBuild(context, config, pos, numPos, sortField);
     }
 

@@ -108,13 +108,13 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if (TERM_FIELD.match(currentFieldName)) {
-                            value = parser.objectBytes();
-                        } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName)) {
-                            value = parser.objectBytes();
-                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                        if (TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            value = maybeConvertToBytesRef(parser.objectBytes());
+                        } else if (BaseTermQueryBuilder.VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            value = maybeConvertToBytesRef(parser.objectBytes());
+                        } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             boost = parser.floatValue();
-                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                        } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
@@ -125,7 +125,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
             } else {
                 throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
-                value = parser.objectBytes();
+                value = maybeConvertToBytesRef(parser.objectBytes());
             }
         }
 

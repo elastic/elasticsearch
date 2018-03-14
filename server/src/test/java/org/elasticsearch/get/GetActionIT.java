@@ -21,7 +21,6 @@ package org.elasticsearch.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -748,7 +748,7 @@ public class GetActionIT extends ESIntegTestCase {
         if (flushResponse.getSuccessfulShards() == 0) {
             StringBuilder sb = new StringBuilder("failed to flush at least one shard. total shards [")
                     .append(flushResponse.getTotalShards()).append("], failed shards: [").append(flushResponse.getFailedShards()).append("]");
-            for (ShardOperationFailedException failure: flushResponse.getShardFailures()) {
+            for (DefaultShardOperationFailedException failure: flushResponse.getShardFailures()) {
                 sb.append("\nShard failure: ").append(failure);
             }
             fail(sb.toString());

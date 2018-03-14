@@ -88,7 +88,7 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
@@ -98,9 +98,9 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
         mapperService.merge("just_a_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

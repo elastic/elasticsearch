@@ -66,7 +66,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         // we can initally only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
-        routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0)).routingTable();
+        routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0), randomBoolean()).routingTable();
         state = ClusterState.builder(state).routingTable(routingTable).build();
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
         assertNull(routingTable.index("idx").shard(0).shards().get(0).currentNodeId());
@@ -114,7 +114,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         state = service.deassociateDeadNodes(
             ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove("node1")).build(),
             true, "test");
-        state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard());
+        state = service.applyFailedShard(state, routingTable.index("idx").shard(0).primaryShard(), randomBoolean());
 
         // now bring back node1 and see it's assigned
         state = service.reroute(
@@ -192,6 +192,14 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                 Settings.builder().put(Settings.EMPTY), Settings.builder(), "test ip validation");
         });
         assertEquals("invalid IP address [" + invalidIP + "] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
+    }
+
+    public void testNull() {
+        Setting<String> filterSetting = randomFrom(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING);
+
+        IndexMetaData.builder("test")
+            .settings(settings(Version.CURRENT).putNull(filterSetting.getKey() + "name")).numberOfShards(2).numberOfReplicas(0).build();
     }
 
     public void testWildcardIPFilter() {

@@ -219,8 +219,8 @@ public class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             DateFieldType other = (DateFieldType) fieldType;
             if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
                 conflicts.add("mapper [" + name() + "] has different [format] values");
@@ -472,8 +472,8 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
         if (other.ignoreMalformed.explicit()) {
             this.ignoreMalformed = other.ignoreMalformed;

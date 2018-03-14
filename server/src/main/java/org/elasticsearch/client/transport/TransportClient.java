@@ -19,13 +19,14 @@
 
 package org.elasticsearch.client.transport;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -195,8 +196,16 @@ public abstract class TransportClient extends AbstractClient {
             final TransportClientNodesService nodesService =
                 new TransportClientNodesService(settings, transportService, threadPool, failureListner == null
                     ? (t, e) -> {} : failureListner);
-            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService,
-                actionModule.getActions().values().stream().map(x -> x.getAction()).collect(Collectors.toList()));
+
+            // construct the list of client actions
+            final List<ActionPlugin> actionPlugins = pluginsService.filterPlugins(ActionPlugin.class);
+            final List<GenericAction> clientActions =
+                    actionPlugins.stream().flatMap(p -> p.getClientActions().stream()).collect(Collectors.toList());
+            // add all the base actions
+            final List<? extends GenericAction<?, ?>> baseActions =
+                    actionModule.getActions().values().stream().map(ActionPlugin.ActionHandler::getAction).collect(Collectors.toList());
+            clientActions.addAll(baseActions);
+            final TransportProxyClient proxy = new TransportProxyClient(settings, transportService, nodesService, clientActions);
 
             List<LifecycleComponent> pluginLifecycleComponents = new ArrayList<>(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -94,7 +97,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
             aggregationParser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                                .lookupReturningNullIfNotFound(name);
+                                .lookupReturningNullIfNotFound(name, p.getDeprecationHandler());
                         return significanceHeuristicParser.parse(p);
                     },
                     new ParseField(name));
@@ -127,6 +130,21 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
+    }
+
+    protected SignificantTermsAggregationBuilder(SignificantTermsAggregationBuilder clone,
+                                                 Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
+        this.executionHint = clone.executionHint;
+        this.filterBuilder = clone.filterBuilder;
+        this.includeExclude = clone.includeExclude;
+        this.significanceHeuristic = clone.significanceHeuristic;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -30,40 +29,57 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias upon satisfying conditions
  */
-public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
+public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest, ToXContentObject {
 
-    public static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("conditions", null);
+    private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
+    private static final ObjectParser<Map<String, Condition>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
+
+    private static final ParseField CONDITIONS = new ParseField("conditions");
+    private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
+    private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
+    private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
+
     static {
-        PARSER.declareField((parser, request, context) -> Condition.PARSER.parse(parser, request.conditions, null),
-            new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
+        CONDITION_PARSER.declareString((conditions, s) ->
+                conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+                MAX_AGE_CONDITION);
+        CONDITION_PARSER.declareLong((conditions, value) ->
+                conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
+        CONDITION_PARSER.declareString((conditions, s) ->
+                conditions.put(MaxSizeCondition.NAME, new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
+                MAX_SIZE_CONDITION);
+
+        PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
+            CONDITIONS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
-            new ParseField("settings"), ObjectParser.ValueType.OBJECT);
+            CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                request.createIndexRequest.mapping(mappingsEntry.getKey(),
-                    (Map<String, Object>) mappingsEntry.getValue());
+                request.createIndexRequest.mapping(mappingsEntry.getKey(), (Map<String, Object>) mappingsEntry.getValue());
             }
-        }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
+        }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
-            new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
+            CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
     }
 
     private String alias;
     private String newIndexName;
     private boolean dryRun;
-    private Set<Condition> conditions = new HashSet<>(2);
+    private Map<String, Condition> conditions = new HashMap<>(2);
+    //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     RolloverRequest() {}
@@ -75,12 +91,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
+        ActionRequestValidationException validationException = createIndexRequest.validate();
         if (alias == null) {
             validationException = addValidationError("index alias is missing", validationException);
-        }
-        if (createIndexRequest == null) {
-            validationException = addValidationError("create index request is missing", validationException);
         }
         return validationException;
     }
@@ -93,7 +106,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         dryRun = in.readBoolean();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            this.conditions.add(in.readNamedWriteable(Condition.class));
+            Condition condition = in.readNamedWriteable(Condition.class);
+            this.conditions.put(condition.name, condition);
         }
         createIndexRequest = new CreateIndexRequest();
         createIndexRequest.readFrom(in);
@@ -106,7 +120,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
         out.writeVInt(conditions.size());
-        for (Condition condition : conditions) {
+        for (Condition condition : conditions.values()) {
             if (condition.includedInVersion(out.getVersion())) {
                 out.writeNamedWriteable(condition);
             }
@@ -148,76 +162,75 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds condition to check if the index is at least <code>age</code> old
      */
     public void addMaxIndexAgeCondition(TimeValue age) {
-        this.conditions.add(new MaxAgeCondition(age));
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+        if (this.conditions.containsKey(maxAgeCondition.name)) {
+            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
+        }
+        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
     }
 
     /**
      * Adds condition to check if the index has at least <code>numDocs</code>
      */
     public void addMaxIndexDocsCondition(long numDocs) {
-        this.conditions.add(new MaxDocsCondition(numDocs));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxDocsCondition.name)) {
+            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
     }
 
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */
     public void addMaxIndexSizeCondition(ByteSizeValue size) {
-        this.conditions.add(new MaxSizeCondition(size));
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
+        if (this.conditions.containsKey(maxSizeCondition.name)) {
+            throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
+        }
+        this.conditions.put(maxSizeCondition.name, maxSizeCondition);
     }
 
-    /**
-     * Sets rollover index creation request to override index settings when
-     * the rolled over index has to be created
-     */
-    public void setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
-        this.createIndexRequest = Objects.requireNonNull(createIndexRequest, "create index request must not be null");;
-    }
 
-    boolean isDryRun() {
+    public boolean isDryRun() {
         return dryRun;
     }
 
-    Set<Condition> getConditions() {
+    Map<String, Condition> getConditions() {
         return conditions;
     }
 
-    String getAlias() {
+    public String getAlias() {
         return alias;
     }
 
-    String getNewIndexName() {
+    public String getNewIndexName() {
         return newIndexName;
     }
 
-    CreateIndexRequest getCreateIndexRequest() {
+    /**
+     * Returns the inner {@link CreateIndexRequest}. Allows to configure mappings, settings and aliases for the new index.
+     */
+    public CreateIndexRequest getCreateIndexRequest() {
         return createIndexRequest;
     }
 
-    /**
-     * Sets the number of shard copies that should be active for creation of the
-     * new rollover index to return. Defaults to {@link ActiveShardCount#DEFAULT}, which will
-     * wait for one shard copy (the primary) to become active. Set this value to
-     * {@link ActiveShardCount#ALL} to wait for all shards (primary and all replicas) to be active
-     * before returning. Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
-     * non-negative integer, up to the number of copies per shard (number of replicas + 1),
-     * to wait for the desired amount of shard copies to become active before returning.
-     * Index creation will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link RolloverResponse#isShardsAcknowledged()} to
-     * determine if the requisite shard copies were all started before returning or timing out.
-     *
-     * @param waitForActiveShards number of active shard copies to wait on
-     */
-    public void setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.createIndexRequest.waitForActiveShards(waitForActiveShards);
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        createIndexRequest.innerToXContent(builder, params);
+
+        builder.startObject(CONDITIONS.getPreferredName());
+        for (Condition condition : conditions.values()) {
+            condition.toXContent(builder, params);
+        }
+        builder.endObject();
+
+        builder.endObject();
+        return builder;
     }
 
-    /**
-     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
-     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
-     * to get the ActiveShardCount.
-     */
-    public void setWaitForActiveShards(final int waitForActiveShards) {
-        setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    public void fromXContent(XContentParser parser) throws IOException {
+        PARSER.parse(parser, this, null);
     }
-
 }

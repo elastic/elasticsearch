@@ -20,19 +20,21 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +45,6 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -58,7 +59,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content.
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content.
      * </p>
      *
      * @param xContent the {@link XContent}
@@ -66,13 +67,13 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput());
+        return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content and some inclusive and/or exclusive filters.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content. When both exclusive and
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
      * <p>
@@ -83,7 +84,7 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), includes, excludes);
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
     }
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
@@ -593,7 +594,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
         return field(name).utf8Value(value);
@@ -615,7 +616,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Value(BytesRef value) throws IOException {
         if (value == null) {
@@ -773,32 +774,22 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     public XContentBuilder array(String name, Object... values) throws IOException {
-        return field(name).values(values);
+        return field(name).values(values, true);
     }
 
-    XContentBuilder values(Object[] values) throws IOException {
+    private XContentBuilder values(Object[] values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
-
-        // checks that the array of object does not contain references to itself because
-        // iterating over entries will cause a stackoverflow error
-        ensureNoSelfReferences(values);
-
-        startArray();
-        for (Object o : values) {
-            value(o);
-        }
-        endArray();
-        return this;
+        return value(Arrays.asList(values), ensureNoSelfReferences);
     }
 
     public XContentBuilder value(Object value) throws IOException {
-        unknownValue(value);
+        unknownValue(value, true);
         return this;
     }
 
-    private void unknownValue(Object value) throws IOException {
+    private void unknownValue(Object value, boolean ensureNoSelfReferences) throws IOException {
         if (value == null) {
             nullValue();
             return;
@@ -810,11 +801,11 @@ public final class XContentBuilder implements Releasable, Flushable {
             //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             value((Path) value);
         } else if (value instanceof Map) {
-            map((Map) value);
+            map((Map<String,?>) value, ensureNoSelfReferences);
         } else if (value instanceof Iterable) {
-            value((Iterable<?>) value);
+            value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
-            values((Object[]) value);
+            values((Object[]) value, ensureNoSelfReferences);
         } else if (value instanceof Calendar) {
             value((Calendar) value);
         } else if (value instanceof ReadableInstant) {
@@ -863,18 +854,25 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     public XContentBuilder map(Map<String, ?> values) throws IOException {
+        return map(values, true);
+    }
+
+    private XContentBuilder map(Map<String, ?> values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
 
         // checks that the map does not contain references to itself because
         // iterating over map entries will cause a stackoverflow error
-        ensureNoSelfReferences(values);
+        if (ensureNoSelfReferences) {
+            CollectionUtils.ensureNoSelfReferences(values);
+        }
 
         startObject();
         for (Map.Entry<String, ?> value : values.entrySet()) {
             field(value.getKey());
-            unknownValue(value.getValue());
+            // pass ensureNoSelfReferences=false as we already performed the check at a higher level
+            unknownValue(value.getValue(), false);
         }
         endObject();
         return this;
@@ -884,7 +882,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         return field(name).value(values);
     }
 
-    private XContentBuilder value(Iterable<?> values) throws IOException {
+    private XContentBuilder value(Iterable<?> values, boolean ensureNoSelfReferences) throws IOException {
         if (values == null) {
             return nullValue();
         }
@@ -895,11 +893,13 @@ public final class XContentBuilder implements Releasable, Flushable {
         } else {
             // checks that the iterable does not contain references to itself because
             // iterating over entries will cause a stackoverflow error
-            ensureNoSelfReferences(values);
-
+            if (ensureNoSelfReferences) {
+                CollectionUtils.ensureNoSelfReferences(values);
+            }
             startArray();
             for (Object value : values) {
-                unknownValue(value);
+                // pass ensureNoSelfReferences=false as we already performed the check at a higher level
+                unknownValue(value, false);
             }
             endArray();
         }
@@ -988,7 +988,9 @@ public final class XContentBuilder implements Releasable, Flushable {
      */
     @Deprecated
     public XContentBuilder rawField(String name, BytesReference value) throws IOException {
-        generator.writeRawField(name, value);
+        try (InputStream stream = value.streamInput()) {
+            generator.writeRawField(name, stream);
+        }
         return this;
     }
 
@@ -996,25 +998,17 @@ public final class XContentBuilder implements Releasable, Flushable {
      * Writes a raw field with the given bytes as the value
      */
     public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
-        generator.writeRawField(name, value, contentType);
+        try (InputStream stream = value.streamInput()) {
+            generator.writeRawField(name, stream, contentType);
+        }
         return this;
     }
 
     /**
-     * Writes a value with the source coming directly from the bytes
-     * @deprecated use {@link #rawValue(BytesReference, XContentType)} to avoid content type auto-detection
+     * Writes a value with the source coming directly from the bytes in the stream
      */
-    @Deprecated
-    public XContentBuilder rawValue(BytesReference value) throws IOException {
-        generator.writeRawValue(value);
-        return this;
-    }
-
-    /**
-     * Writes a value with the source coming directly from the bytes
-     */
-    public XContentBuilder rawValue(BytesReference value, XContentType contentType) throws IOException {
-        generator.writeRawValue(value, contentType);
+    public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
+        generator.writeRawValue(stream, contentType);
         return this;
     }
 
@@ -1043,7 +1037,11 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public BytesReference bytes() {
         close();
-        return ((BytesStream) bos).bytes();
+        if (bos instanceof ByteArrayOutputStream) {
+            return new BytesArray(((ByteArrayOutputStream) bos).toByteArray());
+        } else {
+            return ((BytesStream) bos).bytes();
+        }
     }
 
     /**
@@ -1064,34 +1062,6 @@ public final class XContentBuilder implements Releasable, Flushable {
     static void ensureNotNull(Object value, String message) {
         if (value == null) {
             throw new IllegalArgumentException(message);
-        }
-    }
-
-    static void ensureNoSelfReferences(Object value) {
-        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()));
-    }
-
-    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors) {
-        if (value != null) {
-
-            Iterable<?> it;
-            if (value instanceof Map) {
-                it = ((Map) value).values();
-            } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
-                it = (Iterable) value;
-            } else if (value instanceof Object[]) {
-                it = Arrays.asList((Object[]) value);
-            } else {
-                return;
-            }
-
-            if (ancestors.add(value) == false) {
-                throw new IllegalArgumentException("Object has already been built and is self-referencing itself");
-            }
-            for (Object o : it) {
-                ensureNoSelfReferences(o, ancestors);
-            }
-            ancestors.remove(value);
         }
     }
 }

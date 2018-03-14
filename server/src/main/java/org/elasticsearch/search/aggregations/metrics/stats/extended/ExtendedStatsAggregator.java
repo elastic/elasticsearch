@@ -49,9 +49,11 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     LongArray counts;
     DoubleArray sums;
+    DoubleArray compensations;
     DoubleArray mins;
     DoubleArray maxes;
     DoubleArray sumOfSqrs;
+    DoubleArray compensationOfSqrs;
 
     public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
             SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
@@ -65,11 +67,13 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
+            compensations = bigArrays.newDoubleArray(1, true);
             mins = bigArrays.newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
             sumOfSqrs = bigArrays.newDoubleArray(1, true);
+            compensationOfSqrs = bigArrays.newDoubleArray(1, true);
         }
     }
 
@@ -95,9 +99,11 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                     final long overSize = BigArrays.overSize(bucket + 1);
                     counts = bigArrays.resize(counts, overSize);
                     sums = bigArrays.resize(sums, overSize);
+                    compensations = bigArrays.resize(compensations, overSize);
                     mins = bigArrays.resize(mins, overSize);
                     maxes = bigArrays.resize(maxes, overSize);
                     sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+                    compensationOfSqrs = bigArrays.resize(compensationOfSqrs, overSize);
                     mins.fill(from, overSize, Double.POSITIVE_INFINITY);
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }
@@ -105,19 +111,40 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     counts.increment(bucket, valuesCount);
-                    double sum = 0;
-                    double sumOfSqr = 0;
                     double min = mins.get(bucket);
                     double max = maxes.get(bucket);
+                    // Compute the sum and sum of squires for double values with Kahan summation algorithm
+                    // which is more accurate than naive summation.
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+                    double sumOfSqr = sumOfSqrs.get(bucket);
+                    double compensationOfSqr = compensationOfSqrs.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        sum += value;
-                        sumOfSqr += value * value;
+                        if (Double.isFinite(value) == false) {
+                            sum += value;
+                            sumOfSqr += value * value;
+                        } else {
+                            if (Double.isFinite(sum)) {
+                                double corrected = value - compensation;
+                                double newSum = sum + corrected;
+                                compensation = (newSum - sum) - corrected;
+                                sum = newSum;
+                            }
+                            if (Double.isFinite(sumOfSqr)) {
+                                double correctedOfSqr = value * value - compensationOfSqr;
+                                double newSumOfSqr = sumOfSqr + correctedOfSqr;
+                                compensationOfSqr = (newSumOfSqr - sumOfSqr) - correctedOfSqr;
+                                sumOfSqr = newSumOfSqr;
+                            }
+                        }
                         min = Math.min(min, value);
                         max = Math.max(max, value);
                     }
-                    sums.increment(bucket, sum);
-                    sumOfSqrs.increment(bucket, sumOfSqr);
+                    sums.set(bucket, sum);
+                    compensations.set(bucket, compensation);
+                    sumOfSqrs.set(bucket, sumOfSqr);
+                    compensationOfSqrs.set(bucket, compensationOfSqr);
                     mins.set(bucket, min);
                     maxes.set(bucket, max);
                 }
@@ -196,6 +223,6 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     @Override
     public void doClose() {
-        Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
+        Releasables.close(counts, maxes, mins, sumOfSqrs, compensationOfSqrs, sums, compensations);
     }
 }

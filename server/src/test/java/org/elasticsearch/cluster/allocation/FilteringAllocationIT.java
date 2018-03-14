@@ -21,11 +21,14 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +37,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -155,6 +160,59 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
             .execute().actionGet());
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
+    }
+
+    public void testTransientSettingsStillApplied() throws Exception {
+        List<String> nodes = internalCluster().startNodes(6);
+        Set<String> excludeNodes = new HashSet<>(nodes.subList(0, 3));
+        Set<String> includeNodes = new HashSet<>(nodes.subList(3, 6));
+        logger.info("--> exclude: [{}], include: [{}]",
+            Strings.collectionToCommaDelimitedString(excludeNodes),
+            Strings.collectionToCommaDelimitedString(includeNodes));
+        ensureStableCluster(6);
+        client().admin().indices().prepareCreate("test").get();
+        ensureGreen("test");
+
+        Settings exclude = Settings.builder().put("cluster.routing.allocation.exclude._name",
+            Strings.collectionToCommaDelimitedString(excludeNodes)).build();
+
+        logger.info("--> updating settings");
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(exclude).get();
+
+        logger.info("--> waiting for relocation");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+
+        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+            String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
+            logger.info("--> shard on {} - {}", node, shard);
+            assertTrue("shard on " + node + " but should only be on the include node list: " +
+                    Strings.collectionToCommaDelimitedString(includeNodes),
+                includeNodes.contains(node));
+        }
+
+        Settings other = Settings.builder().put("cluster.info.update.interval", "45s").build();
+
+        logger.info("--> updating settings with random persistent setting");
+        client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(other).setTransientSettings(exclude).get();
+
+        logger.info("--> waiting for relocation");
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        state = client().admin().cluster().prepareState().get().getState();
+
+        // The transient settings still exist in the state
+        assertThat(state.metaData().transientSettings(), equalTo(exclude));
+
+        for (ShardRouting shard : state.getRoutingTable().shardsWithState(ShardRoutingState.STARTED)) {
+            String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
+            logger.info("--> shard on {} - {}", node, shard);
+            assertTrue("shard on " + node + " but should only be on the include node list: " +
+                    Strings.collectionToCommaDelimitedString(includeNodes),
+                includeNodes.contains(node));
+        }
     }
 }
 

@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -309,8 +310,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
+        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
+            super.checkCompatibility(fieldType, conflicts);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
             if (strategyName().equals(other.strategyName()) == false) {
@@ -333,15 +334,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             if (precisionInMeters() != other.precisionInMeters()) {
                 conflicts.add("mapper [" + name() + "] has different [precision]");
-            }
-
-            if (strict) {
-                if (orientation() != other.orientation()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [orientation] across all types.");
-                }
-                if (distanceErrorPct() != other.distanceErrorPct()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [distance_error_pct] across all types.");
-                }
             }
         }
 
@@ -483,13 +475,13 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     for (Shape s : shapes) {
                         indexShape(context, s);
                     }
+                    return null;
                 } else if (shape instanceof Point == false) {
                     throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
                 }
-            } else {
-                indexShape(context, shape);
             }
+            indexShape(context, shape);
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
@@ -511,8 +503,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
 
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
         if (gsfm.coerce.explicit()) {

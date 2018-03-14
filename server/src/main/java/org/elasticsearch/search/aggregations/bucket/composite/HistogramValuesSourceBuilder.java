@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A {@link CompositeValuesSourceBuilder} that that builds a {@link HistogramValuesSource} from another numeric values source
+ * A {@link CompositeValuesSourceBuilder} that builds a {@link HistogramValuesSource} from another numeric values source
  * using the provided interval.
  */
 public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<HistogramValuesSourceBuilder> {
@@ -128,7 +128,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
                 canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
                     fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
             }
-            return new CompositeValuesSourceConfig(name, vs, order(), canEarlyTerminate);
+            return new CompositeValuesSourceConfig(name, vs, config.format(), order(), canEarlyTerminate);
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

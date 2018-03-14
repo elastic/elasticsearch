@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -30,8 +32,13 @@ import java.io.IOException;
  */
 public class IndicesAliasesResponse extends AcknowledgedResponse {
 
-    IndicesAliasesResponse() {
+    private static final ConstructingObjectParser<IndicesAliasesResponse, Void> PARSER = new ConstructingObjectParser<>("indices_aliases",
+            true, args -> new IndicesAliasesResponse((boolean) args[0]));
+    static {
+        declareAcknowledgedField(PARSER);
+    }
 
+    IndicesAliasesResponse() {
     }
 
     IndicesAliasesResponse(boolean acknowledged) {
@@ -48,5 +55,9 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+    }
+
+    public static IndicesAliasesResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

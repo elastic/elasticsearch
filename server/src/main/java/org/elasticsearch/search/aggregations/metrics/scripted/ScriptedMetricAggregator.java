@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SearchScript;
@@ -77,6 +78,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         Object aggregation;
         if (combineScript != null) {
             aggregation = combineScript.run();
+            CollectionUtils.ensureNoSelfReferences(aggregation);
         } else {
             aggregation = params.get("_agg");
         }

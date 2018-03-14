@@ -20,9 +20,10 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -31,7 +32,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -42,7 +42,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -51,6 +51,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -94,6 +95,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
 
@@ -184,8 +186,8 @@ public class InternalEngine extends Engine {
                 assert openMode != EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG || startingCommit != null :
                     "Starting commit should be non-null; mode [" + openMode + "]; startingCommit [" + startingCommit + "]";
                 this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, translogDeletionPolicy,
-                    translog::getLastSyncedGlobalCheckpoint);
+                this.combinedDeletionPolicy = new CombinedDeletionPolicy(openMode, logger, translogDeletionPolicy,
+                    translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
                 assert engineConfig.getForceNewHistoryUUID() == false
@@ -411,28 +413,44 @@ public class InternalEngine extends Engine {
     }
 
     private IndexCommit getStartingCommitPoint() throws IOException {
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
-            final long minRetainedTranslogGen = translog.getMinFileGeneration();
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-            // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose full translog
-            // files are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
-            // To avoid this issue, we only select index commits whose translog files are fully retained.
-            if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
-                final List<IndexCommit> recoverableCommits = new ArrayList<>();
-                for (IndexCommit commit : existingCommits) {
-                    if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
-                        recoverableCommits.add(commit);
+        final IndexCommit startingIndexCommit;
+        final List<IndexCommit> existingCommits;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+                startingIndexCommit = null;
+                break;
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                // Use the last commit
+                existingCommits = DirectoryReader.listCommits(store.directory());
+                startingIndexCommit = existingCommits.get(existingCommits.size() - 1);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                // Use the safe commit
+                final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+                final long minRetainedTranslogGen = translog.getMinFileGeneration();
+                existingCommits = DirectoryReader.listCommits(store.directory());
+                // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
+                // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
+                // To avoid this issue, we only select index commits whose translog are fully retained.
+                if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
+                    final List<IndexCommit> recoverableCommits = new ArrayList<>();
+                    for (IndexCommit commit : existingCommits) {
+                        if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
+                            recoverableCommits.add(commit);
+                        }
                     }
+                    assert recoverableCommits.isEmpty() == false : "No commit point with translog found; " +
+                        "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
+                    startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
+                } else {
+                    // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
+                    startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
                 }
-                assert recoverableCommits.isEmpty() == false : "No commit point with full translog found; " +
-                    "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-                return CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
-            } else {
-                return CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-            }
+                break;
+            default:
+                throw new IllegalArgumentException("unknown mode: " + openMode);
         }
-        return null;
+        return startingIndexCommit;
     }
 
     private void recoverFromTranslogInternal() throws IOException {
@@ -464,13 +482,18 @@ public class InternalEngine extends Engine {
     private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         assert openMode != null;
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        String translogUUID = null;
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            translogUUID = loadTranslogUUIDFromLastCommit();
-            // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-            if (translogUUID == null) {
-                throw new IndexFormatTooOldException("translog", "translog has no generation nor a UUID - this might be an index from a previous version consider upgrading to N-1 first");
-            }
+        final String translogUUID;
+        switch (openMode) {
+            case CREATE_INDEX_AND_TRANSLOG:
+            case OPEN_INDEX_CREATE_TRANSLOG:
+                translogUUID =
+                    Translog.createEmptyTranslog(translogConfig.getTranslogPath(), globalCheckpointSupplier.getAsLong(), shardId);
+                break;
+            case OPEN_INDEX_AND_TRANSLOG:
+                translogUUID = loadTranslogUUIDFromLastCommit();
+                break;
+            default:
+                throw new AssertionError("Unknown openMode " + openMode);
         }
         return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
     }
@@ -502,6 +525,27 @@ public class InternalEngine extends Engine {
     public Translog getTranslog() {
         ensureOpen();
         return translog;
+    }
+
+    @Override
+    public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+        final boolean synced = translog.ensureSynced(locations);
+        if (synced) {
+            revisitIndexDeletionPolicyOnTranslogSynced();
+        }
+        return synced;
+    }
+
+    @Override
+    public void syncTranslog() throws IOException {
+        translog.sync();
+        revisitIndexDeletionPolicyOnTranslogSynced();
+    }
+
+    private void revisitIndexDeletionPolicyOnTranslogSynced() throws IOException {
+        if (combinedDeletionPolicy.hasUnreferencedCommits()) {
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     @Override
@@ -557,9 +601,7 @@ public class InternalEngine extends Engine {
                 final DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(indexWriter), shardId);
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
-                // The index commit from IndexWriterConfig is null if the engine is open with other modes
-                // rather than CREATE_INDEX_AND_TRANSLOG. In those cases lastCommittedSegmentInfos will be retrieved from the last commit.
-                lastCommittedSegmentInfos = store.readCommittedSegmentsInfo(indexWriter.getConfig().getIndexCommit());
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;
@@ -978,21 +1020,14 @@ public class InternalEngine extends Engine {
      */
     private boolean mayHaveBeenIndexedBefore(Index index) {
         assert canOptimizeAddDocument(index);
-        boolean mayHaveBeenIndexBefore;
-        long deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
+        final boolean mayHaveBeenIndexBefore;
         if (index.isRetry()) {
             mayHaveBeenIndexBefore = true;
-            do {
-                deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
-                if (deOptimizeTimestamp >= index.getAutoGeneratedIdTimestamp()) {
-                    break;
-                }
-            } while (maxUnsafeAutoIdTimestamp.compareAndSet(deOptimizeTimestamp,
-                index.getAutoGeneratedIdTimestamp()) == false);
+            maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(index.getAutoGeneratedIdTimestamp(), curr));
             assert maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         } else {
             // in this case we force
-            mayHaveBeenIndexBefore = deOptimizeTimestamp >= index.getAutoGeneratedIdTimestamp();
+            mayHaveBeenIndexBefore = maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         }
         return mayHaveBeenIndexBefore;
     }
@@ -1142,7 +1177,7 @@ public class InternalEngine extends Engine {
             }
             throw e;
         }
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         return deleteResult;
     }
 
@@ -1271,7 +1306,8 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void maybePruneDeletedTombstones() {
+    @Override
+    public void maybePruneDeletes() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
         if (engineConfig.isEnableGcDeletes() && engineConfig.getThreadPool().relativeTimeInMillis() - lastDeleteVersionPruneTimeMSec > getGcDeletesInMillis() * 0.25) {
@@ -1324,18 +1360,25 @@ public class InternalEngine extends Engine {
         writingBytes.addAndGet(bytes);
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            switch (scope) {
-                case EXTERNAL:
-                    // even though we maintain 2 managers we really do the heavy-lifting only once.
-                    // the second refresh will only do the extra work we have to do for warming caches etc.
-                    externalSearcherManager.maybeRefreshBlocking();
-                    // the break here is intentional we never refresh both internal / external together
-                    break;
-                case INTERNAL:
-                    internalSearcherManager.maybeRefreshBlocking();
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown scope: " + scope);
+            if (store.tryIncRef()) {
+                // increment the ref just to ensure nobody closes the store during a refresh
+                try {
+                    switch (scope) {
+                        case EXTERNAL:
+                            // even though we maintain 2 managers we really do the heavy-lifting only once.
+                            // the second refresh will only do the extra work we have to do for warming caches etc.
+                            externalSearcherManager.maybeRefreshBlocking();
+                            // the break here is intentional we never refresh both internal / external together
+                            break;
+                        case INTERNAL:
+                            internalSearcherManager.maybeRefreshBlocking();
+                            break;
+                        default:
+                            throw new IllegalArgumentException("unknown scope: " + scope);
+                    }
+                } finally {
+                    store.decRef();
+                }
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
@@ -1354,7 +1397,7 @@ public class InternalEngine extends Engine {
         // TODO: maybe we should just put a scheduled job in threadPool?
         // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
         // for a long time:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         mergeScheduler.refreshConfig();
     }
 
@@ -1428,6 +1471,24 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean shouldPeriodicallyFlush() {
+        ensureOpen();
+        final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
+        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
+        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+            return false;
+        }
+        /*
+         * We should only flush ony if the shouldFlush condition can become false after flushing.
+         * This condition will change if the `uncommittedSize` of the new commit is smaller than
+         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
+         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
+         */
+        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
+        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
+    }
+
+    @Override
     public CommitId flush() throws EngineException {
         return flush(false, false);
     }
@@ -1457,7 +1518,9 @@ public class InternalEngine extends Engine {
                 logger.trace("acquired flush lock immediately");
             }
             try {
-                if (indexWriter.hasUncommittedChanges() || force) {
+                // Only flush if (1) Lucene has uncommitted docs, or (2) forced by caller, or (3) the
+                // newly created commit points to a different translog generation (can free translog)
+                if (indexWriter.hasUncommittedChanges() || force || shouldPeriodicallyFlush()) {
                     ensureCanFlush();
                     try {
                         translog.rollGeneration();
@@ -1554,32 +1617,15 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
-        long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-
-        // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
-
-        // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
-        for (Map.Entry<BytesRef, DeleteVersionValue> entry : versionMap.getAllTombstones()) {
-            BytesRef uid = entry.getKey();
-            try (Releasable ignored = versionMap.acquireLock(uid)) {
-                // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                DeleteVersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
-                if (versionValue != null) {
-                    if (timeMSec - versionValue.time > getGcDeletesInMillis()) {
-                        versionMap.removeTombstoneUnderLock(uid);
-                    }
-                }
-            }
-        }
-
+        final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
+        versionMap.pruneTombstones(timeMSec, engineConfig.getIndexSettings().getGcDeletesInMillis());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     // testing
     void clearDeletedTombstones() {
-        versionMap.clearTombstones();
+        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
+        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
     }
 
     @Override
@@ -1632,7 +1678,7 @@ public class InternalEngine extends Engine {
              * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
              * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
              * we are handling a tragic even exception here */
-            ensureOpen();
+            ensureOpen(ex);
             failOnTragicEvent(ex);
             throw ex;
         } catch (Exception e) {
@@ -1652,7 +1698,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public IndexCommitRef acquireIndexCommit(final boolean safeCommit, final boolean flushFirst) throws EngineException {
+    public IndexCommitRef acquireLastIndexCommit(final boolean flushFirst) throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         if (flushFirst) {
@@ -1660,8 +1706,22 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit snapshotCommit = combinedDeletionPolicy.acquireIndexCommit(safeCommit);
-        return new Engine.IndexCommitRef(snapshotCommit, () -> combinedDeletionPolicy.releaseCommit(snapshotCommit));
+        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+    }
+
+    @Override
+    public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+    }
+
+    private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
+        // Revisit the deletion policy if we can clean up the snapshotting commit.
+        if (combinedDeletionPolicy.releaseCommit(snapshot)) {
+            ensureOpen();
+            indexWriter.deleteUnusedFiles();
+        }
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {
@@ -1670,8 +1730,13 @@ public class InternalEngine extends Engine {
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            maybeDie("tragic event in index writer", indexWriter.getTragicException());
-            failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            final Exception tragicException;
+            if (indexWriter.getTragicException() instanceof Exception) {
+                tragicException = (Exception) indexWriter.getTragicException();
+            } else {
+                tragicException = new RuntimeException(indexWriter.getTragicException());
+            }
+            failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
@@ -1794,14 +1859,35 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    protected ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope) {
-        switch (scope) {
-            case INTERNAL:
-                return internalSearcherManager;
-            case EXTERNAL:
-                return externalSearcherManager;
-            default:
-                throw new IllegalStateException("unknown scope: " + scope);
+    public Searcher acquireSearcher(String source, SearcherScope scope) {
+        /* Acquire order here is store -> manager since we need
+         * to make sure that the store is not closed before
+         * the searcher is acquired. */
+        store.incRef();
+        Releasable releasable = store::decRef;
+        try {
+            final ReferenceManager<IndexSearcher> referenceManager;
+            switch (scope) {
+                case INTERNAL:
+                    referenceManager = internalSearcherManager;
+                    break;
+                case EXTERNAL:
+                    referenceManager = externalSearcherManager;
+                    break;
+                default:
+                    throw new IllegalStateException("unknown scope: " + scope);
+            }
+            EngineSearcher engineSearcher = new EngineSearcher(source, referenceManager, store, logger);
+            releasable = null; // success - hand over the reference to the engine searcher
+            return engineSearcher;
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            Releasables.close(releasable);
         }
     }
 
@@ -1999,31 +2085,9 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    maybeDie("fatal error while merging", exc);
-                    logger.error("failed to merge", exc);
                     failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }
             });
-        }
-    }
-
-    /**
-     * If the specified throwable is a fatal error, this throwable will be thrown. Callers should ensure that there are no catch statements
-     * that would catch an error in the stack as the fatal error here should go uncaught and be handled by the uncaught exception handler
-     * that we install during bootstrap. If the specified throwable is indeed a fatal error, the specified message will attempt to be logged
-     * before throwing the fatal error. If the specified throwable is not a fatal error, this method is a no-op.
-     *
-     * @param maybeMessage the message to maybe log
-     * @param maybeFatal the throwable that is maybe fatal
-     */
-    @SuppressWarnings("finally")
-    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        if (maybeFatal instanceof Error) {
-            try {
-                logger.error(maybeMessage, maybeFatal);
-            } finally {
-                throw (Error) maybeFatal;
-            }
         }
     }
 
@@ -2108,7 +2172,7 @@ public class InternalEngine extends Engine {
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         // config().isEnableGcDeletes() or config.getGcDeletesInMillis() may have changed:
-        maybePruneDeletedTombstones();
+        maybePruneDeletes();
         if (engineConfig.isAutoGeneratedIDsOptimizationEnabled() == false) {
             // this is an anti-viral settings you can only opt out for the entire index
             // only if a shard starts up again due to relocation or if the index is closed

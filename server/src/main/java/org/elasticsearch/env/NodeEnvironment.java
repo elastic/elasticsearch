@@ -30,7 +30,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -450,7 +450,18 @@ public final class NodeEnvironment  implements Closeable {
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
-        assert FileSystemUtils.exists(paths) == false;
+        assert assertPathsDoNotExist(paths);
+    }
+
+    private static boolean assertPathsDoNotExist(final Path[] paths) {
+        Set<Path> existingPaths = new HashSet<>();
+        for (Path path : paths) {
+            if (FileSystemUtils.exists(paths)) {
+                existingPaths.add(path);
+            }
+        }
+        assert existingPaths.size() == 0 : "Paths exist that should have been deleted: " + existingPaths;
+        return existingPaths.size() == 0;
     }
 
     private boolean isShardLocked(ShardId id) {

@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
-        BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
                 "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");

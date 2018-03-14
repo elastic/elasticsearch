@@ -22,6 +22,7 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -74,7 +75,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
-          + "}", builder.string());
+          + "}", Strings.toString(builder));
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,7 +85,7 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testPutMappingRequestSerialization() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        String mapping = Strings.toString(YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         request.source(mapping, XContentType.YAML);
         assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
 

@@ -113,7 +113,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
             builder.startObject();
             IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
             builder.endObject();
-            templateBytesRoundTrip = builder.bytes();
+            templateBytesRoundTrip = BytesReference.bytes(builder);
         }
 
         final IndexTemplateMetaData indexTemplateMetaDataRoundTrip;

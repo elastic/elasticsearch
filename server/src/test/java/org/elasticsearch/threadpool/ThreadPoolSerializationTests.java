@@ -19,6 +19,7 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -78,7 +79,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));
@@ -100,7 +101,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map, hasKey("foo"));
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));

@@ -21,30 +21,46 @@ package org.elasticsearch.cli;
 
 import joptsimple.OptionSet;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiCommandTests extends CommandTestCase {
 
     static class DummyMultiCommand extends MultiCommand {
+
+        AtomicBoolean closed = new AtomicBoolean();
         DummyMultiCommand() {
             super("A dummy multi command", () -> {});
+        }
+        @Override
+        public void close() throws IOException {
+            super.close();
+            this.closed.compareAndSet(false, true);
         }
     }
 
     static class DummySubCommand extends Command {
+        AtomicBoolean throwsExceptionOnClose = new AtomicBoolean();
+        AtomicBoolean closed = new AtomicBoolean();
         DummySubCommand() {
             super("A dummy subcommand", () -> {});
+        }
+        DummySubCommand(boolean throwsExceptionOnClose) {
+            super("A dummy subcommand", () -> {});
+            this.throwsExceptionOnClose.compareAndSet(false, throwsExceptionOnClose);
         }
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             terminal.println("Arguments: " + options.nonOptionArguments().toString());
+        }
+        @Override
+        public void close() throws IOException {
+            if (throwsExceptionOnClose.get()) {
+                throw new IOException();
+            } else {
+                closed.compareAndSet(false, true);
+            }
         }
     }
 
@@ -112,30 +128,25 @@ public class MultiCommandTests extends CommandTestCase {
     }
 
     public void testClose() throws Exception {
-        Command spySubCommand1 = spy(new DummySubCommand());
-        Command spySubCommand2 = spy(new DummySubCommand());
-        multiCommand.subcommands.put("command1", spySubCommand1);
-        multiCommand.subcommands.put("command2", spySubCommand2);
+        DummySubCommand subCommand1 = new DummySubCommand();
+        DummySubCommand subCommand2 = new DummySubCommand();
+        multiCommand.subcommands.put("command1", subCommand1);
+        multiCommand.subcommands.put("command2", subCommand2);
         multiCommand.close();
-        verify(spySubCommand1, times(1)).close();
-        verify(spySubCommand2, times(1)).close();
+        assertTrue("MultiCommand must have been closed when close method is invoked", multiCommand.closed.get());
+        assertTrue("SubCommand1 must have been closed when close method is invoked", subCommand1.closed.get());
+        assertTrue("SubCommand2 must have been closed when close method is invoked", subCommand2.closed.get());
     }
 
-    public void testCloseWhenSubCommandCloseThrowsException() throws Exception {
-        Command subCommand1 = mock(DummySubCommand.class);
-        Mockito.doThrow(new IOException()).when(subCommand1).close();
-        Command spySubCommand2 = spy(new DummySubCommand());
+    public void testCloseWhenSubCommandCloseThrowsException() {
+        boolean throwExceptionWhenClosed = true;
+        DummySubCommand subCommand1 = new DummySubCommand(throwExceptionWhenClosed);
+        DummySubCommand subCommand2 = new DummySubCommand();
         multiCommand.subcommands.put("command1", subCommand1);
-        multiCommand.subcommands.put("command2", spySubCommand2);
-        IOException ioe = null;
-        try {
-            multiCommand.close();
-        } catch (IOException e) {
-            ioe = e;
-        }
+        multiCommand.subcommands.put("command2", subCommand2);
         // verify exception is thrown, as well as other non failed sub-commands closed
         // properly.
-        assertNotNull("Expected IOException", ioe);
-        verify(spySubCommand2, times(1)).close();
+        expectThrows(IOException.class, () -> multiCommand.close());
+        assertTrue("SubCommand2 must have been closed when close method is invoked", subCommand2.closed.get());
     }
 }

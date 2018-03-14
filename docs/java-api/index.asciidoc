@@ -150,6 +150,8 @@ and add it as a dependency. As an example, we will use the `slf4j-simple` logger
 </dependency>
 --------------------------------------------------
 
+:client-tests: {docdir}/../../server/src/test/java/org/elasticsearch/client/documentation
+
 include::client.asciidoc[]
 
 include::docs.asciidoc[]

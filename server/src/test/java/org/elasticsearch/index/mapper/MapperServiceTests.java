@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -141,9 +143,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     public void testTotalFieldsExceedsLimit() throws Throwable {
         Function<String, String> mapping = type -> {
             try {
-                return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
                     .startObject("field1").field("type", "keyword")
-                    .endObject().endObject().endObject().endObject().string();
+                    .endObject().endObject().endObject().endObject());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -158,22 +160,22 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {
-        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent simpleMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
                     .endObject()
-                .endObject().endObject().bytes());
+                .endObject().endObject()));
         IndexService indexService1 = createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
         // no exception
         indexService1.mapperService().merge("type", simpleMapping, MergeReason.MAPPING_UPDATE, false);
 
-        CompressedXContent objectMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent objectMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("object1")
                         .field("type", "object")
                     .endObject()
-                .endObject().endObject().bytes());
+                .endObject().endObject()));
 
         IndexService indexService2 = createIndex("test2");
         // no exception
@@ -231,12 +233,12 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test",
             Settings.builder().put("index.version.created", Version.V_5_6_0).build()); // multiple types
 
-        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent simpleMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .endObject()
-            .endObject().endObject().bytes());
+            .endObject().endObject()));
 
         indexService.mapperService().merge("type1", simpleMapping, MergeReason.MAPPING_UPDATE, true);
         DocumentMapper documentMapper = indexService.mapperService().documentMapper("type1");
@@ -244,13 +246,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type2", simpleMapping, MergeReason.MAPPING_UPDATE, true);
         assertSame(indexService.mapperService().documentMapper("type1"), documentMapper);
 
-        CompressedXContent normsDisabledMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent normsDisabledMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
             .field("norms", false)
             .endObject()
-            .endObject().endObject().bytes());
+            .endObject().endObject()));
 
         indexService.mapperService().merge("type3", normsDisabledMapping, MergeReason.MAPPING_UPDATE, true);
         assertNotSame(indexService.mapperService().documentMapper("type1"), documentMapper);
@@ -260,10 +262,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         assertFalse(indexService.mapperService().allEnabled());
 
-        CompressedXContent enabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent enabledAll = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("_all")
                     .field("enabled", true)
-                .endObject().endObject().bytes());
+                .endObject().endObject()));
 
         Exception e = expectThrows(MapperParsingException.class,
                 () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
@@ -316,12 +318,12 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
         IndexService indexService =  createIndex("test", settings, "t", "foo", "type=keyword");
-        CompressedXContent nestedFieldMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent nestedFieldMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("nested_field")
             .field("type", "nested")
             .endObject()
-            .endObject().endObject().bytes());
+            .endObject().endObject()));
         invalidNestedException = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("t", nestedFieldMapping,
                 MergeReason.MAPPING_UPDATE, true));
@@ -330,18 +332,18 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testForbidMultipleTypes() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
 
-        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject().string();
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
     public void testDefaultMappingIsDeprecated() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
         assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +

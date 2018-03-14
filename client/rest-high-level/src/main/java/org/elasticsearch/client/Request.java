@@ -330,7 +330,7 @@ public final class Request {
                 }
                 metadata.endObject();
 
-                BytesRef metadataSource = metadata.bytes().toBytesRef();
+                BytesRef metadataSource = BytesReference.bytes(metadata).toBytesRef();
                 content.write(metadataSource.bytes, metadataSource.offset, metadataSource.length);
                 content.write(separator);
             }
@@ -345,7 +345,7 @@ public final class Request {
                     LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes().toBytesRef();
+                        source = BytesReference.bytes(builder).toBytesRef();
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {

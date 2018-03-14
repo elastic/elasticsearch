@@ -104,7 +104,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             }
             builder.field(DECAY, decay);
             builder.endObject();
-            this.functionBytes = builder.bytes();
+            this.functionBytes = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new IllegalArgumentException("unable to build inner function object",e);
         }
@@ -149,7 +149,9 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
-        builder.rawField(fieldName, functionBytes);
+        try (InputStream stream = functionBytes.streamInput()) {
+            builder.rawField(fieldName, stream);
+        }
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         builder.endObject();
     }

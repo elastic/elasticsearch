@@ -21,6 +21,8 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -358,7 +360,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         builder.field("string_or_null", nullValue ? null : "5");
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder));
         class TestStruct {
             int int_field;
             long long_field;
@@ -533,7 +535,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
 
         class TestStruct {
             public String test;
@@ -557,7 +559,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
 
         class TestStruct {
             public String test;
@@ -585,7 +587,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
         class TestStruct {
             public String test;
         }

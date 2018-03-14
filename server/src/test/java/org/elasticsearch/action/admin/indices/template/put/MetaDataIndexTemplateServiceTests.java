@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -110,9 +111,9 @@ public class MetaDataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithValidateMapping() throws Exception {
         PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(Collections.singletonList("te*"));
-        request.putMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-            .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
-            .endObject().endObject().endObject().string());
+        request.putMapping("type1", Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+                        .startObject("properties").startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
+                        .endObject().endObject().endObject()));
 
         List<Throwable> errors = putTemplateDetail(request);
         assertThat(errors.size(), equalTo(1));

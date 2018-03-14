@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -227,7 +226,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
             builder.startObject();
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 
@@ -236,7 +235,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
             builder.startObject();
             ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 }

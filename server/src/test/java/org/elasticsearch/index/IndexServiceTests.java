@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,7 +61,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(builder.string());
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {

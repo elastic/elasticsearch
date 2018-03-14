@@ -12,10 +12,6 @@
         }
       },
       "params": {
-        "field_data": {
-          "type" : "boolean",
-          "description" : "Clear field data. This is deprecated. Prefer `fielddata`."
-        },
         "fielddata": {
           "type" : "boolean",
           "description" : "Clear field data"
@@ -49,10 +45,6 @@
         "recycler": {
           "type" : "boolean",
           "description" : "Clear the recycler cache"
-        },
-        "request_cache": {
-          "type" : "boolean",
-          "description" : "Clear request cache"
         },
         "request": {
           "type" : "boolean",

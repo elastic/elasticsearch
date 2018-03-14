@@ -14,32 +14,6 @@
         request: false
 
 ---
-"clear_cache with request_cache set to false":
-  - skip:
-      version: " - 5.3.99"
-      reason: request_cache was deprecated in 5.4.0
-      features: "warnings"
-
-  - do:
-      warnings:
-        - 'Deprecated field [request_cache] used, expected [request] instead'
-      indices.clear_cache:
-        request_cache: false
-
----
-"clear_cache with field_data set to true":
-  - skip:
-      version: " - 6.2.99"
-      reason: field_data was deprecated in 6.3.0
-      features: "warnings"
-
-  - do:
-      warnings:
-        - 'Deprecated field [field_data] used, expected [fielddata] instead'
-      indices.clear_cache:
-        field_data: true
-
----
 "clear_cache with fielddata set to true":
   - skip:
       version: " - 6.2.99"

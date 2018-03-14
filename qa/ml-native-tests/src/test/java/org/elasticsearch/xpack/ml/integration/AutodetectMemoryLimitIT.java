@@ -37,7 +37,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4033")
     public void testTooManyPartitions() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setPartitionFieldName("user");
@@ -85,14 +84,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // it is important to check that while we rejected partitions, we still managed
         // to create some by fields; it shows we utilize memory in a meaningful way
         // rather than creating empty partitions
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(1100L));
-        assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(850L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(750L));
+        assertThat(modelSizeStats.getTotalPartitionFieldCount(), lessThan(900L));
+        assertThat(modelSizeStats.getTotalPartitionFieldCount(), greaterThan(650L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(900L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(650L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4033")
     public void testTooManyByFields() throws Exception {
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setByFieldName("user");
@@ -135,8 +133,8 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(36000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(30000000L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(2300L));
-        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(2000L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), lessThan(1900L));
+        assertThat(modelSizeStats.getTotalByFieldCount(), greaterThan(1600L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }
 

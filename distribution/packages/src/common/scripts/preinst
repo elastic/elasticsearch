@@ -27,7 +27,7 @@ case "$1" in
             adduser --quiet \
                     --system \
                     --no-create-home \
-                    --home-dir /usr/share/elasticsearch \
+                    --home /usr/share/elasticsearch \
                     --ingroup elasticsearch \
                     --disabled-password \
                     --shell /bin/false \

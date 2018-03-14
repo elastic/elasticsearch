@@ -3,8 +3,9 @@
       indices.create:
         index: smb-test
         body:
-          index:
-            store.type: smb_mmap_fs
+          settings:
+            index:
+              store.type: smb_mmap_fs
 
   - do:
       index:

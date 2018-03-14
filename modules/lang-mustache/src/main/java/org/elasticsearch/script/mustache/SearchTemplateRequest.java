@@ -137,7 +137,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        request = in.readOptionalStreamable(SearchRequest::new);
+        request = in.readOptionalWriteable(SearchRequest::new);
         simulate = in.readBoolean();
         explain = in.readBoolean();
         profile = in.readBoolean();

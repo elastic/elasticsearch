@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
@@ -94,7 +93,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, size -> searchRequest.source().size(size));
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

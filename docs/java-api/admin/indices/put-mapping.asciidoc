@@ -3,19 +3,9 @@
 
 The PUT mapping API allows you to add a new type while creating an index:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-client.admin().indices().prepareCreate("twitter")   <1>
-        .addMapping("tweet", "{\n" +                <2>
-                "    \"tweet\": {\n" +
-                "      \"properties\": {\n" +
-                "        \"message\": {\n" +
-                "          \"type\": \"string\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }")
-        .get();
+include-tagged::{client-tests}/IndicesDocumentationIT.java[index-with-mapping]
 --------------------------------------------------
 <1> <<java-admin-indices-create-index,Creates an index>> called `twitter`
 <2> It also adds a `tweet` mapping type.
@@ -30,7 +20,7 @@ client.admin().indices().preparePutMapping("twitter")   <1>
         .setSource("{\n" +                              <3>
                 "  \"properties\": {\n" +
                 "    \"name\": {\n" +
-                "      \"type\": \"string\"\n" +
+                "      \"type\": \"text\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "}")
@@ -43,7 +33,7 @@ client.admin().indices().preparePutMapping("twitter")
                 "    \"user\":{\n" +                        <4>
                 "        \"properties\": {\n" +
                 "            \"name\": {\n" +
-                "                \"type\": \"string\"\n" +
+                "                \"type\": \"text\"\n" +
                 "            }\n" +
                 "        }\n" +
                 "    }\n" +
@@ -64,7 +54,7 @@ client.admin().indices().preparePutMapping("twitter")   <1>
         .setSource("{\n" +                              <3>
                 "  \"properties\": {\n" +
                 "    \"user_name\": {\n" +
-                "      \"type\": \"string\"\n" +
+                "      \"type\": \"text\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "}")

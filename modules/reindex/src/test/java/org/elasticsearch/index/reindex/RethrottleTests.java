@@ -19,18 +19,20 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.both;
@@ -46,7 +48,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * too but this is the only place that tests running against multiple nodes so it is the only integration tests that checks for
  * serialization.
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/26192")
+@TestLogging("org.elasticsearch.index.reindex:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.search.SearchService:TRACE")
 public class RethrottleTests extends ReindexTestCase {
 
     public void testReindex() throws Exception {
@@ -76,7 +78,7 @@ public class RethrottleTests extends ReindexTestCase {
     private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName) throws Exception {
         logger.info("Starting test for [{}] with [{}] slices", actionName, request.request().getSlices());
         /* Add ten documents per slice so most slices will have many documents to process, having to go to multiple batches.
-         * we can't rely on all of them doing so, but
+         * We can't rely on the slices being evenly sized but 10 means we have some pretty big slices.
          */
 
         createIndex("test");
@@ -116,9 +118,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
-        ListTasksResponse rethrottleResponse = rethrottle().setTaskId(taskToRethrottle).setRequestsPerSecond(newRequestsPerSecond).get();
-        rethrottleResponse.rethrowFailures("Rethrottle");
-        assertThat(rethrottleResponse.getTasks(), hasSize(1));
+        ListTasksResponse rethrottleResponse = rethrottleTask(taskToRethrottle, newRequestsPerSecond);
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
 
         // Now check the resulting requests per second.
@@ -170,8 +170,38 @@ public class RethrottleTests extends ReindexTestCase {
 
         // Now the response should come back quickly because we've rethrottled the request
         BulkByScrollResponse response = responseListener.get();
+
+        // It'd be bad if the entire require completed in a single batch. The test wouldn't be testing anything.
         assertThat("Entire request completed in a single batch. This may invalidate the test as throttling is done between batches.",
                 response.getBatches(), greaterThanOrEqualTo(numSlices));
+    }
+
+    private ListTasksResponse rethrottleTask(TaskId taskToRethrottle, float newRequestsPerSecond) throws Exception {
+        // the task isn't ready to be rethrottled until it has figured out how many slices it will use. if we rethrottle when the task is
+        // in this state, the request will fail. so we try a few times
+        AtomicReference<ListTasksResponse> response = new AtomicReference<>();
+
+        assertBusy(() -> {
+            try {
+                ListTasksResponse rethrottleResponse = rethrottle()
+                    .setTaskId(taskToRethrottle)
+                    .setRequestsPerSecond(newRequestsPerSecond)
+                    .get();
+                rethrottleResponse.rethrowFailures("Rethrottle");
+                assertThat(rethrottleResponse.getTasks(), hasSize(1));
+                response.set(rethrottleResponse);
+            } catch (ElasticsearchException e) {
+                if (e.getCause() instanceof IllegalArgumentException) {
+                    // We want to retry in this case so we throw an assertion error
+                    logger.info("caught unprepared task, retrying until prepared");
+                    throw new AssertionError("Rethrottle request for task [" + taskToRethrottle.getId() + "] failed", e);
+                } else {
+                    throw e;
+                }
+            }
+        });
+
+        return response.get();
     }
 
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {
@@ -179,14 +209,32 @@ public class RethrottleTests extends ReindexTestCase {
         do {
             ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Finding tasks to rethrottle");
-            assertThat(tasks.getTaskGroups(), hasSize(lessThan(2)));
+            assertThat("tasks are left over from the last execution of this test",
+                tasks.getTaskGroups(), hasSize(lessThan(2)));
             if (0 == tasks.getTaskGroups().size()) {
+                // The parent task hasn't started yet
                 continue;
             }
             TaskGroup taskGroup = tasks.getTaskGroups().get(0);
-            if (sliceCount != 1 && taskGroup.getChildTasks().size() == 0) {
-                // If there are child tasks wait for at least one to start
-                continue;
+            if (sliceCount != 1) {
+                BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskGroup.getTaskInfo().getStatus();
+                /*
+                 * If there are child tasks wait for all of them to start. It
+                 * is possible that we'll end up with some very small slices
+                 * (maybe even empty!) that complete super fast so we have to
+                 * count them too.
+                 */
+                long finishedChildStatuses = status.getSliceStatuses().stream()
+                    .filter(n -> n != null)
+                    .count();
+                logger.info("Expected [{}] total children, [{}] are running and [{}] are finished\n{}",
+                    sliceCount, taskGroup.getChildTasks().size(), finishedChildStatuses, status.getSliceStatuses());
+                if (sliceCount == finishedChildStatuses) {
+                    fail("all slices finished:\n" + status);
+                }
+                if (sliceCount != taskGroup.getChildTasks().size() + finishedChildStatuses) {
+                    continue;
+                }
             }
             return taskGroup;
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));

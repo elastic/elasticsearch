@@ -30,7 +30,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.elasticsearch.client.http.Header;
+import org.apache.http.Header;
 
 import java.util.ArrayList;
 import java.util.HashMap;

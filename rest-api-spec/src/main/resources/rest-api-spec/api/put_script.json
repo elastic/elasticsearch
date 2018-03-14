@@ -11,10 +11,9 @@
           "description" : "Script ID",
           "required" : true
         },
-        "lang" : {
+        "context" : {
           "type" : "string",
-          "description" : "Script language",
-          "required" : true
+          "description" : "Script context"
         }
       },
       "params" : {

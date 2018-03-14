@@ -69,7 +69,7 @@ setup:
 "Search body without query element":
 
     - do:
-        catch: request
+        catch: bad_request
         search:
           body:
             match:

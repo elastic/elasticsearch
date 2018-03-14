@@ -22,6 +22,12 @@ esplugin {
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
+forbiddenApis {
+  signatures += [
+    "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
+  ]
+}
+
 dependencies {
   compile "org.apache.lucene:lucene-analyzers-icu:${versions.lucene}"
   compile 'com.ibm.icu:icu4j:59.1'

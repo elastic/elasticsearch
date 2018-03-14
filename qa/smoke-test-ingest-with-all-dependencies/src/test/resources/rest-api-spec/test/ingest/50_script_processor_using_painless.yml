@@ -104,7 +104,6 @@
             ]
           }
   - match: { error.header.processor_type: "script" }
-  - match: { error.header.property_name: "source" }
   - match: { error.type: "script_exception" }
   - match: { error.reason: "compile error" }
 

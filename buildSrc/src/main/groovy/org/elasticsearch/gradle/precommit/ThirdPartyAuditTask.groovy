@@ -26,7 +26,6 @@ import org.apache.tools.ant.DefaultLogger;
 import org.apache.tools.ant.Project;
 import org.elasticsearch.gradle.AntTask;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.FileCollectionDependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -75,29 +74,29 @@ public class ThirdPartyAuditTask extends AntTask {
         description = "Checks third party JAR bytecode for missing classes, use of internal APIs, and other horrors'";
 
         project.afterEvaluate {
-            Configuration configuration = project.configurations.findByName('runtime');
+            Configuration configuration = project.configurations.findByName('runtime')
+            Configuration compileOnly = project.configurations.findByName('compileOnly')
             if (configuration == null) {
                 // some projects apparently do not have 'runtime'? what a nice inconsistency,
                 // basically only serves to waste time in build logic!
-                configuration = project.configurations.findByName('testCompile');
+                configuration = project.configurations.findByName('testCompile')
             }
-            assert configuration != null;
-            classpath = configuration
+            assert configuration != null
+            if (compileOnly == null) {
+                classpath = configuration
+            } else {
+                classpath = project.files(configuration, compileOnly)
+            }
 
             // we only want third party dependencies.
             jars = configuration.fileCollection({ dependency ->
-                // include SelfResolvingDependency with files in the validation
-                if (dependency instanceof FileCollectionDependency) {
-                    return true
-                }
-                return dependency.group && dependency.group.startsWith("org.elasticsearch") == false
+                dependency.group.startsWith("org.elasticsearch") == false
             });
 
             // we don't want provided dependencies, which we have already scanned. e.g. don't
             // scan ES core's dependencies for every single plugin
-            Configuration provided = project.configurations.findByName('provided')
-            if (provided != null) {
-                jars -= provided
+            if (compileOnly != null) {
+                jars -= compileOnly
             }
             inputs.files(jars)
             onlyIf { jars.isEmpty() == false }

@@ -27,6 +27,11 @@ The last (`node.role`, `master`, and `name`) columns provide ancillary
 information that can often be useful when looking at the cluster as a whole,
 particularly large ones.  How many master-eligible nodes do I have?
 
+The `nodes` API accepts an additional URL parameter `full_id` accepting `true`
+or `false`. The purpose of this parameter is to format the ID field (if
+requested with `id` or `nodeId`) in its full length or in abbreviated form (the
+default).
+
 [float]
 === Columns
 

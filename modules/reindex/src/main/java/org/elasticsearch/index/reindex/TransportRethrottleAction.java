@@ -70,7 +70,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             return;
         }
 
-        throw new IllegalArgumentException("task [" + task.getId() + "] must be set as a child or parent");
+        throw new IllegalArgumentException("task [" + task.getId() + "] has not yet been initialized to the point where it knows how to " +
+            "rethrottle itself");
     }
 
     private static void rethrottleParentTask(Logger logger, String localNodeId, Client client, BulkByScrollTask task,

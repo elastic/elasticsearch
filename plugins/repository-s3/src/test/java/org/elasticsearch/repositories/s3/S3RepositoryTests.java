@@ -19,10 +19,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
+
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +31,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -69,23 +70,23 @@ public class S3RepositoryTests extends ESTestCase {
         assertValidBuffer(5, 5);
         // buffer < 5mb should fail
         assertInvalidBuffer(4, 10, IllegalArgumentException.class,
-            "Failed to parse value [4mb] for setting [buffer_size] must be >= 5mb");
+                "Failed to parse value [4mb] for setting [buffer_size] must be >= 5mb");
         // chunk > 5tb should fail
         assertInvalidBuffer(5, 6000000, IllegalArgumentException.class,
-            "Failed to parse value [5.7tb] for setting [chunk_size] must be <= 5tb");
+                "Failed to parse value [6000000mb] for setting [chunk_size] must be <= 5tb");
     }
 
     private void assertValidBuffer(long bufferMB, long chunkMB) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB).getStringRep())
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB).getStringRep()).build());
         new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
     }
 
     private void assertInvalidBuffer(int bufferMB, int chunkMB, Class<? extends Exception> clazz, String msg) throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
-            .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
-            .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB).getStringRep())
+                .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB).getStringRep()).build());
 
         Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
             new DummyS3Service()));

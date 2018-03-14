@@ -9,12 +9,12 @@ of features for each node.
 
 [source,js]
 --------------------------------------------------
-GET _nodes/nodeId1,nodeId2/usage
 GET _nodes/usage
+GET _nodes/nodeId1,nodeId2/usage
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:node]
-// TEST[s/nodeId1,nodeId2/\$node_name/]
+// TEST[s/nodeId1,nodeId2/*/]
 
 The first command retrieves usage of all the nodes in the cluster. The
 second command selectively retrieves nodes usage of only `nodeId1` and
@@ -25,8 +25,8 @@ second command selectively retrieves nodes usage of only `nodeId1` and
 [[rest-usage]]
 ==== REST actions usage information
 
-The `rest_actions` field in the response contains a map of the REST 
-actions classname with a count of the number of times that action has 
+The `rest_actions` field in the response contains a map of the REST
+actions classname with a count of the number of times that action has
 been called on the node:
 
 [source,js]
@@ -59,6 +59,6 @@ been called on the node:
 // TESTRESPONSE[s/1492553906606/$body.$_path/]
 // TESTRESPONSE[s/"rest_actions": [^}]+}/"rest_actions": $body.$_path/]
 <1> Timestamp for when this nodes usage request was performed.
-<2> Timestamp for when the usage information recording was started. This is 
+<2> Timestamp for when the usage information recording was started. This is
 equivalent to the time that the node was started.
 <3> Search action has been called 19 times for this node.

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.HttpHost;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;

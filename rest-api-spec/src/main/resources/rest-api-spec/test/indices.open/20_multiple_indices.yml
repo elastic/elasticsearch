@@ -32,7 +32,7 @@ setup:
         index: _all
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         index: test_index2
 
@@ -59,7 +59,7 @@ setup:
         index: test_*
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         index: test_index2
 
@@ -86,7 +86,7 @@ setup:
         index: '*'
 
   - do:
-      catch: request
+      catch: bad_request
       search:
         index: test_index3
 

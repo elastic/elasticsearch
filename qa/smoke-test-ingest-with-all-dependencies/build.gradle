@@ -30,5 +30,4 @@ dependencies {
 
 integTestCluster {
     plugin ':plugins:ingest-geoip'
-    setting 'script.max_compilations_per_minute', '1000'
 }

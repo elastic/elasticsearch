@@ -7,7 +7,7 @@ For instance the query below retrieves the best tweet for each user and sorts th
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
     "query": {
         "match": {
@@ -41,7 +41,7 @@ It is also possible to expand each collapsed top hits with the `inner_hits` opti
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
     "query": {
         "match": {
@@ -75,7 +75,7 @@ multiple representations of the collapsed hits.
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search
+GET /twitter/_search
 {
     "query": {
         "match": {

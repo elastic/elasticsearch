@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.io.Streams;
@@ -55,7 +56,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             Exception failureToResolve = null;
             try {
                 rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
-            } catch (IOException | SecurityException e) {
+            } catch (IOException | SecurityException | InvalidPathException e) {
                 failureToResolve = e;
             }
             try {
@@ -84,7 +85,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 collator = Collator.getInstance(locale);
             } else {
-                collator = Collator.getInstance();
+                collator = Collator.getInstance(ULocale.ROOT);
             }
         }
 
@@ -131,7 +132,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean caseLevel = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "caseLevel", null, deprecationLogger);
+        Boolean caseLevel = settings.getAsBoolean("caseLevel", null);
         if (caseLevel != null) {
             rbc.setCaseLevel(caseLevel);
         }
@@ -147,7 +148,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean numeric = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "numeric", null, deprecationLogger);
+        Boolean numeric = settings.getAsBoolean("numeric", null);
         if (numeric != null) {
             rbc.setNumericCollation(numeric);
         }
@@ -157,8 +158,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             rbc.setVariableTop(variableTop);
         }
 
-        Boolean hiraganaQuaternaryMode = settings
-            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "hiraganaQuaternaryMode", null, deprecationLogger);
+        Boolean hiraganaQuaternaryMode = settings.getAsBoolean("hiraganaQuaternaryMode", null);
         if (hiraganaQuaternaryMode != null) {
             rbc.setHiraganaQuaternary(hiraganaQuaternaryMode);
         }

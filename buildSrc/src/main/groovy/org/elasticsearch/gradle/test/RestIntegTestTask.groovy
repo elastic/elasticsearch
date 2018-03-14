@@ -162,7 +162,7 @@ public class RestIntegTestTask extends DefaultTask {
                 if (line.startsWith("[")) {
                     inExcerpt = false // clear with the next log message
                 }
-                if (line =~ /(\[WARN\])|(\[ERROR\])/) {
+                if (line =~ /(\[WARN *\])|(\[ERROR *\])/) {
                     inExcerpt = true // show warnings and errors
                 }
                 if (inStartup || inExcerpt) {

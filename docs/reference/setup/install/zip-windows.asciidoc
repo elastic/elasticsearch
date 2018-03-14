@@ -196,6 +196,14 @@ command line, or when installing Elasticsearch as a service for the
 first time. To adjust the heap size for an already installed service,
 use the service manager: `bin\elasticsearch-service.bat manager`.
 
+NOTE: The service automatically configures a private temporary directory for use
+by Elasticsearch when it is running. This private temporary directory is
+configured as a sub-directory of the private temporary directory for the user
+running the installation. If the service will run under a different user, you
+can configure the location of the temporary directory that the service should
+use by setting the environment variable `ES_TMPDIR` to the preferred location
+before you execute the service installation.
+
 Using the Manager GUI::
 
 It is also possible to configure the service after it's been installed using the manager GUI (`elasticsearch-service-mgr.exe`), which offers insight into the installed service, including its status, startup type, JVM, start and stop settings amongst other things.  Simply invoking `elasticsearch-service.bat manager` from the command-line will open up the manager window:
@@ -257,11 +265,6 @@ directory so that you do not delete important data later on.
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | %ES_HOME%\scripts
-  | path.scripts
 
 |=======================================================================
 

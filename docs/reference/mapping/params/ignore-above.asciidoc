@@ -8,7 +8,7 @@ Strings longer than the `ignore_above` setting will not be indexed or stored.
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "message": {
           "type": "keyword",
@@ -19,12 +19,12 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1 <2>
+PUT my_index/_doc/1 <2>
 {
   "message": "Syntax error"
 }
 
-PUT my_index/my_type/2 <3>
+PUT my_index/_doc/2 <3>
 {
   "message": "Syntax error with some long stacktrace"
 }
@@ -56,5 +56,5 @@ limit of `32766`.
 
 NOTE: The value for `ignore_above` is the _character count_, but Lucene counts
 bytes. If you use UTF-8 text with many non-ASCII characters, you may want to
-set the limit to `32766 / 3 = 10922` since UTF-8 characters may occupy at most
-3 bytes.
+set the limit to `32766 / 4 = 8191` since UTF-8 characters may occupy at most
+4 bytes.

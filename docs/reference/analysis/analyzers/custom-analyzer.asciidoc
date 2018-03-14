@@ -202,7 +202,7 @@ POST my_index/_analyze
 --------------------------------------------------
 // CONSOLE
 
-<1> The `emoticon` character filter, `punctuation` tokenizer and
+<1> The `emoticons` character filter, `punctuation` tokenizer and
     `english_stop` token filter are custom implementations which are defined
     in the same index settings.
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ByteArrayEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.entity.StringEntity;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -129,7 +130,8 @@ final class RemoteRequestBuilders {
     static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
+                XContentParser queryParser = XContentHelper
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)) {
             entity.startObject();
 
             entity.field("query"); {

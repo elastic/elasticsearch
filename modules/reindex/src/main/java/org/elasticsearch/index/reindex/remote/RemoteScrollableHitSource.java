@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.reindex.remote;
 
-import org.elasticsearch.client.http.ContentTooLongException;
-import org.elasticsearch.client.http.HttpEntity;
-import org.elasticsearch.client.http.entity.ContentType;
-import org.elasticsearch.client.http.util.EntityUtils;
+import org.apache.http.ContentTooLongException;
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ResponseException;
@@ -196,7 +197,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                 }
                                 // EMPTY is safe here because we don't call namedObject
                                 try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-                                    content)) {
+                                    LoggingDeprecationHandler.INSTANCE, content)) {
                                     parsedResponse = parser.apply(xContentParser, xContentType);
                                 } catch (ParsingException e) {
                                 /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it

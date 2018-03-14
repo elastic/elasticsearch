@@ -19,7 +19,9 @@
 
 package hdfs;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,14 +31,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclEntryType;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
+import org.apache.hadoop.hdfs.MiniDFSNNTopology;
+import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
+import org.apache.hadoop.hdfs.server.namenode.ha.HATestUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 
 /**
@@ -87,6 +94,7 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
+            cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
         }
 
         UserGroupInformation.setConfiguration(cfg);
@@ -98,16 +106,58 @@ public class MiniHDFS {
         } else {
             builder.nameNodePort(9999);
         }
+
+        // Configure HA mode
+        String haNameService = System.getProperty("ha-nameservice");
+        boolean haEnabled = haNameService != null;
+        if (haEnabled) {
+            MiniDFSNNTopology.NNConf nn1 = new MiniDFSNNTopology.NNConf("nn1").setIpcPort(10001);
+            MiniDFSNNTopology.NNConf nn2 = new MiniDFSNNTopology.NNConf("nn2").setIpcPort(10002);
+            MiniDFSNNTopology.NSConf nameservice = new MiniDFSNNTopology.NSConf(haNameService).addNN(nn1).addNN(nn2);
+            MiniDFSNNTopology namenodeTopology = new MiniDFSNNTopology().addNameservice(nameservice);
+            builder.nnTopology(namenodeTopology);
+        }
+
         MiniDFSCluster dfs = builder.build();
 
-        // Set the elasticsearch user directory up
-        if (UserGroupInformation.isSecurityEnabled()) {
-            FileSystem fs = dfs.getFileSystem();
-            org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+        // Configure contents of the filesystem
+        org.apache.hadoop.fs.Path esUserPath = new org.apache.hadoop.fs.Path("/user/elasticsearch");
+
+        FileSystem fs;
+        if (haEnabled) {
+            dfs.transitionToActive(0);
+            fs = HATestUtil.configureFailoverFs(dfs, cfg);
+        } else {
+            fs = dfs.getFileSystem();
+        }
+
+        try {
+            // Set the elasticsearch user directory up
             fs.mkdirs(esUserPath);
-            List<AclEntry> acls = new ArrayList<>();
-            acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("elasticsearch").setPermission(FsAction.ALL).build());
-            fs.modifyAclEntries(esUserPath, acls);
+            if (UserGroupInformation.isSecurityEnabled()) {
+                List<AclEntry> acls = new ArrayList<>();
+                acls.add(new AclEntry.Builder().setType(AclEntryType.USER).setName("elasticsearch").setPermission(FsAction.ALL).build());
+                fs.modifyAclEntries(esUserPath, acls);
+            }
+
+            // Install a pre-existing repository into HDFS
+            String directoryName = "readonly-repository";
+            String archiveName = directoryName + ".tar.gz";
+            URL readOnlyRepositoryArchiveURL = MiniHDFS.class.getClassLoader().getResource(archiveName);
+            if (readOnlyRepositoryArchiveURL != null) {
+                Path tempDirectory = Files.createTempDirectory(MiniHDFS.class.getName());
+                File readOnlyRepositoryArchive = tempDirectory.resolve(archiveName).toFile();
+                FileUtils.copyURLToFile(readOnlyRepositoryArchiveURL, readOnlyRepositoryArchive);
+                FileUtil.unTar(readOnlyRepositoryArchive, tempDirectory.toFile());
+
+                fs.copyFromLocalFile(true, true,
+                    new org.apache.hadoop.fs.Path(tempDirectory.resolve(directoryName).toAbsolutePath().toUri()),
+                    esUserPath.suffix("/existing/" + directoryName)
+                );
+
+                FileUtils.deleteDirectory(tempDirectory.toFile());
+            }
+        } finally {
             fs.close();
         }
 
@@ -118,8 +168,12 @@ public class MiniHDFS {
         Files.move(tmp, baseDir.resolve(PID_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
 
         // write our port file
+        String portFileContent = Integer.toString(dfs.getNameNodePort(0));
+        if (haEnabled) {
+            portFileContent = portFileContent + "\n" + Integer.toString(dfs.getNameNodePort(1));
+        }
         tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(dfs.getNameNodePort()).getBytes(StandardCharsets.UTF_8));
+        Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
     }
 }

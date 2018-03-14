@@ -31,8 +31,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.onlyOnSamePosition = settings.getAsBooleanLenientForPreEs6Indices(
-            indexSettings.getIndexVersionCreated(), "only_on_same_position", false, deprecationLogger);
+        this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
     }
 
     @Override

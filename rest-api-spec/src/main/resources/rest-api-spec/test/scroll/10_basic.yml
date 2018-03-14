@@ -197,3 +197,39 @@
       clear_scroll:
         scroll_id: $scroll_id
 
+---
+"Scroll cannot used the request cache":
+  - skip:
+      version: " - 6.99.99"
+      reason:  the error message has been added in v7.0.0
+  - do:
+      indices.create:
+        index: test_scroll
+  - do:
+      catch: /\[request_cache\] cannot be used in a scroll context/
+      search:
+        index: test_scroll
+        scroll: 1m
+        request_cache: true
+        body:
+          query:
+            match_all: {}
+
+---
+"Scroll with size 0":
+  - skip:
+      version: " - 6.1.99"
+      reason:  the error message has been added in v6.2.0
+  - do:
+      indices.create:
+        index: test_scroll
+  - do:
+      catch: /\[size\] cannot be \[0\] in a scroll context/
+      search:
+        index: test_scroll
+        scroll: 1m
+        request_cache: true
+        body:
+          query:
+            match_all: {}
+          size: 0

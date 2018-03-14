@@ -19,10 +19,12 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
 
@@ -50,7 +52,6 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::main-execute
             MainResponse response = client.info();
             //end::main-execute
-            assertTrue(response.isAvailable());
             //tag::main-response
             ClusterName clusterName = response.getClusterName(); // <1>
             String clusterUuid = response.getClusterUuid(); // <2>
@@ -64,5 +65,18 @@ public class MainDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(version);
             assertNotNull(build);
         }
+    }
+
+    public void testInitializationFromClientBuilder() throws IOException {
+        //tag::rest-high-level-client-init
+        RestHighLevelClient client = new RestHighLevelClient(
+                RestClient.builder(
+                        new HttpHost("localhost", 9200, "http"),
+                        new HttpHost("localhost", 9201, "http")));
+        //end::rest-high-level-client-init
+
+        //tag::rest-high-level-client-close
+        client.close();
+        //end::rest-high-level-client-close
     }
 }

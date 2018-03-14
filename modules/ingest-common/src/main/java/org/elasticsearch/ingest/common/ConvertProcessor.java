@@ -48,6 +48,24 @@ public final class ConvertProcessor extends AbstractProcessor {
                 }
 
             }
+        }, LONG {
+            @Override
+            public Object convert(Object value) {
+                try {
+                    return Long.parseLong(value.toString());
+                } catch(NumberFormatException e) {
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
+                }
+            }
+        }, DOUBLE {
+            @Override
+            public Object convert(Object value) {
+                try {
+                    return Double.parseDouble(value.toString());
+                } catch(NumberFormatException e) {
+                    throw new IllegalArgumentException("unable to convert [" + value + "] to double", e);
+                }
+            }
         }, FLOAT {
             @Override
             public Object convert(Object value) {
@@ -81,12 +99,18 @@ public final class ConvertProcessor extends AbstractProcessor {
                 }
                 try {
                     return BOOLEAN.convert(value);
-                } catch (IllegalArgumentException e) { }
+                } catch (IllegalArgumentException e) {}
                 try {
                     return INTEGER.convert(value);
                 } catch (IllegalArgumentException e) {}
                 try {
+                    return LONG.convert(value);
+                } catch (IllegalArgumentException e) {}
+                try {
                     return FLOAT.convert(value);
+                } catch (IllegalArgumentException e) {}
+                try {
+                    return DOUBLE.convert(value);
                 } catch (IllegalArgumentException e) {}
                 return value;
             }

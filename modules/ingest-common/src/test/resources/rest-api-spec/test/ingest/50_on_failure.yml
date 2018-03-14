@@ -122,7 +122,7 @@ teardown:
 ---
 "Test pipeline with empty on_failure in a processor":
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -155,7 +155,7 @@ teardown:
 ---
 "Test pipeline with empty on_failure in pipeline":
   - do:
-      catch: request
+      catch: bad_request
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

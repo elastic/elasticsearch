@@ -8,7 +8,7 @@
       "parts": {
         "name": {
           "type": "list",
-          "required": false,
+          "required": true,
           "description": "The comma separated names of the index templates"
         }
       },

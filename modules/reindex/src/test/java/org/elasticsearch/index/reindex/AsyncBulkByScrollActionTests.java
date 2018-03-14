@@ -81,6 +81,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -123,6 +124,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private SearchRequest firstSearchRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
+    private ThreadPool threadPool;
     private TaskManager taskManager;
     private BulkByScrollTask testTask;
     private WorkerBulkByScrollTaskState worker;
@@ -141,7 +143,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest = new DummyAbstractBulkByScrollRequest(firstSearchRequest);
         listener = new PlainActionFuture<>();
         scrollId = null;
-        taskManager = new TaskManager(Settings.EMPTY);
+        threadPool = new TestThreadPool(getClass().getName());
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         testTask = (BulkByScrollTask) taskManager.register("don'tcare", "hereeither", testRequest);
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
@@ -159,8 +162,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     @After
-    public void tearDownAndVerifyCommonStuff() {
+    public void tearDownAndVerifyCommonStuff() throws Exception {
         client.close();
+        terminate(threadPool);
     }
 
     /**
@@ -455,7 +459,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap());
         SearchHits hits = new SearchHits(new SearchHit[] { hit }, 0, 0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
-        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null);
+        SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null,
+                SearchResponse.Clusters.EMPTY);
 
         if (randomBoolean()) {
             client.lastScroll.get().listener.onResponse(searchResponse);

@@ -37,8 +37,10 @@ include::search/scroll.asciidoc[]
 The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
+* <<java-rest-high-ping>>
 
 include::miscellaneous/main.asciidoc[]
+include::miscellaneous/ping.asciidoc[]
 
 == Indices APIs
 

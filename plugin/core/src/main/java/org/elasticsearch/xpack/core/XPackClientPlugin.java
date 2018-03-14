@@ -24,6 +24,7 @@ import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.license.GetTrialStatusAction;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
+import org.elasticsearch.license.PostStartBasicAction;
 import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -291,6 +292,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteLicenseAction.INSTANCE,
                 PostStartTrialAction.INSTANCE,
                 GetTrialStatusAction.INSTANCE,
+                PostStartBasicAction.INSTANCE,
                 GetBasicStatusAction.INSTANCE,
                 // x-pack
                 XPackInfoAction.INSTANCE,

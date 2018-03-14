@@ -76,7 +76,7 @@ public class LiveVersionMapTests extends ESTestCase {
             // the memory usage of an array that would contain exactly all keys
             // and values. This is an under-estimation of the actual memory
             // usage since it ignores the impact of the load factor and of the
-            // linked list/tree that is used to store collisions. Se we use a
+            // linked list/tree that is used to resolve collisions. So we use a
             // bigger tolerance.
             // less than 50% off
             tolerance = actualRamBytesUsed / 2;

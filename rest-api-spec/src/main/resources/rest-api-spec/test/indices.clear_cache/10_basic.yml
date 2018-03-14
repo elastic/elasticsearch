@@ -29,7 +29,7 @@
 ---
 "clear_cache with field_data set to true":
   - skip:
-      version: " - 6.3.99"
+      version: " - 6.2.99"
       reason: field_data was deprecated in 6.3.0
       features: "warnings"
 
@@ -42,7 +42,7 @@
 ---
 "clear_cache with fielddata set to true":
   - skip:
-      version: " - 6.3.99"
+      version: " - 6.2.99"
       reason: fielddata was deprecated before 6.3.0
 
   - do:

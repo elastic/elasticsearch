@@ -132,8 +132,8 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     public SignificantTermsAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
-        collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();
+        collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);

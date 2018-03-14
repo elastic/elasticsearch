@@ -46,16 +46,14 @@ import java.util.function.LongSupplier;
 public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
     private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
 
-    CombinedDeletionPolicy(EngineConfig.OpenMode openMode, Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
+    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) {
-        this.openMode = openMode;
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
@@ -65,25 +63,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
-        switch (openMode) {
-            case CREATE_INDEX_AND_TRANSLOG:
-                assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
-                break;
-            case OPEN_INDEX_CREATE_TRANSLOG:
-            case OPEN_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
-                    + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
-                keepOnlyStartingCommitOnInit(commits);
-                // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
-                // We therefore should not use that index commit to update the translog deletion policy.
-                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-                    updateTranslogDeletionPolicy();
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
-        }
+        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
+            + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
+        keepOnlyStartingCommitOnInit(commits);
+        updateTranslogDeletionPolicy();
     }
 
     /**

@@ -18,15 +18,12 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -44,12 +41,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -60,11 +57,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -113,21 +105,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    private ParsedDocument testParsedDocument(String id, String type, String routing, long seqNo,
-                                              ParseContext.Document document, BytesReference source, XContentType xContentType,
-                                              Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
-        Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(uidField);
-        document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, routing,
-                Collections.singletonList(document), source, xContentType, mappingUpdate);
     }
 
     public void testLockTryingToDelete() throws Exception {
@@ -350,7 +327,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(117 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(160 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -424,15 +401,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldPeriodicallyFlush());
-        final String key;
         final boolean flush = randomBoolean();
+        final Settings settings;
         if (flush) {
-            key = "index.translog.flush_threshold_size";
+            // size of the operation plus two generations of overhead.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
         } else {
-            key = "index.translog.generation_threshold_size";
+            // size of the operation plus header and footer
+            settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
         }
-        // size of the operation plus header and footer
-        final Settings settings = Settings.builder().put(key, "117b").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         client().prepareIndex("test", "test", "0")
                 .setSource("{}", XContentType.JSON)

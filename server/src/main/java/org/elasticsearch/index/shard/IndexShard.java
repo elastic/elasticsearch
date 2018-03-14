@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -1283,62 +1282,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
-    /** creates an empty index and translog and opens the engine **/
-    public void createIndexAndTranslog() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
-        assert shardRouting.primary() && shardRouting.isRelocationTarget() == false;
-        // note: these are set when recovering from the translog
-        final RecoveryState.Translog translogStats = recoveryState().getTranslog();
-        translogStats.totalOperations(0);
-        translogStats.totalOperationsOnStart(0);
-        replicationTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
-        assertSequenceNumbersInCommit();
-    }
-
-    /** opens the engine on top of the existing lucene engine but creates an empty translog **/
-    public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
-        if (Assertions.ENABLED) {
-            assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
-            SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
-            assert commitInfo.localCheckpoint >= globalCheckpoint :
-                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
-                    + globalCheckpoint + "]";
-            // This assertion is only guaranteed if all nodes are on 6.2+.
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
-                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-                assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
-            }
-        }
-        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
-        assertSequenceNumbersInCommit();
-    }
-
     /**
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openIndexAndRecoveryFromTranslog() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    public void openEngineAndRecoverFromTranslog() throws IOException {
+        innerOpenEngineAndTranslog();
         getEngine().recoverFromTranslog();
-        assertSequenceNumbersInCommit();
     }
 
     /**
      * Opens the engine on top of the existing lucene engine and translog.
      * The translog is kept but its operations won't be replayed.
      */
-    public void openIndexAndSkipTranslogRecovery() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    public void openEngineAndSkipTranslogRecovery() throws IOException {
+        innerOpenEngineAndTranslog();
         getEngine().skipTranslogRecovery();
-        assertSequenceNumbersInCommit();
     }
 
-    private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
+    private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1353,28 +1315,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
 
-        assert openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG || assertMaxUnsafeAutoIdInCommit();
-
-        final EngineConfig config = newEngineConfig(openMode, forceNewHistoryUUID);
+        final EngineConfig config = newEngineConfig();
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // we have to set it before we open an engine and recover from the translog because
-            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-            final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-            replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        }
+        // we have to set it before we open an engine and recover from the translog because
+        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+
+        assertMaxUnsafeAutoIdInCommit();
+
         createNewEngine(config);
         verifyNotClosed();
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
-            // we still give sync'd flush a chance to run:
-            active.set(true);
-        }
+        // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+        // we still give sync'd flush a chance to run:
+        active.set(true);
+        assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
@@ -1390,9 +1350,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
-            // TODO: LOCAL_SHARDS need to transfer this information
-            recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0)) {
             // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
             // This should have baked into the commit by the primary we recover from, regardless of the index age.
             assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
@@ -2199,12 +2157,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) {
+    private EngineConfig newEngineConfig() {
         Sort indexSort = indexSortSupplier.get();
-        return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
+        return new EngineConfig(shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-            indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
+            indexCache.query(), cachingPolicy, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),

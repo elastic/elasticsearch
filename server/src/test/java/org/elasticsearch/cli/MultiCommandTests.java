@@ -39,15 +39,15 @@ public class MultiCommandTests extends CommandTestCase {
         @Override
         public void close() throws IOException {
             super.close();
-            if (!this.closed.compareAndSet(false, true)) {
-                throw new IOException("DummyMultiCommand closed");
+            if (this.closed.compareAndSet(false, true) == false) {
+                throw new IOException("DummyMultiCommand already closed");
             }
         }
     }
 
     static class DummySubCommand extends Command {
         final boolean throwsExceptionOnClose;
-        final AtomicBoolean closed = new AtomicBoolean();
+        final AtomicBoolean closeCalled = new AtomicBoolean();
 
         DummySubCommand() {
             this(false);
@@ -66,12 +66,11 @@ public class MultiCommandTests extends CommandTestCase {
 
         @Override
         public void close() throws IOException {
+            if (this.closeCalled.compareAndSet(false, true) == false) {
+                throw new IOException("DummySubCommand already closed");
+            }
             if (throwsExceptionOnClose) {
-                throw new IOException();
-            } else {
-                if (!this.closed.compareAndSet(false, true)) {
-                    throw new IOException("DummySubCommand closed");
-                }
+                throw new IOException("Error occurred while closing DummySubCommand");
             }
         }
     }
@@ -146,25 +145,31 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("command2", subCommand2);
         multiCommand.close();
         assertTrue("MultiCommand was not closed when close method is invoked", multiCommand.closed.get());
-        assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closed.get());
-        assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closed.get());
+        assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closeCalled.get());
+        assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closeCalled.get());
     }
 
-    public void testCloseWhenSubCommandCloseThrowsException() {
+    public void testCloseWhenSubCommandCloseThrowsException() throws Exception {
         final boolean command1Throws = randomBoolean();
         final boolean command2Throws = randomBoolean();
         final DummySubCommand subCommand1 = new DummySubCommand(command1Throws);
         final DummySubCommand subCommand2 = new DummySubCommand(command2Throws);
         multiCommand.subcommands.put("command1", subCommand1);
         multiCommand.subcommands.put("command2", subCommand2);
-        // verify exception is thrown, as well as other non failed sub-commands closed
-        // properly.
-        IOException ioe = expectThrows(IOException.class, () -> multiCommand.close());
-        if (command1Throws && command2Throws) {
-            assertEquals(1, ioe.getSuppressed().length);
-            assertTrue("Missing suppressed exceptions", ioe.getSuppressed()[0] instanceof IOException);
+        if (command1Throws || command2Throws) {
+            // verify exception is thrown, as well as other non failed sub-commands closed
+            // properly.
+            IOException ioe = expectThrows(IOException.class, multiCommand::close);
+            assertEquals("Error occurred while closing DummySubCommand", ioe.getMessage());
+            if (command1Throws && command2Throws) {
+                assertEquals(1, ioe.getSuppressed().length);
+                assertTrue("Missing suppressed exceptions", ioe.getSuppressed()[0] instanceof IOException);
+                assertEquals("Error occurred while closing DummySubCommand", ioe.getSuppressed()[0].getMessage());
+            }
+        } else {
+            multiCommand.close();
         }
-        assertTrue("SubCommand1 was not closed when close method is invoked", command1Throws ^ subCommand1.closed.get());
-        assertTrue("SubCommand2 was not closed when close method is invoked", command2Throws ^ subCommand2.closed.get());
+        assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closeCalled.get());
+        assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closeCalled.get());
     }
 }

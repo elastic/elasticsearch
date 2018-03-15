@@ -17,24 +17,6 @@ factor of `2` or `3`.  In other words, it could be split as follows:
 * `5` -> `15` -> `30` (split by 3, then by 2)
 * `5` -> `30` (split by 6)
 
-NOTE: Why doesn't Elasticsearch support going from `N` shards to `N+1` shards,
-aka. incremental resharding? This is indeed a feature that is supported by many
-key-value stores, which leverage the fact that consistent hashing only requires
-`1/N`-th of the keys to be relocated. However Elasticsearch's unit of storage,
-shards, are Lucene indices. Unfortunately, taking a significant portion of a
-Lucene index, be it only 5% of documents, deleting them and indexing them on
-another shard typically comes with a much higher cost than with a key-value
-store. This cost is kept reasonable when growing the number of shards by a
-multiplicative factor for several reasons:
- - The split can happen locally, new shards being initially allocated on the
-same node as the current primary they are split from.
- - Because the split is local, Lucene indices can be split at the index level
-by masking unwanted documents and bulk-loading other documents into a fresh
-new Lucene index using a merge operation. There is no need to reindex documents.
- - Splits are still heavy, but only allowing large increments of the number of
-shards has the good property of reducing the number of times that an index needs
-to be split during its lifetime.
-
 While you can set the `index.number_of_routing_shards` setting explicitly at
 index creation time, the default value depends upon the number of primary
 shards in the original index.  The default is designed to allow you to split
@@ -49,6 +31,8 @@ index may by split into an arbitrary number of shards greater than 1.  The
 properties of the default number of routing shards will then apply to the
 newly split index.
 
+[float]
+=== How does splitting work?
 
 Splitting works as follows:
 
@@ -64,6 +48,27 @@ Splitting works as follows:
 
 * Finally, it recovers the target index as though it were a closed index which
   had just been re-opened.
+
+[float]
+=== Why doesn't Elasticsearch support incremental resharding?
+
+Going from `N` shards to `N+1` shards, aka. incremental resharding is indeed a
+feature that is supported by many key-value stores, which leverage the fact that
+consistent hashing only requires `1/N`-th of the keys to be relocated. However
+Elasticsearch's unit of storage, shards, are Lucene indices. Unfortunately,
+taking a significant portion of a Lucene index, be it only 5% of documents,
+deleting them and indexing them on another shard typically comes with a much
+higher cost than with a key-value store. This cost is kept reasonable when
+growing the number of shards by a multiplicative factor as described in the
+above section: this allows Elasticsearch to perform the split locally, which
+in-turn allows to perform the split at the index level rather than reindexing
+documents that need to move, as well as using hard links for efficient file
+copying.
+
+
+Moreover, only allowing large increments of the number of shards also has the
+good property of reducing the number of times that an index needs to be split
+during its lifetime.
 
 [float]
 === Preparing an index for splitting

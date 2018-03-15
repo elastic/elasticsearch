@@ -52,7 +52,7 @@ Splitting works as follows:
 [float]
 === Why doesn't Elasticsearch support incremental resharding?
 
-Going from `N` shards to `N+1` shards, aka. incremental resharding is indeed a
+Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
 feature that is supported by many key-value stores, which leverage the fact that
 consistent hashing only requires `1/N`-th of the keys to be relocated. However
 Elasticsearch's unit of storage, shards, are Lucene indices. Because of their

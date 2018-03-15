@@ -53,7 +53,7 @@ public class MultiCommandTests extends CommandTestCase {
             this(false);
         }
 
-        DummySubCommand(boolean throwsExceptionOnClose) {
+        DummySubCommand(final boolean throwsExceptionOnClose) {
             super("A dummy subcommand", () -> {
             });
             this.throwsExceptionOnClose = throwsExceptionOnClose;
@@ -151,11 +151,10 @@ public class MultiCommandTests extends CommandTestCase {
     }
 
     public void testCloseWhenSubCommandCloseThrowsException() {
-        boolean command1Throws = randomBoolean();
-        boolean command2Throws = randomBoolean();
-        System.out.println("c1 "+command1Throws+", c2 "+command2Throws);
-        DummySubCommand subCommand1 = new DummySubCommand(command1Throws);
-        DummySubCommand subCommand2 = new DummySubCommand(command2Throws);
+        final boolean command1Throws = randomBoolean();
+        final boolean command2Throws = randomBoolean();
+        final DummySubCommand subCommand1 = new DummySubCommand(command1Throws);
+        final DummySubCommand subCommand2 = new DummySubCommand(command2Throws);
         multiCommand.subcommands.put("command1", subCommand1);
         multiCommand.subcommands.put("command2", subCommand2);
         // verify exception is thrown, as well as other non failed sub-commands closed

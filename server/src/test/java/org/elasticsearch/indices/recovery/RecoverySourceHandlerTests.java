@@ -332,7 +332,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
 
-    public void testHandleExceptinoOnSendSendFiles() throws Throwable {
+    public void testHandleExceptionOnSendFiles() throws Throwable {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Path tempDir = createTempDir();

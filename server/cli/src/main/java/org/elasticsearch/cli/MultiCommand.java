@@ -19,12 +19,16 @@
 
 package org.elasticsearch.cli;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import joptsimple.NonOptionArgumentSpec;
 import joptsimple.OptionSet;
+
+import org.elasticsearch.core.internal.io.IOUtils;
 
 /**
  * A cli tool which is made up of multiple subcommands.
@@ -74,4 +78,10 @@ public class MultiCommand extends Command {
         }
         subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
     }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(subcommands.values());
+    }
+
 }

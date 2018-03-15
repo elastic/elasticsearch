@@ -55,20 +55,21 @@ Splitting works as follows:
 Going from `N` shards to `N+1` shards, aka. incremental resharding is indeed a
 feature that is supported by many key-value stores, which leverage the fact that
 consistent hashing only requires `1/N`-th of the keys to be relocated. However
-Elasticsearch's unit of storage, shards, are Lucene indices. Unfortunately,
-taking a significant portion of a Lucene index, be it only 5% of documents,
-deleting them and indexing them on another shard typically comes with a much
-higher cost than with a key-value store. This cost is kept reasonable when
-growing the number of shards by a multiplicative factor as described in the
-above section: this allows Elasticsearch to perform the split locally, which
-in-turn allows to perform the split at the index level rather than reindexing
-documents that need to move, as well as using hard links for efficient file
-copying.
+Elasticsearch's unit of storage, shards, are Lucene indices. Because of their
+search-oriented data structure, taking a significant portion of a Lucene index,
+be it only 5% of documents, deleting them and indexing them on another shard
+typically comes with a much higher cost than with a key-value store. This cost
+is kept reasonable when growing the number of shards by a multiplicative factor
+as described in the above section: this allows Elasticsearch to perform the
+split locally, which in-turn allows to perform the split at the index level
+rather than reindexing documents that need to move, as well as using hard links
+for efficient file copying.
 
-
-Moreover, only allowing large increments of the number of shards also has the
-good property of reducing the number of times that an index needs to be split
-during its lifetime.
+In the case of append-only data, it is possible to get more flexibility by
+creating a new index and pushing new data to it, while adding an alias that
+covers both the old and the new index for read operations. Assuming that the
+old and new indices have respectively +M+ and +N+ shards, this has no overhead
+compared to searching an index that would have +M+N+ shards.
 
 [float]
 === Preparing an index for splitting

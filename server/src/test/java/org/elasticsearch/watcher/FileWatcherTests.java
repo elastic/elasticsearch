@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 

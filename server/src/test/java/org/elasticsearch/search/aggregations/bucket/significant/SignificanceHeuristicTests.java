@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -280,7 +281,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, stXContentBuilder.string());
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, Strings.toString(stXContentBuilder));
         return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }
 

@@ -274,7 +274,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         if (documents.isEmpty() == false) {
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = XContentType.readFrom(in);
+                documentXContentType = in.readEnum(XContentType.class);
             } else {
                 documentXContentType = XContentFactory.xContentType(documents.iterator().next());
             }
@@ -331,7 +331,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeOptionalBytesReference(doc);
         }
         if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            documentXContentType.writeTo(out);
+            out.writeEnum(documentXContentType);
         }
     }
 
@@ -416,7 +416,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                 builder.copyCurrentStructure(parser);
                                 builder.flush();
-                                documents.add(builder.bytes());
+                                documents.add(BytesReference.bytes(builder));
                             }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
@@ -437,7 +437,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
                         builder.flush();
-                        documents.add(builder.bytes());
+                        documents.add(BytesReference.bytes(builder));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +

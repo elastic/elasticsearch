@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +71,7 @@ public class ScriptTests extends ESTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = builder.string();
+                script = Strings.toString(builder);
             }
         } else {
             script = randomAlphaOfLengthBetween(1, 5);

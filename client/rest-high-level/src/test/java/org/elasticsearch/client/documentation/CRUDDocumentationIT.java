@@ -266,13 +266,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
             XContentType xContentType = XContentType.JSON;
-            String script = XContentBuilder.builder(xContentType.xContent())
+            String script = Strings.toString(XContentBuilder.builder(xContentType.xContent())
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
                             .field("code", "ctx._source.field += params.count")
                         .endObject()
-                    .endObject().string();
+                    .endObject());
             HttpEntity body = new NStringEntity(script, ContentType.create(xContentType.mediaType()));
             Response response = client().performRequest(HttpPost.METHOD_NAME, "/_scripts/increment-field", emptyMap(), body);
             assertEquals(response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus());
@@ -929,6 +929,49 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::get-conflict
+        }
+    }
+
+    public void testExists() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        // tag::exists-request
+        GetRequest getRequest = new GetRequest(
+            "posts", // <1>
+            "doc",   // <2>
+            "1");    // <3>
+        getRequest.fetchSourceContext(new FetchSourceContext(false)); // <4>
+        getRequest.storedFields("_none_");                            // <5>
+        // end::exists-request
+        {
+            // tag::exists-execute
+            boolean exists = client.exists(getRequest);
+            // end::exists-execute
+            assertFalse(exists);
+        }
+        {
+            // tag::exists-execute-listener
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean exists) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::exists-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::exists-execute-async
+            client.existsAsync(getRequest, listener); // <1>
+            // end::exists-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

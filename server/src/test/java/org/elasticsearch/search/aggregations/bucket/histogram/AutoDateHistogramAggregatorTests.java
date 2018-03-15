@@ -69,7 +69,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
                 histogram -> assertEquals(6, histogram.getBuckets().size())
         );
         testSearchAndReduceCase(query, dataset,
@@ -82,7 +82,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD)
+                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD)
                         .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -231,7 +231,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testIntervalYear() throws IOException {
         testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -254,7 +254,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     public void testIntervalMonth() throws IOException {
         testBothCases(new MatchAllDocsQuery(),
                 Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
@@ -349,7 +349,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-01T16:48:00.000Z",
                         "2017-02-01T16:59:00.000Z"
                 ),
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(6, buckets.size());
@@ -441,7 +441,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                         "2017-02-01T09:16:04.000Z",
                         "2017-02-01T09:16:42.000Z"
                 ),
-                aggregation -> aggregation.setNumBuckets(3).field(DATE_FIELD),
+                aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());

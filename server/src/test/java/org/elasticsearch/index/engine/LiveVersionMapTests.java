@@ -21,10 +21,9 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Assertions;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,7 +42,6 @@ import java.util.stream.StreamSupport;
 public class LiveVersionMapTests extends ESTestCase {
 
     public void testRamBytesUsed() throws Exception {
-        assumeTrue("Test disabled for JDK 9", JavaVersion.current().compareTo(JavaVersion.parse("9")) < 0);
         LiveVersionMap map = new LiveVersionMap();
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
@@ -72,8 +70,23 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         actualRamBytesUsed = RamUsageTester.sizeOf(map);
         estimatedRamBytesUsed = map.ramBytesUsed();
-        // less than 25% off
-        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 4);
+        long tolerance;
+        if (Constants.JRE_IS_MINIMUM_JAVA9) {
+            // With Java 9, RamUsageTester computes the memory usage of maps as
+            // the memory usage of an array that would contain exactly all keys
+            // and values. This is an under-estimation of the actual memory
+            // usage since it ignores the impact of the load factor and of the
+            // linked list/tree that is used to resolve collisions. So we use a
+            // bigger tolerance.
+            // less than 50% off
+            tolerance = actualRamBytesUsed / 2;
+        } else {
+            // Java 8 is more accurate by doing reflection into the actual JDK classes
+            // so we give it a lower error bound.
+            // less than 25% off
+            tolerance = actualRamBytesUsed / 4;
+        }
+        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, tolerance);
     }
 
     private BytesRef uid(String string) {

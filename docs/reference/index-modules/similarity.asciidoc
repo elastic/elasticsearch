@@ -146,7 +146,7 @@ This similarity has the following options:
 `independence_measure`:: Possible values
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceStandardized.html[`standardized`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceSaturated.html[`saturated`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceChiSquared.html[`chisquared`.
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceChiSquared.html[`chisquared`].
 
 When using this similarity, it is highly recommended to remove stop words to get
 good relevance. Also beware that terms whose frequency is less than the expected

@@ -1,13 +1,14 @@
 [[java-rest-high-document-exists]]
 === Exists API
 
+The exists API returns `true` if a document exists, and `false` otherwise.
+
 [[java-rest-high-document-exists-request]]
 ==== Exists Request
 
-The `exists()` API is `true` if a document exists, and `false` otherwise.
 It uses `GetRequest` just like the <<java-rest-high-document-get>>.
 All of its <<java-rest-high-document-get-request-optional-arguments, optional arguments>>
-are supported. Since `exists()` only returns `true` or false, we recommend
+are supported. Since `exists()` only returns `true` or `false`, we recommend
 turning off fetching `_source` and any stored fields so the request is
 slightly lighter:
 
@@ -32,7 +33,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute]
 [[java-rest-high-document-exists-async]]
 ==== Asynchronous Execution
 
-The asynchronous execution of `exists()` requires both the `GetRequest`
+The asynchronous execution of exists request requires both the `GetRequest`
 instance and an `ActionListener` instance to be passed to the asynchronous
 method:
 
@@ -41,7 +42,7 @@ method:
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[exists-execute-async]
 --------------------------------------------------
 <1> The `GetRequest` to execute and the `ActionListener` to use when
-the execution completes
+the execution completes.
 
 The asynchronous method does not block and returns immediately. Once it is
 completed the `ActionListener` is called back using the `onResponse` method

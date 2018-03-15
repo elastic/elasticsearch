@@ -20,18 +20,11 @@
 package org.elasticsearch;
 
 import org.apache.commons.codec.DecoderException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.MAX_ITERATIONS;
 import static org.elasticsearch.ExceptionsHelper.maybeError;

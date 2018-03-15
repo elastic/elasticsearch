@@ -33,6 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -75,17 +76,17 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", true)
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", true)
+                        .endObject()),
                 XContentType.JSON));
 
         try (Directory dir = new RAMDirectory();
@@ -105,36 +106,36 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSerialization() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "boolean").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
         FieldMapper mapper = defaultMapper.mappers().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\"}}", builder.string());
+        assertEquals("{\"field\":{\"type\":\"boolean\"}}", Strings.toString(builder));
 
         // now change some parameters
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                     .field("type", "boolean")
                     .field("doc_values", "false")
                     .field("null_value", true)
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         defaultMapper = parser.parse("type", new CompressedXContent(mapping));
         mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", builder.string());
+        assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
     }
 
     public void testParsesPreEs6BooleansLenient() throws IOException {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -146,18 +147,18 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-            .endObject().string();
+            .endObject());
         DocumentMapper defaultMapper = preEs6Parser.parse("type", new CompressedXContent(mapping));
 
         String falsy = randomFrom("false", "off", "no", "0");
         String truthy = randomFrom("true", "on", "yes", "1");
 
-        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("legacy", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-                .field("field1", falsy)
-                .field("field2", truthy)
-            .endObject()
-            .bytes(),
+        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("legacy", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("field1", falsy)
+                    .field("field2", truthy)
+                .endObject()),
             XContentType.JSON));
         Document doc = parsedDoc.rootDoc();
         assertEquals("F", doc.getField("field1").stringValue());
@@ -177,7 +178,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testParsesEs6BooleansStrict() throws IOException {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -186,20 +187,20 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-            .endObject().string();
+            .endObject());
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        BytesReference source = XContentFactory.jsonBuilder()
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     // omit "false"/"true" here as they should still be parsed correctly
                     .field("field", randomFrom("off", "no", "0", "on", "yes", "1"))
-                .endObject().bytes();
-        MapperParsingException ex = expectThrows(MapperParsingException.class, 
+                .endObject());
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
                 () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
         assertEquals("failed to parse [field]", ex.getMessage());
     }
 
     public void testMultiFields() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "boolean")
@@ -209,20 +210,20 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                             .endObject()
                         .endObject()
                     .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         DocumentMapper mapper = indexService.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, mapper.mappingSource().toString());
-        BytesReference source = XContentFactory.jsonBuilder()
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("field", false)
-                .endObject().bytes();
+                .endObject());
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
     public void testDocValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("bool1")
                     .field("type", "boolean")
@@ -236,17 +237,17 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .field("index", true)
                 .endObject()
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("bool1", true)
-                .field("bool2", true)
-                .field("bool3", true)
-                .endObject()
-                .bytes(),
+        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("bool1", true)
+                        .field("bool2", true)
+                        .field("bool3", true)
+                        .endObject()),
                 XContentType.JSON));
         Document doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
@@ -263,9 +264,9 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEmptyName() throws IOException {
         // after 5.x
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("").field("type", "boolean").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(mapping))

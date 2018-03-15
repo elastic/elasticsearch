@@ -266,13 +266,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
             XContentType xContentType = XContentType.JSON;
-            String script = XContentBuilder.builder(xContentType.xContent())
+            String script = Strings.toString(XContentBuilder.builder(xContentType.xContent())
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
                             .field("code", "ctx._source.field += params.count")
                         .endObject()
-                    .endObject().string();
+                    .endObject());
             HttpEntity body = new NStringEntity(script, ContentType.create(xContentType.mediaType()));
             Response response = client().performRequest(HttpPost.METHOD_NAME, "/_scripts/increment-field", emptyMap(), body);
             assertEquals(response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus());

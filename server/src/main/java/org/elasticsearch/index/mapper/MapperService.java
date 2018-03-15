@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -256,7 +257,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, CompressedXContent> mappingSourcesCompressed = new LinkedHashMap<>(mappings.size());
         for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
             try {
-                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()));
+                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(entry.getValue()))));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }

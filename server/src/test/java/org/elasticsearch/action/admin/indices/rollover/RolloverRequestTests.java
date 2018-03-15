@@ -171,7 +171,7 @@ public class RolloverRequestTests extends ESTestCase {
             builder.endObject();
         }
         builder.endObject();
-        BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, builder.bytes(), null, random());
+        BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
         expectThrows(ParsingException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
     }
 

@@ -427,7 +427,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         Response extends ReplicationResponse> {
         private final Request request;
         private ActionListener<Response> listener;
-        final ReplicationGroup replicationGroup;
+        private final ReplicationGroup replicationGroup;
         private final String opType;
 
         ReplicationAction(Request request, ActionListener<Response> listener, ReplicationGroup group, String opType) {
@@ -454,6 +454,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        IndexShard getPrimaryShard() {
+            return replicationGroup.primary;
         }
 
         protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;
@@ -592,7 +596,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         @Override
         protected void performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
-            executeShardBulkOnReplica(this.replicationGroup, replica, request);
+            executeShardBulkOnReplica(request, replica, getPrimaryShard().getPrimaryTerm(), getPrimaryShard().getGlobalCheckpoint());
         }
     }
 
@@ -602,10 +606,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 ((IndexRequest) itemRequest.request()).process(Version.CURRENT, null, index.getName());
             }
         }
-        final PlainActionFuture<Releasable> permitAcquirer = new PlainActionFuture<>();
-        primary.acquirePrimaryOperationPermit(permitAcquirer, ThreadPool.Names.SAME, request);
+        final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
+        primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
         final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result;
-        try (Releasable ignored = permitAcquirer.actionGet()) {
+        try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             result = TransportShardBulkAction.performOnPrimary(request, primary, null, System::currentTimeMillis,
                 new TransportShardBulkActionTests.NoopMappingUpdatePerformer());
         }
@@ -613,12 +617,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return result;
     }
 
-    private void executeShardBulkOnReplica(ReplicationGroup group, IndexShard replica, BulkShardRequest request) throws Exception {
-        final PlainActionFuture<Releasable> permitAcquirer = new PlainActionFuture<>();
-        replica.acquireReplicaOperationPermit(group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint(),
-            permitAcquirer, ThreadPool.Names.SAME, request);
+    private void executeShardBulkOnReplica(BulkShardRequest request, IndexShard replica, long operationPrimaryTerm, long globalCheckpointOnPrimary) throws Exception {
+        final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
+        replica.acquireReplicaOperationPermit(operationPrimaryTerm, globalCheckpointOnPrimary, permitAcquiredFuture, ThreadPool.Names.SAME, request);
         final Translog.Location location;
-        try (Releasable ignored = permitAcquirer.actionGet()) {
+        try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             location = TransportShardBulkAction.performOnReplica(request, replica);
         }
         TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
@@ -641,7 +644,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      * indexes the given requests on the supplied replica shard
      */
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
-        executeShardBulkOnReplica(group, replica, request);
+        executeShardBulkOnReplica(request, replica, group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint());
     }
 
     class GlobalCheckpointSync extends ReplicationAction<

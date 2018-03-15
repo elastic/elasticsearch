@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.FieldMemoryStats;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1113,17 +1114,17 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see issue #6399
     public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
+        String mapping = Strings
+                .toString(jsonBuilder()
+                        .startObject()
+                        .startObject(TYPE)
+                        .startObject("properties")
+                        .startObject(FIELD)
+                        .field("type", "completion")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject());
 
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
         ensureGreen();

@@ -25,6 +25,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -487,7 +488,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     public void testWeight1fStillProducesWeightFunction() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        String queryString = jsonBuilder().startObject()
+        String queryString = Strings.toString(jsonBuilder().startObject()
             .startObject("function_score")
             .startArray("functions")
             .startObject()
@@ -498,7 +499,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             .endObject()
             .endArray()
             .endObject()
-            .endObject().string();
+            .endObject());
         QueryBuilder query = parseQuery(queryString);
         assertThat(query, instanceOf(FunctionScoreQueryBuilder.class));
         FunctionScoreQueryBuilder functionScoreQueryBuilder = (FunctionScoreQueryBuilder) query;
@@ -523,20 +524,20 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testProperErrorMessagesForMisplacedWeightsAndFunctions() throws IOException {
-        String query = jsonBuilder().startObject().startObject("function_score")
+        String query = Strings.toString(jsonBuilder().startObject().startObject("function_score")
             .startArray("functions")
             .startObject().startObject("script_score").field("script", "3").endObject().endObject()
             .endArray()
             .field("weight", 2)
-            .endObject().endObject().string();
+            .endObject().endObject());
         expectParsingException(query, "[you can either define [functions] array or a single function, not both. already "
                 + "found [functions] array, now encountering [weight].]");
-        query = jsonBuilder().startObject().startObject("function_score")
+        query = Strings.toString(jsonBuilder().startObject().startObject("function_score")
             .field("weight", 2)
             .startArray("functions")
             .startObject().endObject()
             .endArray()
-            .endObject().endObject().string();
+            .endObject().endObject());
         expectParsingException(query, "[you can either define [functions] array or a single function, not both. already found "
                 + "[weight], now encountering [functions].]");
     }

@@ -20,10 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -171,6 +168,13 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public XContentType contentType() {
         return generator.contentType();
+    }
+
+    /**
+     * @return the output stream to which the built object is being written. Note that is dangerous to modify the stream.
+     */
+    public OutputStream getOutputStream() {
+        return bos;
     }
 
     public XContentBuilder prettyPrint() {
@@ -626,24 +630,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         return this;
     }
 
-    /**
-     * Writes the binary content of the given {@link BytesReference}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(String name, BytesReference value) throws IOException {
-        return field(name).value(value);
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesReference}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder value(BytesReference value) throws IOException {
-        return (value == null) ? nullValue() : binaryValue(value.toBytesRef());
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     // Text
     //////////////////////////////////
@@ -810,8 +796,6 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((Calendar) value);
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);
-        } else if (value instanceof BytesReference) {
-            value((BytesReference) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
         } else {
@@ -983,28 +967,6 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     /**
-     * Writes a raw field with the given bytes as the value
-     * @deprecated use {@link #rawField(String name, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public XContentBuilder rawField(String name, BytesReference value) throws IOException {
-        try (InputStream stream = value.streamInput()) {
-            generator.writeRawField(name, stream);
-        }
-        return this;
-    }
-
-    /**
-     * Writes a raw field with the given bytes as the value
-     */
-    public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
-        try (InputStream stream = value.streamInput()) {
-            generator.writeRawField(name, stream, contentType);
-        }
-        return this;
-    }
-
-    /**
      * Writes a value with the source coming directly from the bytes in the stream
      */
     public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
@@ -1033,22 +995,6 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public XContentGenerator generator() {
         return this.generator;
-    }
-
-    public BytesReference bytes() {
-        close();
-        if (bos instanceof ByteArrayOutputStream) {
-            return new BytesArray(((ByteArrayOutputStream) bos).toByteArray());
-        } else {
-            return ((BytesStream) bos).bytes();
-        }
-    }
-
-    /**
-     * Returns a string representation of the builder (only applicable for text based xcontent).
-     */
-    public String string() throws IOException {
-        return bytes().utf8ToString();
     }
 
     static void ensureNameNotNull(String name) {

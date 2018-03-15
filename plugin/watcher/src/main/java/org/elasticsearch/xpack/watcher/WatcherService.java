@@ -319,9 +319,4 @@ public class WatcherService extends AbstractComponent {
     public WatcherState state() {
         return state.get();
     }
-
-    public Map<String, Object> usageStats() {
-        Map<String, Object> innerMap = executionService.usageStats();
-        return innerMap;
-    }
 }

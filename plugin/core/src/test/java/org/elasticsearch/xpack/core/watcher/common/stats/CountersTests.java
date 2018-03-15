@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.common.stats;
+package org.elasticsearch.xpack.core.watcher.common.stats;
 
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +21,7 @@ public class CountersTests extends ESTestCase {
         counters.inc("foo.bar");
         counters.inc("foo.baz");
         counters.inc("foo.baz");
-        Map<String, Object> map = counters.toMap();
+        Map<String, Object> map = counters.toNestedMap();
         assertThat(map, hasEntry("f", 200L));
         assertThat(map, hasKey("foo"));
         assertThat(map.get("foo"), instanceOf(Map.class));

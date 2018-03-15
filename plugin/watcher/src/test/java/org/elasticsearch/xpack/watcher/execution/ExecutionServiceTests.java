@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionPhase;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -84,7 +84,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -249,11 +248,11 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().executionTime(), is(notNullValue()));
 
         // test stats
-        XContentSource source = new XContentSource(jsonBuilder().map(executionService.usageStats()));
-        assertThat(source.getValue("execution.actions._all.total_time_in_ms"), is(notNullValue()));
-        assertThat(source.getValue("execution.actions._all.total"), is(1));
-        assertThat(source.getValue("execution.actions.MY_AWESOME_TYPE.total_time_in_ms"), is(notNullValue()));
-        assertThat(source.getValue("execution.actions.MY_AWESOME_TYPE.total"), is(1));
+        Counters counters = executionService.executionTimes();
+        assertThat(counters.get("execution.actions._all.total_time_in_ms"), is(notNullValue()));
+        assertThat(counters.get("execution.actions._all.total"), is(1L));
+        assertThat(counters.get("execution.actions.MY_AWESOME_TYPE.total_time_in_ms"), is(notNullValue()));
+        assertThat(counters.get("execution.actions.MY_AWESOME_TYPE.total"), is(1L));
     }
 
     public void testExecuteFailedInput() throws Exception {

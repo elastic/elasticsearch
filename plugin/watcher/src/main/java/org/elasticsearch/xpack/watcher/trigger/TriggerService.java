@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -29,6 +31,7 @@ public class TriggerService extends AbstractComponent {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
     private final Map<String, TriggerEngine> engines;
+    private final Map<String, TriggerWatchStats> perWatchStats = new HashMap<>();
 
     public TriggerService(Settings settings, Set<TriggerEngine> engines) {
         super(settings);
@@ -40,16 +43,18 @@ public class TriggerService extends AbstractComponent {
         this.engines = unmodifiableMap(builder);
     }
 
-    public synchronized void start(Collection<Watch> watches) throws Exception {
+    public synchronized void start(Collection<Watch> watches) {
         for (TriggerEngine engine : engines.values()) {
             engine.start(watches);
         }
+        watches.forEach(this::addToStats);
     }
 
     public synchronized void stop() {
         for (TriggerEngine engine : engines.values()) {
             engine.stop();
         }
+        perWatchStats.clear();
     }
 
     /**
@@ -60,11 +65,77 @@ public class TriggerService extends AbstractComponent {
     }
 
     /**
-     * Count the total number of active jobs across all trigger engines
-     * @return The total count of active jobs
+     * create statistics for a single watch, and store it in a local map
+     * allowing for easy deletion in case the watch gets removed from the trigger service
      */
-    public long count() {
-        return engines.values().stream().mapToInt(TriggerEngine::getJobCount).sum();
+    private void addToStats(Watch watch) {
+        TriggerWatchStats watchStats = TriggerWatchStats.create(watch);
+        perWatchStats.put(watch.id(), watchStats);
+    }
+
+    /**
+     * Returns some statistics about the watches loaded in the trigger service
+     * @return a set of counters containing statistics
+     */
+    public Counters stats() {
+        Counters counters = new Counters();
+        // for bwc reasons, active/total contain the same values
+        int watchCount = perWatchStats.size();
+        counters.inc("count.active", watchCount);
+        counters.inc("count.total", watchCount);
+        counters.inc("watch.trigger._all.active", watchCount);
+        counters.inc("watch.trigger._all.total", watchCount);
+        counters.inc("watch.input._all.total", watchCount);
+        counters.inc("watch.input._all.active", watchCount);
+        perWatchStats.values().forEach(stats -> {
+            if (stats.metadata) {
+                counters.inc("watch.metadata.active");
+                counters.inc("watch.metadata.total");
+            }
+            counters.inc("watch.trigger." + stats.triggerType + ".total");
+            counters.inc("watch.trigger." + stats.triggerType + ".active");
+            if (Strings.isNullOrEmpty(stats.scheduleType) == false) {
+                counters.inc("watch.trigger.schedule." + stats.scheduleType + ".total");
+                counters.inc("watch.trigger.schedule." + stats.scheduleType + ".active");
+                counters.inc("watch.trigger.schedule._all.total");
+                counters.inc("watch.trigger.schedule._all.active");
+            }
+            counters.inc("watch.input." + stats.inputType + ".active");
+            counters.inc("watch.input." + stats.inputType + ".total");
+
+            counters.inc("watch.condition." + stats.conditionType + ".active");
+            counters.inc("watch.condition." + stats.conditionType + ".total");
+            counters.inc("watch.condition._all.total");
+            counters.inc("watch.condition._all.active");
+
+            if (Strings.isNullOrEmpty(stats.transformType) == false) {
+                counters.inc("watch.transform." + stats.transformType + ".active");
+                counters.inc("watch.transform." + stats.transformType + ".total");
+                counters.inc("watch.transform._all.active");
+                counters.inc("watch.transform._all.total");
+            }
+
+            for (TriggerWatchStats.ActionStats action : stats.actions) {
+                counters.inc("watch.action." + action.actionType + ".active");
+                counters.inc("watch.action." + action.actionType + ".total");
+                counters.inc("watch.action._all.active");
+                counters.inc("watch.action._all.total");
+
+                if (Strings.isNullOrEmpty(action.conditionType) == false) {
+                    counters.inc("watch.action.condition." + action.conditionType + ".active");
+                    counters.inc("watch.action.condition." + action.conditionType + ".total");
+                    counters.inc("watch.action.condition._all.active");
+                    counters.inc("watch.action.condition._all.total");
+                }
+                if (Strings.isNullOrEmpty(action.transformType) == false) {
+                    counters.inc("watch.action.transform." + action.transformType + ".active");
+                    counters.inc("watch.action.transform." + action.transformType + ".total");
+                    counters.inc("watch.action.transform._all.active");
+                    counters.inc("watch.action.transform._all.total");
+                }
+            }
+        });
+        return counters;
     }
 
     /**
@@ -75,6 +146,7 @@ public class TriggerService extends AbstractComponent {
      */
     public void add(Watch watch) {
         engines.get(watch.trigger().type()).add(watch);
+        addToStats(watch);
     }
 
     /**
@@ -84,6 +156,7 @@ public class TriggerService extends AbstractComponent {
      * @return          {@code true} if the job existed and removed, {@code false} otherwise.
      */
     public boolean remove(String jobName) {
+        perWatchStats.remove(jobName);
         for (TriggerEngine engine : engines.values()) {
             if (engine.remove(jobName)) {
                 return true;
@@ -164,6 +237,10 @@ public class TriggerService extends AbstractComponent {
             throw new ElasticsearchParseException("Unknown trigger type [{}]", type);
         }
         return engine.parseTriggerEvent(this, watchId, context, parser);
+    }
+
+    public long count() {
+        return perWatchStats.size();
     }
 
     static class GroupedConsumer implements java.util.function.Consumer<Iterable<TriggerEvent>> {

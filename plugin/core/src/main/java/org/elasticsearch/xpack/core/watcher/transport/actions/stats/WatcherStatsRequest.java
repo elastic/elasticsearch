@@ -20,6 +20,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;
+    private boolean includeStats;
 
     public WatcherStatsRequest() {
     }
@@ -40,6 +41,14 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         this.includeQueuedWatches = includeQueuedWatches;
     }
 
+    public boolean includeStats() {
+        return includeStats;
+    }
+
+    public void includeStats(boolean includeStats) {
+        this.includeStats = includeStats;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -50,6 +59,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         super.readFrom(in);
         includeCurrentWatches = in.readBoolean();
         includeQueuedWatches = in.readBoolean();
+        includeStats = in.readBoolean();
     }
 
     @Override
@@ -57,6 +67,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         super.writeTo(out);
         out.writeBoolean(includeCurrentWatches);
         out.writeBoolean(includeQueuedWatches);
+        out.writeBoolean(includeStats);
     }
 
     @Override
@@ -68,6 +79,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
         private boolean includeCurrentWatches;
         private boolean includeQueuedWatches;
+        private boolean includeStats;
 
         public Node() {}
 
@@ -75,6 +87,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             super(nodeId);
             includeCurrentWatches = request.includeCurrentWatches();
             includeQueuedWatches = request.includeQueuedWatches();
+            includeStats = request.includeStats();
         }
 
         public boolean includeCurrentWatches() {
@@ -85,11 +98,16 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             return includeQueuedWatches;
         }
 
+        public boolean includeStats() {
+            return includeStats;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             includeCurrentWatches = in.readBoolean();
             includeQueuedWatches = in.readBoolean();
+            includeStats = in.readBoolean();
         }
 
         @Override
@@ -97,6 +115,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             super.writeTo(out);
             out.writeBoolean(includeCurrentWatches);
             out.writeBoolean(includeQueuedWatches);
+            out.writeBoolean(includeStats);
         }
     }
 }

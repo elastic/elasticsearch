@@ -55,4 +55,5 @@ public interface TriggerEngine<T extends Trigger, E extends TriggerEvent> {
     T parseTrigger(String context, XContentParser parser) throws IOException;
 
     E parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser) throws IOException;
+
 }

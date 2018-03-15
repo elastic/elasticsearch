@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -524,7 +524,7 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    public Map<String, Object> usageStats() {
+    public Counters executionTimes() {
         Counters counters = new Counters();
         counters.inc("execution.actions._all.total", totalExecutionsTime.count());
         counters.inc("execution.actions._all.total_time_in_ms", totalExecutionsTime.sum());
@@ -534,7 +534,7 @@ public class ExecutionService extends AbstractComponent {
             counters.inc("execution.actions." + entry.getKey() + ".total_time_in_ms", entry.getValue().sum());
         }
 
-        return counters.toMap();
+        return counters;
     }
 
     /**

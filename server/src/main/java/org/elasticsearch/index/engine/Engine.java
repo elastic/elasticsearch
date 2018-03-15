@@ -920,7 +920,7 @@ public abstract class Engine implements Closeable {
 
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Exception e) {
-        if (Lucene.isCorruptionException(e)) {
+        if (Lucene.isCorruptionException(e) || e instanceof TranslogCorruptedException) {
             failEngine("corrupt file (source: [" + source + "])", e);
             return true;
         }

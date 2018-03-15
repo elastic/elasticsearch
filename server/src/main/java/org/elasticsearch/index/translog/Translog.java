@@ -66,6 +66,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -125,6 +126,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private final LongSupplier globalCheckpointSupplier;
     private final String translogUUID;
     private final TranslogDeletionPolicy deletionPolicy;
+    private final Consumer<TranslogCorruptedException> onCorrupted;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -134,15 +136,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
      *
      * @param config                   the configuration of this translog
-     * @param translogUUID     the translog uuid to open, null for a new translog
+     * @param translogUUID             the translog uuid to open, null for a new translog
      * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
      *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
+     * @param onCorrupted              a callback to be invoked whenever this translog is detected as corrupted.
      */
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
-        final LongSupplier globalCheckpointSupplier) throws IOException {
+        final LongSupplier globalCheckpointSupplier, final Consumer<TranslogCorruptedException> onCorrupted) throws IOException {
         super(config.getShardId(), config.getIndexSettings());
+        this.onCorrupted = onCorrupted;
         this.config = config;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.deletionPolicy = deletionPolicy;
@@ -617,7 +621,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
         boolean success = false;
         try {
-            Snapshot result = new MultiSnapshot(snapshots, onClose);
+            Snapshot result = new MultiSnapshot(snapshots, onClose, onCorrupted);
             success = true;
             return result;
         } finally {

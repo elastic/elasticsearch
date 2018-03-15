@@ -193,7 +193,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-            Store.removeCorruptionMarker(dir);
+            Store.removeTranslogCorruptionMarker(dir);
             dir.syncMetaData();
         } catch (LockObtainFailedException lofe) {
             throw new ElasticsearchException("Failed to lock shard's directory at [" + idxLocation + "], is Elasticsearch still running?");

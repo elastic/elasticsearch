@@ -80,6 +80,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -101,6 +102,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -581,16 +583,31 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void removeCorruptionMarker() throws IOException {
         ensureOpen();
-        removeCorruptionMarker(directory);
+        removeCorruptionMarker(directory, cause -> true);
     }
 
-    public static void removeCorruptionMarker(Directory directory) throws IOException {
+    /**
+     * Removes corruption markers whose root cause is {@link TranslogCorruptedException}
+     */
+    public static void removeTranslogCorruptionMarker(Directory directory) throws IOException {
+        removeCorruptionMarker(directory,
+            cause -> {
+                final Throwable translogCorruptedEx = ExceptionsHelper.unwrap(cause, TranslogCorruptedException.class);
+                return translogCorruptedEx != null;
+            }
+        );
+    }
+
+    private static void removeCorruptionMarker(Directory directory, Predicate<Exception> removePredicate) throws IOException {
         IOException firstException = null;
         final String[] files = directory.listAll();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
                 try {
-                    directory.deleteFile(file);
+                    final CorruptIndexException cause = readCorruptionCause(null, directory, file);
+                    if (removePredicate.test(cause)) {
+                        directory.deleteFile(file);
+                    }
                 } catch (IOException ex) {
                     if (firstException == null) {
                         firstException = ex;
@@ -610,40 +627,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         failIfCorrupted(directory, shardId);
     }
 
+    private static CorruptIndexException readCorruptionCause(ShardId shardId, Directory directory, String file) throws IOException {
+        assert file.startsWith(CORRUPTED) : "Not a corruption marker; file [" + file + "]";
+        final CorruptIndexException cause;
+        try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
+            int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
+
+            if (version == VERSION_WRITE_THROWABLE) {
+                final int size = input.readVInt();
+                final byte[] buffer = new byte[size];
+                input.readBytes(buffer, 0, buffer.length);
+                StreamInput in = StreamInput.wrap(buffer);
+                Exception t = in.readException();
+                if (t instanceof CorruptIndexException) {
+                    cause = (CorruptIndexException) t;
+                } else {
+                    cause = new CorruptIndexException(t.getMessage(), "preexisting_corruption", t);
+                }
+            } else {
+                assert version == VERSION_START || version == VERSION_STACK_TRACE;
+                String msg = input.readString();
+                StringBuilder builder = new StringBuilder(shardId != null ? shardId.toString() : "");
+                builder.append(" Preexisting corrupted index [");
+                builder.append(file).append("] caused by: ");
+                builder.append(msg);
+                if (version == VERSION_STACK_TRACE) {
+                    builder.append(System.lineSeparator());
+                    builder.append(input.readString());
+                }
+                cause = new CorruptIndexException(builder.toString(), "preexisting_corruption");
+            }
+            CodecUtil.checkFooter(input);
+            return cause;
+        }
+    }
+
     private static void failIfCorrupted(Directory directory, ShardId shardId) throws IOException {
         final String[] files = directory.listAll();
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
-                try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
-                    int version = CodecUtil.checkHeader(input, CODEC, VERSION_START, VERSION);
-
-                    if (version == VERSION_WRITE_THROWABLE) {
-                        final int size = input.readVInt();
-                        final byte[] buffer = new byte[size];
-                        input.readBytes(buffer, 0, buffer.length);
-                        StreamInput in = StreamInput.wrap(buffer);
-                        Exception t = in.readException();
-                        if (t instanceof CorruptIndexException) {
-                            ex.add((CorruptIndexException) t);
-                        } else {
-                            ex.add(new CorruptIndexException(t.getMessage(), "preexisting_corruption", t));
-                        }
-                    } else {
-                        assert version == VERSION_START || version == VERSION_STACK_TRACE;
-                        String msg = input.readString();
-                        StringBuilder builder = new StringBuilder(shardId.toString());
-                        builder.append(" Preexisting corrupted index [");
-                        builder.append(file).append("] caused by: ");
-                        builder.append(msg);
-                        if (version == VERSION_STACK_TRACE) {
-                            builder.append(System.lineSeparator());
-                            builder.append(input.readString());
-                        }
-                        ex.add(new CorruptIndexException(builder.toString(), "preexisting_corruption"));
-                    }
-                    CodecUtil.checkFooter(input);
-                }
+                ex.add(readCorruptionCause(shardId, directory, file));
             }
         }
         if (ex.isEmpty() == false) {

@@ -50,9 +50,8 @@ exactly, potentially prepending zeros. For instance a date like `5/11/1` would
 be considered invalid and would need to be rewritten to `2005/11/01` to be
 accepted by the date parser.
 
-To use them, you typically need to prepend `strict_` to the name of the date
-format, for instance `strict_date_optional_time` instead of
-`date_optional_time`.
+To use them, you need to prepend `strict_` to the name of the date format, for
+instance `strict_date_optional_time` instead of `date_optional_time`.
 
 These strict date formats are especially useful when
 <<date-detection,date fields are dynamically mapped>> in order to make sure to

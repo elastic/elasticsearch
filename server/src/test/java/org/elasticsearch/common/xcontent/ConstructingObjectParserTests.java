@@ -23,6 +23,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -78,7 +79,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         expected.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder = shuffleXContent(builder);
-        BytesReference bytes = builder.bytes();
+        BytesReference bytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             HasCtorArguments parsed = randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null);
             assertEquals(expected.animal, parsed.animal);
@@ -91,7 +92,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
             assertEquals(expected.d, parsed.d);
         } catch (Exception e) {
             // It is convenient to decorate the error message with the json
-            throw new Exception("Error parsing: [" + builder.string() + "]", e);
+            throw new Exception("Error parsing: [" + Strings.toString(builder) + "]", e);
         }
     }
 
@@ -428,7 +429,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": {\n"
                 + "  \"a\": {}"
                 + "},\"named_in_constructor\": {\n"
@@ -443,7 +444,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrder() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "],\"named_in_constructor\": [\n"
@@ -458,7 +459,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}, \"b\": {}}"
                 + "],\"named_in_constructor\": [\n"
@@ -472,7 +473,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArrayConstructorArg() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "],\"named_in_constructor\": [\n"
@@ -486,7 +487,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {}"
                 + "],\"named_in_constructor\": [\n"
@@ -500,7 +501,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectNoFieldsInArrayConstructorArg() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "],\"named_in_constructor\": [\n"
@@ -514,7 +515,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  \"junk\""
                 + "],\"named_in_constructor\": [\n"
@@ -528,7 +529,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArrayConstructorArg() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, 
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "],\"named_in_constructor\": [\n"

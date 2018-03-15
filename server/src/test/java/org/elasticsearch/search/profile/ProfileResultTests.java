@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -135,7 +136,7 @@ public class ProfileResultTests extends ESTestCase {
                 "      }\n" +
                 "    }\n" +
                 "  ]\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -168,7 +169,7 @@ public class ProfileResultTests extends ESTestCase {
                 "      }\n" +
                 "    }\n" +
                 "  ]\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
 
         result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 12345678L), Collections.emptyList());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
@@ -181,7 +182,7 @@ public class ProfileResultTests extends ESTestCase {
                 "  \"breakdown\" : {\n" +
                 "    \"key1\" : 12345678\n" +
                 "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
 
         result = new ProfileResult("profileName", "some description", Collections.singletonMap("key1", 1234567890L),
                 Collections.emptyList());
@@ -195,6 +196,6 @@ public class ProfileResultTests extends ESTestCase {
                 "  \"breakdown\" : {\n" +
                 "    \"key1\" : 1234567890\n" +
                 "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
     }
 }

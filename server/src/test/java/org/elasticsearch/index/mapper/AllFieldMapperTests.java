@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -32,7 +33,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", Settings.builder()
                 .put("index.analysis.analyzer.default_search.type", "custom")
                 .put("index.analysis.analyzer.default_search.tokenizer", "standard").build());
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, indexService.mapperService().documentMapper("_doc").mapping().toString());
     }

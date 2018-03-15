@@ -338,7 +338,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string(), builder.contentType());
+            settings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

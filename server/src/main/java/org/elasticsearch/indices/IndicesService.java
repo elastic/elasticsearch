@@ -405,6 +405,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexService indexService =
                 createIndexService(
                         "create index",
+                        true,
                         indexMetaData,
                         indicesQueryCache,
                         indicesFieldDataCache,
@@ -427,6 +428,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * This creates a new IndexService without registering it
      */
     private synchronized IndexService createIndexService(final String reason,
+                                                         final boolean ignoreArchivedSettings,
                                                          IndexMetaData indexMetaData,
                                                          IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
@@ -434,12 +436,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
         // we ignore private settings since they are not registered settings
-        if (reason.equals("metadata verification")) {
-            // don't allow archived settings during metadata verification
-            indexScopedSettings.validate(indexMetaData.getSettings(), true, true, false);
-        } else {
-            indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
-        }
+        indexScopedSettings.validate(indexMetaData.getSettings(), true, true, ignoreArchivedSettings);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",
             indexMetaData.getIndex(),
             idxSettings.getNumberOfShards(),
@@ -483,14 +480,14 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
     }
 
-
     /**
      * This method verifies that the given {@code metaData} holds sane values to create an {@link IndexService}.
      * This method tries to update the meta data of the created {@link IndexService} if the given {@code metaDataUpdate} is different from the given {@code metaData}.
      * This method will throw an exception if the creation or the update fails.
      * The created {@link IndexService} will not be registered and will be closed immediately.
      */
-    public synchronized void verifyIndexMetadata(IndexMetaData metaData, IndexMetaData metaDataUpdate, String reason) throws IOException {
+    public synchronized void verifyIndexMetadata(IndexMetaData metaData, IndexMetaData metaDataUpdate, boolean ignoreArchivedSettings)
+            throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
@@ -498,9 +495,9 @@ public class IndicesService extends AbstractLifecycleComponent
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
-            final IndexService service =
-                createIndexService(reason, metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
-            closeables.add(() -> service.close(reason, false));
+            final IndexService service = createIndexService("metadata verification", ignoreArchivedSettings, metaData,
+                indicesQueryCache, indicesFieldDataCache, emptyList());
+            closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {
                 service.updateMetaData(metaDataUpdate);

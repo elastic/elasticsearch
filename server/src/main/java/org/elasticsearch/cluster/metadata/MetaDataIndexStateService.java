@@ -193,9 +193,10 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     // We need to check that this index can be upgraded to the current version
                     indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData, minIndexCompatibilityVersion);
                     try {
-                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData, "metadata verification");
+                        indicesService.verifyIndexMetadata(indexMetaData, indexMetaData, false);
                     } catch (Exception e) {
-                        throw new IndexOpenException(indexMetaData.getIndex(), "Failed to open index! Failed to verify index " + indexMetaData.getIndex() + e.getMessage());
+                        throw new IndexOpenException(indexMetaData.getIndex(),
+                            "Failed to open index! Failed to verify index " + indexMetaData.getIndex() + e.getMessage());
                     }
 
                     mdBuilder.put(indexMetaData, true);

@@ -276,18 +276,18 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     for (Index index : openIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
-                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData, "metadata verification");
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData, false);
                     }
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
                         // Verifies that the current index settings can be updated with the updated dynamic settings.
                         // Ignore archived settings during verification, as closed indexes can have archived settings
-                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData, "closed index metadata verification");
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData, true);
                         // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
                         // This step is mandatory since we allow to update non-dynamic settings on closed indices.
                         // Ignore archived settings during verification, , as closed indexes can have archived settings
-                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData, "closed index metadata verification");
+                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData, true);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);

@@ -25,6 +25,25 @@ run it using Gradle:
 ./gradlew run
 -------------------------------------
 
+You can also attach a debugger to the running instance. The following
+command will print the port the debugger should listen to
+and wait for a connection:
+
+-------------------------------------
+./gradlew run --debug-jvm
+...
+[elasticsearch] Listening for transport dt_socket at address: 8000
+...
+-------------------------------------
+
+Addtionally, you can specify a custom data directory to use. This
+allows running repeated tests after making changes to code
+without having to reindex data on every run:
+
+-------------------------------------
+./gradlew run --data-dir=/path/to/data/dir
+-------------------------------------
+
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,

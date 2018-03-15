@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.test.RunTask
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 import org.gradle.api.tasks.wrapper.Wrapper
@@ -402,24 +403,11 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
-// we need to add the same --debug-jvm option as
-// the real RunTask has, so we can pass it through
-class Run extends DefaultTask {
-  boolean debug = false
-
-  @org.gradle.api.internal.tasks.options.Option(
-        option = "debug-jvm",
-        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-  )
-  public void setDebug(boolean enabled) {
-    project.project(':distribution').run.clusterConfig.debug = enabled
+gradle.projectsEvaluated {
+  StartParameter start = gradle.startParameter
+  if (start.currentDir == project.rootDir && start.taskNames.contains('run')) {
+    start.taskNames = start.taskNames.collect { taskName -> taskName == 'run' ? ':distribution:run' : taskName }
   }
-}
-task run(type: Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
 }
 
 task wrapper(type: Wrapper)

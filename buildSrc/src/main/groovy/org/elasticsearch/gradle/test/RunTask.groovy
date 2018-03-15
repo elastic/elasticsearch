@@ -30,6 +30,15 @@ public class RunTask extends DefaultTask {
         clusterConfig.debug = enabled;
     }
 
+    @Option(
+            option = "data-dir",
+            description = "Set the data directory used with elasticsearch"
+    )
+    public void setDataDir(String dataDir) {
+        println "Setting custom datadir"
+        clusterConfig.dataDir = { nodeNum -> dataDir }
+    }
+
     /** Configure the cluster that will be run. */
     @Override
     public Task configure(Closure closure) {

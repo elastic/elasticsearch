@@ -282,7 +282,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
-            protected void failEngine(IOException cause) {
+            protected void failEngine(Exception cause) {
                 assertFalse(failedEngine.get());
                 failedEngine.set(true);
             }
@@ -343,7 +343,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request,
             recoverySettings.getChunkSize().bytesAsInt(), Settings.EMPTY) {
             @Override
-            protected void failEngine(IOException cause) {
+            protected void failEngine(Exception cause) {
                 assertFalse(failedEngine.get());
                 failedEngine.set(true);
             }

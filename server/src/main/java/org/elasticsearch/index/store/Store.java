@@ -47,6 +47,7 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
@@ -102,7 +103,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -583,29 +583,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void removeCorruptionMarker() throws IOException {
         ensureOpen();
-        removeCorruptionMarker(directory, cause -> true);
+        removeCorruptionMarker(directory, marker -> true);
     }
 
     /**
      * Removes corruption markers whose root cause is {@link TranslogCorruptedException}
      */
     public static void removeTranslogCorruptionMarker(Directory directory) throws IOException {
-        removeCorruptionMarker(directory,
-            cause -> {
-                final Throwable translogCorruptedEx = ExceptionsHelper.unwrap(cause, TranslogCorruptedException.class);
-                return translogCorruptedEx != null;
-            }
-        );
+        final boolean removed = removeCorruptionMarker(directory, marker -> {
+            final CorruptIndexException cause = readCorruptionCause(null, directory, marker);
+            return Translog.isCorruptionException(cause);
+        });
+        if (removed) {
+            directory.syncMetaData();
+        }
     }
 
-    private static void removeCorruptionMarker(Directory directory, Predicate<Exception> removePredicate) throws IOException {
+    private static boolean removeCorruptionMarker(Directory directory,
+                                                  CheckedFunction<String, Boolean, IOException> removePredicate) throws IOException {
         IOException firstException = null;
+        boolean removed = false;
         final String[] files = directory.listAll();
         for (String file : files) {
             if (file.startsWith(CORRUPTED)) {
                 try {
-                    final CorruptIndexException cause = readCorruptionCause(null, directory, file);
-                    if (removePredicate.test(cause)) {
+                    if (removePredicate.apply(file)) {
+                        removed = true;
                         directory.deleteFile(file);
                     }
                 } catch (IOException ex) {
@@ -620,6 +623,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (firstException != null) {
             throw firstException;
         }
+        return removed;
     }
 
     public void failIfCorrupted() throws IOException {

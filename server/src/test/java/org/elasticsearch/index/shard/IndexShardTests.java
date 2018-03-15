@@ -1744,7 +1744,7 @@ public class IndexShardTests extends IndexShardTestCase {
             newShard.recoverFromStore();
             fail("Recover from store with corrupted translog");
         } catch (Exception ex) {
-            assertThat(ExceptionsHelper.unwrap(ex, TranslogCorruptedException.class), instanceOf(TranslogCorruptedException.class));
+            assertThat(ExceptionsHelper.unwrap(ex, TranslogCorruptedException.class), notNullValue());
             assertThat(store.isMarkedCorrupted(), equalTo(true));
         }finally {
             store.decRef();

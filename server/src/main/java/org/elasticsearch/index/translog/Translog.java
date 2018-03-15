@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -1681,6 +1682,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     ChannelFactory getChannelFactory() {
         return FileChannel::open;
+    }
+
+    /**
+     * Checks if the given exception is caused by {@link TranslogCorruptedException}
+     */
+    public static boolean isCorruptionException(Exception t) {
+        return ExceptionsHelper.unwrap(t, TranslogCorruptedException.class) != null;
     }
 
     /**

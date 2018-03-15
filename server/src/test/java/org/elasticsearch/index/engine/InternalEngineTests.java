@@ -2614,13 +2614,12 @@ public class InternalEngineTests extends EngineTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
                 new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
-        try {
-            InternalEngine internalEngine = new InternalEngine(brokenConfig);
-            fail("translog belongs to a different engine");
-        } catch (EngineCreationFailureException | TranslogCorruptedException ex) {
-        }
 
-        engine = createEngine(store, primaryTranslogDir); // and recover again!
+        expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
+        assertThat(store.isMarkedCorrupted(), equalTo(true));
+        // Remove the corruption marker caused by translog then recover again!
+        Store.removeTranslogCorruptionMarker(store.directory());
+        engine = createEngine(store, primaryTranslogDir);
         assertVisibleCount(engine, numDocs, false);
     }
 

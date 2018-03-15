@@ -118,6 +118,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -2706,6 +2707,44 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testOnCorruptedCallback() throws Exception {
+        final TranslogConfig config = translog.getConfig();
+        final String translogUUID = translog.getTranslogUUID();
+        final TranslogDeletionPolicy deletionPolicy = translog.getDeletionPolicy();
+        final List<TranslogCorruptedException> corruptedExceptions = new ArrayList<>();
+        try (Translog translog =
+                 new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, corruptedExceptions::add)) {
+            int numOps = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < numOps; i++) {
+                translog.add(new Translog.Index("doc", randomAlphaOfLength(10), i, new byte[]{1}));
+                if (randomBoolean()) {
+                    translog.rollGeneration();
+                }
+            }
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                assertThat(drainAll(snapshot), hasSize(numOps));
+            }
+            assertThat(corruptedExceptions, empty());
+
+            corruptTranslogs(translog.location());
+            expectThrows(TranslogCorruptedException.class, () -> {
+                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                    drainAll(snapshot);
+                }
+            });
+            assertThat(corruptedExceptions, hasSize(1));
+        }
+    }
+
+    private static List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
+        final List<Translog.Operation> ops = new ArrayList<>();
+        Translog.Operation op;
+        while ((op = snapshot.next()) != null) {
+            ops.add(op);
+        }
+        return ops;
+    }
+
     static class SortedSnapshot implements Translog.Snapshot {
         private final Translog.Snapshot snapshot;
         private List<Translog.Operation> operations = null;
@@ -2722,11 +2761,7 @@ public class TranslogTests extends ESTestCase {
         @Override
         public Translog.Operation next() throws IOException {
             if (operations == null) {
-                operations = new ArrayList<>();
-                Translog.Operation op;
-                while ((op = snapshot.next()) != null) {
-                    operations.add(op);
-                }
+                operations = drainAll(snapshot);
                 operations.sort(Comparator.comparing(Translog.Operation::seqNo));
             }
             if (operations.isEmpty()) {

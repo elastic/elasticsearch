@@ -190,10 +190,10 @@ public class InternalEngine extends Engine {
                 historyUUID = loadOrGenerateHistoryUUID(writer);
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
-            } catch (TranslogCorruptedException e) {
-                failOnCorruptedTranslog(e);
-                throw new EngineCreationFailureException(shardId, "failed to create engine", e);
-            } catch (IOException e) {
+            } catch (IOException | TranslogCorruptedException e) {
+                if (Translog.isCorruptionException(e)) {
+                    failOnCorruptedTranslog((TranslogCorruptedException) e);
+                }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
                 // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that

@@ -78,6 +78,7 @@ final class MultiSnapshot implements Translog.Snapshot {
         }
         return null;
     }
+    
     @Override
     public Translog.Operation next() throws IOException {
         try {

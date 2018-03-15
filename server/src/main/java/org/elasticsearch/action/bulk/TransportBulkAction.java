@@ -147,8 +147,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final Set<String> indices = bulkRequest.requests.stream()
                     // delete requests should not attempt to create the index (if the index does not
                     // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                        || request.versionType() == VersionType.EXTERNAL
+                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE 
+                        || request.versionType() == VersionType.EXTERNAL 
                         || request.versionType() == VersionType.EXTERNAL_GTE)
                 .map(DocWriteRequest::index)
                 .collect(Collectors.toSet());

@@ -204,7 +204,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
-            if (logger.isTraceEnabled() && e != null) {
+            if (e != null) {
                 logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
             }
             perform(e);

@@ -1154,7 +1154,7 @@ public class TranslogTests extends ESTestCase {
         final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.CHECKPOINT_FILE_NAME));
         try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(translog.currentFileGeneration())), checkpoint)) {
             assertEquals(lastSynced + 1, reader.totalOperations());
-            TranslogSnapshot snapshot = reader.newSnapshot();
+            TranslogSnapshot snapshot = reader.newSnapshot(ex -> {});
 
             for (int op = 0; op < translogOperations; op++) {
                 if (op <= lastSynced) {
@@ -2572,7 +2572,7 @@ public class TranslogTests extends ESTestCase {
                     int opCount = 0;
                     final Checkpoint checkpoint = Checkpoint.read(translog.location().resolve(Translog.getCommitCheckpointFileName(g)));
                     try (TranslogReader reader = translog.openReader(translog.location().resolve(Translog.getFilename(g)), checkpoint)) {
-                        TranslogSnapshot snapshot = reader.newSnapshot();
+                        TranslogSnapshot snapshot = reader.newSnapshot(ex -> {});
                         Translog.Operation operation;
                         while ((operation = snapshot.next()) != null) {
                             generationSeenSeqNos.add(Tuple.tuple(operation.seqNo(), operation.primaryTerm()));

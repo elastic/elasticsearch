@@ -44,6 +44,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
@@ -309,7 +310,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
 
     @Override
-    public TranslogSnapshot newSnapshot() {
+    public TranslogSnapshot newSnapshot(Consumer<TranslogCorruptedException> onCorrupted) {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         synchronized (syncLock) {
@@ -320,7 +321,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 } catch (IOException e) {
                     throw new TranslogException(shardId, "exception while syncing before creating a snapshot", e);
                 }
-                return super.newSnapshot();
+                return super.newSnapshot(onCorrupted);
             }
         }
     }

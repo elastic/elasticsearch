@@ -26,7 +26,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.function.Consumer;
 
 /**
  * A snapshot composed out of multiple snapshots
@@ -34,7 +33,6 @@ import java.util.function.Consumer;
 final class MultiSnapshot implements Translog.Snapshot {
 
     private final TranslogSnapshot[] translogs;
-    private final Consumer<TranslogCorruptedException> onCorrupted;
     private final int totalOperations;
     private int overriddenOperations;
     private final Closeable onClose;
@@ -44,9 +42,8 @@ final class MultiSnapshot implements Translog.Snapshot {
     /**
      * Creates a new point in time snapshot of the given snapshots. Those snapshots are always iterated in-order.
      */
-    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose, Consumer<TranslogCorruptedException> onCorrupted) {
+    MultiSnapshot(TranslogSnapshot[] translogs, Closeable onClose) {
         this.translogs = translogs;
-        this.onCorrupted = onCorrupted;
         this.totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
         this.overriddenOperations = 0;
         this.onClose = onClose;
@@ -64,7 +61,8 @@ final class MultiSnapshot implements Translog.Snapshot {
         return overriddenOperations;
     }
 
-    private Translog.Operation readNext() throws IOException {
+    @Override
+    public Translog.Operation next() throws IOException {
         for (; index >= 0; index--) {
             final TranslogSnapshot current = translogs[index];
             Translog.Operation op;
@@ -77,16 +75,6 @@ final class MultiSnapshot implements Translog.Snapshot {
             }
         }
         return null;
-    }
-
-    @Override
-    public Translog.Operation next() throws IOException {
-        try {
-            return readNext();
-        } catch (TranslogCorruptedException ex) {
-            onCorrupted.accept(ex);
-            throw ex;
-        }
     }
 
     @Override

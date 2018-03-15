@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /**
  * A base class for all classes that allows reading ops from translog files
@@ -77,8 +78,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return size;
     }
 
-    public TranslogSnapshot newSnapshot() {
-        return new TranslogSnapshot(this, sizeInBytes());
+    public TranslogSnapshot newSnapshot(Consumer<TranslogCorruptedException> onCorrupted) {
+        return new TranslogSnapshot(this, onCorrupted, sizeInBytes());
     }
 
     /**

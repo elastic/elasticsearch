@@ -597,7 +597,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             TranslogSnapshot[] snapshots = Stream.concat(readers.stream(), Stream.of(current))
                 .filter(reader -> reader.getGeneration() >= minGeneration)
-                .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
+                .map(r -> r.newSnapshot(onCorrupted)).toArray(TranslogSnapshot[]::new);
             return newMultiSnapshot(snapshots);
         }
     }
@@ -605,7 +605,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(BaseTranslogReader::newSnapshot)
+            TranslogSnapshot[] snapshots = readersAboveMinSeqNo(minSeqNo).map(r -> r.newSnapshot(onCorrupted))
                 .toArray(TranslogSnapshot[]::new);
             return newMultiSnapshot(snapshots);
         }
@@ -622,7 +622,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
         boolean success = false;
         try {
-            Snapshot result = new MultiSnapshot(snapshots, onClose, onCorrupted);
+            Snapshot result = new MultiSnapshot(snapshots, onClose);
             success = true;
             return result;
         } finally {

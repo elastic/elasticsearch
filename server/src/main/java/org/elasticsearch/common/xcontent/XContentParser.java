@@ -229,7 +229,6 @@ public interface XContentParser extends Closeable {
      *
      * <ul>
      *     <li>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</li>
-     *     <li>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</li>
      *     <li>{@link XContentBuilder#field(String, byte[], int, int)}}</li>
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>

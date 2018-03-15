@@ -1,5 +1,6 @@
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 
 /*
@@ -25,7 +26,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,7 +36,7 @@ public class NullValueTests extends ESSingleNodeTestCase {
         String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte"};
 
         for (String type : typesToTest) {
-            String mapping = XContentFactory.jsonBuilder()
+            String mapping = Strings.toString(XContentFactory.jsonBuilder()
                     .startObject()
                         .startObject("type")
                             .startObject("properties")
@@ -46,7 +46,7 @@ public class NullValueTests extends ESSingleNodeTestCase {
                                 .endObject()
                             .endObject()
                         .endObject()
-                    .endObject().string();
+                    .endObject());
 
             try {
                 indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));

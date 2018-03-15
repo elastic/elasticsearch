@@ -1,0 +1,13 @@
+[[java-rest-high-ping]]
+=== Ping API
+
+[[java-rest-high-ping-request]]
+==== Execution
+
+The `ping()` method checks if the cluster is up and available to
+process requests and returns a boolean:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[ping-execute]
+--------------------------------------------------

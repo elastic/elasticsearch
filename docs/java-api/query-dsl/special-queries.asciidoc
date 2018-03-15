@@ -18,9 +18,14 @@ This query allows a script to act as a filter.  Also see the
 
 This query finds percolator queries based on documents.
 
+<<java-query-dsl-wrapper-query,`wrapper` query>>::
+
+A query that accepts other queries as json or yaml string.
+
 include::mlt-query.asciidoc[]
 
 include::script-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
 
+include::wrapper-query.asciidoc[]

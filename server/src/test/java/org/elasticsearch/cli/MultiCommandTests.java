@@ -29,37 +29,49 @@ public class MultiCommandTests extends CommandTestCase {
 
     static class DummyMultiCommand extends MultiCommand {
 
-        AtomicBoolean closed = new AtomicBoolean();
+        final AtomicBoolean closed = new AtomicBoolean();
+
         DummyMultiCommand() {
-            super("A dummy multi command", () -> {});
+            super("A dummy multi command", () -> {
+            });
         }
+
         @Override
         public void close() throws IOException {
             super.close();
-            this.closed.compareAndSet(false, true);
+            if (!this.closed.compareAndSet(false, true)) {
+                throw new IOException("DummyMultiCommand closed");
+            }
         }
     }
 
     static class DummySubCommand extends Command {
-        AtomicBoolean throwsExceptionOnClose = new AtomicBoolean();
-        AtomicBoolean closed = new AtomicBoolean();
+        final boolean throwsExceptionOnClose;
+        final AtomicBoolean closed = new AtomicBoolean();
+
         DummySubCommand() {
-            super("A dummy subcommand", () -> {});
+            this(false);
         }
+
         DummySubCommand(boolean throwsExceptionOnClose) {
-            super("A dummy subcommand", () -> {});
-            this.throwsExceptionOnClose.compareAndSet(false, throwsExceptionOnClose);
+            super("A dummy subcommand", () -> {
+            });
+            this.throwsExceptionOnClose = throwsExceptionOnClose;
         }
+
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             terminal.println("Arguments: " + options.nonOptionArguments().toString());
         }
+
         @Override
         public void close() throws IOException {
-            if (throwsExceptionOnClose.get()) {
+            if (throwsExceptionOnClose) {
                 throw new IOException();
             } else {
-                closed.compareAndSet(false, true);
+                if (!this.closed.compareAndSet(false, true)) {
+                    throw new IOException("DummySubCommand closed");
+                }
             }
         }
     }
@@ -133,20 +145,27 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("command1", subCommand1);
         multiCommand.subcommands.put("command2", subCommand2);
         multiCommand.close();
-        assertTrue("MultiCommand must have been closed when close method is invoked", multiCommand.closed.get());
-        assertTrue("SubCommand1 must have been closed when close method is invoked", subCommand1.closed.get());
-        assertTrue("SubCommand2 must have been closed when close method is invoked", subCommand2.closed.get());
+        assertTrue("MultiCommand was not closed when close method is invoked", multiCommand.closed.get());
+        assertTrue("SubCommand1 was not closed when close method is invoked", subCommand1.closed.get());
+        assertTrue("SubCommand2 was not closed when close method is invoked", subCommand2.closed.get());
     }
 
     public void testCloseWhenSubCommandCloseThrowsException() {
-        boolean throwExceptionWhenClosed = true;
-        DummySubCommand subCommand1 = new DummySubCommand(throwExceptionWhenClosed);
-        DummySubCommand subCommand2 = new DummySubCommand();
+        boolean command1Throws = randomBoolean();
+        boolean command2Throws = randomBoolean();
+        System.out.println("c1 "+command1Throws+", c2 "+command2Throws);
+        DummySubCommand subCommand1 = new DummySubCommand(command1Throws);
+        DummySubCommand subCommand2 = new DummySubCommand(command2Throws);
         multiCommand.subcommands.put("command1", subCommand1);
         multiCommand.subcommands.put("command2", subCommand2);
         // verify exception is thrown, as well as other non failed sub-commands closed
         // properly.
-        expectThrows(IOException.class, () -> multiCommand.close());
-        assertTrue("SubCommand2 must have been closed when close method is invoked", subCommand2.closed.get());
+        IOException ioe = expectThrows(IOException.class, () -> multiCommand.close());
+        if (command1Throws && command2Throws) {
+            assertEquals(1, ioe.getSuppressed().length);
+            assertTrue("Missing suppressed exceptions", ioe.getSuppressed()[0] instanceof IOException);
+        }
+        assertTrue("SubCommand1 was not closed when close method is invoked", command1Throws ^ subCommand1.closed.get());
+        assertTrue("SubCommand2 was not closed when close method is invoked", command2Throws ^ subCommand2.closed.get());
     }
 }

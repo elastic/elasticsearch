@@ -64,7 +64,7 @@ argument:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 NOTE: The `RestClient` uses Elasticsearch's HTTP service which is
@@ -91,7 +91,7 @@ must be replaced with:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 === Changing the application's code
@@ -351,5 +351,3 @@ body, but any other JSON parser could have been use instead.
 
 We love to hear from you! Please give us your feedback about your migration
 experience and how to improve the Java High Level Rest Client on https://discuss.elastic.co/[our forum].
-
-

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -354,7 +355,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private CompressedXContent createMapping(String fieldType) throws IOException {
-        final String mapping = XContentFactory.jsonBuilder()
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -363,7 +364,7 @@ public class IndexCreationTaskTests extends ESTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-            .endObject().string();
+            .endObject());
 
         return new CompressedXContent(mapping);
     }

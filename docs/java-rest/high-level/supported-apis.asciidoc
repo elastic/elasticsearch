@@ -17,6 +17,7 @@ Multi-document APIs::
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
+include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
@@ -37,8 +38,10 @@ include::search/scroll.asciidoc[]
 The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
+* <<java-rest-high-ping>>
 
 include::miscellaneous/main.asciidoc[]
+include::miscellaneous/ping.asciidoc[]
 
 == Indices APIs
 

@@ -95,6 +95,11 @@ verify_package_installation() {
     assert_file "$ESHOME/bin/elasticsearch-translog" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 2750
+    assert_file "$ESCONFIG/elasticsearch.keystore" f root elasticsearch 660
+
+    sudo -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" list | grep "keystore.seed"
+
+    assert_file "$ESCONFIG/.elasticsearch.keystore.initial_md5sum" f root elasticsearch 644
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660

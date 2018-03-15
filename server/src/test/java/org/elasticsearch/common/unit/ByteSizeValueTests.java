@@ -168,7 +168,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testCompareUnits() {
-        long number = randomNonNegativeLong() / ByteSizeUnit.PB.toBytes(1);
+        long number = randomLongBetween(1, Long.MAX_VALUE/ ByteSizeUnit.PB.toBytes(1));
         ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);

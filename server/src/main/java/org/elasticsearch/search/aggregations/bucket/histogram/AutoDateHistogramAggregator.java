@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,14 +56,14 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
-    private final Rounding[] roundings;
+    private final RoundingInfo[] roundingInfos;
     private int roundingIdx = 0;
 
     private LongHash bucketOrds;
     private int targetBuckets;
     private MergingBucketsDeferringCollector deferringCollector;
 
-    AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, Rounding[] roundings,
+    AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, RoundingInfo[] roundingInfos,
             @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
@@ -70,7 +71,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.targetBuckets = numBuckets;
         this.valuesSource = valuesSource;
         this.formatter = formatter;
-        this.roundings = roundings;
+        this.roundingInfos = roundingInfos;
 
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
 
@@ -109,7 +110,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     long previousRounded = Long.MIN_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         long value = values.nextValue();
-                        long rounded = roundings[roundingIdx].round(value);
+                        long rounded = roundingInfos[roundingIdx].rounding.round(value);
                         assert rounded >= previousRounded;
                         if (rounded == previousRounded) {
                             continue;
@@ -120,7 +121,8 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                             collectExistingBucket(sub, doc, bucketOrd);
                         } else {
                             collectBucket(sub, doc, bucketOrd);
-                            while (bucketOrds.size() > targetBuckets) {
+                            while (roundingIdx < roundingInfos.length - 1
+                                    && bucketOrds.size() > (targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval())) {
                                 increaseRounding();
                             }
                         }
@@ -133,7 +135,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 try (LongHash oldBucketOrds = bucketOrds) {
                     LongHash newBucketOrds = new LongHash(1, context.bigArrays());
                     long[] mergeMap = new long[(int) oldBucketOrds.size()];
-                    Rounding newRounding = roundings[++roundingIdx];
+                    Rounding newRounding = roundingInfos[++roundingIdx].rounding;
                     for (int i = 0; i < oldBucketOrds.size(); i++) {
                         long oldKey = oldBucketOrds.get(i);
                         long newKey = newRounding.round(oldKey);
@@ -176,7 +178,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
 
         // value source will be null for unmapped fields
-        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundings, roundingIdx,
+        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
 
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, emptyBucketInfo, formatter, pipelineAggregators(), metaData());
@@ -184,7 +186,7 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundings, roundingIdx,
+        InternalAutoDateHistogram.BucketInfo emptyBucketInfo = new InternalAutoDateHistogram.BucketInfo(roundingInfos, roundingIdx,
                 buildEmptySubAggregations());
         return new InternalAutoDateHistogram(name, Collections.emptyList(), targetBuckets, emptyBucketInfo, formatter,
                 pipelineAggregators(), metaData());

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -38,14 +38,14 @@ public final class AutoDateHistogramAggregatorFactory
         extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, AutoDateHistogramAggregatorFactory> {
 
     private final int numBuckets;
-    private Rounding[] roundings;
+    private RoundingInfo[] roundingInfos;
 
-    public AutoDateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, int numBuckets, Rounding[] roundings,
+    public AutoDateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, int numBuckets, RoundingInfo[] roundingInfos,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.numBuckets = numBuckets;
-        this.roundings = roundings;
+        this.roundingInfos = roundingInfos;
     }
 
     @Override
@@ -59,7 +59,7 @@ public final class AutoDateHistogramAggregatorFactory
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundings, valuesSource, config.format(), context, parent,
+        return new AutoDateHistogramAggregator(name, factories, numBuckets, roundingInfos, valuesSource, config.format(), context, parent,
                 pipelineAggregators,
                 metaData);
     }

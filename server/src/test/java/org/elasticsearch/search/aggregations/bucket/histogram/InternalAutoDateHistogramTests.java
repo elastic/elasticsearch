@@ -25,6 +25,7 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -44,20 +45,20 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
 
     private DocValueFormat format;
-    private Rounding[] roundings;
+    private RoundingInfo[] roundingInfos;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         format = randomNumericDocValueFormat();
 
-        roundings = new Rounding[6];
-        roundings[0] = Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build();
-        roundings[1] = Rounding.builder(DateTimeUnit.MINUTES_OF_HOUR).build();
-        roundings[2] = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).build();
-        roundings[3] = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).build();
-        roundings[4] = Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
-        roundings[5] = Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).build();
+        roundingInfos = new RoundingInfo[6];
+        roundingInfos[0] = new RoundingInfo(Rounding.builder(DateTimeUnit.SECOND_OF_MINUTE).build(), 1, 5, 10, 30);
+        roundingInfos[1] = new RoundingInfo(Rounding.builder(DateTimeUnit.MINUTES_OF_HOUR).build(), 1, 5, 10, 30);
+        roundingInfos[2] = new RoundingInfo(Rounding.builder(DateTimeUnit.HOUR_OF_DAY).build(), 1, 3, 12);
+        roundingInfos[3] = new RoundingInfo(Rounding.builder(DateTimeUnit.DAY_OF_MONTH).build(), 1, 7);
+        roundingInfos[4] = new RoundingInfo(Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).build(), 1, 3);
+        roundingInfos[5] = new RoundingInfo(Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).build(), 1, 10, 20, 50, 100);
     }
 
     @Override
@@ -78,7 +79,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             buckets.add(i, new InternalAutoDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
         }
         InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
-        BucketInfo bucketInfo = new BucketInfo(roundings, randomIntBetween(0, roundings.length - 1), subAggregations);
+        BucketInfo bucketInfo = new BucketInfo(roundingInfos, randomIntBetween(0, roundingInfos.length - 1), subAggregations);
 
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, pipelineAggregators, metaData);
     }
@@ -94,7 +95,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         Map<Long, Long> expectedCounts = new TreeMap<>();
         for (Histogram histogram : inputs) {
             for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                expectedCounts.compute(roundings[roundingIdx].round(((DateTime) bucket.getKey()).getMillis()),
+                expectedCounts.compute(roundingInfos[roundingIdx].rounding.round(((DateTime) bucket.getKey()).getMillis()),
                         (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
             }
         }
@@ -134,8 +135,8 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                     InternalAggregations.EMPTY));
             break;
         case 2:
-            int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundings.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
-            bucketInfo = new BucketInfo(bucketInfo.roundings, roundingIdx, bucketInfo.emptySubAggregations);
+            int roundingIdx = bucketInfo.roundingIdx == bucketInfo.roundingInfos.length - 1 ? 0 : bucketInfo.roundingIdx + 1;
+            bucketInfo = new BucketInfo(bucketInfo.roundingInfos, roundingIdx, bucketInfo.emptySubAggregations);
             break;
         case 3:
             if (metaData == null) {

@@ -70,7 +70,7 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
         testSearchCase(query, dataset,
                 aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
-                histogram -> assertEquals(6, histogram.getBuckets().size())
+                histogram -> assertEquals(10, histogram.getBuckets().size())
         );
         testSearchAndReduceCase(query, dataset,
                 aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
@@ -80,62 +80,6 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testSubAggregations() throws IOException {
         Query query = new MatchAllDocsQuery();
-
-        testSearchCase(query, dataset,
-                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD)
-                        .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
-                histogram -> {
-                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(6, buckets.size());
-
-                    Histogram.Bucket bucket = buckets.get(0);
-                    assertEquals("2010-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
-                    Stats stats = bucket.getAggregations().get("stats");
-                    assertEquals("2010-03-12T01:07:45.000Z", stats.getMinAsString());
-                    assertEquals("2010-04-27T03:43:34.000Z", stats.getMaxAsString());
-                    assertEquals(2L, stats.getCount());
-
-                    bucket = buckets.get(1);
-                    assertEquals("2012-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(1, bucket.getDocCount());
-                    stats = bucket.getAggregations().get("stats");
-                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMinAsString());
-                    assertEquals("2012-05-18T04:11:00.000Z", stats.getMaxAsString());
-                    assertEquals(1L, stats.getCount());
-
-                    bucket = buckets.get(2);
-                    assertEquals("2013-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
-                    stats = bucket.getAggregations().get("stats");
-                    assertEquals("2013-05-29T05:11:31.000Z", stats.getMinAsString());
-                    assertEquals("2013-10-31T08:24:05.000Z", stats.getMaxAsString());
-                    assertEquals(2L, stats.getCount());
-
-                    bucket = buckets.get(3);
-                    assertEquals("2015-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(3, bucket.getDocCount());
-                    stats = bucket.getAggregations().get("stats");
-                    assertEquals("2015-02-13T13:09:32.000Z", stats.getMinAsString());
-                    assertEquals("2015-11-13T16:14:34.000Z", stats.getMaxAsString());
-                    assertEquals(3L, stats.getCount());
-
-                    bucket = buckets.get(4);
-                    assertEquals("2016-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(1, bucket.getDocCount());
-                    stats = bucket.getAggregations().get("stats");
-                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMinAsString());
-                    assertEquals("2016-03-04T17:09:50.000Z", stats.getMaxAsString());
-                    assertEquals(1L, stats.getCount());
-
-                    bucket = buckets.get(5);
-                    assertEquals("2017-01-01T00:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(1, bucket.getDocCount());
-                    stats = bucket.getAggregations().get("stats");
-                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMinAsString());
-                    assertEquals("2017-12-12T22:55:46.000Z", stats.getMaxAsString());
-                    assertEquals(1L, stats.getCount());
-                });
         testSearchAndReduceCase(query, dataset,
                 aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD)
                         .subAggregation(AggregationBuilders.stats("stats").field(DATE_FIELD)),
@@ -230,7 +174,34 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalYear() throws IOException {
-        testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+        testSearchCase(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
+                aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(5, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2015-02-13T13:09:32.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2015-06-24T13:47:43.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2015-11-13T16:14:34.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2016-03-04T17:09:50.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2017-12-12T22:55:46.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                }
+        );
+        testSearchAndReduceCase(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
                 aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
@@ -252,7 +223,37 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     public void testIntervalMonth() throws IOException {
-        testBothCases(new MatchAllDocsQuery(),
+        testSearchCase(new MatchAllDocsQuery(),
+                Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
+                aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD), histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(6, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2017-01-01T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2017-02-02T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2017-02-03T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2017-03-04T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2017-03-05T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(5);
+                    assertEquals("2017-03-06T00:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(),
                 Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
                 aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
@@ -352,31 +353,47 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(6, buckets.size());
+                    assertEquals(10, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
-                    assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
+                    assertEquals("2017-02-01T09:02:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(1);
-                    assertEquals("2017-02-01T10:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals("2017-02-01T09:35:00.000Z", bucket.getKeyAsString());
                     assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(2);
-                    assertEquals("2017-02-01T13:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals("2017-02-01T10:15:00.000Z", bucket.getKeyAsString());
                     assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(3);
-                    assertEquals("2017-02-01T14:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
+                    assertEquals("2017-02-01T13:06:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(4);
-                    assertEquals("2017-02-01T15:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals("2017-02-01T14:04:00.000Z", bucket.getKeyAsString());
                     assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(5);
-                    assertEquals("2017-02-01T16:00:00.000Z", bucket.getKeyAsString());
-                    assertEquals(3, bucket.getDocCount());
+                    assertEquals("2017-02-01T14:05:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(6);
+                    assertEquals("2017-02-01T15:59:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(7);
+                    assertEquals("2017-02-01T16:06:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(8);
+                    assertEquals("2017-02-01T16:48:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(9);
+                    assertEquals("2017-02-01T16:59:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
                 }
         );
         testSearchAndReduceCase(new MatchAllDocsQuery(),
@@ -444,19 +461,27 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                 aggregation -> aggregation.setNumBuckets(4).field(DATE_FIELD),
                 histogram -> {
                     List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
-                    assertEquals(3, buckets.size());
+                    assertEquals(5, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
-                    assertEquals("2017-02-01T09:02:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
+                    assertEquals("2017-02-01T09:02:35.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(1);
-                    assertEquals("2017-02-01T09:15:00.000Z", bucket.getKeyAsString());
+                    assertEquals("2017-02-01T09:02:59.000Z", bucket.getKeyAsString());
                     assertEquals(1, bucket.getDocCount());
 
                     bucket = buckets.get(2);
-                    assertEquals("2017-02-01T09:16:00.000Z", bucket.getKeyAsString());
-                    assertEquals(2, bucket.getDocCount());
+                    assertEquals("2017-02-01T09:15:37.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2017-02-01T09:16:04.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2017-02-01T09:16:42.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
                 }
         );
         testSearchAndReduceCase(new MatchAllDocsQuery(),

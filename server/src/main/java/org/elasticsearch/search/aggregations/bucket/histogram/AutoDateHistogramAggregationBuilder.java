@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,6 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -112,13 +114,13 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        Rounding[] roundings = new Rounding[6];
-        roundings[0] = createRounding(DateTimeUnit.SECOND_OF_MINUTE);
-        roundings[1] = createRounding(DateTimeUnit.MINUTES_OF_HOUR);
-        roundings[2] = createRounding(DateTimeUnit.HOUR_OF_DAY);
-        roundings[3] = createRounding(DateTimeUnit.DAY_OF_MONTH);
-        roundings[4] = createRounding(DateTimeUnit.MONTH_OF_YEAR);
-        roundings[5] = createRounding(DateTimeUnit.YEAR_OF_CENTURY);
+        RoundingInfo[] roundings = new RoundingInfo[6];
+        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE), 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR), 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY), 1, 3, 12);
+        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 1, 7);
+        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 1, 3);
+        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 1, 10, 20, 50, 100);
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -146,5 +148,48 @@ public class AutoDateHistogramAggregationBuilder
     protected boolean innerEquals(Object obj) {
         AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
         return Objects.equals(numBuckets, other.numBuckets);
+    }
+
+    public static class RoundingInfo implements Writeable {
+        final Rounding rounding;
+        final int[] innerIntervals;
+
+        public RoundingInfo(Rounding rounding, int... innerIntervals) {
+            this.rounding = rounding;
+            this.innerIntervals = innerIntervals;
+        }
+        
+        public RoundingInfo(StreamInput in) throws IOException {
+            rounding = Rounding.Streams.read(in);
+            innerIntervals = in.readIntArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            Rounding.Streams.write(rounding, out);
+            out.writeIntArray(innerIntervals);
+        }
+        
+        public int getMaximumInnerInterval() {
+            return innerIntervals[innerIntervals.length - 1];
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(rounding, Arrays.hashCode(innerIntervals));
+        }
+        
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (obj.getClass() != getClass()) {
+                return false;
+            }
+            RoundingInfo other = (RoundingInfo) obj;
+            return Objects.equals(rounding, other.rounding) &&
+                    Objects.deepEquals(innerIntervals, other.innerIntervals);
+        }
     }
 }

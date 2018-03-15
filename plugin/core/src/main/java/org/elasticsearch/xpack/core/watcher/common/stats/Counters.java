@@ -3,21 +3,26 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.watcher.common.stats;
+package org.elasticsearch.xpack.core.watcher.common.stats;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Helper class to create simple usage stat counters based on longs
  * Internally this is a map mapping from String to a long, which is the counter
- * Calling toMap() will create a nested map, where each dot of the key name will nest deeper
+ * Calling toNestedMap() will create a nested map, where each dot of the key name will nest deeper
  * The main reason for this class is that the stats producer should not be worried about how the map is actually nested
  */
-public class Counters {
+public class Counters implements Streamable {
 
     private ObjectLongHashMap<String> counters = new ObjectLongHashMap<>();
 
@@ -52,12 +57,24 @@ public class Counters {
         counters.addTo(name, count);
     }
 
+    public long get(String name) {
+        return counters.get(name);
+    }
+
+    public long size() {
+        return counters.size();
+    }
+
+    public boolean hasCounters() {
+        return size() > 0;
+    }
+
     /**
      * Convert the counters to a nested map, using the "." as a splitter to create deeper maps
      * @return A nested map with all the current configured counters
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> toMap() {
+    public Map<String, Object> toNestedMap() {
         Map<String, Object> map = new HashMap<>();
         for (ObjectLongCursor<String> counter : counters) {
             if (counter.key.contains(".")) {
@@ -83,5 +100,39 @@ public class Counters {
         }
 
         return map;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        int counters = in.readVInt();
+        for (int i = 0; i < counters; i++) {
+            inc(in.readString(), in.readVLong());
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(counters.size());
+        for (ObjectLongCursor<String> cursor : counters) {
+            out.writeString(cursor.key);
+            out.writeVLong(cursor.value);
+        }
+    }
+
+    public static Counters read(StreamInput in) throws IOException {
+        Counters counters = new Counters();
+        counters.readFrom(in);
+        return counters;
+    }
+
+    public static Counters merge(List<Counters> counters) {
+        Counters result = new Counters();
+        for (Counters c : counters) {
+            for (ObjectLongCursor<String> cursor : c.counters) {
+                result.inc(cursor.key, cursor.value);
+            }
+        }
+
+        return result;
     }
 }

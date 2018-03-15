@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -20,6 +21,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;
+    private boolean includeStats;
 
     public WatcherStatsRequest() {
     }
@@ -40,6 +42,14 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         this.includeQueuedWatches = includeQueuedWatches;
     }
 
+    public boolean includeStats() {
+        return includeStats;
+    }
+
+    public void includeStats(boolean includeStats) {
+        this.includeStats = includeStats;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -50,6 +60,11 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         super.readFrom(in);
         includeCurrentWatches = in.readBoolean();
         includeQueuedWatches = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            includeStats = in.readBoolean();
+        } else {
+            includeStats = false;
+        }
     }
 
     @Override
@@ -57,6 +72,9 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
         super.writeTo(out);
         out.writeBoolean(includeCurrentWatches);
         out.writeBoolean(includeQueuedWatches);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeBoolean(includeStats);
+        }
     }
 
     @Override
@@ -68,6 +86,7 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
         private boolean includeCurrentWatches;
         private boolean includeQueuedWatches;
+        private boolean includeStats;
 
         public Node() {}
 
@@ -75,6 +94,8 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             super(nodeId);
             includeCurrentWatches = request.includeCurrentWatches();
             includeQueuedWatches = request.includeQueuedWatches();
+
+            includeStats = request.includeStats();
         }
 
         public boolean includeCurrentWatches() {
@@ -85,11 +106,20 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             return includeQueuedWatches;
         }
 
+        public boolean includeStats() {
+            return includeStats;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             includeCurrentWatches = in.readBoolean();
             includeQueuedWatches = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                includeStats = in.readBoolean();
+            } else {
+                includeStats = false;
+            }
         }
 
         @Override
@@ -97,6 +127,9 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
             super.writeTo(out);
             out.writeBoolean(includeCurrentWatches);
             out.writeBoolean(includeQueuedWatches);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                out.writeBoolean(includeStats);
+            }
         }
     }
 }

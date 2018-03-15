@@ -65,10 +65,10 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void add(Watch job) {
-        assert job.trigger() instanceof ScheduleTrigger;
-        ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-        schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), clock.millis()));
+    public void add(Watch watch) {
+        assert watch.trigger() instanceof ScheduleTrigger;
+        ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
+        schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
     }
 
     @Override

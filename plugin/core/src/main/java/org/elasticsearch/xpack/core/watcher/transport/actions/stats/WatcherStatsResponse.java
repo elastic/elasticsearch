@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.execution.QueuedWatch;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
 
@@ -93,6 +95,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
         private long threadPoolMaxSize;
         private List<WatchExecutionSnapshot> snapshots;
         private List<QueuedWatch> queuedWatches;
+        private Counters stats;
 
         public Node() {
         }
@@ -163,6 +166,14 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             this.queuedWatches = queuedWatches;
         }
 
+        public Counters getStats() {
+            return stats;
+        }
+
+        public void setStats(Counters stats) {
+            this.stats = stats;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
@@ -177,6 +188,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             if (in.readBoolean()) {
                 queuedWatches = in.readStreamableList(QueuedWatch::new);
             }
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                if (in.readBoolean()) {
+                    stats = Counters.read(in);
+                }
+            }
         }
 
         @Override
@@ -187,17 +203,19 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             out.writeLong(threadPoolMaxSize);
             out.writeByte(watcherState.getId());
 
+            out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeBoolean(true);
                 out.writeStreamableList(snapshots);
-            } else {
-                out.writeBoolean(false);
             }
+            out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeBoolean(true);
                 out.writeStreamableList(queuedWatches);
-            } else {
-                out.writeBoolean(false);
+            }
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                out.writeBoolean(stats != null);
+                if (stats != null) {
+                    stats.writeTo(out);
+                }
             }
         }
 
@@ -228,11 +246,14 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
                 }
                 builder.endArray();
             }
+            if (stats != null && stats.hasCounters()) {
+                builder.field("stats", stats.toNestedMap());
+            }
             builder.endObject();
             return builder;
         }
 
-        public static WatcherStatsResponse.Node readNodeResponse(StreamInput in)
+        static WatcherStatsResponse.Node readNodeResponse(StreamInput in)
                 throws IOException {
             WatcherStatsResponse.Node node = new WatcherStatsResponse.Node();
             node.readFrom(in);

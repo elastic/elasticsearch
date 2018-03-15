@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -75,7 +77,10 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
         if (request.includeQueuedWatches()) {
             statsResponse.setQueuedWatches(executionService.queuedWatches());
         }
-
+        if (request.includeStats()) {
+            Counters stats = Counters.merge(Arrays.asList(triggerService.stats(), executionService.executionTimes()));
+            statsResponse.setStats(stats);
+        }
         statsResponse.setWatchesCount(triggerService.count());
         return statsResponse;
     }

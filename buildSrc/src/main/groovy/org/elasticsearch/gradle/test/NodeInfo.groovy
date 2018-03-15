@@ -63,9 +63,6 @@ class NodeInfo {
     /** config directory */
     File pathConf
 
-    /** data directory (as an Object, to allow lazy evaluation) */
-    Object dataDir
-
     /** THE config file */
     File configFile
 
@@ -117,11 +114,6 @@ class NodeInfo {
         this.nodeVersion = nodeVersion
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         pathConf = pathConf(baseDir, config.distribution, nodeVersion)
-        if (config.dataDir != null) {
-            dataDir = "${config.dataDir(nodeNum)}"
-        } else {
-            dataDir = new File(homeDir, "data")
-        }
         configFile = new File(pathConf, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
@@ -194,9 +186,9 @@ class NodeInfo {
                  * creating its data directory on startup but we simply can not do that here because getting the short path name requires
                  * the directory to already exist. Therefore, we create this directory immediately before getting the short name.
                  */
-                args.addAll("-E", "path.data=${-> Files.createDirectories(Paths.get(dataDir.toString())); getShortPathName(dataDir.toString())}")
+                args.addAll("-E", "path.data=${-> Files.createDirectories(Paths.get(dataDir)); getShortPathName(dataDir)}")
             } else {
-                args.addAll("-E", "path.data=${-> dataDir.toString()}")
+                args.addAll("-E", "path.data=${-> dataDir}")
             }
         }
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -273,11 +265,11 @@ class NodeInfo {
     }
 
     /** Returns the data directory for this node */
-    File getDataDir() {
-        if (!(dataDir instanceof File)) {
-            return new File(dataDir)
+    String getDataDir() {
+        if (config.dataDir == null) {
+            return new File(homeDir, 'data')
         }
-        return dataDir
+        return config.dataDir(nodeNum)
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */

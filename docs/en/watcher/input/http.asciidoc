@@ -201,8 +201,9 @@ In addition all the headers from the response can be accessed using the
                                                        with on of those four parameters. As those parameters are set,
                                                        specifying them individually might overwrite them.
 
-| `request.auth`                | no       | -       | Authentication related HTTP headers. Currently, only basic
-                                                       authentication is supported.
+| `request.auth.basic.username` | no       | -       | HTTP basic authentication username
+
+| `request.auth.basic.password` | no       | -       | HTTP basic authentication password
 
 | `request.proxy.host`          | no       | -       | The proxy host to use when connecting to the host.
 

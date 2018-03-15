@@ -192,7 +192,7 @@ public class InternalEngine extends Engine {
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 if (Translog.isCorruptionException(e)) {
-                    failOnCorruptedTranslog((TranslogCorruptedException) e);
+                    failEngine("Translog corrupted", (TranslogCorruptedException) e);
                 }
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             } catch (AssertionError e) {
@@ -442,7 +442,7 @@ public class InternalEngine extends Engine {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, this::failOnCorruptedTranslog);
+        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, ex -> failEngine("Translog corrupted", ex));
     }
 
     @Override
@@ -1637,10 +1637,6 @@ public class InternalEngine extends Engine {
             ensureOpen();
             indexWriter.deleteUnusedFiles();
         }
-    }
-
-    private void failOnCorruptedTranslog(TranslogCorruptedException ex) {
-        failEngine("Translog corrupted", ex);
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

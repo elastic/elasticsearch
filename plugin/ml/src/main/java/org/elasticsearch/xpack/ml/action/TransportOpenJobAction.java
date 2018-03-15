@@ -179,6 +179,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
+            if (nodeSupportsModelSnapshotVersion(node, job) == false) {
+                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because the job's model snapshot requires " +
+                        "a node of version [" + job.getModelSnapshotMinVersion() + "] or higher";
+                logger.trace(reason);
+                reasons.add(reason);
+                continue;
+            }
+
             long numberOfAssignedJobs = 0;
             int numberOfAllocatingJobs = 0;
             long assignedJobMemory = 0;
@@ -316,6 +324,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     private static boolean nodeSupportsJobVersion(Version nodeVersion) {
         return nodeVersion.onOrAfter(Version.V_5_5_0);
+    }
+
+    private static boolean nodeSupportsModelSnapshotVersion(DiscoveryNode node, Job job) {
+        if (job.getModelSnapshotId() == null || job.getModelSnapshotMinVersion() == null) {
+            // There is no snapshot to restore or the min model snapshot version is 5.5.0
+            // which is OK as we have already checked the node is >= 5.5.0.
+            return true;
+        }
+        return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
     }
 
     static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion,

@@ -102,6 +102,7 @@ When the operation is complete, you receive the following results:
 {
   "model": {
     "job_id": "it_ops_new_kpi",
+    "min_version": "6.3.0",
     "timestamp": 1491856080000,
     "description": "State persisted due to job close at 2017-04-10T13:28:00-0700",
     "snapshot_id": "1491856080",

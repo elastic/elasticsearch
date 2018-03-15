@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -85,6 +86,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         }
         if (randomBoolean()) {
             update.setModelSnapshotId(randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            update.setModelSnapshotMinVersion(Version.CURRENT);
         }
         if (randomBoolean()) {
             update.setEstablishedModelMemory(randomNonNegativeLong());

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -314,13 +315,15 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         context.deleteInterimRequired = false;
         AutodetectResult result = mock(AutodetectResult.class);
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID)
-                .setSnapshotId("a_snapshot_id").build();
+                .setSnapshotId("a_snapshot_id")
+                .setMinVersion(Version.CURRENT)
+                .build();
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
         processorUnderTest.processResult(context, result);
 
         verify(persister, times(1)).persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
         UpdateJobAction.Request expectedJobUpdateRequest = UpdateJobAction.Request.internal(JOB_ID,
-                new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").build());
+                new JobUpdate.Builder(JOB_ID).setModelSnapshotId("a_snapshot_id").setModelSnapshotMinVersion(Version.CURRENT).build());
 
         verify(client).execute(same(UpdateJobAction.INSTANCE), eq(expectedJobUpdateRequest), any());
         verifyNoMoreInteractions(persister);
@@ -378,7 +381,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
     }
 
     public void testPersisterThrowingDoesntBlockProcessing() {
@@ -433,7 +436,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
         processorUnderTest.awaitCompletion();
         assertEquals(0, processorUnderTest.completionLatch.getCount());
-        assertEquals(1, processorUnderTest.updateModelSnapshotIdSemaphore.availablePermits());
+        assertEquals(1, processorUnderTest.updateModelSnapshotSemaphore.availablePermits());
 
         verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(persister, times(1)).commitStateWrites(JOB_ID);

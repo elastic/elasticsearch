@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +45,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     public static final ParseField LATEST_RESULT_TIME = new ParseField("latest_result_time_stamp");
     public static final ParseField QUANTILES = new ParseField("quantiles");
     public static final ParseField RETAIN = new ParseField("retain");
+    public static final ParseField MIN_VERSION = new ParseField("min_version");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("model_snapshots");
@@ -57,6 +59,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     static {
         PARSER.declareString(Builder::setJobId, Job.ID);
+        PARSER.declareString(Builder::setMinVersion, MIN_VERSION);
         PARSER.declareField(Builder::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -91,7 +94,15 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         PARSER.declareBoolean(Builder::setRetain, RETAIN);
     }
 
+
     private final String jobId;
+
+    /**
+     * The minimum version a node should have to be able
+     * to read this model snapshot.
+     */
+    private final Version minVersion;
+
     private final Date timestamp;
     private final String description;
     private final String snapshotId;
@@ -102,10 +113,12 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     private final Quantiles quantiles;
     private final boolean retain;
 
-    private ModelSnapshot(String jobId, Date timestamp, String description, String snapshotId, int snapshotDocCount,
+
+    private ModelSnapshot(String jobId, Version minVersion, Date timestamp, String description, String snapshotId, int snapshotDocCount,
                           ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
                           boolean retain) {
         this.jobId = jobId;
+        this.minVersion = minVersion;
         this.timestamp = timestamp;
         this.description = description;
         this.snapshotId = snapshotId;
@@ -119,6 +132,11 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            minVersion = Version.readVersion(in);
+        } else {
+            minVersion = Version.V_5_5_0;
+        }
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
         snapshotId = in.readOptionalString();
@@ -133,6 +151,9 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            Version.writeVersion(minVersion, out);
+        }
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());
@@ -163,6 +184,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(MIN_VERSION.getPreferredName(), minVersion);
         if (timestamp != null) {
             builder.dateField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
@@ -194,6 +216,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public String getJobId() {
         return jobId;
+    }
+
+    public Version getMinVersion() {
+        return minVersion;
     }
 
     public Date getTimestamp() {
@@ -230,8 +256,8 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
-                latestResultTimeStamp, retain);
+        return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
+                latestRecordTimeStamp, latestResultTimeStamp, retain);
     }
 
     /**
@@ -250,6 +276,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         ModelSnapshot that = (ModelSnapshot) other;
 
         return Objects.equals(this.jobId, that.jobId)
+                && Objects.equals(this.minVersion, that.minVersion)
                 && Objects.equals(this.timestamp, that.timestamp)
                 && Objects.equals(this.description, that.description)
                 && Objects.equals(this.snapshotId, that.snapshotId)
@@ -320,6 +347,12 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static class Builder {
         private String jobId;
+
+        // Stored snapshot documents created prior to 6.3.0 will have no
+        // value for min_version. We default it to 5.5.0 as there were
+        // no model changes between 5.5.0 and 6.3.0.
+        private Version minVersion = Version.V_5_5_0;
+
         private Date timestamp;
         private String description;
         private String snapshotId;
@@ -329,6 +362,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private Date latestResultTimeStamp;
         private Quantiles quantiles;
         private boolean retain;
+
 
         public Builder() {
         }
@@ -349,10 +383,21 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             this.latestResultTimeStamp = modelSnapshot.latestResultTimeStamp;
             this.quantiles = modelSnapshot.quantiles;
             this.retain = modelSnapshot.retain;
+            this.minVersion = modelSnapshot.minVersion;
         }
 
         public Builder setJobId(String jobId) {
             this.jobId = jobId;
+            return this;
+        }
+
+        public Builder setMinVersion(Version minVersion) {
+            this.minVersion = minVersion;
+            return this;
+        }
+
+        public Builder setMinVersion(String minVersion) {
+            this.minVersion = Version.fromString(minVersion);
             return this;
         }
 
@@ -407,8 +452,8 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         }
 
         public ModelSnapshot build() {
-            return new ModelSnapshot(jobId, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats, latestRecordTimeStamp,
-                    latestResultTimeStamp, quantiles, retain);
+            return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
+                    latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
         }
     }
 }

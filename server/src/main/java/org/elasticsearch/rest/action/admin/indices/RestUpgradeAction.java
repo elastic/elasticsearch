@@ -67,7 +67,7 @@ public class RestUpgradeAction extends BaseRestHandler {
         } else if (request.method().equals(RestRequest.Method.POST)) {
             return handlePost(request, client);
         } else {
-            throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");
+            throw new AssertionError("unsupported method [" + request.method() + "] for request [" + request.path() + "]");
         }
     }
 

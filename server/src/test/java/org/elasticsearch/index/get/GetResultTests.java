@@ -49,7 +49,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class GetResultTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29080")
     public void testToAndFromXContent() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
@@ -87,7 +86,6 @@ public class GetResultTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29080")
     public void testToAndFromXContentEmbedded() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);

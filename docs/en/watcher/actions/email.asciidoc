@@ -347,9 +347,12 @@ xpack.notification.email.account:
             starttls.enable: true
             host: smtp-mail.outlook.com
             port: 587
-            user: <username>
+            user: <email.address>
             password: <password>
 --------------------------------------------------
+
+When sending emails, you have to provide a from address, either a default one
+in your account configuration or as part of the email action in the watch.
 
 NOTE:   You need to use a unique App Password if two-step verification is enabled.
         See http://windows.microsoft.com/en-us/windows/app-passwords-two-step-verification[App

@@ -25,13 +25,13 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.List;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -68,7 +68,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            rulesReader = new FastStringReader(sb.toString());
+            rulesReader = new StringReader(sb.toString());
         } else if (settings.get("synonyms_path") != null) {
             rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
         } else {

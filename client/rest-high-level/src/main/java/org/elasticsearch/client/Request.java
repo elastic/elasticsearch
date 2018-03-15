@@ -35,9 +35,11 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -216,6 +218,22 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
+    static Request refresh(RefreshRequest refreshRequest) {
+        String endpoint = endpoint(refreshRequest.indices(), "_refresh");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(refreshRequest.indicesOptions());
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request flush(FlushRequest flushRequest) {
+        String endpoint = endpoint(flushRequest.indices(), "_flush");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(flushRequest.indicesOptions());
+        parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
+        parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
     static Request info() {
         return new Request(HttpGet.METHOD_NAME, "/", Collections.emptyMap(), null);
     }
@@ -310,7 +328,7 @@ public final class Request {
                 }
                 metadata.endObject();
 
-                BytesRef metadataSource = metadata.bytes().toBytesRef();
+                BytesRef metadataSource = BytesReference.bytes(metadata).toBytesRef();
                 content.write(metadataSource.bytes, metadataSource.offset, metadataSource.length);
                 content.write(separator);
             }
@@ -325,7 +343,7 @@ public final class Request {
                     LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes().toBytesRef();
+                        source = BytesReference.bytes(builder).toBytesRef();
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {

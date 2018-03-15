@@ -32,6 +32,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -201,7 +202,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         assertTrue("Disjoint relation is not supported", disjointSupport);
         assertTrue("within relation is not supported", withinSupport);
 
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("polygon")
                 .startObject("properties")
@@ -211,7 +212,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject().string();
+                .endObject());
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes")
             .addMapping("polygon", mapping, XContentType.JSON);
@@ -228,7 +229,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                                     .coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close())))
                 .polygon(new PolygonBuilder(
                                 new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
-        BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
+        BytesReference data = BytesReference.bytes(jsonBuilder().startObject().field("area", polygon).endObject());
 
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -291,7 +292,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .hole(new LineStringBuilder(
                             new CoordinatesBuilder().coordinate(-4, -4).coordinate(-4, 4).coordinate(4, 4).coordinate(4, -4).close()));
 
-        data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", inverse).endObject());
         client().prepareIndex("shapes", "polygon", "2").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -325,7 +326,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close());
 
-        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -334,7 +335,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .coordinate(170, -10).coordinate(190, -10).coordinate(190, 10).coordinate(170, 10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(175, -5).coordinate(185, -5).coordinate(185, 5).coordinate(175, 5).close()));
 
-        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        data = BytesReference.bytes(jsonBuilder().startObject().field("area", builder).endObject());
         client().prepareIndex("shapes", "polygon", "1").setSource(data, XContentType.JSON).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 

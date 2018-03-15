@@ -21,7 +21,8 @@ package org.elasticsearch.common.util;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.IOUtils;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;

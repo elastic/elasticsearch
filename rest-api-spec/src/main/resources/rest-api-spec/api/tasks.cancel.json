@@ -20,10 +20,6 @@
           "type": "list",
           "description": "A comma-separated list of actions that should be cancelled. Leave empty to cancel all."
         },
-        "parent_node": {
-          "type": "string",
-          "description": "Cancel tasks with specified parent node."
-        },
         "parent_task_id": {
           "type" : "string",
           "description" : "Cancel tasks with specified parent task id (node_id:task_number). Set to -1 to cancel all."

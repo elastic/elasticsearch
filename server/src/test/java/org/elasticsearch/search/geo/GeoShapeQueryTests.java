@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -57,16 +58,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testNullShape() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
@@ -77,12 +77,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPointsFilterRectangle() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
@@ -124,12 +124,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testEdgeCases() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
@@ -161,12 +161,12 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("test").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         createIndex("shapes");
         ensureGreen();
@@ -237,9 +237,9 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     private void assertUnmodified(ShapeBuilder builder) throws IOException {
-        String before = jsonBuilder().startObject().field("area", builder).endObject().string();
+        String before = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
         builder.build();
-        String after = jsonBuilder().startObject().field("area", builder).endObject().string();
+        String after = Strings.toString(jsonBuilder().startObject().field("area", builder).endObject());
         assertThat(before, equalTo(after));
     }
 
@@ -438,7 +438,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testPointsOnly() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", randomBoolean() ? "quadtree" : "geohash")
@@ -446,7 +446,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .field("distance_error_pct", "0.01")
                 .field("points_only", true)
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
@@ -464,14 +464,14 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         // test that point was inserted
         SearchResponse response = client().prepareSearch("geo_points_only").setTypes("type1")
-                .setQuery(matchAllQuery())
+                .setQuery(geoIntersectionQuery("location", shape))
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());
     }
 
     public void testPointsOnlyExplicit() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("tree", randomBoolean() ? "quadtree" : "geohash")
@@ -479,7 +479,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .field("distance_error_pct", "0.01")
             .field("points_only", true)
             .endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         client().admin().indices().prepareCreate("geo_points_only").addMapping("type1", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();

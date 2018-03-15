@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class OpenIndexResponseTests extends AbstractStreamableXContentTestCase<OpenIndexResponse> {
 
@@ -43,17 +42,15 @@ public class OpenIndexResponseTests extends AbstractStreamableXContentTestCase<O
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<OpenIndexResponse> getMutateFunction() {
-        return response -> {
-            if (randomBoolean()) {
-                boolean acknowledged = response.isAcknowledged() == false;
-                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
-                return new OpenIndexResponse(acknowledged, shardsAcknowledged);
-            } else {
-                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
-                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
-                return new OpenIndexResponse(acknowledged, shardsAcknowledged);
-            }
-        };
+    protected OpenIndexResponse mutateInstance(OpenIndexResponse response) {
+        if (randomBoolean()) {
+            boolean acknowledged = response.isAcknowledged() == false;
+            boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
+            return new OpenIndexResponse(acknowledged, shardsAcknowledged);
+        } else {
+            boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+            boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
+            return new OpenIndexResponse(acknowledged, shardsAcknowledged);
+        }
     }
 }

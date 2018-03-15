@@ -345,7 +345,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(0, sourceAsMap.size());
         }
@@ -354,7 +354,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             searchSourceBuilder.query(RandomQueryBuilder.createQuery(random()));
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference source = builder.bytes();
+            BytesReference source = BytesReference.bytes(builder);
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());

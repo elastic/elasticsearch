@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
@@ -58,7 +59,9 @@ public class RawTaskStatus implements Task.Status {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.rawValue(status.streamInput(), XContentFactory.xContentType(status));
+        try (InputStream stream = status.streamInput()) {
+            return builder.rawValue(stream, XContentFactory.xContentType(status));
+        }
     }
 
     @Override

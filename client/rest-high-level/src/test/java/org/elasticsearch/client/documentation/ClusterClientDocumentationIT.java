@@ -43,8 +43,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * This class is used to generate the Java Cluster API documentation.
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  *
  * Where example is your tag name.
  *
@@ -53,6 +53,10 @@ import static org.hamcrest.Matchers.equalTo;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[example]
  * --------------------------------------------------
+ *
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 

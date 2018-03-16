@@ -943,7 +943,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
         try (XContentParser parser = parserFunction.apply(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return builder.bytes();
+                return BytesReference.bytes(builder);
             }
         }
     }
@@ -1128,8 +1128,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
-                    XContentHelper.convertToMap(actualJson.bytes(), false).v2(),
-                    XContentHelper.convertToMap(expectedJson.bytes(), false).v2());
+                    XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
+                    XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2());
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);
@@ -1141,7 +1141,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
         return builder.generator().contentType().xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, builder.bytes().streamInput());
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
     }
 
     /**

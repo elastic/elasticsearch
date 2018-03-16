@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;

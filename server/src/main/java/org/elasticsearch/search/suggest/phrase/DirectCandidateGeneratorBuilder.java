@@ -29,6 +29,7 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -498,7 +499,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
             toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
+            return Strings.toString(builder);
         } catch (Exception e) {
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }

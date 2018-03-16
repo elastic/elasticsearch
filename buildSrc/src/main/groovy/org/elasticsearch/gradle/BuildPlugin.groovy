@@ -140,16 +140,22 @@ class BuildPlugin implements Plugin<Project> {
 
             final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build elasticsearch")
+                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
             }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
-                throw new GradleException("Java ${minimumCompilerVersion} or above is required to build Elasticsearch")
+                final String message =
+                        "the environment variable JAVA_HOME must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
+                                " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
+                throw new GradleException(message)
             }
 
             if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
-                throw new GradleException("Java ${minimumRuntimeVersion} or above is required to run Elasticsearch")
+                final String message =
+                        "the environment variable RUNTIME_JAVA_HOME must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
+                                " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
+                throw new GradleException(message)
             }
 
             project.rootProject.ext.compilerJavaHome = compilerJavaHome
@@ -558,7 +564,7 @@ class BuildPlugin implements Plugin<Project> {
         return {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
-            ifNoTests 'fail'
+            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
@@ -582,8 +588,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // default test sysprop values
-            systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

@@ -197,7 +197,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
                 }
             } catch (ArithmeticException e) {
                 // There was an integer overflow, so just log about it, rather than adjust the queue size
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                                 "failed to calculate optimal queue size for [{}] thread pool, " +
                                 "total frame time [{}ns], tasks [{}], task execution time [{}ns]",
                                 getName(), totalRuntime, tasksPerFrame, totalNanos),

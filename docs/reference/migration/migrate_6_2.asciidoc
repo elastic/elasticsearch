@@ -51,3 +51,9 @@ distributions and use the default logging location use `/var/log/elasticsearch`
 otherwise if you have installed from the `tar.gz` or `zip` archive distributions
 and use the default logging location use `logs/gc.log`; otherwise, set the
 location to the absolute path to your log files.
+
+=== Rollover alias
+A rollover request in Elasticsearch 6.2.0 or later will be aborted if the same
+alias is found in the matching index templates. This change is to prevent the alias
+from pointing to multiple indices during rollover. If your index templates already
+contain the same alias, you should remove it by updating the index templates.

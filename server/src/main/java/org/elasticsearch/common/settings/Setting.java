@@ -790,7 +790,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.startObject();
                 subSettings.toXContent(builder, EMPTY_PARAMS);
                 builder.endObject();
-                return builder.string();
+                return Strings.toString(builder);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -1172,7 +1172,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.value(element);
             }
             builder.endArray();
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
         }

@@ -1140,45 +1140,6 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
     }
 
-    public void testKeystoreNotRequired() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "false");
-        installPlugin(pluginZip, env.v1());
-        assertFalse(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
-    }
-
-    public void testKeystoreRequiredAlreadyExists() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.v2().configFile(), new char[0]);
-        byte[] expectedBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        installPlugin(pluginZip, env.v1());
-        byte[] gotBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        assertArrayEquals("Keystore was modified", expectedBytes, gotBytes);
-    }
-
-    public void testKeystoreRequiredCreated() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        installPlugin(pluginZip, env.v1());
-        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
-    }
-
-    public void testKeystoreRequiredCreatedWithMetaPlugin() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path metaDir = createPluginDir(temp);
-        Path pluginDir = metaDir.resolve("fake");
-        Files.createDirectory(pluginDir);
-        writePlugin("fake", pluginDir, "requires.keystore", "true");
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
-        installPlugin(metaZip, env.v1());
-        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
-    }
-
     private Function<byte[], String> checksum(final MessageDigest digest) {
         return checksumAndString(digest, "");
     }

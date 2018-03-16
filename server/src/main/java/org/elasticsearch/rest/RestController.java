@@ -177,7 +177,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 channel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error((Supplier<?>) () ->
+                logger.error(() ->
                     new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
             }
         }

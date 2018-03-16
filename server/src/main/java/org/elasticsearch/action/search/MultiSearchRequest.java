@@ -307,7 +307,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
                 }
                 xContentBuilder.endObject();
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
@@ -317,7 +317,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.startObject();
                     xContentBuilder.endObject();
                 }
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }

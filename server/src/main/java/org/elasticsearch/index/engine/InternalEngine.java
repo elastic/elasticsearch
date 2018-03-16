@@ -43,7 +43,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -1806,8 +1806,13 @@ public class InternalEngine extends Engine {
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
         if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-            maybeDie("tragic event in index writer", indexWriter.getTragicException());
-            failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+            final Exception tragicException;
+            if (indexWriter.getTragicException() instanceof Exception) {
+                tragicException = (Exception) indexWriter.getTragicException();
+            } else {
+                tragicException = new RuntimeException(indexWriter.getTragicException());
+            }
+            failEngine("already closed by tragic event on the index writer", tragicException);
             engineFailed = true;
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
@@ -2156,31 +2161,9 @@ public class InternalEngine extends Engine {
                      * confidence that the call stack does not contain catch statements that would cause the error that might be thrown
                      * here from being caught and never reaching the uncaught exception handler.
                      */
-                    maybeDie("fatal error while merging", exc);
-                    logger.error("failed to merge", exc);
                     failEngine("merge failed", new MergePolicy.MergeException(exc, dir));
                 }
             });
-        }
-    }
-
-    /**
-     * If the specified throwable is a fatal error, this throwable will be thrown. Callers should ensure that there are no catch statements
-     * that would catch an error in the stack as the fatal error here should go uncaught and be handled by the uncaught exception handler
-     * that we install during bootstrap. If the specified throwable is indeed a fatal error, the specified message will attempt to be logged
-     * before throwing the fatal error. If the specified throwable is not a fatal error, this method is a no-op.
-     *
-     * @param maybeMessage the message to maybe log
-     * @param maybeFatal the throwable that is maybe fatal
-     */
-    @SuppressWarnings("finally")
-    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
-        if (maybeFatal instanceof Error) {
-            try {
-                logger.error(maybeMessage, maybeFatal);
-            } finally {
-                throw (Error) maybeFatal;
-            }
         }
     }
 

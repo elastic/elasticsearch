@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -206,4 +207,3 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         return new InternalStats(name, count, sum, min, max, formatter, pipelineAggregators, metaData);
     }
 }
-

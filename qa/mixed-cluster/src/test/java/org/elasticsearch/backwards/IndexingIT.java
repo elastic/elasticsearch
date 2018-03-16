@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -241,15 +242,15 @@ public class IndexingIT extends ESRestTestCase {
         logger.info("cluster discovered: {}", nodes.toString());
 
         // Create the repository before taking the snapshot.
-        String repoConfig = JsonXContent.contentBuilder()
-            .startObject()
-            .field("type", "fs")
-            .startObject("settings")
-            .field("compress", randomBoolean())
-            .field("location", System.getProperty("tests.path.repo"))
-            .endObject()
-            .endObject()
-            .string();
+        String repoConfig = Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .endObject()
+                .endObject());
 
         assertOK(
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),

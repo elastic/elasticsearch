@@ -24,3 +24,5 @@ include::migrate_6_0.asciidoc[]
 include::migrate_6_1.asciidoc[]
 
 include::migrate_6_2.asciidoc[]
+
+include::migrate_6_3.asciidoc[]

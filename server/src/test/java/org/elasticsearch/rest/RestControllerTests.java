@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -412,7 +411,8 @@ public class RestControllerTests extends ESTestCase {
 
     public void testNonStreamingXContentCausesErrorResponse() throws IOException {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(YamlXContent.contentBuilder().startObject().endObject().bytes(), XContentType.YAML).withPath("/foo").build();
+                .withContent(BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
+                        XContentType.YAML).withPath("/foo").build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
         restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
             @Override

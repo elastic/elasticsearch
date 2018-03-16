@@ -600,6 +600,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
         final Throwable throwable = exceptions.v1();
+        final ElasticsearchException expected = exceptions.v2();
+        int suppressedCount = randomBoolean() ? 0 : between(1, 5);
+        for (int i = 0; i < suppressedCount; i++) {
+            final Tuple<Throwable, ElasticsearchException> suppressed = randomExceptions();
+            throwable.addSuppressed(suppressed.v1());
+            expected.addSuppressed(suppressed.v2());
+        }
 
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, throwable);
@@ -613,7 +620,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
-        assertDeepEquals(exceptions.v2(), parsedException);
+        assertDeepEquals(expected, parsedException);
     }
 
     public void testUnknownFailureToAndFromXContent() throws IOException {

@@ -19,10 +19,14 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 import org.elasticsearch.discovery.ec2.AwsEc2Service;
 import org.elasticsearch.common.settings.Settings;
@@ -32,15 +36,32 @@ import org.elasticsearch.test.ESTestCase;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
+    class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
+
+        Ec2DiscoveryPluginMock(Settings settings) {
+            super(settings);
+        }
+
+        // proxy method for testing
+        @Override
+        protected AwsEc2Service getAwsS3Service(Settings settings) {
+            return new AwsEc2ServiceMock(settings, 0, null);
+        }
+
+        AwsEc2Service getAwsEc2Service() {
+            return ec2Service;
+        }
+    }
+
     private Settings getNodeAttributes(Settings settings, String url) {
-        Settings realSettings = Settings.builder()
+        final Settings realSettings = Settings.builder()
             .put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true)
             .put(settings).build();
         return Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(realSettings, url);
     }
 
     private void assertNodeAttributes(Settings settings, String url, String expected) {
-        Settings additional = getNodeAttributes(settings, url);
+        final Settings additional = getNodeAttributes(settings, url);
         if (expected == null) {
             assertTrue(additional.isEmpty());
         } else {
@@ -49,36 +70,51 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     }
 
     public void testNodeAttributesDisabled() {
-        Settings settings = Settings.builder()
+        final Settings settings = Settings.builder()
             .put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build();
         assertNodeAttributes(settings, "bogus", null);
     }
 
     public void testNodeAttributes() throws Exception {
-        Path zoneUrl = createTempFile();
+        final Path zoneUrl = createTempFile();
         Files.write(zoneUrl, Arrays.asList("us-east-1c"));
         assertNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString(), "us-east-1c");
     }
 
     public void testNodeAttributesBogusUrl() {
-        UncheckedIOException e = expectThrows(UncheckedIOException.class, () ->
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, () ->
             getNodeAttributes(Settings.EMPTY, "bogus")
         );
         assertNotNull(e.getCause());
-        String msg = e.getCause().getMessage();
+        final String msg = e.getCause().getMessage();
         assertTrue(msg, msg.contains("no protocol: bogus"));
     }
 
     public void testNodeAttributesEmpty() throws Exception {
-        Path zoneUrl = createTempFile();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+        final Path zoneUrl = createTempFile();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () ->
             getNodeAttributes(Settings.EMPTY, zoneUrl.toUri().toURL().toString())
         );
         assertTrue(e.getMessage(), e.getMessage().contains("no ec2 metadata returned"));
     }
 
     public void testNodeAttributesErrorLenient() throws Exception {
-        Path dne = createTempDir().resolve("dne");
+        final Path dne = createTempDir().resolve("dne");
         assertNodeAttributes(Settings.EMPTY, dne.toUri().toURL().toString(), null);
+    }
+
+    public void testDefaultEndpoint() throws IOException {
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
+            final String endpoint = ((AmazonEC2Mock) plugin.getAwsEc2Service().client().client()).getEndpoint();
+            assertThat(endpoint, nullValue());
+        }
+    }
+
+    public void testSpecificEndpoint() throws IOException {
+        final Settings settings = Settings.builder().put(EC2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2.endpoint").build();
+        try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
+            final String endpoint = ((AmazonEC2Mock) plugin.getAwsEc2Service().client().client()).getEndpoint();
+            assertThat(endpoint, is("ec2.endpoint"));
+        }
     }
 }

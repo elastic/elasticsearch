@@ -529,6 +529,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
     public static final String SUFFIX_PRIVATE_DNS = ".ec2.internal";
 
     List<Instance> instances = new ArrayList<>();
+    private String endpoint;
 
     public AmazonEC2Mock(int nodes, List<List<Tag>> tagsList) {
         if (tagsList != null) {
@@ -642,7 +643,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public void setEndpoint(String endpoint) throws IllegalArgumentException {
-        throw new UnsupportedOperationException("Not supported in mock");
+        this.endpoint = endpoint;
+    }
+    
+    public String getEndpoint() {
+        return this.endpoint;
     }
 
     @Override

@@ -20,26 +20,42 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.Tag;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 
-import java.util.List;
+/**
+ * Handles the shutdown of the wrapped {@link AmazonEC2Client} using reference
+ * counting.
+ */
+public class AmazonEC2Reference extends AbstractRefCounted implements Releasable {
 
-public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
+    private final AmazonEC2 client;
 
-    private final int nodes;
-    private final List<List<Tag>> tagsList;
+    AmazonEC2Reference(AmazonEC2 client) {
+        super("AWS_EC2_CLIENT");
+        this.client = client;
+    }
 
-    public AwsEc2ServiceMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
-        super(settings);
-        this.nodes = nodes;
-        this.tagsList = tagsList;
+    /**
+     * Call when the client is not needed anymore.
+     */
+    @Override
+    public void close() {
+        decRef();
+    }
+
+    /**
+     * Returns the underlying `AmazonEC2` client. All method calls are permitted BUT
+     * NOT shutdown. Shutdown is called when reference count reaches 0.
+     */
+    public AmazonEC2 client() {
+        return client;
     }
 
     @Override
-    protected AmazonEC2 buildClient(EC2ClientSettings clientSettings) {
-        return new AmazonEC2Mock(nodes, tagsList);
+    protected void closeInternal() {
+        client.shutdown();
     }
 
 }

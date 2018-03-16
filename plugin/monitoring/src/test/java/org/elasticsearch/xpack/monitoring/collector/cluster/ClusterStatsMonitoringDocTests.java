@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -186,38 +184,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         }
 
         assertThat(ClusterStatsMonitoringDoc.nodesHash(nodes), equalTo(ephemeralIds.toString().hashCode()));
-    }
-
-    public void testHash() {
-        assertEquals("cc6628dbcfd052fba57870dc4eed4bc9f5cd5d43b4df46e97867aeb2dd7bd2e8",
-                ClusterStatsMonitoringDoc.hash("licenseStatus", "licenseUid", "licenseType", "licenseExpiryDate", "clusterUUID"));
-    }
-
-    public void testHashWithLicense() {
-        final StringBuilder builder = new StringBuilder();
-
-        final License license = mock(License.class);
-        final License.Status status = randomFrom(License.Status.values());
-        when(license.status()).thenReturn(status);
-        builder.append(status.label());
-
-        final String uuid = randomAlphaOfLength(10);
-        when(license.uid()).thenReturn(uuid);
-        builder.append(uuid);
-
-        final String type = randomAlphaOfLength(10);
-        when(license.type()).thenReturn(type);
-        builder.append(type);
-
-        final long expiryDate = randomNonNegativeLong();
-        when(license.expiryDate()).thenReturn(expiryDate);
-        builder.append(String.valueOf(expiryDate));
-
-        final String cluster = randomAlphaOfLength(5);
-        builder.append(cluster);
-
-        assertEquals(MessageDigests.toHexString(MessageDigests.sha256().digest(builder.toString().getBytes(StandardCharsets.UTF_8))),
-                ClusterStatsMonitoringDoc.hash(license, cluster));
     }
 
     @Override
@@ -380,8 +346,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"max_nodes\":2,"
                     + "\"issued_to\":\"customer\","
                     + "\"issuer\":\"elasticsearch\","
-                    + "\"start_date_in_millis\":-1,"
-                    + "\"hkey\":\"e05627254d639cf36346bf99934dc4a4ac9f37bdc9100cee450c10fa6322a6dd\""
+                    + "\"start_date_in_millis\":-1"
                     + (needToEnableTLS ? ",\"cluster_needs_tls\":true" : "")
                   + "},"
                   + "\"cluster_stats\":{"

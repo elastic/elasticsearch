@@ -65,7 +65,6 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.threadpool.ThreadPool.Names.BULK;
-import static org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsMonitoringDoc.hash;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -335,10 +334,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         Boolean clusterNeedsTLS = (Boolean) license.get("cluster_needs_tls");
         assertThat(clusterNeedsTLS, isOneOf(true, null));
-
-        // We basically recompute the hash here
-        assertThat("Hash key should be the same",
-                license.get("hkey"), equalTo(hash(status, uid, type, String.valueOf(expiryDate), (String) source.get("cluster_uuid"))));
 
         final Map<String, Object> clusterStats = (Map<String, Object>) source.get("cluster_stats");
         assertThat(clusterStats, notNullValue());

@@ -46,16 +46,14 @@ import java.util.function.LongSupplier;
 public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final Logger logger;
     private final TranslogDeletionPolicy translogDeletionPolicy;
-    private final EngineConfig.OpenMode openMode;
     private final LongSupplier globalCheckpointSupplier;
     private final IndexCommit startingCommit;
     private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile IndexCommit lastCommit; // the most recent commit point
 
-    CombinedDeletionPolicy(EngineConfig.OpenMode openMode, Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
+    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
                            LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) {
-        this.openMode = openMode;
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
@@ -65,25 +63,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     @Override
     public synchronized void onInit(List<? extends IndexCommit> commits) throws IOException {
-        switch (openMode) {
-            case CREATE_INDEX_AND_TRANSLOG:
-                assert startingCommit == null : "CREATE_INDEX_AND_TRANSLOG must not have starting commit; commit [" + startingCommit + "]";
-                break;
-            case OPEN_INDEX_CREATE_TRANSLOG:
-            case OPEN_INDEX_AND_TRANSLOG:
-                assert commits.isEmpty() == false : "index is opened, but we have no commits";
-                assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
-                    + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
-                keepOnlyStartingCommitOnInit(commits);
-                // OPEN_INDEX_CREATE_TRANSLOG can open an index commit from other shard with a different translog history,
-                // We therefore should not use that index commit to update the translog deletion policy.
-                if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-                    updateTranslogDeletionPolicy();
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("unknown openMode [" + openMode + "]");
-        }
+        assert commits.isEmpty() == false : "index is opened, but we have no commits";
+        assert startingCommit != null && commits.contains(startingCommit) : "Starting commit not in the existing commit list; "
+            + "startingCommit [" + startingCommit + "], commit list [" + commits + "]";
+        keepOnlyStartingCommitOnInit(commits);
+        updateTranslogDeletionPolicy();
     }
 
     /**
@@ -168,8 +152,10 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
 
     /**
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
+     *
+     * @return true if the snapshotting commit can be clean up.
      */
-    synchronized void releaseCommit(final IndexCommit snapshotCommit) {
+    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
         assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
             "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
@@ -178,6 +164,8 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         if (refCount == 0) {
             snapshottedCommits.remove(releasingCommit);
         }
+        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**
@@ -186,7 +174,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * If an index was created before v6.2, and we haven't retained a safe commit yet, this method will return the oldest commit.
      *
      * @param commits          a list of existing commit points
-     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path)}
+     * @param globalCheckpoint the persisted global checkpoint from the translog, see {@link Translog#readGlobalCheckpoint(Path, String)}
      * @return a safe commit or the oldest commit if a safe commit is not found
      */
     public static IndexCommit findSafeCommitPoint(List<IndexCommit> commits, long globalCheckpoint) throws IOException {

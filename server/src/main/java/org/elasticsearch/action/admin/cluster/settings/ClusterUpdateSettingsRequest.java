@@ -22,26 +22,43 @@ package org.elasticsearch.action.admin.cluster.settings;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update cluster settings action
  */
-public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpdateSettingsRequest> {
+public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpdateSettingsRequest> implements ToXContentObject {
 
+    private static final ParseField PERSISTENT = new ParseField("persistent");
+    private static final ParseField TRANSIENT = new ParseField("transient");
+
+    private static final ObjectParser<ClusterUpdateSettingsRequest, Void> PARSER = new ObjectParser<>("cluster_update_settings_request",
+            false, ClusterUpdateSettingsRequest::new);
+
+    static {
+        PARSER.declareObject((r, p) -> r.persistentSettings = p, (p, c) -> Settings.fromXContent(p), PERSISTENT);
+        PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), TRANSIENT);
+    }
+
+    private boolean flatSettings = false;
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
 
@@ -55,6 +72,29 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
+    }
+
+    /**
+     * Sets the value of "flat_settings".
+     * Used only by the high-level REST client.
+     *
+     * @param flatSettings
+     *            value of "flat_settings" flag to be set
+     * @return this request
+     */
+    public ClusterUpdateSettingsRequest flatSettings(boolean flatSettings) {
+        this.flatSettings = flatSettings;
+        return this;
+    }
+
+    /**
+     * Return settings in flat format.
+     * Used only by the high-level REST client.
+     *
+     * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
+     */
+    public boolean flatSettings() {
+        return flatSettings;
     }
 
     public Settings transientSettings() {
@@ -92,12 +132,12 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the transient settings to be updated. They will not survive a full cluster restart
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public ClusterUpdateSettingsRequest transientSettings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            transientSettings(builder.string(), builder.contentType());
+            transientSettings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -131,12 +171,12 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the persistent settings to be updated. They will get applied cross restarts
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public ClusterUpdateSettingsRequest persistentSettings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            persistentSettings(builder.string(), builder.contentType());
+            persistentSettings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -155,5 +195,22 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startObject(PERSISTENT.getPreferredName());
+        persistentSettings.toXContent(builder, params);
+        builder.endObject();
+        builder.startObject(TRANSIENT.getPreferredName());
+        transientSettings.toXContent(builder, params);
+        builder.endObject();
+        builder.endObject();
+        return builder;
+    }
+
+    public static ClusterUpdateSettingsRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 }

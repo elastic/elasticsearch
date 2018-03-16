@@ -76,7 +76,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
         configureRepositories(project)
@@ -141,16 +140,22 @@ class BuildPlugin implements Plugin<Project> {
 
             final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build elasticsearch")
+                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
             }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
-                throw new GradleException("Java ${minimumCompilerVersion} or above is required to build Elasticsearch")
+                final String message =
+                        "the environment variable JAVA_HOME must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
+                                " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
+                throw new GradleException(message)
             }
 
             if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
-                throw new GradleException("Java ${minimumRuntimeVersion} or above is required to run Elasticsearch")
+                final String message =
+                        "the environment variable RUNTIME_JAVA_HOME must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
+                                " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
+                throw new GradleException(message)
             }
 
             project.rootProject.ext.compilerJavaHome = compilerJavaHome
@@ -261,6 +266,9 @@ class BuildPlugin implements Plugin<Project> {
      * to iterate the transitive dependencies and add excludes.
      */
     static void configureConfigurations(Project project) {
+        // we want to test compileOnly deps!
+        project.configurations.testCompile.extendsFrom(project.configurations.compileOnly)
+
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.path.startsWith(':test:fixtures') || project.path == ':build-tools') {
             return
@@ -297,7 +305,7 @@ class BuildPlugin implements Plugin<Project> {
 
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
-        project.configurations.provided.dependencies.all(disableTransitiveDeps)
+        project.configurations.compileOnly.dependencies.all(disableTransitiveDeps)
     }
 
     /** Adds repositories used by ES dependencies */
@@ -428,7 +436,7 @@ class BuildPlugin implements Plugin<Project> {
                 // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
                 options.fork = true
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
-                options.forkOptions.memoryMaximumSize = "1g"
+                options.forkOptions.memoryMaximumSize = "512m"
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -556,7 +564,7 @@ class BuildPlugin implements Plugin<Project> {
         return {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
-            ifNoTests 'fail'
+            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
@@ -580,8 +588,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // default test sysprop values
-            systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -665,7 +671,7 @@ class BuildPlugin implements Plugin<Project> {
         // only require dependency licenses for non-elasticsearch deps
         project.dependencyLicenses.dependencies = project.configurations.runtime.fileCollection {
             it.group.startsWith('org.elasticsearch') == false
-        } - project.configurations.provided
+        } - project.configurations.compileOnly
     }
 
     private static configureDependenciesInfo(Project project) {

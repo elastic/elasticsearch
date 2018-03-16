@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,7 +61,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(builder.string());
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {
@@ -194,25 +195,46 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         IndexService.AsyncRefreshTask refreshTask = indexService.getRefreshTask();
         assertEquals(1000, refreshTask.getInterval().millis());
         assertTrue(indexService.getRefreshTask().mustReschedule());
-
-        // now disable
-        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).build();
-        indexService.updateMetaData(metaData);
-        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(0, search.totalHits);
-        }
-        // refresh every millisecond
-        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder().put(indexService.getMetaData().getSettings()).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms")).build();
+        client().prepareIndex("test", "test", "0").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        // now disable the refresh
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData())
+            .settings(Settings.builder().put(indexService.getMetaData().getSettings())
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).build();
+        // when we update we reschedule the existing task AND fire off an async refresh to make sure we make everything visible
+        // before that this is why we need to wait for the refresh task to be unscheduled and the first doc to be visible
         indexService.updateMetaData(metaData);
+        assertTrue(refreshTask.isClosed());
+        refreshTask = indexService.getRefreshTask();
         assertBusy(() -> {
+            // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
+            // we are running on updateMetaData if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
                 assertEquals(1, search.totalHits);
-            } catch (IOException e) {
-                fail(e.getMessage());
+            }
+        });
+        assertFalse(refreshTask.isClosed());
+        // refresh every millisecond
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        metaData = IndexMetaData.builder(indexService.getMetaData())
+            .settings(Settings.builder().put(indexService.getMetaData().getSettings())
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms")).build();
+        indexService.updateMetaData(metaData);
+        assertTrue(refreshTask.isClosed());
+        assertBusy(() -> {
+            // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
+            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                assertEquals(2, search.totalHits);
+            }
+        });
+        client().prepareIndex("test", "test", "2").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        assertBusy(() -> {
+            // this one becomes visible due to the scheduled refresh
+            try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+                TopDocs search = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                assertEquals(3, search.totalHits);
             }
         });
     }

@@ -642,31 +642,31 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (SearchSourceBuilder.FROM_FIELD.match(currentFieldName)) {
+                if (SearchSourceBuilder.FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.from(parser.intValue());
-                } else if (SearchSourceBuilder.SIZE_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.size(parser.intValue());
-                } else if (SearchSourceBuilder.VERSION_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.version(parser.booleanValue());
-                } else if (SearchSourceBuilder.EXPLAIN_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.EXPLAIN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.explain(parser.booleanValue());
-                } else if (SearchSourceBuilder.TRACK_SCORES_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.trackScores(parser.booleanValue());
-                } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
-                } else if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.storedFieldsContext =
                         StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), parser);
-                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.sort(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName)) {
+                if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
-                } else if (SearchSourceBuilder.SCRIPT_FIELDS_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.SCRIPT_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<ScriptField> scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         String scriptFieldName = parser.currentName();
@@ -678,9 +678,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
-                                    if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
+                                    if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         script = Script.parse(parser);
-                                    } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName)) {
+                                    } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName,
+                                            parser.getDeprecationHandler())) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
@@ -688,7 +689,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                                 parser.getTokenLocation());
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
-                                    if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
+                                    if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                                         script = Script.parse(parser);
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
@@ -707,9 +708,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         }
                     }
                     factory.scriptFields(scriptFields);
-                } else if (SearchSourceBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.HIGHLIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.highlighter(HighlightBuilder.fromXContent(parser));
-                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
                 } else {
@@ -718,10 +719,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
 
-                if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName)) {
+                if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.storedFieldsContext =
                         StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), parser);
-                } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
@@ -732,10 +733,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                         }
                     }
                     factory.fieldDataFields(fieldDataFields);
-                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
-                } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName)) {
+                } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     factory.fetchSource(FetchSourceContext.fromXContent(parser));
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",

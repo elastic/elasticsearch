@@ -37,7 +37,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -1077,22 +1077,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
+     * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
-     * @param safeCommit <code>true</code> capture the most recent safe commit point; otherwise the most recent commit point.
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public Engine.IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException {
-        IndexShardState state = this.state; // one time volatile read
+    public Engine.IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
+        final IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return getEngine().acquireIndexCommit(safeCommit, flushFirst);
+            return getEngine().acquireLastIndexCommit(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
     }
 
+    /**
+     * Snapshots the most recent safe index commit from the currently running engine.
+     * All index files referenced by this index commit won't be freed until the commit/snapshot is closed.
+     */
+    public Engine.IndexCommitRef acquireSafeIndexCommit() throws EngineException {
+        final IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
+            return getEngine().acquireSafeIndexCommit();
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
 
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
@@ -1121,7 +1133,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     return store.getMetadata(null, true);
                 }
             }
-            indexCommit = engine.acquireIndexCommit(false, false);
+            indexCommit = engine.acquireLastIndexCommit(false);
             return store.getMetadata(indexCommit.getIndexCommit());
         } finally {
             store.decRef();
@@ -1271,44 +1283,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
-    /** creates an empty index and translog and opens the engine **/
-    public void createIndexAndTranslog() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
-        assert shardRouting.primary() && shardRouting.isRelocationTarget() == false;
-        // note: these are set when recovering from the translog
-        final RecoveryState.Translog translogStats = recoveryState().getTranslog();
-        translogStats.totalOperations(0);
-        translogStats.totalOperationsOnStart(0);
-        replicationTracker.updateGlobalCheckpointOnReplica(SequenceNumbers.NO_OPS_PERFORMED, "index created");
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, false);
-    }
-
-    /** opens the engine on top of the existing lucene engine but creates an empty translog **/
-    public void openIndexAndCreateTranslog(boolean forceNewHistoryUUID, long globalCheckpoint) throws IOException {
-        if (Assertions.ENABLED) {
-            assert recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE &&
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.EXISTING_STORE;
-            SequenceNumbers.CommitInfo commitInfo = store.loadSeqNoInfo(null);
-            assert commitInfo.localCheckpoint >= globalCheckpoint :
-                "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
-                    + globalCheckpoint + "]";
-            // This assertion is only guaranteed if all nodes are on 6.2+.
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
-                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-                assert existingCommits.size() == 1 : "Open index create translog should have one commit, commits[" + existingCommits + "]";
-            }
-        }
-        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "opening index with a new translog");
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG, forceNewHistoryUUID);
-    }
-
     /**
      * opens the engine on top of the existing lucene engine and translog.
      * Operations from the translog will be replayed to bring lucene up to date.
      **/
-    public void openIndexAndRecoveryFromTranslog() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.EXISTING_STORE;
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    public void openEngineAndRecoverFromTranslog() throws IOException {
+        innerOpenEngineAndTranslog();
         getEngine().recoverFromTranslog();
     }
 
@@ -1316,13 +1296,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Opens the engine on top of the existing lucene engine and translog.
      * The translog is kept but its operations won't be replayed.
      */
-    public void openIndexAndSkipTranslogRecovery() throws IOException {
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER;
-        innerOpenEngineAndTranslog(EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, false);
+    public void openEngineAndSkipTranslogRecovery() throws IOException {
+        innerOpenEngineAndTranslog();
         getEngine().skipTranslogRecovery();
     }
 
-    private void innerOpenEngineAndTranslog(final EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) throws IOException {
+    private void innerOpenEngineAndTranslog() throws IOException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -1337,28 +1316,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
 
-        assert openMode == EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG || assertMaxUnsafeAutoIdInCommit();
-
-
-        final EngineConfig config = newEngineConfig(openMode, forceNewHistoryUUID);
+        final EngineConfig config = newEngineConfig();
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // we have to set it before we open an engine and recover from the translog because
-            // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
-            // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            replicationTracker.updateGlobalCheckpointOnReplica(Translog.readGlobalCheckpoint(translogConfig.getTranslogPath()),
-                "read from translog checkpoint");
-        }
+        // we have to set it before we open an engine and recover from the translog because
+        // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
+        // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
+
+        assertMaxUnsafeAutoIdInCommit();
+
         createNewEngine(config);
         verifyNotClosed();
-        if (openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
-            // we still give sync'd flush a chance to run:
-            active.set(true);
-        }
+        // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,
+        // we still give sync'd flush a chance to run:
+        active.set(true);
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
@@ -1375,15 +1351,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_5_0) &&
-            // TODO: LOCAL_SHARDS need to transfer this information
-            recoveryState().getRecoverySource().getType() != RecoverySource.Type.LOCAL_SHARDS) {
-            // as of 5.5.0, the engine stores the maxUnsafeAutoIdTimestamp in the commit point.
-            // This should have baked into the commit by the primary we recover from, regardless of the index age.
-            assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
-                "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
-                    + " is not found in commit";
-        }
+        assert userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
+            "opening index which was created post 5.5.0 but " + InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
+                + " is not found in commit";
         return true;
     }
 
@@ -2176,12 +2146,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return mapperService.documentMapperWithAutoCreate(type);
     }
 
-    private EngineConfig newEngineConfig(EngineConfig.OpenMode openMode, final boolean forceNewHistoryUUID) {
+    private EngineConfig newEngineConfig() {
         Sort indexSort = indexSortSupplier.get();
-        return new EngineConfig(openMode, shardId, shardRouting.allocationId().getId(),
+        return new EngineConfig(shardId, shardRouting.allocationId().getId(),
             threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
             mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-            indexCache.query(), cachingPolicy, forceNewHistoryUUID, translogConfig,
+            indexCache.query(), cachingPolicy, translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
@@ -2192,19 +2162,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
+     *
+     * @param debugInfo an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                  the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                  isn't used
      */
-    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay) {
+    public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, String executorOnDelay, Object debugInfo) {
         verifyNotClosed();
         verifyPrimary();
 
-        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false);
+        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
     }
 
     private final Object primaryTermMutex = new Object();
 
     /**
      * Acquire a replica operation permit whenever the shard is ready for indexing (see
-     * {@link #acquirePrimaryOperationPermit(ActionListener, String)}). If the given primary term is lower than then one in
+     * {@link #acquirePrimaryOperationPermit(ActionListener, String, Object)}). If the given primary term is lower than then one in
      * {@link #shardRouting}, the {@link ActionListener#onFailure(Exception)} method of the provided listener is invoked with an
      * {@link IllegalStateException}. If permit acquisition is delayed, the listener will be invoked on the executor with the specified
      * name.
@@ -2213,9 +2187,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param globalCheckpoint     the global checkpoint associated with the request
      * @param onPermitAcquired     the listener for permit acquisition
      * @param executorOnDelay      the name of the executor to invoke the listener on if permit acquisition is delayed
+     * @param debugInfo            an extra information that can be useful when tracing an unreleased permit. When assertions are enabled
+     *                             the tracing will capture the supplied object's {@link Object#toString()} value. Otherwise the object
+     *                             isn't used
      */
     public void acquireReplicaOperationPermit(final long operationPrimaryTerm, final long globalCheckpoint,
-                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
+                                              final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay,
+                                              final Object debugInfo) {
         verifyNotClosed();
         verifyReplicationTarget();
         final boolean globalCheckpointUpdated;
@@ -2301,11 +2279,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 },
                 executorOnDelay,
-                true);
+                true, debugInfo);
     }
 
     public int getActiveOperationsCount() {
         return indexShardOperationPermits.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
+    }
+
+    /**
+     * @return a list of describing each permit that wasn't released yet. The description consist of the debugInfo supplied
+     *         when the permit was acquired plus a stack traces that was captured when the permit was request.
+     */
+    public List<String> getActiveOperations() {
+        return indexShardOperationPermits.getActiveOperations();
     }
 
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
@@ -2471,13 +2457,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // lets skip this refresh since we are search idle and
                 // don't necessarily need to refresh. the next searcher access will register a refreshListener and that will
                 // cause the next schedule to refresh.
-                setRefreshPending();
+                final Engine engine = getEngine();
+                engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
+                setRefreshPending(engine);
                 return false;
             } else {
                 refresh("schedule");
                 return true;
             }
         }
+        final Engine engine = getEngine();
+        engine.maybePruneDeletes(); // try to prune the deletes in the engine if we accumulated some
         return false;
     }
 
@@ -2495,8 +2485,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return lastSearcherAccess.get();
     }
 
-    private void setRefreshPending() {
-        Engine engine = getEngine();
+    private void setRefreshPending(Engine engine) {
         Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
         Translog.Location location;
         do {

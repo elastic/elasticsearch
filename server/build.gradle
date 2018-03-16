@@ -99,7 +99,7 @@ dependencies {
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   // percentiles aggregation
-  compile 'com.tdunning:t-digest:3.0'
+  compile 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   compile 'org.hdrhistogram:HdrHistogram:2.1.9'
 

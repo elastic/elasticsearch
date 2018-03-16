@@ -20,10 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.BytesStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +31,7 @@ import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,7 +56,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content.
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content.
      * </p>
      *
      * @param xContent the {@link XContent}
@@ -66,13 +64,13 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput());
+        return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content and some inclusive and/or exclusive filters.
      * <p>
-     * The builder uses an internal {@link BytesStreamOutput} output stream to build the content. When both exclusive and
+     * The builder uses an internal {@link ByteArrayOutputStream} output stream to build the content. When both exclusive and
      * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
      * <p>
@@ -83,7 +81,7 @@ public final class XContentBuilder implements Releasable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), includes, excludes);
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
     }
 
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
@@ -170,6 +168,13 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public XContentType contentType() {
         return generator.contentType();
+    }
+
+    /**
+     * @return the output stream to which the built object is being written. Note that is dangerous to modify the stream.
+     */
+    public OutputStream getOutputStream() {
+        return bos;
     }
 
     public XContentBuilder prettyPrint() {
@@ -593,7 +598,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
         return field(name).utf8Value(value);
@@ -615,7 +620,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     /**
      * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
      *
-     * Use {@link XContentParser#utf8Bytes()} to read the value back
+     * Use {@link XContentParser#charBuffer()} to read the value back
      */
     public XContentBuilder utf8Value(BytesRef value) throws IOException {
         if (value == null) {
@@ -623,24 +628,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         }
         generator.writeUTF8String(value.bytes, value.offset, value.length);
         return this;
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesReference}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(String name, BytesReference value) throws IOException {
-        return field(name).value(value);
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesReference}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder value(BytesReference value) throws IOException {
-        return (value == null) ? nullValue() : binaryValue(value.toBytesRef());
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -809,8 +796,6 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((Calendar) value);
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);
-        } else if (value instanceof BytesReference) {
-            value((BytesReference) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
         } else {
@@ -982,38 +967,10 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     /**
-     * Writes a raw field with the given bytes as the value
-     * @deprecated use {@link #rawField(String name, BytesReference, XContentType)} to avoid content type auto-detection
+     * Writes a value with the source coming directly from the bytes in the stream
      */
-    @Deprecated
-    public XContentBuilder rawField(String name, BytesReference value) throws IOException {
-        generator.writeRawField(name, value);
-        return this;
-    }
-
-    /**
-     * Writes a raw field with the given bytes as the value
-     */
-    public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
-        generator.writeRawField(name, value, contentType);
-        return this;
-    }
-
-    /**
-     * Writes a value with the source coming directly from the bytes
-     * @deprecated use {@link #rawValue(BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public XContentBuilder rawValue(BytesReference value) throws IOException {
-        generator.writeRawValue(value);
-        return this;
-    }
-
-    /**
-     * Writes a value with the source coming directly from the bytes
-     */
-    public XContentBuilder rawValue(BytesReference value, XContentType contentType) throws IOException {
-        generator.writeRawValue(value, contentType);
+    public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
+        generator.writeRawValue(stream, contentType);
         return this;
     }
 
@@ -1038,18 +995,6 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     public XContentGenerator generator() {
         return this.generator;
-    }
-
-    public BytesReference bytes() {
-        close();
-        return ((BytesStream) bos).bytes();
-    }
-
-    /**
-     * Returns a string representation of the builder (only applicable for text based xcontent).
-     */
-    public String string() throws IOException {
-        return bytes().utf8ToString();
     }
 
     static void ensureNameNotNull(String name) {

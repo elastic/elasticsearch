@@ -475,10 +475,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (NESTED_FILTER_FIELD.match(currentName)) {
+                if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
-                } else if (NESTED_FIELD.match(currentName)) {
+                } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -495,17 +495,17 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (ORDER_FIELD.match(currentName)) {
+                if (ORDER_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     order = SortOrder.fromString(parser.text());
-                } else if (UNIT_FIELD.match(currentName)) {
+                } else if (UNIT_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (DISTANCE_TYPE_FIELD.match(currentName)) {
+                } else if (DISTANCE_TYPE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     validation = GeoValidationMethod.fromString(parser.text());
-                } else if (SORTMODE_FIELD.match(currentName)) {
+                } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (NESTED_PATH_FIELD.match(currentName)) {
+                } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){

@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -64,7 +65,7 @@ public class BucketHelpers {
         public static GapPolicy parse(String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
-                if (policy.parseField.match(text)) {
+                if (policy.parseField.match(text, LoggingDeprecationHandler.INSTANCE)) {
                     if (result == null) {
                         result = policy;
                     } else {

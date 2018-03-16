@@ -155,11 +155,11 @@ public class SimpleMgetIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        BytesReference sourceBytesRef = jsonBuilder().startObject()
+        BytesReference sourceBytesRef = BytesReference.bytes(jsonBuilder().startObject()
                 .array("field", "1", "2")
                 .startObject("included").field("field", "should be seen").field("hidden_field", "should not be seen").endObject()
                 .field("excluded", "should not be seen")
-                .endObject().bytes();
+                .endObject());
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }

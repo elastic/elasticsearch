@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -50,7 +49,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
+            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }
@@ -120,7 +119,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            return new PipelineConfiguration(in.readString(), in.readBytesReference(), XContentType.readFrom(in));
+            return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
         } else {
             final String id = in.readString();
             final BytesReference config = in.readBytesReference();
@@ -137,7 +136,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         out.writeString(id);
         out.writeBytesReference(config);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
     }
 

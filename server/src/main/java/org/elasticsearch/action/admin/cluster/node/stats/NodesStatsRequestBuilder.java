@@ -138,8 +138,14 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
     /**
      * Should ingest statistics be returned.
      */
-    public NodesStatsRequestBuilder ingest(boolean ingest) {
+    public NodesStatsRequestBuilder setIngest(boolean ingest) {
         request.ingest(ingest);
         return this;
     }
+
+    public NodesStatsRequestBuilder setAdaptiveSelection(boolean adaptiveSelection) {
+        request.adaptiveSelection(adaptiveSelection);
+        return this;
+    }
+
 }

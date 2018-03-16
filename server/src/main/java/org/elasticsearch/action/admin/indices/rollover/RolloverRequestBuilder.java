@@ -93,7 +93,7 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
      * @param waitForActiveShards number of active shard copies to wait on
      */
     public RolloverRequestBuilder waitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.request.setWaitForActiveShards(waitForActiveShards);
+        this.request.getCreateIndexRequest().waitForActiveShards(waitForActiveShards);
         return this;
     }
 

@@ -20,7 +20,7 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -49,6 +49,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -182,7 +183,7 @@ public class TaskResultsService extends AbstractComponent {
         try (InputStream is = getClass().getResourceAsStream(TASK_RESULT_INDEX_MAPPING_FILE)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
-            return out.toString(IOUtils.UTF_8);
+            return out.toString(StandardCharsets.UTF_8.name());
         } catch (Exception e) {
             logger.error(
                 (Supplier<?>) () -> new ParameterizedMessage(

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -127,19 +128,19 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         builder.startObject();
         writeableIngestDocument.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        Map<String, Object> toXContentMap = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> toXContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
-        for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {
+        Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
+        for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
             String fieldName = metadata.getKey().getFieldName();
             if (metadata.getValue() == null) {
                assertThat(toXContentDoc.containsKey(fieldName), is(false));
             } else {
-                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue()));
+                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue().toString()));
             }
         }
 

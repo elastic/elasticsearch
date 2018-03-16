@@ -20,17 +20,10 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-import java.io.IOException;
-
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-
-public class PutMappingResponseTests extends ESTestCase {
+public class PutMappingResponseTests extends AbstractStreamableXContentTestCase<PutMappingResponse> {
 
     public void testToXContent() {
         PutMappingResponse response = new PutMappingResponse(true);
@@ -38,48 +31,23 @@ public class PutMappingResponseTests extends ESTestCase {
         assertEquals("{\"acknowledged\":true}", output);
     }
 
-    public void testToAndFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
+    @Override
+    protected PutMappingResponse doParseInstance(XContentParser parser) {
+        return PutMappingResponse.fromXContent(parser);
     }
 
-    /**
-     * This test adds random fields and objects to the xContent rendered out to
-     * ensure we can parse it back to be forward compatible with additions to
-     * the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
+    @Override
+    protected PutMappingResponse createTestInstance() {
+        return new PutMappingResponse(randomBoolean());
     }
 
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-
-        final PutMappingResponse putMappingResponse = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(putMappingResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
-        }
-        PutMappingResponse parsedPutMappingResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedPutMappingResponse = PutMappingResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertEquals(putMappingResponse.isAcknowledged(), parsedPutMappingResponse.isAcknowledged());
+    @Override
+    protected PutMappingResponse createBlankInstance() {
+        return new PutMappingResponse();
     }
 
-    /**
-     * Returns a random {@link PutMappingResponse}.
-     */
-    private static PutMappingResponse createTestItem() throws IOException {
-        boolean acknowledged = randomBoolean();
-
-        return new PutMappingResponse(acknowledged);
+    @Override
+    protected PutMappingResponse mutateInstance(PutMappingResponse response) {
+        return new PutMappingResponse(response.isAcknowledged() == false);
     }
 }

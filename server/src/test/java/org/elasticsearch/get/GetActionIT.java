@@ -250,11 +250,11 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     public void testGetDocWithMultivaluedFields() throws Exception {
-        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
                 .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         assertAcked(prepareCreate("test")
                 .addMapping("type1", mapping1, XContentType.JSON));
         ensureGreen();
@@ -290,16 +290,16 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetDocWithMultivaluedFieldsMultiTypeBWC() throws Exception {
         assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties")
             .startObject("field").field("type", "text").field("store", true).endObject()
             .endObject()
-            .endObject().endObject().string();
-        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
+            .endObject().endObject());
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2")
             .startObject("properties")
             .startObject("field").field("type", "text").field("store", true).endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         assertAcked(prepareCreate("test")
             .addMapping("type1", mapping1, XContentType.JSON)
             .addMapping("type2", mapping2, XContentType.JSON)
@@ -693,7 +693,7 @@ public class GetActionIT extends ESIntegTestCase {
                         .endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
 
-        BytesReference source = jsonBuilder().startObject()
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                     .startArray("field1")
                         .startObject()
                             .startObject("field2")
@@ -714,7 +714,7 @@ public class GetActionIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endArray()
-                .endObject().bytes();
+                .endObject());
 
         logger.info("indexing documents");
 

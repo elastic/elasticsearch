@@ -21,8 +21,11 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +40,20 @@ import java.util.function.ToIntBiFunction;
 public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+
+    /**
+     * Convert an {@link XContentBuilder} into a BytesReference. This method closes the builder,
+     * so no further fields may be added.
+     */
+    public static BytesReference bytes(XContentBuilder xContentBuilder) {
+        xContentBuilder.close();
+        OutputStream stream = xContentBuilder.getOutputStream();
+        if (stream instanceof ByteArrayOutputStream) {
+            return new BytesArray(((ByteArrayOutputStream) stream).toByteArray());
+        } else {
+            return ((BytesStream) stream).bytes();
+        }
+    }
 
     /**
      * Returns the byte at the specified index. Need to be between 0 and length.

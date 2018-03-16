@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -234,11 +235,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     /**
      * Convert the list in a way that optimizes storage in the case that all
-     * elements are either integers or {@link String}s/{@link BytesRef}s. This
-     * is useful to help garbage collections for use-cases that involve sending
-     * very large terms queries to Elasticsearch. If the list does not only
-     * contain integers or {@link String}s, then a list is returned where all
-     * {@link String}s have been replaced with {@link BytesRef}s.
+     * elements are either integers or {@link String}s/{@link BytesRef}/
+     * {@link CharBuffer}s. This is useful to help garbage collections for
+     * use-cases that involve sending very large terms queries to Elasticsearch.
+     * If the list does not only contain integers or {@link String}s, then a
+     * list is returned where all {@link String}/{@link CharBuffer}s have been
+     * replaced with {@link BytesRef}s.
      */
     static List<?> convert(List<?> list) {
         if (list.isEmpty()) {
@@ -270,6 +272,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     BytesRef b;
                     if (o instanceof BytesRef) {
                         b = (BytesRef) o;
+                    } else if (o instanceof CharBuffer) {
+                        b = new BytesRef((CharBuffer) o);
                     } else {
                         builder.copyChars(o.toString());
                         b = builder.get();
@@ -369,9 +373,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
-                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -395,7 +399,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     static List<Object> parseValues(XContentParser parser) throws IOException {
         List<Object> values = new ArrayList<>();
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            Object value = parser.objectBytes();
+            Object value = maybeConvertToBytesRef(parser.objectBytes());
             if (value == null) {
                 throw new ParsingException(parser.getTokenLocation(), "No value specified for terms query");
             }

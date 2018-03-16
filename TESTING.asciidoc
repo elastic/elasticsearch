@@ -264,18 +264,20 @@ The REST layer is tested through specific tests that are shared between all
 the elasticsearch official clients and consist of YAML files that describe the
 operations to be executed and the obtained results that need to be tested.
 
+The YAML files support various operators defined in the link:/rest-api-spec/src/main/resources/rest-api-spec/test/README.asciidoc[rest-api-spec] and adhere to the link:/rest-api-spec/README.markdown[Elasticsearch REST API JSON specification]
+
 The REST tests are run automatically when executing the "./gradlew check" command. To run only the
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:integ-test-zip:integTest   \
+./gradlew :distribution:archives:integ-test-zip:integTest   \
   -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT"
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:integ-test-zip:integTest \
+./gradlew :distribution:archives:integ-test-zip:integTest \
   -Dtests.class="org.elasticsearch.test.rest.*Yaml*IT" \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
@@ -405,7 +407,7 @@ destructive. When working with a single package it's generally faster to run its
 tests in a tighter loop than Gradle provides. In one window:
 
 --------------------------------
-./gradlew :distribution:rpm:assemble
+./gradlew :distribution:packages:rpm:assemble
 --------------------------------
 
 and in another window:

@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,16 +40,9 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     private static final ParseField VALUE_FIELD = new ParseField("value");
 
-    private final BytesRef type;
+    private final String type;
 
     public TypeQueryBuilder(String type) {
-        if (type == null) {
-            throw new IllegalArgumentException("[type] cannot be null");
-        }
-        this.type = BytesRefs.toBytesRef(type);
-    }
-
-    TypeQueryBuilder(BytesRef type) {
         if (type == null) {
             throw new IllegalArgumentException("[type] cannot be null");
         }
@@ -60,28 +54,36 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
      */
     public TypeQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        type = in.readBytesRef();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            type = in.readString();
+        } else {
+            type = in.readBytesRef().utf8ToString();
+        }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeBytesRef(type);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeString(type);
+        } else {
+            out.writeBytesRef(new BytesRef(type));
+        }
     }
 
     public String type() {
-        return BytesRefs.toString(this.type);
+        return type;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(VALUE_FIELD.getPreferredName(), type.utf8ToString());
+        builder.field(VALUE_FIELD.getPreferredName(), type);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     public static TypeQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        BytesRef type = null;
+        String type = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String currentFieldName = null;
@@ -90,12 +92,12 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
-                } else if (VALUE_FIELD.match(currentFieldName)) {
-                    type = parser.utf8Bytes();
+                } else if (VALUE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    type = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");
@@ -124,7 +126,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
-        DocumentMapper documentMapper = context.getMapperService().documentMapper(type.utf8ToString());
+        DocumentMapper documentMapper = context.getMapperService().documentMapper(type);
         if (documentMapper == null) {
             // no type means no documents
             return new MatchNoDocsQuery();

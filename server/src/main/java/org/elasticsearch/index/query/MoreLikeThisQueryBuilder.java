@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -208,7 +209,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             this.index = index;
             this.type = type;
-            this.doc = doc.bytes();
+            this.doc = BytesReference.bytes(doc);
             this.xContentType = doc.contentType();
         }
 
@@ -221,7 +222,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = XContentType.readFrom(in);
+                    xContentType = in.readEnum(XContentType.class);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
                 }
@@ -243,7 +244,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (doc != null) {
                 out.writeGenericValue(doc);
                 if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType.writeTo(out);
+                    out.writeEnum(xContentType);
                 }
             } else {
                 out.writeString(id);
@@ -366,16 +367,16 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName != null) {
-                    if (INDEX.match(currentFieldName)) {
+                    if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.index = parser.text();
-                    } else if (TYPE.match(currentFieldName)) {
+                    } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.type = parser.text();
-                    } else if (ID.match(currentFieldName)) {
+                    } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
-                    } else if (DOC.match(currentFieldName)) {
-                        item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
+                    } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
+                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
                         item.xContentType = XContentType.JSON;
-                    } else if (FIELDS.match(currentFieldName)) {
+                    } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -386,13 +387,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                             throw new ElasticsearchParseException(
                                     "failed to parse More Like This item. field [fields] must be an array");
                         }
-                    } else if (PER_FIELD_ANALYZER.match(currentFieldName)) {
+                    } else if (PER_FIELD_ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
-                    } else if (ROUTING.match(currentFieldName)) {
+                    } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.routing = parser.text();
-                    } else if (VERSION.match(currentFieldName)) {
+                    } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.version = parser.longValue();
-                    } else if (VERSION_TYPE.match(currentFieldName)) {
+                    } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.versionType = VersionType.fromString(parser.text());
                     } else {
                         throw new ElasticsearchParseException(
@@ -424,7 +425,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 builder.field(ID.getPreferredName(), this.id);
             }
             if (this.doc != null) {
-                builder.rawField(DOC.getPreferredName(), this.doc, xContentType);
+                try (InputStream stream = this.doc.streamInput()) {
+                    builder.rawField(DOC.getPreferredName(), stream, xContentType);
+                }
             }
             if (this.fields != null) {
                 builder.array(FIELDS.getPreferredName(), this.fields);
@@ -450,7 +453,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return builder.string();
+                return Strings.toString(builder);
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }
@@ -834,31 +837,31 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (LIKE.match(currentFieldName)) {
+                if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     parseLikeField(parser, likeTexts, likeItems);
-                } else if (UNLIKE.match(currentFieldName)) {
+                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     parseLikeField(parser, unlikeTexts, unlikeItems);
-                } else if (MAX_QUERY_TERMS.match(currentFieldName)) {
+                } else if (MAX_QUERY_TERMS.match(currentFieldName, parser.getDeprecationHandler())) {
                     maxQueryTerms = parser.intValue();
-                } else if (MIN_TERM_FREQ.match(currentFieldName)) {
+                } else if (MIN_TERM_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
                     minTermFreq =parser.intValue();
-                } else if (MIN_DOC_FREQ.match(currentFieldName)) {
+                } else if (MIN_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
                     minDocFreq = parser.intValue();
-                } else if (MAX_DOC_FREQ.match(currentFieldName)) {
+                } else if (MAX_DOC_FREQ.match(currentFieldName, parser.getDeprecationHandler())) {
                     maxDocFreq = parser.intValue();
-                } else if (MIN_WORD_LENGTH.match(currentFieldName)) {
+                } else if (MIN_WORD_LENGTH.match(currentFieldName, parser.getDeprecationHandler())) {
                     minWordLength = parser.intValue();
-                } else if (MAX_WORD_LENGTH.match(currentFieldName)) {
+                } else if (MAX_WORD_LENGTH.match(currentFieldName, parser.getDeprecationHandler())) {
                     maxWordLength = parser.intValue();
-                } else if (ANALYZER.match(currentFieldName)) {
+                } else if (ANALYZER.match(currentFieldName, parser.getDeprecationHandler())) {
                     analyzer = parser.text();
-                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName)) {
+                } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatch = parser.text();
-                } else if (BOOST_TERMS.match(currentFieldName)) {
+                } else if (BOOST_TERMS.match(currentFieldName, parser.getDeprecationHandler())) {
                     boostTerms = parser.floatValue();
-                } else if (INCLUDE.match(currentFieldName)) {
+                } else if (INCLUDE.match(currentFieldName, parser.getDeprecationHandler())) {
                     include = parser.booleanValue();
-                } else if (FAIL_ON_UNSUPPORTED_FIELD.match(currentFieldName)) {
+                } else if (FAIL_ON_UNSUPPORTED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     failOnUnsupportedField = parser.booleanValue();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
@@ -868,20 +871,20 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (FIELDS.match(currentFieldName)) {
+                if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                     fields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
                     }
-                } else if (LIKE.match(currentFieldName)) {
+                } else if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parser, likeTexts, likeItems);
                     }
-                } else if (UNLIKE.match(currentFieldName)) {
+                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
-                } else if (STOP_WORDS.match(currentFieldName)) {
+                } else if (STOP_WORDS.match(currentFieldName, parser.getDeprecationHandler())) {
                     stopWords = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         stopWords.add(parser.text());
@@ -890,9 +893,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (LIKE.match(currentFieldName)) {
+                if (LIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     parseLikeField(parser, likeTexts, likeItems);
-                } else if (UNLIKE.match(currentFieldName)) {
+                } else if (UNLIKE.match(currentFieldName, parser.getDeprecationHandler())) {
                     parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");

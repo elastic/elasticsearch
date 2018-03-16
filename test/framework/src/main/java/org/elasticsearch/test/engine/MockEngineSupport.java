@@ -133,9 +133,8 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(String source, IndexSearcher searcher,
-                                              ReferenceManager<IndexSearcher> manager) throws EngineException {
-        IndexReader reader = searcher.getIndexReader();
+    public AssertingIndexSearcher newSearcher(Engine.Searcher searcher) throws EngineException {
+        IndexReader reader = searcher.reader();
         IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
@@ -143,7 +142,7 @@ public final class MockEngineSupport {
         }
         // this executes basic query checks and asserts that weights are normalized only once etc.
         final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
+        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity(true));
         assertingIndexSearcher.setQueryCache(filterCache);
         assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
         return assertingIndexSearcher;
@@ -183,10 +182,9 @@ public final class MockEngineSupport {
 
     }
 
-    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher, IndexSearcher searcher,
-                                        ReferenceManager<IndexSearcher> manager) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(source, searcher, manager);
-        assertingIndexSearcher.setSimilarity(searcher.getSimilarity(true));
+    public Engine.Searcher wrapSearcher(String source, Engine.Searcher engineSearcher) {
+        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
+        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity(true));
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here

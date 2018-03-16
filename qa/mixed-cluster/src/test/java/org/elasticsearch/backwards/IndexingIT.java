@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -42,7 +43,6 @@ import java.util.stream.Collectors;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -233,19 +233,19 @@ public class IndexingIT extends ESRestTestCase {
 
     public void testUpdateSnapshotStatus() throws Exception {
         Nodes nodes = buildNodeAndVersions();
-        assertThat(nodes.getNewNodes(), not(empty()));
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
 
         // Create the repository before taking the snapshot.
-        String repoConfig = JsonXContent.contentBuilder()
-            .startObject()
-            .field("type", "fs")
-            .startObject("settings")
-            .field("compress", randomBoolean())
-            .field("location", System.getProperty("tests.path.repo"))
-            .endObject()
-            .endObject()
-            .string();
+        String repoConfig = Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .endObject()
+                .endObject());
 
         assertOK(
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),

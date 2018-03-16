@@ -21,10 +21,12 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.Failure;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -127,14 +129,14 @@ public final class RandomObjects {
                     break;
                 case 8:
                     byte[] randomBytes = RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50).getBytes(StandardCharsets.UTF_8);
+                    BytesArray randomBytesArray = new BytesArray(randomBytes);
+                    originalValues.add(randomBytesArray);
                     if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
                         //JSON and YAML write the base64 format
                         expectedParsedValues.add(Base64.getEncoder().encodeToString(randomBytes));
-                        originalValues.add(Base64.getEncoder().encodeToString(randomBytes));
                     } else {
                         //SMILE and CBOR write the original bytes as they support binary format
-                        expectedParsedValues.add(randomBytes);
-                        originalValues.add(randomBytes);
+                        expectedParsedValues.add(randomBytesArray);
                     }
                     break;
                 default:

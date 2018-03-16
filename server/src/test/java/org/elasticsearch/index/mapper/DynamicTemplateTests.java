@@ -62,6 +62,19 @@ public class DynamicTemplateTests extends ESTestCase {
                 e.getMessage());
     }
 
+    public void testParseInvalidRegex() {
+        for (String param : new String[] { "path_match", "match", "path_unmatch", "unmatch" }) {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", "foo");
+            templateDef.put(param, "*a");
+            templateDef.put("match_pattern", "regex");
+            templateDef.put("mapping", Collections.singletonMap("store", true));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> DynamicTemplate.parse("my_template", templateDef, Version.V_6_3_0));
+            assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
+        }
+    }
+
     public void testMatchAllTemplate() {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "*");

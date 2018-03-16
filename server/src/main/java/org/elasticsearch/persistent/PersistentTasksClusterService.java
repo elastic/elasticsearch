@@ -117,7 +117,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetaData.Builder tasksInProgress = builder(currentState);
                 if (tasksInProgress.hasTask(id, allocationId)) {
-                    tasksInProgress.finishTask(id);
+                    tasksInProgress.removeTask(id);
                     return update(currentState, tasksInProgress);
                 } else {
                     if (tasksInProgress.hasTask(id)) {

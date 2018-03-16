@@ -164,8 +164,8 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
 
     private void assertServiceIsNotBound(Class<?> klass) {
         try {
-            internalCluster().getDataNodeInstance(klass);
-            fail("should have thrown an exception about missing implementation");
+            // it should be bound, but directly as null
+            assertNull(internalCluster().getDataNodeInstance(klass));
         } catch (Exception ce) {
             assertThat("message contains error about missing implementation: " + ce.getMessage(),
                     ce.getMessage().contains("Could not find a suitable constructor"), equalTo(true));

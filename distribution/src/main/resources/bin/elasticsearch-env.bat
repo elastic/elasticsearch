@@ -1,3 +1,5 @@
+setlocal enabledelayedexpansion
+
 set SCRIPT=%0
 
 rem determine Elasticsearch home; to do this, we strip from the path until we
@@ -16,18 +18,15 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 
-rem check that JAVA_HOME does not contain qoutes
+rem check that JAVA_HOME does not contain quotes
 if defined JAVA_HOME (
-  if "%JAVA_HOME:"=%" equ "" (
+  if "%JAVA_HOME:"=%"=="" (
     echo JAVA_HOME is empty. Specify a valid path for JAVA_HOME
     exit /b 1
   )
 
-  if '^%JAVA_HOME:~0^,1%=='^" (
-    echo JAVA_HOME cannot contain quotes ("). Remove the quotes from JAVA_HOME and try again.
-    exit /b 1
-  )
-  if '^%JAVA_HOME:~-1% == '^" (
+  set "JAVA_HOME_UNQUOTED=%JAVA_HOME:"=%"
+  if not "!JAVA_HOME!"=="!JAVA_HOME_UNQUOTED!" (
     echo JAVA_HOME cannot contain quotes ("). Remove the quotes from JAVA_HOME and try again.
     exit /b 1
   )

@@ -39,7 +39,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreService;
@@ -195,8 +194,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     try {
                         indicesService.verifyIndexMetadata(indexMetaData, indexMetaData, false);
                     } catch (Exception e) {
-                        throw new IndexOpenException(indexMetaData.getIndex(),
-                            "Failed to open index! Failed to verify index " + indexMetaData.getIndex() + e.getMessage());
+                        throw new IllegalArgumentException("Failed to open index! Failed to verify index " + indexMetaData.getIndex(), e);
                     }
 
                     mdBuilder.put(indexMetaData, true);

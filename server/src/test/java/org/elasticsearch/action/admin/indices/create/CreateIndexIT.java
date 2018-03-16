@@ -38,7 +38,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -392,8 +391,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertThat(stateAfterRestart.getMetaData().index(metaData.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
 
         // try to open the index
-        final ElasticsearchException e =
-                expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
+        final Exception e =
+                expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(e, hasToString(containsString("Failed to verify index " + metaData.getIndex())));
         assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
     }

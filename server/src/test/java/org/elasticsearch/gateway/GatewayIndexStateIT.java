@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndexOpenException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -418,7 +417,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals("true", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.unknown.setting"));
 
         // try to open it with the archived setting - fail again with IndexOpenException
-        ElasticsearchException ex = expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
         assertThat(ex.getMessage(), containsString("unknown setting [archived.index.unknown.setting]"));
 
@@ -480,7 +479,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
 
         // try to open it with the broken setting - fail again!
-        ElasticsearchException ex = expectThrows(IndexOpenException.class, () -> client().admin().indices().prepareOpen("test").get());
+        Exception ex = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
         assertThat(ex.getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }

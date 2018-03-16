@@ -56,7 +56,7 @@ Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
 feature that is supported by many key-value stores. Adding a new shard and
 pushing new data to this new shard only is not an option: this would likely be
 an indexing bottleneck, and figuring out which shard a document belongs to
-given its `_id`, which is necessary for get, delet and update requests, would
+given its `_id`, which is necessary for get, delete and update requests, would
 become quite complex. This means that we need to rebalance existing data using
 a different hashing scheme.
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -394,7 +393,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         final Exception e =
                 expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(e, hasToString(containsString("Failed to verify index " + metaData.getIndex())));
-        assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause().getMessage(), hasToString(containsString("unknown setting [index.foo]")));
     }
 
 }

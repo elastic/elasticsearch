@@ -419,7 +419,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         // try to open it with the archived setting - fail again with IndexOpenException
         Exception ex = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
-        assertThat(ex.getMessage(), containsString("unknown setting [archived.index.unknown.setting]"));
+        assertNotNull(ex.getCause());
+        assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
+        assertThat(ex.getCause().getMessage(), startsWith("unknown setting [archived.index.unknown.setting]"));
 
         // delete archived settings and try to open index again - this time successful
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().putNull("archived.*")).get();
@@ -481,7 +483,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         // try to open it with the broken setting - fail again!
         Exception ex = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertThat(ex.getMessage(), startsWith("Failed to open index! Failed to verify index " + metaData.getIndex()));
-        assertThat(ex.getMessage(), containsString("analyzer [test] not found for field [field1]"));
+        assertNotNull(ex.getCause());
+        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

@@ -72,7 +72,8 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec spec = new RankEvalSpec(specifications, metric);
 
-        RankEvalResponse response = execute(new RankEvalRequest(spec), highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
+        RankEvalResponse response = execute(new RankEvalRequest(spec, new String[] { "index" }), highLevelClient()::rankEval,
+                highLevelClient()::rankEvalAsync);
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the second is 1/6, divided by 2 to get the average
         double expectedPrecision = (1.0 / 6.0 + 4.0 / 6.0) / 2.0;
         assertEquals(expectedPrecision, response.getEvaluationResult(), Double.MIN_VALUE);

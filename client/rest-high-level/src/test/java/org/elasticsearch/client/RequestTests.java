@@ -1108,7 +1108,7 @@ public class RequestTests extends ESTestCase {
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),
                 new PrecisionAtK());
         String[] indices = randomIndicesNames(0, 5);
-        RankEvalRequest rankEvalRequest = new RankEvalRequest(spec);
+        RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, indices);
 
         Request request = Request.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

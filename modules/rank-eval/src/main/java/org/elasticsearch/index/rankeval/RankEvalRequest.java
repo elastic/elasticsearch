@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -37,8 +36,9 @@ public class RankEvalRequest extends ActionRequest {
     private RankEvalSpec rankingEvaluationSpec;
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec) {
+    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = rankingEvaluationSpec;
+        setIndices(indices);
     }
 
     RankEvalRequest() {
@@ -80,8 +80,11 @@ public class RankEvalRequest extends ActionRequest {
         return this;
     }
 
+    /**
+     * @return the indices for this request
+     */
     public String[] getIndices() {
-        return Arrays.copyOf(indices, indices.length);
+        return indices;
     }
 
     @Override

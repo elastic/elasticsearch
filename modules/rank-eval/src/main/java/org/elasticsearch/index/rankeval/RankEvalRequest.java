@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -91,13 +92,30 @@ public class RankEvalRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
-        indices = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            indices = in.readStringArray();
+        } else {
+            // older 6.2 format
+            int indicesSize = in.readInt();
+            String[] indices = new String[indicesSize];
+            for (int i = 0; i < indicesSize; i++) {
+                indices[i] = in.readString();
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         rankingEvaluationSpec.writeTo(out);
-        out.writeStringArray(indices);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeStringArray(indices);
+        } else {
+            // older 6.2 format
+            out.writeInt(indices.length);
+            for (String index : indices) {
+                out.writeString(index);
+            }
+        }
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -121,7 +122,9 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
             try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
+                followingEngine.recoverFromTranslog();
                 final VersionType versionType =
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, false, 2, 2, 20);
@@ -145,7 +148,9 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
             try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
+                followingEngine.recoverFromTranslog();
                 final String id = "id";
                 final Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
                 final String type = "type";
@@ -221,7 +226,9 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
+            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
             try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
+                followingEngine.recoverFromTranslog();
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                         "type",
@@ -250,7 +257,6 @@ public class FollowingEngineTests extends ESTestCase {
         final Path translogPath = createTempDir("translog");
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         return new EngineConfig(
-                EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG,
                 shardId,
                 "allocation-id",
                 threadPool,
@@ -269,7 +275,6 @@ public class FollowingEngineTests extends ESTestCase {
                 },
                 IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(),
-                randomBoolean(),
                 translogConfig,
                 TimeValue.timeValueMinutes(5),
                 Collections.emptyList(),
@@ -278,7 +283,7 @@ public class FollowingEngineTests extends ESTestCase {
                 new TranslogHandler(
                         xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
                 new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.UNASSIGNED_SEQ_NO
+                () -> SequenceNumbers.NO_OPS_PERFORMED
         );
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -276,7 +277,7 @@ public class ShardChangesIT extends ESIntegTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            settings = builder.string();
+            settings = BytesReference.bytes(builder).utf8ToString();
         }
         return settings;
     }

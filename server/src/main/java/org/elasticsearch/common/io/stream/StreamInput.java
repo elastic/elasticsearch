@@ -748,6 +748,13 @@ public abstract class StreamInput extends InputStream {
             switch (key) {
                 case 0:
                     final int ord = readVInt();
+                    // TODO: remove the if branch when master is bumped to 8.0.0
+                    assert Version.CURRENT.major < 8;
+                    if (ord == 59) {
+                        final ElasticsearchException ex = new ElasticsearchException(this);
+                        final boolean isExecutorShutdown = readBoolean();
+                        return (T) new EsRejectedExecutionException(ex.getMessage(), isExecutorShutdown);
+                    }
                     return (T) ElasticsearchException.readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();

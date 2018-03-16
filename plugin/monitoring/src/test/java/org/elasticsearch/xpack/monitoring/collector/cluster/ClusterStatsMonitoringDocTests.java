@@ -254,7 +254,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                         .maxNodes(2)
                                         .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, null));
+        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
@@ -556,7 +556,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     + "\"xpack\":{"
                       + "\"monitoring\":{"
                         + "\"available\":false,"
-                        + "\"enabled\":true"
+                        + "\"enabled\":true,"
+                        + "\"collection_enabled\":false"
                       + "}"
                     + "}"
                   + "}"

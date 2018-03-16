@@ -23,12 +23,17 @@ import java.util.Map;
 public class MonitoringFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
+    private final MonitoringService monitoring;
     private final XPackLicenseState licenseState;
     private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Exporters exporters) {
+    public MonitoringFeatureSet(Settings settings,
+                                @Nullable MonitoringService monitoring,
+                                @Nullable XPackLicenseState licenseState,
+                                @Nullable Exporters exporters) {
         this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
+        this.monitoring = monitoring;
         this.licenseState = licenseState;
         this.exporters = exporters;
     }
@@ -60,7 +65,9 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new MonitoringFeatureSetUsage(available(), enabled(), exportersUsage(exporters)));
+        final boolean collectionEnabled = monitoring != null && monitoring.isMonitoringActive();
+
+        listener.onResponse(new MonitoringFeatureSetUsage(available(), enabled(), collectionEnabled, exportersUsage(exporters)));
     }
 
     static Map<String, Object> exportersUsage(Exporters exporters) {

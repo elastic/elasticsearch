@@ -113,6 +113,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MonitoringFeatureSet.class);
             if (transportClientMode || enabled == false || tribeNode) {
+                b.bind(MonitoringService.class).toProvider(Providers.of(null));
                 b.bind(Exporters.class).toProvider(Providers.of(null));
             }
         });

@@ -53,8 +53,16 @@ Splitting works as follows:
 === Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
-feature that is supported by many key-value stores, which leverage the fact that
-consistent hashing only requires `1/N`-th of the keys to be relocated. However
+feature that is supported by many key-value stores. Adding a new shard and
+pushing new data to this new shard only is not an option: this would likely be
+an indexing bottleneck, and figuring out which shard a document belongs to
+given its `_id`, which is necessary for get, delet and update requests, would
+become quite complex. This means that we need to rebalance existing data using
+a different hashing scheme.
+
+The most common way that key-value stores do this efficiently is by using
+consistent hashing. Consistent hashing only requires `1/N`-th of the keys to
+be relocated when growing the number of shards from `N` to `N+1`. However
 Elasticsearch's unit of storage, shards, are Lucene indices. Because of their
 search-oriented data structure, taking a significant portion of a Lucene index,
 be it only 5% of documents, deleting them and indexing them on another shard

@@ -20,6 +20,7 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -708,6 +709,11 @@ public class RestClient implements Closeable {
                 }
                 if (exception instanceof SocketTimeoutException) {
                     SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
+                    e.initCause(exception);
+                    throw e;
+                }
+                if (exception instanceof ConnectionClosedException) {
+                    ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
                     e.initCause(exception);
                     throw e;
                 }

@@ -163,16 +163,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals(foobars[0].getCause().getClass(), IllegalArgumentException.class);
             assertEquals(foobars[0].getExceptionName(), "illegal_argument_exception");
         }
-
-        {
-            final EsRejectedExecutionException esRejectedExecutionException = new EsRejectedExecutionException("rejected", randomBoolean());
-            final RemoteTransportException remoteTransportException =
-                    new RemoteTransportException("node", buildNewFakeTransportAddress(), "action", esRejectedExecutionException);
-            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(remoteTransportException);
-            assertThat(rootCauses, arrayWithSize(1));
-            assertThat(rootCauses[0].getExceptionName(), equalTo("es_rejected_execution_exception"));
-            assertThat(rootCauses[0].getMessage(), equalTo("rejected"));
-        }
     }
 
     public void testDeduplicate() throws IOException {

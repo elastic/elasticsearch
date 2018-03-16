@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -133,7 +131,6 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                         .map();
                 params = new ToXContent.DelegatingMapParams(extraParams, params);
                 license.toInnerXContent(builder, params);
-                builder.field("hkey", hash(license, getCluster()));
                 if (clusterNeedsTLSEnabled) {
                     builder.field("cluster_needs_tls", true);
                 }
@@ -197,12 +194,4 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return temp.toString().hashCode();
     }
 
-    public static String hash(License license, String clusterName) {
-        return hash(license.status().label(), license.uid(), license.type(), String.valueOf(license.expiryDate()), clusterName);
-    }
-
-    public static String hash(String licenseStatus, String licenseUid, String licenseType, String licenseExpiryDate, String clusterUUID) {
-        String toHash = licenseStatus + licenseUid + licenseType + licenseExpiryDate + clusterUUID;
-        return MessageDigests.toHexString(MessageDigests.sha256().digest(toHash.getBytes(StandardCharsets.UTF_8)));
-    }
 }

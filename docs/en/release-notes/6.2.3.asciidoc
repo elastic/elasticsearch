@@ -6,3 +6,56 @@
 ++++
 
 coming[6.2.3]
+
+
+////
+[[xes-bug-6.2.3]]
+[float]
+=== Bug fixes
+////
+////
+Machine Learning::
+* [ML] Filter non-ml attributes from data feed node stats
+  - When a datafeed is started the GET datafeed stats API returns only ML specific node attributes.
+// Repo: x-pack-elasticsearch
+// Pull: 3994
+* [ML] Add notification for job updates coming from a user action
+// Repo: x-pack-elasticsearch
+// Pull: 3890
+////
+////
+Monitoring::
+* [Logstash][Monitoring] Fix Registered Usage and Add Tests
+// Repo: x-pack-elasticsearch
+// Pull: 4075
+* [Monitoring] Align indices/index stats with local cluster state
+// Repo: x-pack-elasticsearch
+// Pull: 4079
+////
+////
+Security::
+* Disregard comments in XML documents
+// Repo: x-pack-elasticsearch
+// Pull: 4047
+* Security: IndexAuditTrail updates mappings when indexing locally
+// Repo: x-pack-elasticsearch
+// Pull: 3944
+* Additional settings for SAML NameID policy
+// Repo: x-pack-elasticsearch
+// Pull: 3969
+* [SAML] Handle ACS URL with existing query params
+// Repo: x-pack-elasticsearch
+// Pull: 4060
+* Make PKI BootstrapCheck work with SecureSettings
+// Repo: x-pack-elasticsearch
+// Pull: 3993
+////
+////
+Watcher::
+* Watcher: Fix hipchat message failure serialization
+// Repo: x-pack-elasticsearch
+// Pull: 3939
+* Watcher: Fix TransformInput toXContent serialization
+// Repo: x-pack-elasticsearch
+// Pull: 4061
+////

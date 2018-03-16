@@ -198,9 +198,8 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         when(indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*"))
             .thenReturn(indices);
 
-        // Baz - Changed from Logstash to Monitoring featureset
         final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-            singletonList(new MonitoringFeatureSetUsage(true, true, null)));
+            singletonList(new MonitoringFeatureSetUsage(true, true, false, null)));
 
         @SuppressWarnings("unchecked")
         final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);

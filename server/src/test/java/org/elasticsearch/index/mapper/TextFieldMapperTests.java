@@ -603,13 +603,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             }, null);
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefix").endObject()
                 .field("index_options", "offsets")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -619,13 +619,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefix").endObject()
                 .field("index_options", "positions")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -636,13 +636,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefix").endObject()
                 .field("term_vector", "with_positions_offsets")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
@@ -653,13 +653,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
                 .field("type", "text")
                 .field("analyzer", "english")
                 .startObject("index_prefix").endObject()
                 .field("term_vector", "with_positions")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 

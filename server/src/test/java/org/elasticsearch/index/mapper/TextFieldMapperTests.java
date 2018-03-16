@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -593,6 +594,80 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testIndexPrefixIndexTypes() throws IOException {
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix").endObject()
+                .field("index_options", "offsets")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, ft.indexOptions());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix").endObject()
+                .field("index_options", "positions")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            assertFalse(ft.storeTermVectors());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix").endObject()
+                .field("term_vector", "with_positions_offsets")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            assertTrue(ft.storeTermVectorOffsets());
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("analyzer", "english")
+                .startObject("index_prefix").endObject()
+                .field("term_vector", "with_positions")
+                .endObject().endObject().endObject().endObject());
+
+            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+
+            FieldMapper prefix = mapper.mappers().getMapper("field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(IndexOptions.DOCS, ft.indexOptions());
+            assertFalse(ft.storeTermVectorOffsets());
+        }
     }
 
     public void testIndexPrefixMapping() throws IOException {

@@ -20,12 +20,16 @@
 package org.elasticsearch.gradle
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.DependencySet
+import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+
+import java.util.regex.Matcher
 
 
 /**
@@ -46,15 +50,24 @@ public class DependenciesInfoTask extends DefaultTask {
     @Input
     public DependencySet dependencies
 
-    /** Directory to read license files */
-    @InputDirectory
-    public File licensesDir = new File(project.projectDir, 'licenses')
+    /** License files used to identify dependency's license type */
+    @InputFiles
+    public FileCollection licenses = licensesFiles()
 
     @OutputFile
     File outputFile = new File(project.buildDir, "reports/dependencies/dependencies.csv")
 
     public DependenciesInfoTask() {
         description = 'Create a CSV file with dependencies information.'
+    }
+
+    /**
+     * Returns the LICENSE files this task will check
+     */
+    FileCollection licensesFiles() {
+        return project.fileTree("${project.projectDir}").matching {
+            include 'licenses/*-LICENSE*'
+        }
     }
 
     @TaskAction
@@ -71,6 +84,7 @@ public class DependenciesInfoTask extends DefaultTask {
         }
         outputFile.setText(output.toString(), 'UTF-8')
     }
+
 
     /**
      * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>
@@ -99,12 +113,10 @@ public class DependenciesInfoTask extends DefaultTask {
     protected String getLicenseType(final String group, final String name) {
         File license
 
-        if (licensesDir.exists()) {
-            licensesDir.eachFileMatch({ it ==~ /.*-LICENSE.*/ }) { File file ->
-                String prefix = file.name.split('-LICENSE.*')[0]
-                if (group.contains(prefix) || name.contains(prefix)) {
-                    license = file.getAbsoluteFile()
-                }
+        licenses.each { File file ->
+            String prefix = file.name.split('-LICENSE.*')[0]
+            if (group.contains(prefix) || name.contains(prefix)) {
+                license = file.getAbsoluteFile()
             }
         }
 
@@ -115,8 +127,14 @@ public class DependenciesInfoTask extends DefaultTask {
                 // License has not be identified as SPDX.
                 // As we have the license file, we create a Custom entry with the URL to this license file.
                 final gitBranch = System.getProperty('build.branch', 'master')
-                final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/${gitBranch}/"
-                return "Custom;${license.getCanonicalPath().replaceFirst('.*/elasticsearch/', githubBaseURL)}"
+                String gitRepository = 'elasticsearch/'
+                // The license file can be in a different git repository
+                final Matcher m = license.getCanonicalPath() =~ /(\w+[^\/])*elasticsearch\//
+                if (m.find()) {
+                    gitRepository = m.group()
+                }
+                final String githubBaseURL = "https://github.com/elastic/${gitRepository}blob/${gitBranch}/"
+                return "Custom;${license.getCanonicalPath().replaceFirst(".*/${gitRepository}", githubBaseURL)}"
             }
             return spdx
         } else {

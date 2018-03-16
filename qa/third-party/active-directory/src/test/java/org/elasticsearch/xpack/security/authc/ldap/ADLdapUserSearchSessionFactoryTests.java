@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import com.unboundid.ldap.sdk.LDAPException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -21,17 +20,19 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
+import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
+import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactoryTests.getLdapUserSearchSessionFactory;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItems;
 
-public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
+public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
     private SSLService sslService;
     private Settings globalSettings;
@@ -53,7 +54,7 @@ public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
                 .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
                 .build();
         sslService = new SSLService(globalSettings, env);
-        threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");
+        threadPool = new TestThreadPool("ADLdapUserSearchSessionFactoryTests");
     }
 
     @After
@@ -61,8 +62,12 @@ public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
         terminate(threadPool);
     }
 
-    @Network
-    @SuppressWarnings("unchecked")
+    private MockSecureSettings newSecureSettings(String key, String value) {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(key, value);
+        return secureSettings;
+    }
+
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -76,6 +81,7 @@ public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                 .put("user_search.filter", "(cn={0})")
                 .put("user_search.pool.enabled", randomBoolean())
+                .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
                 .build();
         Settings.Builder builder = Settings.builder()
                 .put(globalSettings);
@@ -85,8 +91,8 @@ public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
         });
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+                new ThreadContext(globalSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";
@@ -119,20 +125,27 @@ public class ActiveDirectoryUserSearchSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    static LdapUserSearchSessionFactory getLdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)
-            throws LDAPException {
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool);
-        if (sessionFactory.getConnectionPool() != null) {
-            // don't use this in production
-            // used here to catch bugs that might get masked by an automatic retry
-            sessionFactory.getConnectionPool().setRetryFailedOperationsDueToInvalidConnections(false);
-        }
-        return sessionFactory;
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
     }
 
-    private MockSecureSettings newSecureSettings(String key, String value) {
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(key, value);
-        return secureSettings;
+    private LdapSession session(SessionFactory factory, String username, SecureString password) {
+        PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
+        factory.session(username, password, future);
+        return future.actionGet();
+    }
+
+    private List<String> groups(LdapSession ldapSession) {
+        Objects.requireNonNull(ldapSession);
+        PlainActionFuture<List<String>> future = new PlainActionFuture<>();
+        ldapSession.groups(future);
+        return future.actionGet();
+    }
+
+    private LdapSession unauthenticatedSession(SessionFactory factory, String username) {
+        PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
+        factory.unauthenticatedSession(username, future);
+        return future.actionGet();
     }
 }

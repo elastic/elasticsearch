@@ -9,9 +9,9 @@ import com.unboundid.ldap.sdk.Filter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -21,11 +21,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-@Network
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
     private static final String BRUCE_BANNER_DN =
             "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
+
+    @Before
+    public void setReferralFollowing() {
+        ldapConnection.getConnectionOptions().setFollowReferrals(AbstractActiveDirectoryTestCase.FOLLOW_REFERRALS);
+    }
 
     @SuppressWarnings("unchecked")
     public void testResolveSubTree() throws Exception {
@@ -76,7 +80,6 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         {
             String[] expectedSids = new String[]{
                     "S-1-5-32-545", //Default Users group
-                    "S-1-5-21-3510024162-210737641-214529065-513" //Default Domain Users group
             };
             final String dn = "CN=Jarvis, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com";
             PlainActionFuture<Filter> future = new PlainActionFuture<>();
@@ -89,29 +92,9 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         //test a user of one groups
         {
             String[] expectedSids = new String[]{
-                    "S-1-5-32-545", //Default Users group
-                    "S-1-5-21-3510024162-210737641-214529065-513",   //Default Domain Users group
-                    "S-1-5-21-3510024162-210737641-214529065-1117"}; //Gods group
+                    "S-1-5-32-545" //Default Users group
+            };
             final String dn = "CN=Odin, CN=Users, DC=ad, DC=test, DC=elasticsearch, DC=com";
-            PlainActionFuture<Filter> future = new PlainActionFuture<>();
-            ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, dn,
-                    TimeValue.timeValueSeconds(10), false, future);
-            Filter query = future.actionGet();
-            assertValidSidQuery(query, expectedSids);
-        }
-
-        //test a user of many groups
-        {
-            String[] expectedSids = new String[]{
-                    "S-1-5-32-545", //Default Users Group
-                    "S-1-5-21-3510024162-210737641-214529065-513",  //Default Domain Users group
-                    "S-1-5-21-3510024162-210737641-214529065-1123", //Supers
-                    "S-1-5-21-3510024162-210737641-214529065-1110", //Philanthropists
-                    "S-1-5-21-3510024162-210737641-214529065-1108", //Geniuses
-                    "S-1-5-21-3510024162-210737641-214529065-1106", //SHIELD
-                    "S-1-5-21-3510024162-210737641-214529065-1105"};//Avengers
-
-            final String dn = BRUCE_BANNER_DN;
             PlainActionFuture<Filter> future = new PlainActionFuture<>();
             ActiveDirectoryGroupsResolver.buildGroupQuery(ldapConnection, dn,
                     TimeValue.timeValueSeconds(10), false, future);
@@ -125,7 +108,7 @@ public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
         Pattern sidQueryPattern = Pattern.compile("\\(\\|(\\(objectSid=S(-\\d+)+\\))+\\)");
         assertThat("[" + queryString + "] didn't match the search filter pattern",
                 sidQueryPattern.matcher(queryString).matches(), is(true));
-        for(String sid: expectedSids) {
+        for (String sid: expectedSids) {
             assertThat(queryString, containsString(sid));
         }
     }

@@ -20,6 +20,10 @@ public final class ActiveDirectorySessionFactorySettings {
     public static final String AD_UPN_USER_SEARCH_FILTER_SETTING = "user_search.upn_filter";
     public static final String AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING = "user_search.down_level_filter";
     public static final String AD_USER_SEARCH_SCOPE_SETTING = "user_search.scope";
+    public static final Setting<Integer> AD_LDAP_PORT_SETTING = Setting.intSetting("port.ldap", 389, Setting.Property.NodeScope);
+    public static final Setting<Integer> AD_LDAPS_PORT_SETTING = Setting.intSetting("port.ldaps", 636, Setting.Property.NodeScope);
+    public static final Setting<Integer> AD_GC_LDAP_PORT_SETTING = Setting.intSetting("port.gc_ldap", 3268, Setting.Property.NodeScope);
+    public static final Setting<Integer> AD_GC_LDAPS_PORT_SETTING = Setting.intSetting("port.gc_ldaps", 3269, Setting.Property.NodeScope);
     public static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled",
             settings -> Boolean.toString(PoolingSessionFactorySettings.BIND_DN.exists(settings)), Setting.Property.NodeScope);
 
@@ -36,6 +40,10 @@ public final class ActiveDirectorySessionFactorySettings {
         settings.add(Setting.simpleString(AD_UPN_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, Setting.Property.NodeScope));
         settings.add(Setting.simpleString(AD_USER_SEARCH_SCOPE_SETTING, Setting.Property.NodeScope));
+        settings.add(AD_LDAP_PORT_SETTING);
+        settings.add(AD_LDAPS_PORT_SETTING);
+        settings.add(AD_GC_LDAP_PORT_SETTING);
+        settings.add(AD_GC_LDAPS_PORT_SETTING);
         settings.add(POOL_ENABLED);
         settings.addAll(PoolingSessionFactorySettings.getSettings());
         return settings;

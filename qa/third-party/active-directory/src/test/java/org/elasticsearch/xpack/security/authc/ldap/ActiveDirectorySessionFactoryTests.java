@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -39,8 +38,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@Network
-public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryIntegTests {
+public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryTestCase {
 
     private final SecureString SECURED_PASSWORD = new SecureString(PASSWORD);
     private ThreadPool threadPool;
@@ -87,7 +85,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
 
     @SuppressWarnings("unchecked")
     public void testNetbiosAuth() throws Exception {
-        final String adUrl = randomFrom("ldap://54.213.145.20:3268", "ldaps://54.213.145.20:3269", AD_LDAP_URL);
+        final String adUrl = randomFrom(AD_LDAP_URL, AD_LDAP_GC_URL);
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(adUrl, AD_DOMAIN, false), globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
@@ -290,13 +288,16 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = LdapTestCase.buildLdapSettings(
-                new String[] { AD_LDAP_URL },
-                new String[] { userTemplate },
-                groupSearchBase,
-                LdapSearchScope.SUB_TREE,
-                null,
-                true);
+        Settings settings = Settings.builder()
+                .put(LdapTestCase.buildLdapSettings(
+                    new String[] { AD_LDAP_URL },
+                    new String[] { userTemplate },
+                    groupSearchBase,
+                    LdapSearchScope.SUB_TREE,
+                    null,
+                    true))
+                .put("follow_referrals", FOLLOW_REFERRALS)
+                .build();
         if (useGlobalSSL == false) {
             settings = Settings.builder()
                     .put(settings)
@@ -387,42 +388,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         }
     }
 
-    public void testAdAuthWithHostnameVerification() throws Exception {
-        RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, true), globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
-        try (ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool)) {
-
-            String userName = "ironman";
-            UncategorizedExecutionException e = expectThrows(UncategorizedExecutionException.class,
-                    () -> session(sessionFactory, userName, SECURED_PASSWORD));
-            assertThat(e.getCause(), instanceOf(ExecutionException.class));
-            assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
-            final LDAPException expected = (LDAPException) e.getCause().getCause();
-            assertThat(expected.getMessage(),
-                    anyOf(containsString("Hostname verification failed"), containsString("peer not authenticated")));
-        }
-    }
-
-    public void testStandardLdapHostnameVerification() throws Exception {
-        String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
-        String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
-        Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put("ssl.verification_mode", VerificationMode.FULL)
-                .build();
-        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
-
-        String user = "Bruce Banner";
-        UncategorizedExecutionException e = expectThrows(UncategorizedExecutionException.class,
-                () -> session(sessionFactory, user, SECURED_PASSWORD));
-        assertThat(e.getCause(), instanceOf(ExecutionException.class));
-        assertThat(e.getCause().getCause(), instanceOf(LDAPException.class));
-        final LDAPException expected = (LDAPException) e.getCause().getCause();
-        assertThat(expected.getMessage(), anyOf(containsString("Hostname verification failed"), containsString("peer not authenticated")));
-    }
-
     public void testADLookup() throws Exception {
         RealmConfig config = new RealmConfig("ad-test",
                 buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false, true),
@@ -450,7 +415,12 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     private Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification, boolean useBindUser) {
         Settings.Builder builder = Settings.builder()
                 .put(SessionFactorySettings.URLS_SETTING, ldapUrl)
-                .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, adDomainName);
+                .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, adDomainName)
+                .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
+                .put("follow_referrals", FOLLOW_REFERRALS);
         if (randomBoolean()) {
             builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {

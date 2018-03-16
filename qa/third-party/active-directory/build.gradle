@@ -1,3 +1,7 @@
+Project smbFixtureProject = xpackProject("test:smb-fixture")
+evaluationDependsOn(smbFixtureProject.path)
+
+apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
@@ -5,10 +9,11 @@ dependencies {
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
-// add test resources from security, so certificate tool tests can use example certs
+// add test resources from security, so tests can use example certs
 sourceSets.test.resources.srcDirs(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
-// we have to repeate these patterns because the security test resources are effectively in the src of this project
+// we have to repeat these patterns because the security test resources are effectively in the src of this project
 forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.p12'
@@ -21,7 +26,22 @@ test {
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  include '**/*IT.class'
+  include '**/*Tests.class'
 }
 
 // these are just tests, no need to audit
 thirdPartyAudit.enabled = false
+
+task smbFixture {
+  dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", smbFixtureProject.up
+}
+
+if (project.rootProject.vagrantSupported) {
+  if (project.hasProperty('useExternalAD') == false) {
+    test.dependsOn smbFixture
+    test.finalizedBy smbFixtureProject.halt
+  }
+} else {
+  test.enabled = false
+}

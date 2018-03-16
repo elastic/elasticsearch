@@ -3,9 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration.ldap;
-
-import org.elasticsearch.test.junit.annotations.Network;
+package org.elasticsearch.xpack.security.authc.ldap;
 
 import java.io.IOException;
 
@@ -13,8 +11,7 @@ import java.io.IOException;
  * This tests the group to role mappings from LDAP sources provided by the super class - available from super.realmConfig.
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
-@Network
-public class GroupMappingTests extends AbstractAdLdapRealmTestCase {
+public class GroupMappingIT extends AbstractAdLdapRealmTestCase {
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";
         assertAccessAllowed(avenger, "avengers");

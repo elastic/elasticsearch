@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration.ldap;
+package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -14,8 +13,7 @@ import java.util.ArrayList;
 /**
  * This tests the mapping of multiple groups to a role in a file based role-mapping
  */
-@Network
-public class MultiGroupMappingTests extends AbstractAdLdapRealmTestCase {
+public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass
     public static void setRoleMappingType() {

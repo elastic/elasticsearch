@@ -62,6 +62,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     final DownLevelADAuthenticator downLevelADAuthenticator;
     final UpnADAuthenticator upnADAuthenticator;
 
+    private final int ldapPort;
+
     ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, new ActiveDirectoryGroupsResolver(config.settings()),
                 ActiveDirectorySessionFactorySettings.POOL_ENABLED, () -> {
@@ -88,10 +90,15 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     + "] setting for active directory");
         }
         String domainDN = buildDnFromDomain(domainName);
+        ldapPort = ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.get(settings);
+        final int ldapsPort = ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.get(settings);
+        final int gcLdapPort = ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.get(settings);
+        final int gcLdapsPort = ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.get(settings);
+
         defaultADAuthenticator = new DefaultADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
                 metaDataResolver, domainDN, threadPool);
         downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
-                metaDataResolver, domainDN, sslService, threadPool);
+                metaDataResolver, domainDN, sslService, threadPool, ldapPort, ldapsPort, gcLdapPort, gcLdapsPort);
         upnADAuthenticator = new UpnADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
                 metaDataResolver, domainDN, threadPool);
 
@@ -99,7 +106,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     @Override
     protected List<String> getDefaultLdapUrls(Settings settings) {
-        return Collections.singletonList("ldap://" + settings.get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING) + ":389");
+        return Collections.singletonList("ldap://" + settings.get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING) +
+                ":" + ldapPort);
     }
 
     @Override
@@ -361,16 +369,24 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final Settings settings;
         final SSLService sslService;
         final RealmConfig config;
+        private final int ldapPort;
+        private final int ldapsPort;
+        private final int gcLdapPort;
+        private final int gcLdapsPort;
 
         DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
                 GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN, SSLService sslService,
-                ThreadPool threadPool) {
+                ThreadPool threadPool, int ldapPort, int ldapsPort, int gcLdapPort, int gcLdapsPort) {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER, threadPool);
             this.domainDN = domainDN;
             this.settings = config.settings();
             this.sslService = sslService;
             this.config = config;
+            this.ldapPort = ldapPort;
+            this.ldapsPort = ldapsPort;
+            this.gcLdapPort = gcLdapPort;
+            this.gcLdapsPort = gcLdapsPort;
         }
 
         @Override
@@ -400,7 +416,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 if (cachedName != null) {
                     listener.onResponse(cachedName);
                 } else if (usingGlobalCatalog(ldapInterface) == false) {
-                    search(ldapInterface, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds, ignoreReferralErrors,
+                    search(ldapInterface, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
+                            ignoreReferralErrors,
                             ActionListener.wrap((results) -> handleSearchResults(results, netBiosDomainName, domainNameCache, listener),
                                     listener::onFailure),
                             "ncname");
@@ -417,7 +434,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     final LDAPConnection finalLdapConnection = ldapConnection;
                     final LDAPConnection searchConnection = LdapUtils.privilegedConnect(
                             () -> new LDAPConnection(finalLdapConnection.getSocketFactory(), connectionOptions(config, sslService, logger),
-                                    finalLdapConnection.getConnectedAddress(), finalLdapConnection.getSSLSession() != null ? 636 : 389));
+                                    finalLdapConnection.getConnectedAddress(),
+                                    finalLdapConnection.getSSLSession() != null ? ldapsPort : ldapPort));
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                     final SimpleBindRequest bind = bindDN.isEmpty()
                             ? new SimpleBindRequest(username, passwordBytes)
@@ -425,8 +443,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     LdapUtils.maybeForkThenBind(searchConnection, bind, threadPool, new ActionRunnable<String>(listener) {
                         @Override
                         protected void doRun() throws Exception {
-                            search(searchConnection, domainDN, LdapSearchScope.SUB_TREE.scope(), filter, timeLimitSeconds,
-                                    ignoreReferralErrors,
+                            search(searchConnection, "CN=Configuration," + domainDN, LdapSearchScope.SUB_TREE.scope(), filter,
+                                    timeLimitSeconds, ignoreReferralErrors,
                                     ActionListener.wrap(
                                             results -> {
                                                 IOUtils.close(searchConnection);
@@ -473,7 +491,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             }
         }
 
-        static boolean usingGlobalCatalog(LDAPInterface ldap) throws LDAPException {
+        boolean usingGlobalCatalog(LDAPInterface ldap) throws LDAPException {
             if (ldap instanceof LDAPConnection) {
                 return usingGlobalCatalog((LDAPConnection) ldap);
             } else {
@@ -490,8 +508,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             }
         }
 
-        private static boolean usingGlobalCatalog(LDAPConnection ldapConnection) {
-            return ldapConnection.getConnectedPort() == 3268 || ldapConnection.getConnectedPort() == 3269;
+        private boolean usingGlobalCatalog(LDAPConnection ldapConnection) {
+            return ldapConnection.getConnectedPort() == gcLdapPort || ldapConnection.getConnectedPort() == gcLdapsPort;
         }
     }
 

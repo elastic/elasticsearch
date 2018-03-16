@@ -128,7 +128,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             assertThat(aliases[0], is("key"));
         };
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
-            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(4));
+            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
         };
         validateSSLConfigurationIsReloaded(settings, env, keyManagerPreChecks, trustManagerPreChecks, modifier, keyManagerPostChecks,
                 trustManagerPostChecks);
@@ -244,7 +244,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         };
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
-            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
+            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(6));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);

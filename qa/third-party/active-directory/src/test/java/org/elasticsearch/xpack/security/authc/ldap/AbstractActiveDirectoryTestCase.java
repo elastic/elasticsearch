@@ -11,11 +11,11 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
@@ -27,11 +27,22 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-@Network
-public class AbstractActiveDirectoryIntegTests extends ESTestCase {
+public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
-    public static final String AD_LDAP_URL = "ldaps://54.213.145.20:636";
-    public static final String PASSWORD = "NickFuryHeartsES";
+    // follow referrals defaults to false here which differs from the default value of the setting
+    // this is needed to prevent test logs being filled by errors as the default configuration of
+    // the tests run against a vagrant samba4 instance configured as a domain controller with the
+    // ports mapped into the ephemeral port range and there is the possibility of incorrect results
+    // as we cannot control the URL of the referral which may contain a non-resolvable DNS name as
+    // this name would be served by the samba4 instance
+    public static final Boolean FOLLOW_REFERRALS = Booleans.parseBoolean(getFromEnv("TESTS_AD_FOLLOW_REFERRALS", "false"));
+    public static final String AD_LDAP_URL = getFromEnv("TESTS_AD_LDAP_URL", "ldaps://localhost:61636");
+    public static final String AD_LDAP_GC_URL = getFromEnv("TESTS_AD_LDAP_GC_URL", "ldaps://localhost:63269");
+    public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
+    public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", "61389");
+    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", "61636");
+    public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", "63268");
+    public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", "63269");
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
     protected SSLService sslService;
@@ -76,7 +87,12 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
                 .putList(SessionFactorySettings.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
-                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, scope);
+                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, scope)
+                .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
+                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
+                .put("follow_referrals", FOLLOW_REFERRALS);
         if (randomBoolean()) {
             builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
@@ -108,5 +124,10 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
                 return null;
             }
         });
+    }
+
+    private static String getFromEnv(String envVar, String defaultValue) {
+        final String value = System.getenv(envVar);
+        return value == null ? defaultValue : value;
     }
 }

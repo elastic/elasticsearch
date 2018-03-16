@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration.ldap;
+package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionFuture;
@@ -25,6 +25,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
+import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -53,6 +54,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.ONE_LEVEL;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.SUB_TREE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_GC_LDAPS_PORT;
+import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_GC_LDAP_PORT;
+import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_LDAPS_PORT;
+import static org.elasticsearch.xpack.security.authc.ldap.AbstractActiveDirectoryTestCase.AD_LDAP_PORT;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase {
 
     public static final String XPACK_SECURITY_AUTHC_REALMS_EXTERNAL = "xpack.security.authc.realms.external";
-    public static final String PASSWORD = "NickFuryHeartsES";
+    public static final String PASSWORD = AbstractActiveDirectoryTestCase.PASSWORD;
     public static final String ASGARDIAN_INDEX = "gods";
     public static final String PHILANTHROPISTS_INDEX = "philanthropists";
     public static final String SECURITY_INDEX = "security";
@@ -119,43 +124,39 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
         Path store = getDataPath(TESTNODE_KEYSTORE);
         Settings.Builder builder = Settings.builder();
-        if (useGlobalSSL) {
-            // don't use filter since it returns a prefixed secure setting instead of mock!
-            Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
-            builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.ssl.") == false), false);
-            MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
-            if (mockSecureSettings != null) {
-                MockSecureSettings filteredSecureSettings = new MockSecureSettings();
-                builder.setSecureSettings(filteredSecureSettings);
-                for (String secureSetting : mockSecureSettings.getSettingNames()) {
-                    if (secureSetting.startsWith("xpack.ssl.") == false) {
-                        SecureString secureString = mockSecureSettings.getString(secureSetting);
-                        if (secureString == null) {
-                            final byte[] fileBytes;
-                            try (InputStream in = mockSecureSettings.getFile(secureSetting);
-                                 ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-                                int numRead;
-                                byte[] bytes = new byte[1024];
-                                while ((numRead = in.read(bytes)) != -1) {
-                                    byteArrayOutputStream.write(bytes, 0, numRead);
-                                }
-                                byteArrayOutputStream.flush();
-                                fileBytes = byteArrayOutputStream.toByteArray();
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
+        // don't use filter since it returns a prefixed secure setting instead of mock!
+        Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
+        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.ssl.") == false), false);
+        MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
+        if (mockSecureSettings != null) {
+            MockSecureSettings filteredSecureSettings = new MockSecureSettings();
+            builder.setSecureSettings(filteredSecureSettings);
+            for (String secureSetting : mockSecureSettings.getSettingNames()) {
+                if (secureSetting.startsWith("xpack.ssl.") == false) {
+                    SecureString secureString = mockSecureSettings.getString(secureSetting);
+                    if (secureString == null) {
+                        final byte[] fileBytes;
+                        try (InputStream in = mockSecureSettings.getFile(secureSetting);
+                             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+                            int numRead;
+                            byte[] bytes = new byte[1024];
+                            while ((numRead = in.read(bytes)) != -1) {
+                                byteArrayOutputStream.write(bytes, 0, numRead);
                             }
-
-                            filteredSecureSettings.setFile(secureSetting, fileBytes);
-                        } else {
-                            filteredSecureSettings.setString(secureSetting, new String(secureString.getChars()));
+                            byteArrayOutputStream.flush();
+                            fileBytes = byteArrayOutputStream.toByteArray();
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
                         }
+
+                        filteredSecureSettings.setFile(secureSetting, fileBytes);
+                    } else {
+                        filteredSecureSettings.setString(secureSetting, new String(secureString.getChars()));
                     }
                 }
             }
-            addSslSettingsForStore(builder, store, "testnode");
-        } else {
-            builder.put(super.nodeSettings(nodeOrdinal));
         }
+        addSslSettingsForStore(builder, store, "testnode");
         builder.put(buildRealmSettings(realm, roleMappings, store));
         return builder.build();
     }
@@ -376,39 +377,44 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         AD(false, AD_ROLE_MAPPING,
                 Settings.builder()
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.AD_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", ActiveDirectorySessionFactoryTests.AD_DOMAIN)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .build()),
-
-        AD_SSL(false, AD_ROLE_MAPPING,
-                Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.AD_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", "ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
-                                + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldap://ad.test.elasticsearch.com:389")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                                ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
+                                ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
+                                ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
+                                ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
+                                ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
                         .build()),
 
         AD_LDAP_GROUPS_FROM_SEARCH(true, AD_ROLE_MAPPING,
                 Settings.builder()
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.LDAP_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
                         .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                                ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
                         .build()),
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
                 Settings.builder()
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.LDAP_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", "ldaps://ad.test.elasticsearch.com:636")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
                         .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
+                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                                ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
                         .build());
 
         final boolean mapGroupsAsRoles;

@@ -3,20 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration.ldap;
+package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
-import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
@@ -28,12 +26,11 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 /**
  * This tests that "run-as" works on LDAP/AD realms
  */
-@Network
 public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass
     public static void selectRealmConfig() {
-        realmConfig = randomFrom(RealmConfig.AD, RealmConfig.AD_SSL);
+        realmConfig = RealmConfig.AD;
     }
 
     @Override
@@ -41,7 +38,6 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         switch (realmConfig) {
             case AD:
-            case AD_SSL:
                 builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_search.pool.enabled", false);

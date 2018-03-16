@@ -3,11 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.integration.ldap;
+package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -21,8 +20,7 @@ import java.util.stream.Collectors;
  * The required behaviour is that users from both realms (directory servers) can be authenticated using
  * just their userid (the AuthenticationService tries them in order)
  */
-@Network
-public class MultipleAdRealmTests extends AbstractAdLdapRealmTestCase {
+public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
 
     private static RealmConfig secondaryRealmConfig;
 

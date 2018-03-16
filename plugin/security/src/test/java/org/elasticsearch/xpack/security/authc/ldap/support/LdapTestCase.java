@@ -44,7 +44,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
-//
+
 public abstract class LdapTestCase extends ESTestCase {
 
     private static final String USER_DN_TEMPLATES_SETTING_KEY = LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING.getKey();
@@ -120,8 +120,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 .put(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, TimeValue.timeValueSeconds(1L))
                 .put(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING.getKey(), ignoreReferralErrors)
                 .put("group_search.base_dn", groupSearchBase)
-                .put("group_search.scope", scope)
-                .put("ssl.verification_mode", VerificationMode.CERTIFICATE);
+                .put("group_search.scope", scope);
         if (serverSetType != null) {
             builder.put(LdapLoadBalancingSettings.LOAD_BALANCE_SETTINGS + "." +
                             LdapLoadBalancingSettings.LOAD_BALANCE_TYPE_SETTING, serverSetType.toString());

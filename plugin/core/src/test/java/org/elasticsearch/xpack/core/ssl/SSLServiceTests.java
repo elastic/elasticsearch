@@ -485,7 +485,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final SSLService sslService = new SSLService(settings, env);
         final List<CertificateInfo> certificates = new ArrayList<>(sslService.getLoadedCertificates());
-        assertThat(certificates, iterableWithSize(7));
+        assertThat(certificates, iterableWithSize(8));
         Collections.sort(certificates,
                 Comparator.comparing((CertificateInfo c) -> c.alias() == null ? "" : c.alias()).thenComparing(CertificateInfo::path));
 
@@ -506,6 +506,15 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.serialNumber(), equalTo("580db8ad52bb168a4080e1df122a3f56"));
         assertThat(cert.subjectDn(), equalTo("CN=ad-ELASTICSEARCHAD-CA, DC=ad, DC=test, DC=elasticsearch, DC=com"));
         assertThat(cert.expiry(), equalTo(DateTime.parse("2029-08-27T16:32:42Z")));
+        assertThat(cert.hasPrivateKey(), equalTo(false));
+
+        cert = iterator.next();
+        assertThat(cert.alias(), equalTo("mykey"));
+        assertThat(cert.path(), equalTo(jksPath.toString()));
+        assertThat(cert.format(), equalTo("jks"));
+        assertThat(cert.serialNumber(), equalTo("3151a81eec8d4e34c56a8466a8510bcfbe63cc31"));
+        assertThat(cert.subjectDn(), equalTo("CN=samba4"));
+        assertThat(cert.expiry(), equalTo(DateTime.parse("2021-02-14T17:49:11.000Z")));
         assertThat(cert.hasPrivateKey(), equalTo(false));
 
         cert = iterator.next();

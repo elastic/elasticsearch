@@ -35,7 +35,7 @@ parameter, `result`:
 --------------------------------------------------
 "condition" : {
   "script" : {
-    "source" : "return result",
+    "source" : "return params.result",
     "lang" : "painless",
     "params" : {
       "result" : true
@@ -113,7 +113,7 @@ threshold:
   },
   "condition" : {
     "script" : {
-      "source" : "return ctx.payload.hits.total > threshold",
+      "source" : "return ctx.payload.hits.total > params.threshold",
       "params" : {
         "threshold" : 5
       }

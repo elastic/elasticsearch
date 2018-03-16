@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FlushIT extends ESIntegTestCase {
@@ -279,5 +280,36 @@ public class FlushIT extends ESIntegTestCase {
         final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
         assertThat(fullResult.totalShards(), equalTo(numberOfReplicas + 1));
         assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
+    }
+
+    public void testDoNotRenewSyncedFlushWhenAllSealed() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
+        final int numberOfReplicas = internalCluster().numDataNodes() - 1;
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)).get()
+        );
+        ensureGreen();
+        final Index index = clusterService().state().metaData().index("test").getIndex();
+        final ShardId shardId = new ShardId(index, 0);
+        final int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            index("test", "doc", Integer.toString(i));
+        }
+        final ShardsSyncedFlushResult firstSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(firstSeal.successfulShards(), equalTo(numberOfReplicas + 1));
+        // Do not renew synced-flush
+        final ShardsSyncedFlushResult secondSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(secondSeal.successfulShards(), equalTo(numberOfReplicas + 1));
+        assertThat(secondSeal.syncId(), equalTo(firstSeal.syncId()));
+        // Shards were updated, renew synced flush
+        final int moreDocs = between(1, 10);
+        for (int i = 0; i < moreDocs; i++) {
+            index("test", "doc", Integer.toString(i));
+        }
+        final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));
+        assertThat(thirdSeal.syncId(), not(equalTo(firstSeal.syncId())));
     }
 }

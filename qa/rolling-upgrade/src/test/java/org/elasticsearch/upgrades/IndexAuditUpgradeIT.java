@@ -43,27 +43,48 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDocsAuditedInOldCluster() throws Exception {
         assumeTrue("only runs against old cluster", clusterType == CLUSTER_TYPE.OLD);
+        final int expectedBuckets = minVersionInCluster.before(Version.V_6_2_3) ? 0 : 2;
         assertBusy(() -> {
             assertAuditDocsExist();
-            assertNumUniqueNodeNameBuckets(0); // TODO update on backport. Will become 2
+            assertNumUniqueNodeNameBuckets(expectedBuckets);
         });
     }
 
     public void testDocsAuditedInMixedCluster() throws Exception {
         assumeTrue("only runs against mixed cluster", clusterType == CLUSTER_TYPE.MIXED);
+        final int expectedBuckets = minVersionInCluster.before(Version.V_6_2_3) ? 0 : 2;
         assertBusy(() -> {
             assertAuditDocsExist();
-            // TODO update on backport. Will become 2 as new node won't index docs until a new version node is master
-            assertNumUniqueNodeNameBuckets(0);
+            assertNumUniqueNodeNameBuckets(expectedBuckets);
         });
     }
 
     public void testDocsAuditedInUpgradedCluster() throws Exception {
         assumeTrue("only runs against upgraded cluster", clusterType == CLUSTER_TYPE.UPGRADED);
+        // cannot use minVersion in cluster as we are upgraded on all nodes,
+        // BUT we can check the version created on the index
+        Response response = client().performRequest("GET", "/.security_audit_log*/_settings/index.version.created",
+                Collections.singletonMap("flat_settings", "true"));
+        Map<String, Object> responseMap = entityAsMap(response);
+        logger.error("get settings response {}", responseMap);
+        Version minVersion = null;
+        for (Map.Entry<String, Object> entry : responseMap.entrySet()) {
+            Map<String, Object> indexEntry = (Map<String, Object>) entry.getValue();
+            Map<String, Object> indexSettings = (Map<String, Object>) indexEntry.get("settings");
+            String versionCreated = (String) indexSettings.get("index.version.created");
+            if (versionCreated != null) {
+                Version indexVersionCreated = Version.fromId(Integer.valueOf(versionCreated));
+                if (minVersion == null || indexVersionCreated.before(minVersion)) {
+                    minVersion = indexVersionCreated;
+                }
+            }
+        }
+
+        assertNotNull(minVersion);
+        final int expectedBuckets = minVersion.before(Version.V_6_2_3) ? 2 : 4;
         assertBusy(() -> {
             assertAuditDocsExist();
-            // TODO update on backport. will become 4
-            assertNumUniqueNodeNameBuckets(2);
+            assertNumUniqueNodeNameBuckets(expectedBuckets);
         });
     }
 

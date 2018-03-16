@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
@@ -188,6 +189,23 @@ public class SyncResponseListenerTests extends RestClientTestCase {
             assertSame(timeoutException, e.getCause());
             // We copy the message
             assertEquals(timeoutException.getMessage(), e.getMessage());
+            // And we do all that so the thrown exception has our method in the stacktrace
+            assertExceptionStackContainsCallingMethod(e);
+        }
+    }
+
+    public void testConnectionClosedExceptionIsWrapped() throws Exception {
+        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        ConnectionClosedException closedException = new ConnectionClosedException(randomAsciiAlphanumOfLength(5));
+        syncResponseListener.onFailure(closedException);
+        try {
+            syncResponseListener.get();
+            fail("get should have failed");
+        } catch (ConnectionClosedException e) {
+            // We preserve the original exception in the cause
+            assertSame(closedException, e.getCause());
+            // We copy the message
+            assertEquals(closedException.getMessage(), e.getMessage());
             // And we do all that so the thrown exception has our method in the stacktrace
             assertExceptionStackContainsCallingMethod(e);
         }

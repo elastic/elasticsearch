@@ -42,11 +42,6 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
 
-    private static final String QUERY = "query";
-    private static final String REQUEST = "request";
-    private static final String FIELDDATA = "fielddata";
-    private static final String FIELDS = "fields";
-
     public RestClearIndicesCacheAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
@@ -85,10 +80,10 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
-        clearIndicesCacheRequest.queryCache(request.paramAsBoolean(QUERY, clearIndicesCacheRequest.queryCache()));
-        clearIndicesCacheRequest.requestCache(request.paramAsBoolean(REQUEST, clearIndicesCacheRequest.requestCache()));
-        clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(FIELDDATA, clearIndicesCacheRequest.fieldDataCache()));
-        clearIndicesCacheRequest.fields(request.paramAsStringArray(FIELDS, clearIndicesCacheRequest.fields()));
+        clearIndicesCacheRequest.queryCache(request.paramAsBoolean("query", clearIndicesCacheRequest.queryCache()));
+        clearIndicesCacheRequest.requestCache(request.paramAsBoolean("request", clearIndicesCacheRequest.requestCache()));
+        clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
+        clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
         return clearIndicesCacheRequest;
     }
 

@@ -20,6 +20,7 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -303,7 +305,7 @@ public class FlushIT extends ESIntegTestCase {
         final ShardsSyncedFlushResult secondSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
         assertThat(secondSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(secondSeal.syncId(), equalTo(firstSeal.syncId()));
-        // Shards were updated, renew synced flush
+        // Shards were updated, renew synced flush.
         final int moreDocs = between(1, 10);
         for (int i = 0; i < moreDocs; i++) {
             index("test", "doc", Integer.toString(i));
@@ -311,5 +313,20 @@ public class FlushIT extends ESIntegTestCase {
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(thirdSeal.syncId(), not(equalTo(firstSeal.syncId())));
+        // Manually remove or change sync-id, renew synced flush.
+        IndexShard shard = internalCluster().getInstance(IndicesService.class, randomFrom(internalCluster().nodesInclude("test")))
+            .getShardOrNull(shardId);
+        if (randomBoolean()) {
+            // Change the existing sync-id of a single shard.
+            shard.syncFlush(UUIDs.randomBase64UUID(random()), shard.commitStats().getRawCommitId());
+            assertThat(shard.commitStats().syncId(), not(equalTo(thirdSeal.syncId())));
+        } else {
+            // Flush will create a new commit without sync-id
+            shard.flush(new FlushRequest(shardId.getIndexName()).force(true).waitIfOngoing(true));
+            assertThat(shard.commitStats().syncId(), nullValue());
+        }
+        final ShardsSyncedFlushResult forthSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        assertThat(forthSeal.successfulShards(), equalTo(numberOfReplicas + 1));
+        assertThat(forthSeal.syncId(), not(equalTo(thirdSeal.syncId())));
     }
 }

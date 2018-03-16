@@ -3,13 +3,6 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-if defined JAVA_HOME (
-  if !JAVA_HOME:~0^,1!!JAVA_HOME:~-1! equ "" (
-    echo JAVA_HOME cannot contain quotes ("). Remove the quotes from JAVA_HOME (%JAVA_HOME%) and try again.
-    exit /b 1
-  )
-)
-
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe

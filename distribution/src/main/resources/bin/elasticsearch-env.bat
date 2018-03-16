@@ -16,6 +16,23 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 
+rem check that JAVA_HOME does not contain qoutes
+if defined JAVA_HOME (
+  if "%JAVA_HOME:"=%" equ "" (
+    echo JAVA_HOME is empty. Specify a valid path for JAVA_HOME
+    exit /b 1
+  )
+
+  if '^%JAVA_HOME:~0^,1%=='^" (
+    echo JAVA_HOME cannot contain quotes ("). Remove the quotes from JAVA_HOME and try again.
+    exit /b 1
+  )
+  if '^%JAVA_HOME:~-1% == '^" (
+    echo JAVA_HOME cannot contain quotes ("). Remove the quotes from JAVA_HOME and try again.
+    exit /b 1
+  )
+)
+
 rem now set the path to java
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"

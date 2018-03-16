@@ -362,16 +362,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 builder.endObject();
             }
         }
-        Throwable[] allSuppressed = throwable.getSuppressed();
-        if (allSuppressed.length > 0) {
-            builder.startArray(SUPPRESSED.getPreferredName());
-            for (Throwable suppressed : allSuppressed) {
-                builder.startObject();
-                generateThrowableXContent(builder, params, suppressed);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
 
         if (headers.isEmpty() == false) {
             builder.startObject(HEADER);
@@ -383,6 +373,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
+        }
+
+        Throwable[] allSuppressed = throwable.getSuppressed();
+        if (allSuppressed.length > 0) {
+            builder.startArray(SUPPRESSED.getPreferredName());
+            for (Throwable suppressed : allSuppressed) {
+                builder.startObject();
+                generateThrowableXContent(builder, params, suppressed);
+                builder.endObject();
+            }
+            builder.endArray();
         }
     }
 

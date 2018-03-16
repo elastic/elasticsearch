@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -103,7 +104,9 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(serializedVersion);
         monitoringUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(out.bytes().streamInput());
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(serializedVersion);
+        XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(in);
         for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
             assertThat(usage.name(), is(featureSet.name()));
             assertThat(usage.enabled(), is(featureSet.enabled()));

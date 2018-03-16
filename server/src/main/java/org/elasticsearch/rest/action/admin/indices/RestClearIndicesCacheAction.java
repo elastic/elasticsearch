@@ -85,19 +85,10 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
-
-        for (String param : request.params().keySet()) {
-            if (QUERY.equals(param)) {
-                clearIndicesCacheRequest.queryCache(request.paramAsBoolean(param, clearIndicesCacheRequest.queryCache()));
-            } else if (REQUEST.equals(param)) {
-                clearIndicesCacheRequest.requestCache(request.paramAsBoolean(param, clearIndicesCacheRequest.requestCache()));
-            } else if (FIELDDATA.equals(param)) {
-                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(param, clearIndicesCacheRequest.fieldDataCache()));
-            } else if (FIELDS.equals(param)) {
-                clearIndicesCacheRequest.fields(request.paramAsStringArray(param, clearIndicesCacheRequest.fields()));
-            }
-        }
-
+        clearIndicesCacheRequest.queryCache(request.paramAsBoolean(QUERY, clearIndicesCacheRequest.queryCache()));
+        clearIndicesCacheRequest.requestCache(request.paramAsBoolean(REQUEST, clearIndicesCacheRequest.requestCache()));
+        clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(FIELDDATA, clearIndicesCacheRequest.fieldDataCache()));
+        clearIndicesCacheRequest.fields(request.paramAsStringArray(FIELDS, clearIndicesCacheRequest.fields()));
         return clearIndicesCacheRequest;
     }
 

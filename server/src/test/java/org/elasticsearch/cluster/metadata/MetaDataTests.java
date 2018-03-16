@@ -169,12 +169,12 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testUnknownFieldClusterMetaData() throws IOException {
-        BytesReference metadata = JsonXContent.contentBuilder()
+        BytesReference metadata = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject()
                 .startObject("meta-data")
                     .field("random", "value")
                 .endObject()
-            .endObject().bytes();
+            .endObject());
         XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
         try {
             MetaData.Builder.fromXContent(parser);
@@ -185,12 +185,12 @@ public class MetaDataTests extends ESTestCase {
     }
 
     public void testUnknownFieldIndexMetaData() throws IOException {
-        BytesReference metadata = JsonXContent.contentBuilder()
+        BytesReference metadata = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject()
                 .startObject("index_name")
                     .field("random", "value")
                 .endObject()
-            .endObject().bytes();
+            .endObject());
         XContentParser parser = createParser(JsonXContent.jsonXContent, metadata);
         try {
             IndexMetaData.Builder.fromXContent(parser);
@@ -219,7 +219,7 @@ public class MetaDataTests extends ESTestCase {
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final MetaData fromXContentMeta = MetaData.fromXContent(parser);
         assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
     }
@@ -321,7 +321,7 @@ public class MetaDataTests extends ESTestCase {
             Map<String, Object> doc = (Map<String, Object>)stringObjectMap.get("_doc");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(doc);
-                mapping = builder.string();
+                mapping = Strings.toString(builder);
             }
         }
 

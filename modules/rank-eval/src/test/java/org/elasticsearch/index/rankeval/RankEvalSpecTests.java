@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -85,7 +86,7 @@ public class RankEvalSpecTests extends ESTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = builder.string();
+                script = Strings.toString(builder);
             }
 
             templates = new HashSet<>();
@@ -115,7 +116,7 @@ public class RankEvalSpecTests extends ESTestCase {
     public void testXContentRoundtrip() throws IOException {
         RankEvalSpec testItem = createTestItem();
         XContentBuilder shuffled = shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, shuffled.bytes())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(shuffled))) {
 
             RankEvalSpec parsedItem = RankEvalSpec.parse(parser);
             // indices, come from URL parameters, so they don't survive xContent roundtrip

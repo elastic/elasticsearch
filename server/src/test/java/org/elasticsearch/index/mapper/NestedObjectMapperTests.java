@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper;
 import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,37 +54,37 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyNested() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .nullField("nested1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .nullField("nested1")
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(1));
 
-        doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested").endArray()
-                .endObject()
-                .bytes(),
+        doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested").endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(1));
     }
 
     public void testSingleNested() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -90,12 +92,12 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startObject("nested1").field("field1", "1").field("field2", "2").endObject()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startObject("nested1").field("field1", "1").field("field2", "2").endObject()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(2));
@@ -106,15 +108,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(1).get("field"), equalTo("value"));
 
 
-        doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").field("field2", "2").endObject()
-                .startObject().field("field1", "3").field("field2", "4").endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").field("field2", "2").endObject()
+                        .startObject().field("field1", "3").field("field2", "4").endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(3));
@@ -129,11 +131,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiNested() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested")
                 .endObject().endObject().endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -147,15 +149,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
-                .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
+                        .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(7));
@@ -181,11 +183,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiObjectAndNested1() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_parent", true)
                 .endObject().endObject().endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -199,15 +201,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
-                .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
+                        .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(7));
@@ -233,11 +235,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiObjectAndNested2() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").field("include_in_parent", true).startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_parent", true)
                 .endObject().endObject().endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -251,15 +253,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(true));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(false));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
-                .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
+                        .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(7));
@@ -285,11 +287,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiRootAndNested1() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").startObject("properties")
                 .startObject("nested2").field("type", "nested").field("include_in_root", true)
                 .endObject().endObject().endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -303,15 +305,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(nested2Mapper.nested().isIncludeInParent(), equalTo(false));
         assertThat(nested2Mapper.nested().isIncludeInRoot(), equalTo(true));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
-                .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").startArray("nested2").startObject().field("field2", "2").endObject().startObject().field("field2", "3").endObject().endArray().endObject()
+                        .startObject().field("field1", "4").startArray("nested2").startObject().field("field2", "5").endObject().startObject().field("field2", "6").endObject().endArray().endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(7));
@@ -342,21 +344,21 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
      * lead to duplicate fields on the root document.
      */
     public void testMultipleLevelsIncludeRoot1() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").field("include_in_root", true).field("include_in_parent", true).startObject("properties")
             .startObject("nested2").field("type", "nested").field("include_in_root", true).field("include_in_parent", true)
             .endObject().endObject().endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startArray("nested1")
-                .startObject().startArray("nested2").startObject().field("foo", "bar")
-                .endObject().endArray().endObject().endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startArray("nested1")
+                        .startObject().startArray("nested2").startObject().field("foo", "bar")
+                        .endObject().endArray().endObject().endArray()
+                        .endObject()),
             XContentType.JSON));
 
         final Collection<IndexableField> fields = doc.rootDoc().getFields();
@@ -371,7 +373,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
      * {@code false} and {@code include_in_root} set to {@code true}.
      */
     public void testMultipleLevelsIncludeRoot2() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested")
             .field("include_in_root", true).field("include_in_parent", true).startObject("properties")
@@ -380,17 +382,17 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .startObject("nested3").field("type", "nested")
             .field("include_in_root", true).field("include_in_parent", true)
             .endObject().endObject().endObject().endObject().endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().startArray("nested1")
-                .startObject().startArray("nested2")
-                .startObject().startArray("nested3").startObject().field("foo", "bar")
-                .endObject().endArray().endObject().endArray().endObject().endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject().startArray("nested1")
+                        .startObject().startArray("nested2")
+                        .startObject().startArray("nested3").startObject().field("foo", "bar")
+                        .endObject().endArray().endObject().endArray().endObject().endArray()
+                        .endObject()),
             XContentType.JSON));
 
         final Collection<IndexableField> fields = doc.rootDoc().getFields();
@@ -398,11 +400,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNestedArrayStrict() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("nested1").field("type", "nested").field("dynamic", "strict").startObject("properties")
                 .startObject("field1").field("type", "text")
                 .endObject().endObject().endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
@@ -411,15 +413,15 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(nested1Mapper.nested().isNested(), equalTo(true));
         assertThat(nested1Mapper.dynamic(), equalTo(Dynamic.STRICT));
 
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject().field("field1", "1").endObject()
-                .startObject().field("field1", "4").endObject()
-                .endArray()
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "value")
+                        .startArray("nested1")
+                        .startObject().field("field1", "1").endObject()
+                        .startObject().field("field1", "4").endObject()
+                        .endArray()
+                        .endObject()),
                 XContentType.JSON));
 
         assertThat(doc.docs().size(), equalTo(3));
@@ -433,11 +435,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     public void testLimitOfNestedFieldsPerIndex() throws Exception {
         Function<String, String> mapping = type -> {
             try {
-                return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
                     .startObject("nested1").field("type", "nested").startObject("properties")
                     .startObject("nested2").field("type", "nested")
                     .endObject().endObject().endObject()
-                    .endObject().endObject().endObject().string();
+                    .endObject().endObject().endObject());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -466,11 +468,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     public void testLimitOfNestedFieldsWithMultiTypePerIndex() throws Exception {
         Function<String, String> mapping = type -> {
             try {
-                return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
                     .startObject("nested1").field("type", "nested").startObject("properties")
                     .startObject("nested2").field("type", "nested")
                     .endObject().endObject().endObject()
-                    .endObject().endObject().endObject().string();
+                    .endObject().endObject().endObject());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -483,8 +485,8 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         // merging same fields, but different type is ok
         mapperService.merge("type2", new CompressedXContent(mapping.apply("type2")), MergeReason.MAPPING_UPDATE);
         // adding new fields from different type is not ok
-        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type3").startObject("properties").startObject("nested3")
-            .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().endObject().string();
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type3").startObject("properties").startObject("nested3")
+            .field("type", "nested").startObject("properties").endObject().endObject().endObject().endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             mapperService.merge("type3", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("Limit of nested fields [2] in index [test4] has been exceeded"));
@@ -527,9 +529,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     public void testLimitNestedDocsDefaultSettings() throws Exception{
         Settings settings = Settings.builder().build();
         MapperService mapperService = createIndex("test1", settings).mapperService();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
         long defaultMaxNoNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(settings);
 
@@ -546,7 +548,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source1));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of [" + defaultMaxNoNestedDocs
@@ -561,9 +563,9 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         long maxNoNestedDocs = 2L;
         MapperService mapperService = createIndex("test1", Settings.builder()
             .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()).mapperService();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         // parsing a doc with 2 nested objects succeeds
@@ -578,7 +580,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -595,7 +597,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             docBuilder2.endArray();
         }
         docBuilder2.endObject();
-        SourceToParse source2 = SourceToParse.source("test1", "type", "2", docBuilder2.bytes(), XContentType.JSON);
+        SourceToParse source2 = SourceToParse.source("test1", "type", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of [" + maxNoNestedDocs
@@ -610,10 +612,10 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         long maxNoNestedDocs = 2L;
         MapperService mapperService = createIndex("test1", Settings.builder()
             .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), maxNoNestedDocs).build()).mapperService();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").endObject()
             .startObject("nested2").field("type", "nested").endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         DocumentMapper docMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         // parsing a doc with 2 nested objects succeeds
@@ -632,7 +634,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = SourceToParse.source("test1", "type", "1", docBuilder.bytes(), XContentType.JSON);
+        SourceToParse source1 = SourceToParse.source("test1", "type", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -654,7 +656,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
 
         }
         docBuilder2.endObject();
-        SourceToParse source2 = SourceToParse.source("test1", "type", "2", docBuilder2.bytes(), XContentType.JSON);
+        SourceToParse source2 = SourceToParse.source("test1", "type", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of [" + maxNoNestedDocs

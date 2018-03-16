@@ -29,7 +29,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1158,7 +1159,7 @@ public class IndexShardTests extends IndexShardTestCase {
         builder.startObject();
         stats.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        String xContent = builder.string();
+        String xContent = Strings.toString(builder);
         StringBuilder expectedSubSequence = new StringBuilder("\"shard_path\":{\"state_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootStatePath().toString());
         expectedSubSequence.append("\",\"data_path\":\"");
@@ -2112,7 +2113,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.prepareForIndexRecovery();
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
-        shard.openIndexAndRecoveryFromTranslog();
+        shard.openEngineAndRecoverFromTranslog();
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
         closeShards(shard);
@@ -2139,14 +2140,6 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverReplica(replica, primary, (shard, discoveryNode) ->
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
-                @Override
-                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
-                    // Shard is still inactive since we haven't started recovering yet
-                    assertFalse(replica.isActive());
-
-                }
-
                 @Override
                 public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
                     final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
@@ -2189,8 +2182,8 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(createNewTranslog, totalTranslogOps);
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
                     assertListenerCalled.accept(replica);
                 }
 
@@ -2367,12 +2360,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
             int numDoc = randomIntBetween(100, 200);
             for (int i = 0; i < numDoc; i++) {
-                String doc = XContentFactory.jsonBuilder()
+                String doc = Strings.toString(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("count", randomInt())
                         .field("point", randomFloat())
                         .field("description", randomUnicodeOfCodepointLength(100))
-                    .endObject().string();
+                    .endObject());
                 indexDoc(indexShard, "doc", Integer.toString(i), doc);
             }
 

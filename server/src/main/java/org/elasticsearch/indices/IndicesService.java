@@ -25,7 +25,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -322,7 +322,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
                     // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
+                    logger.trace(() -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
@@ -600,7 +600,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
+            logger.warn(() -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
         }
     }
 
@@ -656,7 +656,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
             }
         }
     }
@@ -708,9 +708,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (LockObtainFailedException ex) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index), ex);
+            logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index), ex);
         } catch (Exception ex) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete index", index), ex);
+            logger.warn(() -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
             if (success == false) {
                 addPendingDelete(index, indexSettings);
@@ -813,7 +813,7 @@ public class IndicesService extends AbstractLifecycleComponent
             try {
                 metaData = metaStateService.loadIndexState(index);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -822,7 +822,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete index on disk", metaData.getIndex()), e);
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete index on disk", metaData.getIndex()), e);
             }
             return metaData;
         }
@@ -999,7 +999,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                 nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
                                 iterator.remove();
                             } catch (IOException ex) {
-                                logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} retry pending delete", index), ex);
+                                logger.debug(() -> new ParameterizedMessage("{} retry pending delete", index), ex);
                             }
                         } else {
                             assert delete.shardId != -1;
@@ -1009,7 +1009,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     deleteShardStore("pending delete", shardLock, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
-                                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
+                                    logger.debug(() -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
                                 }
                             } else {
                                 logger.warn("{} no shard lock for pending delete", delete.shardId);

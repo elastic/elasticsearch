@@ -58,7 +58,7 @@ public class PipelineConfigurationTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
                 .toXContent(builder, ToXContent.EMPTY_PARAMS);
-            bytes = builder.bytes();
+            bytes = BytesReference.bytes(builder);
         }
 
         XContentParser xContentParser = xContentType.xContent()

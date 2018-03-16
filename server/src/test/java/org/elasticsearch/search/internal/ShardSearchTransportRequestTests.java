@@ -146,7 +146,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(builder.string());
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     private IndexMetaData remove(IndexMetaData indexMetaData, String alias) {

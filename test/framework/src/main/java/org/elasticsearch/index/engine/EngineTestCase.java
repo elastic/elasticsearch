@@ -35,12 +35,11 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -119,6 +118,21 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path primaryTranslogDir;
     protected Path replicaTranslogDir;
 
+    protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
+        assertVisibleCount(engine, numDocs, true);
+    }
+
+    protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
+        if (refresh) {
+            engine.refresh("test");
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+            final TotalHitCountCollector collector = new TotalHitCountCollector();
+            searcher.searcher().search(new MatchAllDocsQuery(), collector);
+            assertThat(collector.getTotalHits(), equalTo(numDocs));
+        }
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -165,24 +179,20 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode) {
-        return copy(config, openMode, config.getAnalyzer());
-    }
-
-    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+    public EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
+        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
             config.getWarmer(), config.getStore(), config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-            config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+            config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
             config.getCircuitBreakerService(), globalCheckpointSupplier);
     }
 
-    public EngineConfig copy(EngineConfig config, EngineConfig.OpenMode openMode, Analyzer analyzer) {
-        return new EngineConfig(openMode, config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+    public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
+        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
                 config.getWarmer(), config.getStore(), config.getMergePolicy(), analyzer, config.getSimilarity(),
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-                config.getForceNewHistoryUUID(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+                config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier());
     }
@@ -263,9 +273,9 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected Translog createTranslog(Path translogPath) throws IOException {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
-        final String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId);
-        return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
-            () -> SequenceNumbers.NO_OPS_PERFORMED);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        return new Translog(
+            translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -348,10 +358,23 @@ public abstract class EngineTestCase extends ESTestCase {
             @Nullable Sort indexSort,
             @Nullable LongSupplier globalCheckpointSupplier) throws IOException {
         EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort, globalCheckpointSupplier);
-        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
-            internalEngine.recoverFromTranslog();
+        return createEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
+    }
+
+    protected InternalEngine createEngine(EngineConfig config) throws IOException {
+        return createEngine(null, null, null, config);
+    }
+
+    private InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
+                                        @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+                                        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+                                        EngineConfig config) throws IOException {
+        final Directory directory = config.getStore().directory();
+        if (Lucene.indexExists(directory) == false) {
+            EngineDiskUtils.createEmpty(directory, config.getTranslogConfig().getTranslogPath(), config.getShardId());
         }
+        InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
+        internalEngine.recoverFromTranslog();
         return internalEngine;
     }
 
@@ -404,23 +427,13 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener) {
-        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, () -> SequenceNumbers.NO_OPS_PERFORMED);
     }
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        final EngineConfig.OpenMode openMode;
-        try {
-            if (Lucene.indexExists(store.directory()) == false) {
-                openMode = EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG;
-            } else {
-                openMode = EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG;
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("can't find index?", e);
-        }
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {
@@ -431,14 +444,14 @@ public abstract class EngineTestCase extends ESTestCase {
                 indexSettings.getSettings()));
         final List<ReferenceManager.RefreshListener> refreshListenerList =
                 refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
-        EngineConfig config = new EngineConfig(openMode, shardId, allocationId.getId(), threadPool, indexSettings, null, store,
+        EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
-                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), false, translogConfig,
+                IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort, handler,
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
-                    new ReplicationTracker(shardId, allocationId.getId(), indexSettings,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO) : globalCheckpointSupplier);
+                    new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED) :
+                    globalCheckpointSupplier);
         return config;
     }
 

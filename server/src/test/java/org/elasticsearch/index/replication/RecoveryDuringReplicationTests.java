@@ -22,7 +22,7 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -237,7 +237,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(bulkShardRequest, replica);
+                    indexOnReplica(bulkShardRequest, shards, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -327,7 +327,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, replica);
+                indexOnReplica(bulkShardRequest, shards, replica);
             }
             shards.flush();
             shards.promoteReplicaToPrimary(newPrimary).get();
@@ -375,7 +375,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, newPrimary);
+                indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
             logger.info("--> resyncing replicas");
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();

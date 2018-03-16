@@ -32,7 +32,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -332,10 +332,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
 
-    public void testHandleExceptinoOnSendSendFiles() throws Throwable {
-        Settings settings = Settings.builder().put("indices.recovery.concurrent_streams", 1).
-            put("indices.recovery.concurrent_small_file_streams", 1).build();
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, service);
+    public void testHandleExceptionOnSendFiles() throws Throwable {
+        final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);

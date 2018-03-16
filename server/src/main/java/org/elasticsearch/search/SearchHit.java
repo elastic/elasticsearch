@@ -585,7 +585,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             // pretty printing are not preserved,
             // it all depends on the current builder settings
             builder.copyCurrentStructure(parser);
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 

@@ -21,6 +21,8 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -58,7 +60,7 @@ public class XContentParserTests extends ESTestCase {
             builder.endObject();
 
             final Number number;
-            try (XContentParser parser = createParser(xContentType.xContent(), builder.bytes())) {
+            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());
@@ -244,7 +246,7 @@ public class XContentParserTests extends ESTestCase {
                 .startArray("some_array")
                 .endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -264,7 +266,7 @@ public class XContentParserTests extends ESTestCase {
                 .value(0)
                 .endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -284,7 +286,7 @@ public class XContentParserTests extends ESTestCase {
                 .startArray().value(2).endArray()
                 .endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -305,7 +307,7 @@ public class XContentParserTests extends ESTestCase {
                 .startObject().endObject()
                 .endArray().endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());

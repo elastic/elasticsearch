@@ -21,8 +21,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -91,7 +91,7 @@ public abstract class AbstractBulkByQueryRestHandler<
                 }
             }
             return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
-                parser.getDeprecationHandler(), builder.map(body).bytes().streamInput());
+                parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
     }
 }

@@ -20,7 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;

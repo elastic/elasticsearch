@@ -609,7 +609,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
             } else {
-                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }
@@ -623,7 +623,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, status));
             } else {
-                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }
@@ -635,23 +635,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             if (tasks.remove(taskId) != null) {
                 changed = true;
             } else {
-                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exits");
-            }
-            return this;
-        }
-
-        /**
-         * Finishes the task
-         * <p>
-         * If the task is marked with removeOnCompletion flag, it is removed from the list, otherwise it is stopped.
-         */
-        public Builder finishTask(String taskId) {
-            PersistentTask<?> taskInProgress = tasks.get(taskId);
-            if (taskInProgress != null) {
-                changed = true;
-                tasks.remove(taskId);
-            } else {
-                throw new ResourceNotFoundException("cannot finish task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }

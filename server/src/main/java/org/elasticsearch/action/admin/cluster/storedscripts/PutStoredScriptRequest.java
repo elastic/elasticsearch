@@ -123,7 +123,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         id = in.readOptionalString();
         content = in.readBytesReference();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         } else {
             xContentType = XContentFactory.xContentType(content);
         }
@@ -145,7 +145,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeOptionalString(id);
         out.writeBytesReference(content);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
             out.writeOptionalString(context);

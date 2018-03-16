@@ -85,6 +85,10 @@ shadowJar {
     classifier = 'benchmarks'
 }
 
+runShadow {
+    executable = new File(project.runtimeJavaHome, 'bin/java')
+}
+
 // alias the shadowJar and runShadow tasks to abstract from the concrete plugin that we are using and provide a more consistent interface
 task jmhJar(
         dependsOn: shadowJar,

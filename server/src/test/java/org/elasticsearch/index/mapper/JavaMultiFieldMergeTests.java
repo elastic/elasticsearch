@@ -25,8 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -45,7 +43,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
-        BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
+        BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
@@ -101,7 +99,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), nullValue());
 
-        BytesReference json = XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject().bytes();
+        BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
         Document doc = docMapper.parse(SourceToParse.source("test", "person", "1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());

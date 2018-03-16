@@ -728,7 +728,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
         ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
-        ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
+        ids.put(59, null); // weas EsRejectedExecutionException, which is no longer an instance of ElasticsearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);

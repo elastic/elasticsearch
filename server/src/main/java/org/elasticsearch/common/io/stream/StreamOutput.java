@@ -35,6 +35,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
 
@@ -852,8 +853,28 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IOException) {
                 writeVInt(17);
+            } else if (throwable instanceof EsRejectedExecutionException) {
+                // TODO: remove the if branch when master is bumped to 8.0.0
+                assert Version.CURRENT.major < 8;
+                if (version.before(Version.V_7_0_0_alpha1)) {
+                    /*
+                     * This is a backwards compatibility layer when speaking to nodes that still treated EsRejectedExceutionException as an
+                     * instance of ElasticsearchException. As such, we serialize this in a way that the receiving node would read this as an
+                     * EsRejectedExecutionException.
+                     */
+                    final ElasticsearchException ex = new ElasticsearchException(throwable.getMessage());
+                    writeVInt(0);
+                    writeVInt(59);
+                    ex.writeTo(this);
+                    writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+                    return;
+                } else {
+                    writeVInt(18);
+                    writeBoolean(((EsRejectedExecutionException) throwable).isExecutorShutdown());
+                    writeCause = false;
+                }
             } else {
-                ElasticsearchException ex;
+                final ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass(), version)) {
                     ex = (ElasticsearchException) throwable;
                 } else {
@@ -863,7 +884,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeVInt(ElasticsearchException.getId(ex.getClass()));
                 ex.writeTo(this);
                 return;
-
             }
             if (writeMessage) {
                 writeOptionalString(throwable.getMessage());

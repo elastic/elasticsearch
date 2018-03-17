@@ -35,7 +35,7 @@ public interface XContentBuilderProvider {
      *
      * <pre>
      *     Map<Class<?>, XContentBuilder.Writer> addlWriters = new HashMap<>();
-     *     addlWriters.put(BytesRef.class, (builder, value) -> b.value(((Text) value).utf8String()));
+     *     addlWriters.put(BytesRef.class, (builder, value) -> b.value(((BytesRef) value).utf8String()));
      *     return addlWriters;
      * </pre>
      *

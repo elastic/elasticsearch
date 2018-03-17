@@ -4283,6 +4283,26 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
+
+        // If the new index commit still points to the same translog generation as the current index commit,
+        // we should not enable the periodically flush condition; otherwise we can get into an infinite loop of flushes.
+        engine.getLocalCheckpointTracker().generateSeqNo(); // create a gap here
+        for (int id = 0; id < numDocs; id++) {
+            if (randomBoolean()){
+                engine.getTranslog().rollGeneration();
+            }
+            final ParsedDocument doc = testParsedDocument("new" + id, null, testDocumentWithTextField(), SOURCE, null);
+            long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+            final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 2L, seqno, false));
+            assertThat(result.isCreated(), equalTo(true));
+        }
+        // A flush must change the periodically flush condition.
+        lastCommitInfo = engine.getLastCommittedSegmentInfos();
+        if (engine.shouldPeriodicallyFlush()) {
+            engine.flush();
+            assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
+        }
+        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
 

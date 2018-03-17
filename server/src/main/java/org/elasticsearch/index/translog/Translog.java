@@ -23,7 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.UUIDs;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -431,7 +431,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the size in bytes of the translog files above the given generation
      */
-    private long sizeInBytesByMinGen(long minGeneration) {
+    long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
@@ -447,7 +447,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
+            final List<BaseTranslogReader> readers = new ArrayList<>(this.readers);
+            readers.add(current);
+            int keptIndex = Integer.MAX_VALUE;
+            for (int i = 0; i < readers.size(); i++) {
+                final long maxSeqNo = readers.get(i).getCheckpoint().maxSeqNo;
+                if (maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo) {
+                    keptIndex = i;
+                    break;
+                }
+            }
+            long totalBytes = 0;
+            for (int i = keptIndex; i < readers.size(); i++) {
+                totalBytes += readers.get(i).sizeInBytes();
+            }
+            return totalBytes;
         }
     }
 

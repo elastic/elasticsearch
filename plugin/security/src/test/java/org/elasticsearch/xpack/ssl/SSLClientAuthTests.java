@@ -68,7 +68,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             restClient.performRequest("GET", "/");
             fail("Expected SSLHandshakeException");
-        } catch (SSLHandshakeException e) {
+        } catch (IOException e) {
             Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
             assertThat(t, instanceOf(CertPathBuilderException.class));
             assertThat(t.getMessage(), containsString("unable to find valid certification path to requested target"));

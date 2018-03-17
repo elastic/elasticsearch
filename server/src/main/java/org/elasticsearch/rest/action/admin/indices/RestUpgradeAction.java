@@ -20,8 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,7 +38,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
@@ -50,9 +47,6 @@ public class RestUpgradeAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(POST, "/_upgrade", this);
         controller.registerHandler(POST, "/{index}/_upgrade", this);
-
-        controller.registerHandler(GET, "/_upgrade", this);
-        controller.registerHandler(GET, "/{index}/_upgrade", this);
     }
 
     @Override
@@ -62,30 +56,6 @@ public class RestUpgradeAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (request.method().equals(RestRequest.Method.GET)) {
-            return handleGet(request, client);
-        } else if (request.method().equals(RestRequest.Method.POST)) {
-            return handlePost(request, client);
-        } else {
-            throw new IllegalArgumentException("illegal method [" + request.method() + "] for request [" + request.path() + "]");
-        }
-    }
-
-    private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
-        UpgradeStatusRequest statusRequest = new UpgradeStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        statusRequest.indicesOptions(IndicesOptions.fromRequest(request, statusRequest.indicesOptions()));
-        return channel -> client.admin().indices().upgradeStatus(statusRequest, new RestBuilderListener<UpgradeStatusResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(UpgradeStatusResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
-    }
-
-    private RestChannelConsumer handlePost(final RestRequest request, NodeClient client) {
         UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         upgradeReq.indicesOptions(IndicesOptions.fromRequest(request, upgradeReq.indicesOptions()));
         upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
@@ -107,5 +77,4 @@ public class RestUpgradeAction extends BaseRestHandler {
             }
         });
     }
-
 }

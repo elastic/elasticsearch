@@ -16,6 +16,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -40,8 +42,10 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -135,6 +139,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
+        final ClusterSettings clusterSettings = mockClusterSettings();
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         prefix = LoggingAuditTrail.LocalNodeInfo.resolvePrefix(settings, localNode);
         threadContext = new ThreadContext(Settings.EMPTY);
     }
@@ -792,6 +798,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private static String indices(TransportMessage message) {
         return Strings.arrayToCommaDelimitedString(((IndicesRequest) message).indices());
+    }
+
+    private ClusterSettings mockClusterSettings() {
+        final List<Setting<?>> settingsList = new ArrayList<>();
+        LoggingAuditTrail.registerSettings(settingsList);
+        settingsList.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new ClusterSettings(settings, new HashSet<>(settingsList));
     }
 
     static class MockMessage extends TransportMessage {

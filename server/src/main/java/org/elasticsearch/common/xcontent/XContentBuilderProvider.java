@@ -52,7 +52,7 @@ public interface XContentBuilderProvider {
      *
      * <pre>
      *     Map<Class<?>, XContentBuilder.HumanReadableTransformer> transformers = new HashMap<>();
-     *     transformers.put(BytesSizeValue.class, (value) -> ((ByteSizeValue) value).bytes());
+     *     transformers.put(ByteSizeValue.class, (value) -> ((ByteSizeValue) value).bytes());
      * </pre>
      * @return a map of class name to transformer used to retrieve raw value
      */

@@ -19,9 +19,14 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,6 +38,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -40,17 +46,24 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class EngineDiskUtilsTests extends EngineTestCase {
-
 
     public void testHistoryUUIDIsSetIfMissing() throws IOException {
         final int numDocs = randomIntBetween(0, 3);
@@ -203,5 +216,54 @@ public class EngineDiskUtilsTests extends EngineTestCase {
         engine.recoverFromTranslog();
         assertVisibleCount(engine, 0, false);
         assertThat(engine.getHistoryUUID(), not(equalTo(oldHistoryUUID)));
+    }
+
+    public void testTrimUnsafeCommits() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final int maxSeqNo = 40;
+        final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toList());
+        Collections.shuffle(seqNos, random());
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            final List<Long> commitMaxSeqNo = new ArrayList<>();
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < seqNos.size(); i++) {
+                    ParsedDocument doc = testParsedDocument(Long.toString(seqNos.get(i)), null, testDocument(), new BytesArray("{}"), null);
+                    Engine.Index index = new Engine.Index(newUid(doc), doc, seqNos.get(i), 0,
+                        1, VersionType.EXTERNAL, REPLICA, System.nanoTime(), -1, false);
+                    engine.index(index);
+                    if (randomBoolean()) {
+                        engine.flush();
+                        final Long maxSeqNoInCommit = seqNos.subList(0, i + 1).stream().max(Long::compareTo).orElse(-1L);
+                        commitMaxSeqNo.add(maxSeqNoInCommit);
+                    }
+                }
+                globalCheckpoint.set(randomInt(maxSeqNo));
+                engine.syncTranslog();
+            }
+
+            EngineDiskUtils.trimUnsafeCommits(store.directory(), config.getTranslogConfig().getTranslogPath(),
+                config.getIndexSettings().getIndexVersionCreated());
+            long safeMaxSeqNo =
+                commitMaxSeqNo.stream().filter(s -> s <= globalCheckpoint.get())
+                    .reduce((s1, s2) -> s2) // get the last one.
+                    .orElse(SequenceNumbers.NO_OPS_PERFORMED);
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            assertThat(commits, hasSize(1));
+            assertThat(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(safeMaxSeqNo)));
+            try (IndexReader reader = DirectoryReader.open(commits.get(0))) {
+                for (LeafReaderContext context: reader.leaves()) {
+                    final NumericDocValues values = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    if (values != null) {
+                        for (int docID = 0; docID < context.reader().maxDoc(); docID++) {
+                            if (values.advanceExact(docID) == false) {
+                                throw new AssertionError("Document does not have a seq number: " + docID);
+                            }
+                            assertThat(values.longValue(), lessThanOrEqualTo(globalCheckpoint.get()));
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -65,7 +65,6 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -91,6 +90,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -759,6 +759,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             initialEngine.close();
+            trimUnsafeCommits(initialEngine.config());
             recoveringEngine = new InternalEngine(initialEngine.config());
             recoveringEngine.recoverFromTranslog();
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
@@ -1163,6 +1164,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(doc));
         EngineConfig config = engine.config();
         engine.close();
+        trimUnsafeCommits(config);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
@@ -3494,7 +3496,7 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(initialEngine);
         }
-
+        trimUnsafeCommits(initialEngine.config());
         try (Engine recoveringEngine = new InternalEngine(initialEngine.config())) {
             recoveringEngine.recoverFromTranslog();
             recoveringEngine.fillSeqNoGaps(2);
@@ -3846,6 +3848,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
+            trimUnsafeCommits(replicaEngine.config());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
             if (flushed) {
                 assertEquals(0, recoveringEngine.getTranslog().uncommittedOperations());
@@ -4168,31 +4171,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testOpenIndexAndTranslogKeepOnlySafeCommit() throws Exception {
-        IOUtils.close(engine);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final EngineConfig config = copy(engine.config(), globalCheckpoint::get);
-        final IndexCommit safeCommit;
-        try (InternalEngine engine = createEngine(config)) {
-            final int numDocs = between(5, 50);
-            for (int i = 0; i < numDocs; i++) {
-                index(engine, i);
-                if (randomBoolean()) {
-                    engine.flush();
-                }
-            }
-            // Selects a starting commit and advances and persists the global checkpoint to that commit.
-            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
-            safeCommit = randomFrom(commits);
-            globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
-            engine.getTranslog().sync();
-        }
-        try (InternalEngine engine = new InternalEngine(config)) {
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
-            assertThat("safe commit should be kept", existingCommits, contains(safeCommit));
-        }
-    }
-
     public void testCleanUpCommitsWhenGlobalCheckpointAdvanced() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();
@@ -4336,5 +4314,10 @@ public class InternalEngineTests extends EngineTestCase {
                 thread.join();
             }
         }
+    }
+
+    private static void trimUnsafeCommits(EngineConfig config) throws IOException {
+        EngineDiskUtils.trimUnsafeCommits(config.getStore().directory(),
+            config.getTranslogConfig().getTranslogPath(), config.getIndexSettings().getIndexVersionCreated());
     }
 }

@@ -53,8 +53,8 @@ still allocate the lost shard copies to nodes in `rack_one`.
 
 When executing search or GET requests, with shard awareness enabled,
 Elasticsearch will prefer using local shards -- shards in the same awareness
-group -- to execute the request. This is usually faster than crossing racks or
-awareness zones.
+group -- to execute the request. This is usually faster than crossing between
+racks or across zone boundaries.
 
 *********************************************
 
@@ -78,10 +78,10 @@ are many replicas, replica shards may be left unassigned.
 [[forced-awareness]]
 === Forced Awareness
 
-Imagine that you have two awareness zones and enough hardware across the two
-zones to host all of your primary and replica shards.  But perhaps the
-hardware in a single zone, while sufficient to host half the shards, would be
-unable to host *ALL* the shards.
+Imagine that you have two zones and enough hardware across the two zones to
+host all of your primary and replica shards.  But perhaps the hardware in a
+single zone, while sufficient to host half the shards, would be unable to host
+*ALL* the shards.
 
 With ordinary awareness, if one zone lost contact with the other zone,
 Elasticsearch would assign all of the missing replica shards to a single zone.

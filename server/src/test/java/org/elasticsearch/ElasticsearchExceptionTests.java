@@ -35,7 +35,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -77,7 +76,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -623,6 +621,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertDeepEquals(expected, parsedException);
+
+        if (suppressedCount > 0) {
+            XContentBuilder builder = XContentBuilder.builder(xContent);
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, throwable);
+            builder.endObject();
+            throwableBytes = BytesReference.bytes(builder);
+            try (XContentParser parser = createParser(xContent, throwableBytes)) {
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                List<String> keys = new ArrayList<>(parser.mapOrdered().keySet());
+                assertEquals("last index should be [suppressed]", "suppressed", keys.get(keys.size() - 1));
+            }
+        }
     }
 
     public void testUnknownFailureToAndFromXContent() throws IOException {

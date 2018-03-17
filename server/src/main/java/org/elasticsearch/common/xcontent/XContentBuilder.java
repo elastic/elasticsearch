@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -87,6 +88,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     private static final Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
@@ -110,11 +112,26 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(Text.class, (b, v) -> b.value((Text) v));
 
         WRITERS = Collections.unmodifiableMap(writers);
+
+        Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
+        // These will be moved to a different class at a later time to decouple them from XContentBuilder
+        humanReadableTransformer.put(TimeValue.class, v -> ((TimeValue) v).millis());
+        humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
+
+        HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
     }
 
     @FunctionalInterface
-    private interface Writer {
+    interface Writer {
         void write(XContentBuilder builder, Object value) throws IOException;
+    }
+
+    /**
+     * Interface for transforming complex objects into their "raw" equivalents for human-readable fields
+     */
+    @FunctionalInterface
+    interface HumanReadableTransformer {
+        Object rawValue(Object value) throws IOException;
     }
 
     /**
@@ -131,6 +148,16 @@ public final class XContentBuilder implements Releasable, Flushable {
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
     private boolean humanReadable = false;
+
+    /**
+     * Additional pluggable writers for classes outside of XContent's control
+     */
+    private final Map<Class<?>, Writer> additionalWriters;
+
+    /**
+     * Additional transformers for human readable fields
+     */
+    private final Map<Class<?>, HumanReadableTransformer> additionalHumanReadableTransformers;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
@@ -164,6 +191,14 @@ public final class XContentBuilder implements Releasable, Flushable {
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos, includes, excludes);
+        Map<Class<?>, Writer> writers = new HashMap<>();
+        Map<Class<?>, HumanReadableTransformer> transformers = new HashMap<>();
+        for (XContentBuilderProvider service : ServiceLoader.load(XContentBuilderProvider.class)) {
+            writers.putAll(service.getXContentWriters());
+            transformers.putAll(service.getXContentHumanReadableTransformers());
+        }
+        additionalWriters = Collections.unmodifiableMap(writers);
+        additionalHumanReadableTransformers = Collections.unmodifiableMap(transformers);
     }
 
     public XContentType contentType() {
@@ -798,6 +833,13 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((ReadableInstant) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
+        } else if (additionalWriters.containsKey(value.getClass())) {
+            Writer additionalWriter = additionalWriters.get(value.getClass());
+            if (additionalWriter == null) {
+                throw new NullPointerException("xcontent writer for class " + value.getClass() + " cannot be null");
+            } else {
+                additionalWriter.write(this, value);
+            }
         } else {
             // This is a "value" object (like enum, DistanceUnit, etc) just toString() it
             // (yes, it can be misleading when toString a Java class, but really, jackson should be used in that case)
@@ -891,33 +933,37 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Misc.
+    // Human readable fields
+    //
+    // These are fields that have a "raw" value and a "human readable" value,
+    // such as time values or byte sizes. The human readable variant is only
+    // used if the humanReadable flag has been set
     //////////////////////////////////
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, TimeValue timeValue) throws IOException {
+    public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
         if (humanReadable) {
-            field(readableFieldName, timeValue.toString());
+            field(readableFieldName, Objects.toString(value));
         }
-        field(rawFieldName, timeValue.millis());
+        HumanReadableTransformer transformer = HUMAN_READABLE_TRANSFORMERS.get(value.getClass());
+        if (transformer != null) {
+            Object rawValue = transformer.rawValue(value);
+            field(rawFieldName, rawValue);
+        } else if (additionalHumanReadableTransformers.containsKey(value.getClass())) {
+            HumanReadableTransformer additionalTransformer = additionalHumanReadableTransformers.get(value.getClass());
+            if (additionalTransformer == null) {
+                throw new NullPointerException("xcontent transformer for class " + value.getClass() + " cannot be null");
+            } else {
+                field(rawFieldName, additionalTransformer.rawValue(value));
+            }
+        } else {
+            throw new IllegalArgumentException("no raw transformer found for class " + value.getClass());
+        }
         return this;
     }
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime).toString());
-        }
-        field(rawFieldName, rawTime);
-        return this;
-    }
-
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
-            IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime, timeUnit).toString());
-        }
-        field(rawFieldName, rawTime);
-        return this;
-    }
+    ////////////////////////////////////////////////////////////////////////////
+    // Misc.
+    //////////////////////////////////
 
 
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
@@ -925,14 +971,6 @@ public final class XContentBuilder implements Releasable, Flushable {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }
         field(rawFieldName, percentage);
-        return this;
-    }
-
-    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, byteSizeValue.toString());
-        }
-        field(rawFieldName, byteSizeValue.getBytes());
         return this;
     }
 

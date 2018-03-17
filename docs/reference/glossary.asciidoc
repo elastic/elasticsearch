@@ -61,6 +61,16 @@
   `object`. The mapping also allows you to define (amongst other things)
   how the value for a field should be analyzed.
 
+[[glossary-filter]] filter ::
+
+  A filter is kind of query known as a "non-scoring" query. It does not give a score,
+  it is only concerned about answering the question - "Does this document match?". 
+  The answer is always a simple, binary yes|no. This kind of query is said to be made 
+  in a "filtering" context, hence it is called a filter. Filtering queries/Filters are 
+  simple checks for set inclusion/exclusion. The goal of filtering is to reduce the 
+  number of documents that have to be examined, as it is in the case of 
+  <<glossary-query,scoring queries>>.
+
 [[glossary-index]] index ::
 
   An index is like a _table_ in a relational database. It has a
@@ -104,6 +114,19 @@
   index is created.
   +
   See also <<glossary-routing,routing>>
+
+[[glossary-query]] query ::
+
+  Query refers to all queries which not only determine if a document matches, 
+  but also calculate how well the document matches. This calculation is refered 
+  to as scoring, hence these queries are also known as "scoring queries". 
+  A scoring query calculates how relevant each document is to the query, and assigns 
+  it a relevance _score, which is later used to sort matching documents by relevance. 
+  This concept of relevance is well suited to full-text search, where there is seldom a 
+  completely “correct” answer. These queries are more heavier than 
+  <<glossary-filter,filters/non scoring queries>> and their query results are not cacheable. 
+  As a general rule, use query clauses for full-text search or for any condition that should 
+  affect the relevance score, and use filters for everything else.
 
  [[glossary-replica-shard]] replica shard ::
 

@@ -447,21 +447,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            final List<BaseTranslogReader> readers = new ArrayList<>(this.readers);
-            readers.add(current);
-            int keptIndex = Integer.MAX_VALUE;
-            for (int i = 0; i < readers.size(); i++) {
-                final long maxSeqNo = readers.get(i).getCheckpoint().maxSeqNo;
-                if (maxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo) {
-                    keptIndex = i;
-                    break;
-                }
-            }
-            long totalBytes = 0;
-            for (int i = keptIndex; i < readers.size(); i++) {
-                totalBytes += readers.get(i).sizeInBytes();
-            }
-            return totalBytes;
+            return sizeInBytesByMinGen(minGenerationForSeqNo(minSeqNo));
         }
     }
 
@@ -1536,14 +1522,27 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
              * be the current translog generation as we do not need any prior generations to have a complete history up to the current local
              * checkpoint.
              */
-            long minTranslogFileGeneration = this.currentFileGeneration();
-            for (final TranslogReader reader : readers) {
-                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
-                    minTranslogFileGeneration = Math.min(minTranslogFileGeneration, reader.getGeneration());
-                }
-            }
-            return new TranslogGeneration(translogUUID, minTranslogFileGeneration);
+            final long minOrCurrentGeneration = Math.min(minGenerationForSeqNo(seqNo), currentFileGeneration());
+            return new TranslogGeneration(translogUUID, minOrCurrentGeneration);
         }
+    }
+
+    /**
+     * Returns the minimum generation that contains the given seqno.
+     * If no generation contains it, returns {@link Long#MAX_VALUE}.
+     */
+    private long minGenerationForSeqNo(final long seqNo) {
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() : "Lock is not held the current thread";
+        long minGen = Long.MAX_VALUE;
+        if (seqNo <= this.current.getCheckpoint().maxSeqNo) {
+            minGen = this.current.generation;
+        }
+        for (final TranslogReader reader : readers) {
+            if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                minGen = Math.min(minGen, reader.getGeneration());
+            }
+        }
+        return minGen;
     }
 
     /**

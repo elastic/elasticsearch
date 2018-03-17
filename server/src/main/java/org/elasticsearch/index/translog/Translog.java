@@ -1532,7 +1532,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * If no generation contains it, returns {@link Long#MAX_VALUE}.
      */
     private long minGenerationForSeqNo(final long seqNo) {
-        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() : "Lock is not held the current thread";
+        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() : "Translog lock is not held by the current thread";
         long minGen = Long.MAX_VALUE;
         if (seqNo <= this.current.getCheckpoint().maxSeqNo) {
             minGen = this.current.generation;

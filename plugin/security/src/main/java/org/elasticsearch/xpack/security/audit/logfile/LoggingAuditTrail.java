@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -39,10 +40,10 @@ import java.net.SocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -112,7 +113,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     private final EnumSet<AuditLevel> events;
     private final boolean includeRequestBody;
     // protected for testing
-    protected final Predicate<AuditEventMetaInfo> filterPolicyPredicate;
+    final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     private final ThreadContext threadContext;
     volatile LocalNodeInfo localNodeInfo;
 
@@ -132,14 +133,38 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
         this.localNodeInfo = new LocalNodeInfo(settings, null);
-        this.filterPolicyPredicate = new EventFilterPolicyRegistry(settings).ignorePredicate();
+        this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
+            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
+            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
+                    .changePrincipalsFilter(filtersList);
+            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
+        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_REALMS, (policyName, filtersList) -> {
+            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
+            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
+                    .changeRealmsFilter(filtersList);
+            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
+        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_ROLES, (policyName, filtersList) -> {
+            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
+            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
+                    .changeRolesFilter(filtersList);
+            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
+        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
+        clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_INDICES, (policyName, filtersList) -> {
+            final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
+            final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
+                    .changeIndicesFilter(filtersList);
+            this.eventFilterPolicyRegistry.set(policyName, newPolicy);
+        }, (policyName, filtersList) -> EventFilterPolicy.parsePredicate(filtersList));
     }
 
     @Override
     public void authenticationSuccess(String realm, User user, RestRequest request) {
-        if (events.contains(AUTHENTICATION_SUCCESS) && filterPolicyPredicate
-                .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false) {
+        if (events.contains(AUTHENTICATION_SUCCESS) && (eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}], request_body=[{}]",
                         localNodeInfo.prefix, principal(user), realm, request.uri(), request.params(), restRequestContent(request));
@@ -154,7 +179,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -174,7 +199,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void anonymousAccessDenied(String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [anonymous_access_denied]\t{}, action=[{}], indices=[{}], request=[{}]",
@@ -190,7 +216,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void anonymousAccessDenied(RestRequest request) {
-        if (events.contains(ANONYMOUS_ACCESS_DENIED) && filterPolicyPredicate.test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(ANONYMOUS_ACCESS_DENIED)
+                && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [anonymous_access_denied]\t{}, uri=[{}], request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), restRequestContent(request));
@@ -205,7 +232,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [authentication_failed]\t{}, principal=[{}], action=[{}], indices=[{}], request=[{}]",
@@ -222,7 +250,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void authenticationFailed(RestRequest request) {
-        if (events.contains(AUTHENTICATION_FAILED) && filterPolicyPredicate.test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(AUTHENTICATION_FAILED)
+                && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [authentication_failed]\t{}, uri=[{}], request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), request.uri(), restRequestContent(request));
@@ -236,7 +265,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationFailed(String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [authentication_failed]\t{}, action=[{}], indices=[{}], request=[{}]", localNodeInfo.prefix,
@@ -253,7 +283,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void authenticationFailed(AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)
-                && filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false) {
+                && (eventFilterPolicyRegistry.ignorePredicate()
+                        .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [authentication_failed]\t{}, principal=[{}], uri=[{}], request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), token.principal(), request.uri(), restRequestContent(request));
@@ -268,7 +299,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info(
@@ -287,8 +319,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
-        if (events.contains(REALM_AUTHENTICATION_FAILED) && filterPolicyPredicate
-                .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED)
+                && (eventFilterPolicyRegistry.ignorePredicate()
+                        .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [realm_authentication_failed]\trealm=[{}], {}, principal=[{}], uri=[{}], request_body=[{}]",
                         localNodeInfo.prefix, realm, hostAttributes(request), token.principal(), request.uri(),
@@ -303,9 +336,9 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     @Override
     public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
-        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || (isSystem == false && events.contains(ACCESS_GRANTED))) {
+        if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -326,7 +359,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -345,7 +378,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void tamperedRequest(RestRequest request) {
-        if (events.contains(TAMPERED_REQUEST) && filterPolicyPredicate.test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(TAMPERED_REQUEST) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [tampered_request]\t{}, uri=[{}], request_body=[{}]", localNodeInfo.prefix, hostAttributes(request),
                         request.uri(), restRequestContent(request));
@@ -359,7 +392,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void tamperedRequest(String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate.test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [tampered_request]\t{}, action=[{}], indices=[{}], request=[{}]", localNodeInfo.prefix,
@@ -377,7 +411,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void tamperedRequest(User user, String action, TransportMessage request) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(request);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.empty(), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -395,7 +429,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void connectionGranted(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (events.contains(CONNECTION_GRANTED) && filterPolicyPredicate.test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(CONNECTION_GRANTED) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             logger.info("{}[ip_filter] [connection_granted]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", localNodeInfo.prefix,
                     NetworkAddress.format(inetAddress), profile, rule);
         }
@@ -403,7 +437,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule) {
-        if (events.contains(CONNECTION_DENIED) && filterPolicyPredicate.test(AuditEventMetaInfo.EMPTY) == false) {
+        if (events.contains(CONNECTION_DENIED) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             logger.info("{}[ip_filter] [connection_denied]\torigin_address=[{}], transport_profile=[{}], rule=[{}]", localNodeInfo.prefix,
                     NetworkAddress.format(inetAddress), profile, rule);
         }
@@ -413,7 +447,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void runAsGranted(User user, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -439,7 +473,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public void runAsDenied(User user, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (filterPolicyPredicate
+            if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
@@ -463,8 +497,8 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     @Override
     public void runAsDenied(User user, RestRequest request, String[] roleNames) {
-        if (events.contains(RUN_AS_DENIED) && filterPolicyPredicate
-                .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), Optional.empty())) == false) {
+        if (events.contains(RUN_AS_DENIED) && (eventFilterPolicyRegistry.ignorePredicate()
+                .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), Optional.empty())) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [run_as_denied]\t{}, principal=[{}], roles=[{}], uri=[{}], request_body=[{}]", localNodeInfo.prefix,
                         hostAttributes(request), user.principal(), arrayToCommaDelimitedString(roleNames), request.uri(),
@@ -552,27 +586,55 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
      * the policy. 
      */
     private static final class EventFilterPolicy {
-        final String name;
+        private final String name;
         private final Predicate<String> ignorePrincipalsPredicate;
         private final Predicate<String> ignoreRealmsPredicate;
         private final Predicate<String> ignoreRolesPredicate;
         private final Predicate<String> ignoreIndicesPredicate;
+
+        EventFilterPolicy(String name, Settings settings) {
+            this(name, parsePredicate(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)),
+                    parsePredicate(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)),
+                    parsePredicate(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)),
+                    parsePredicate(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)));
+        }
 
         /**
          * An empty filter list for a field will match events with that field missing.
          * An event with an undefined field has the field value the empty string ("") or
          * a singleton list of the empty string ([""]).
          */
-        EventFilterPolicy(String name, Settings settings) {
+        EventFilterPolicy(String name, Predicate<String> ignorePrincipalsPredicate, Predicate<String> ignoreRealmsPredicate,
+                Predicate<String> ignoreRolesPredicate, Predicate<String> ignoreIndicesPredicate) {
             this.name = name;
-            ignorePrincipalsPredicate = Automatons.predicate(
-                    emptyStringBuildsEmptyAutomaton(FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace(name).get(settings)));
-            ignoreRealmsPredicate = Automatons.predicate(
-                    emptyStringBuildsEmptyAutomaton(FILTER_POLICY_IGNORE_REALMS.getConcreteSettingForNamespace(name).get(settings)));
-            ignoreRolesPredicate = Automatons.predicate(
-                    emptyStringBuildsEmptyAutomaton(FILTER_POLICY_IGNORE_ROLES.getConcreteSettingForNamespace(name).get(settings)));
-            ignoreIndicesPredicate = Automatons.predicate(
-                    emptyStringBuildsEmptyAutomaton(FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace(name).get(settings)));
+            this.ignorePrincipalsPredicate = ignorePrincipalsPredicate;
+            this.ignoreRealmsPredicate = ignoreRealmsPredicate;
+            this.ignoreRolesPredicate = ignoreRolesPredicate;
+            this.ignoreIndicesPredicate = ignoreIndicesPredicate;
+        }
+
+        private EventFilterPolicy changePrincipalsFilter(List<String> filtersList) {
+            return new EventFilterPolicy(name, parsePredicate(filtersList), ignoreRealmsPredicate, ignoreRolesPredicate,
+                    ignoreIndicesPredicate);
+        }
+
+        private EventFilterPolicy changeRealmsFilter(List<String> filtersList) {
+            return new EventFilterPolicy(name, ignorePrincipalsPredicate, parsePredicate(filtersList), ignoreRolesPredicate,
+                    ignoreIndicesPredicate);
+        }
+
+        private EventFilterPolicy changeRolesFilter(List<String> filtersList) {
+            return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, parsePredicate(filtersList),
+                    ignoreIndicesPredicate);
+        }
+
+        private EventFilterPolicy changeIndicesFilter(List<String> filtersList) {
+            return new EventFilterPolicy(name, ignorePrincipalsPredicate, ignoreRealmsPredicate, ignoreRolesPredicate,
+                    parsePredicate(filtersList));
+        }
+
+        static Predicate<String> parsePredicate(List<String> l) {
+            return Automatons.predicate(emptyStringBuildsEmptyAutomaton(l));
         }
 
         /**
@@ -581,7 +643,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
          * `Automatons.predicate("").test("") == false`
          * `Automatons.predicate("//").test("") == true`
          */
-        private List<String> emptyStringBuildsEmptyAutomaton(List<String> l) {
+        private static List<String> emptyStringBuildsEmptyAutomaton(List<String> l) {
             if (l.isEmpty()) {
                 return Collections.singletonList("//");
             }
@@ -594,12 +656,14 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
          * predicate of the corresponding field.
          */
         Predicate<AuditEventMetaInfo> ignorePredicate() {
-            return (eventInfo) -> {
-                return ignorePrincipalsPredicate.test(eventInfo.principal)
-                    && ignoreRealmsPredicate.test(eventInfo.realm)
-                    && eventInfo.roles.get().allMatch(ignoreRolesPredicate)
-                    && eventInfo.indices.get().allMatch(ignoreIndicesPredicate);
-            };
+            return eventInfo -> ignorePrincipalsPredicate.test(eventInfo.principal) && ignoreRealmsPredicate.test(eventInfo.realm)
+                    && eventInfo.roles.get().allMatch(ignoreRolesPredicate) && eventInfo.indices.get().allMatch(ignoreIndicesPredicate);
+        }
+
+        @Override
+        public String toString() {
+            return "[users]:" + ignorePrincipalsPredicate.toString() + "&[realms]:" + ignoreRealmsPredicate.toString() + "&[roles]:"
+                    + ignoreRolesPredicate.toString() + "&[indices]:" + ignoreIndicesPredicate.toString();
         }
     }
 
@@ -607,19 +671,46 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
      * Builds the filter predicates for all the policies. Predicates of all policies
      * are ORed together, so that an audit event matching any policy is ignored.
      */
-    private static final class EventFilterPolicyRegistry {
-        private final Map<String, Predicate<AuditEventMetaInfo>> policyMap;
+    static final class EventFilterPolicyRegistry {
+        private volatile Map<String, EventFilterPolicy> policyMap;
+        private volatile Predicate<AuditEventMetaInfo> predicate;
 
-        EventFilterPolicyRegistry(Settings settings) {
-            final Map<String, Predicate<AuditEventMetaInfo>> map = new HashMap<>();
+        private EventFilterPolicyRegistry(Settings settings) {
+            final MapBuilder<String, EventFilterPolicy> mapBuilder = MapBuilder.newMapBuilder();
             for (final String policyName : settings.getGroups(FILTER_POLICY_PREFIX, true).keySet()) {
-                map.put(policyName, new EventFilterPolicy(policyName, settings).ignorePredicate());
+                mapBuilder.put(policyName, new EventFilterPolicy(policyName, settings));
             }
-            policyMap = Collections.unmodifiableMap(map);
+            policyMap = mapBuilder.immutableMap();
+            // precompute predicate
+            predicate = buildIgnorePredicate(policyMap);
+        }
+
+        private Optional<EventFilterPolicy> get(String policyName) {
+            return Optional.ofNullable(policyMap.get(policyName));
+        }
+
+        private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
+            policyMap = MapBuilder.newMapBuilder(policyMap).put(policyName, eventFilterPolicy).immutableMap();
+            // precompute predicate
+            predicate = buildIgnorePredicate(policyMap);
         }
 
         Predicate<AuditEventMetaInfo> ignorePredicate() {
-            return policyMap.values().stream().reduce(x -> false, (x, y) -> x.or(y));
+            return predicate;
+        }
+
+        private static Predicate<AuditEventMetaInfo> buildIgnorePredicate(Map<String, EventFilterPolicy> policyMap) {
+            return policyMap.values().stream().map(EventFilterPolicy::ignorePredicate).reduce(x -> false, (x, y) -> x.or(y));
+        }
+
+        @Override
+        public String toString() {
+            final Map<String, EventFilterPolicy> treeMap = new TreeMap<>(policyMap);
+            final StringBuilder sb = new StringBuilder();
+            for (final Map.Entry<String, EventFilterPolicy> entry : treeMap.entrySet()) {
+                sb.append(entry.getKey()).append(":").append(entry.getValue().toString());
+            }
+            return sb.toString();
         }
     }
 
@@ -674,7 +765,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     void updateLocalNodeInfo(DiscoveryNode newLocalNode) {
         // check if local node changed
         final DiscoveryNode localNode = localNodeInfo.localNode;
-        if (localNode == null || localNode.equals(newLocalNode) == false) {
+        if ((localNode == null) || (localNode.equals(newLocalNode) == false)) {
             // no need to synchronize, called only from the cluster state applier thread
             localNodeInfo = new LocalNodeInfo(settings, newLocalNode);
         }

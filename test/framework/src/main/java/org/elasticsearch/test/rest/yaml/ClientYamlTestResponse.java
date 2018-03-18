@@ -22,6 +22,7 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -119,7 +120,7 @@ public class ClientYamlTestResponse {
                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, body)) {
                         jsonBuilder.copyCurrentStructure(parser);
                     }
-                    bodyAsString = jsonBuilder.string();
+                    bodyAsString = Strings.toString(jsonBuilder);
                 } catch (IOException e) {
                     throw new UncheckedIOException("unable to convert response body to a string format", e);
                 }

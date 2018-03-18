@@ -30,9 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeDisconnectedException;
 
@@ -72,7 +70,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         contentBuilder.startObject();
         storesResponse.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
-        BytesReference bytes = contentBuilder.bytes();
+        BytesReference bytes = BytesReference.bytes(contentBuilder);
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             Map<String, Object> map = parser.map();

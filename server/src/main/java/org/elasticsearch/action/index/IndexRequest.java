@@ -43,7 +43,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -75,7 +74,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     /**
-     * Max length of the source document to include into toString()
+     * Max length of the source document to include into string()
      *
      * @see ReplicationRequest#createTask
      */
@@ -332,7 +331,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        return source(sourceBuilder.bytes(), sourceBuilder.contentType());
+        return source(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType());
     }
 
     /**

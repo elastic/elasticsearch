@@ -49,7 +49,7 @@ fi
     run_elasticsearch_service 0
     wait_for_xpack
 
-    run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"SETUP_AUTO"
+    run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_AUTO"
 echo 'y' | $ESHOME/bin/x-pack/setup-passwords auto
 SETUP_AUTO
     echo "$output" > /tmp/setup-passwords-output

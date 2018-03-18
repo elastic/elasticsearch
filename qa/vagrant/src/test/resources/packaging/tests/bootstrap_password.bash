@@ -49,7 +49,7 @@ fi
 	    sudo rm -f /tmp/bootstrap.password
     fi
 
-    run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NEW_PASS"
+    run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"NEW_PASS"
 if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
     $ESHOME/bin/elasticsearch-keystore create
 fi
@@ -65,7 +65,7 @@ NEW_PASS
 }
 
 @test "[$GROUP] test bootstrap.password is in setting list" {
-    run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NODE_SETTINGS"
+    run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"NODE_SETTINGS"
 cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 network.host: 127.0.0.1
 http.port: 9200
@@ -92,7 +92,7 @@ NODE_SETTINGS
 	    sudo rm -f /tmp/setup-passwords-output-with-bootstrap
     fi
 
-    run sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"SETUP_OK"
+    run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_OK"
 echo 'y' | $ESHOME/bin/x-pack/setup-passwords auto
 SETUP_OK
     echo "$output" > /tmp/setup-passwords-output-with-bootstrap

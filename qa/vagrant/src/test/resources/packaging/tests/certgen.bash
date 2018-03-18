@@ -152,7 +152,7 @@ start_node_using_package() {
     # The alternative would be to start the master node, use setup-passwords
     # and restart the node once ssl/tls is configured. Or use setup-passwords over
     # HTTPS with the right cacerts imported into a Java keystore.
-    run sudo -E -u $MASTER_USER sh <<"NEW_PASS"
+    run sudo -E -u $MASTER_USER bash <<"NEW_PASS"
 if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
     $ESHOME/bin/elasticsearch-keystore create
 fi
@@ -166,7 +166,7 @@ NEW_PASS
 }
 
 @test "[$GROUP] create instances file" {
-    run sudo -E -u $MASTER_USER sh <<"CREATE_INSTANCES_FILE"
+    run sudo -E -u $MASTER_USER bash <<"CREATE_INSTANCES_FILE"
 cat > /tmp/instances.yml <<- EOF
 instances:
   - name: "node-master"
@@ -233,7 +233,7 @@ CREATE_INSTANCES_FILE
     export ESHOME="$MASTER_HOME"
     export_elasticsearch_paths
 
-    run sudo -E -u $MASTER_USER sh <<"MASTER_SETTINGS"
+    run sudo -E -u $MASTER_USER bash <<"MASTER_SETTINGS"
 cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-master"
 node.master: true
@@ -316,7 +316,7 @@ MASTER_SETTINGS
     export ESHOME="$DATA_HOME"
     export_elasticsearch_paths
 
-    run sudo -E -u $DATA_USER sh <<"DATA_SETTINGS"
+    run sudo -E -u $DATA_USER bash <<"DATA_SETTINGS"
 cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 node.name: "node-data"
 node.master: false

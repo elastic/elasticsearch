@@ -262,7 +262,7 @@ subprojects {
       'heap.dump.path': [
         'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'def': "#-XX:HeapDumpPath=/heap/dump/path"
+        'def': "-XX:HeapDumpPath=data"
       ],
 
       'error.file': [

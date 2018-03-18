@@ -361,17 +361,17 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     }
 
     public void testMapWithParamsAndImplicitAggMap() {
-        Map<String, Object> params = new HashMap<>();
-        // don't put any _agg map in params
-        params.put("param1", "12");
-        params.put("param2", 1);
+        // Split the params up between the script and the aggregation.
+        // Don't put any _agg map in params.
+        Map<String, Object> scriptParams = Collections.singletonMap("param1", "12");
+        Map<String, Object> aggregationParams = Collections.singletonMap("param2", 1);
 
         // The _agg hashmap will be available even if not declared in the params map
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg[param1] = param2", params);
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg[param1] = param2", scriptParams);
 
         SearchResponse response = client().prepareSearch("idx")
             .setQuery(matchAllQuery())
-            .addAggregation(scriptedMetric("scripted").params(params).mapScript(mapScript))
+            .addAggregation(scriptedMetric("scripted").params(aggregationParams).mapScript(mapScript))
             .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));

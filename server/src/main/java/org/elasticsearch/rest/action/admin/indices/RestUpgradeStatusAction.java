@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
@@ -62,6 +63,6 @@ public class RestUpgradeStatusAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "upgrade_action";
+        return "upgrade_status_action";
     }
 }

@@ -17,6 +17,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.xpack.qa.sql.security.SqlSecurityTestCase.AuditLogAsserter;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,10 +27,8 @@ import java.sql.JDBCType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -36,7 +37,6 @@ import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.randomMode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static java.util.Collections.emptyMap;
 
 public class RestSqlSecurityIT extends SqlSecurityTestCase {
     private static class RestActions implements Actions {
@@ -205,6 +205,11 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         super(new RestActions());
     }
 
+    @Override
+    protected AuditLogAsserter createAuditLogAsserter() {
+        return new RestAuditLogAsserter();
+    }
+
     /**
      * Test the hijacking a scroll fails. This test is only implemented for
      * REST because it is the only API where it is simple to hijack a scroll.
@@ -226,15 +231,37 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         assertThat(e.getMessage(), containsString("No search context found for id"));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
 
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             // One scroll access denied per shard
-            .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")
-            .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")
-            .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")
-            .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")
-            .expect(false, SQL_ACTION_NAME, "full_access", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
+            .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
             .assertLogs();
+    }
+
+    protected class RestAuditLogAsserter extends AuditLogAsserter {
+        @Override
+        public AuditLogAsserter expect(String eventType, String action, String principal, String realm,
+                                       Matcher<? extends Iterable<? extends String>> indicesMatcher, String request) {
+            final Matcher<String> runByPrincipalMatcher = principal.equals("test_admin") ? Matchers.nullValue(String.class)
+                    : Matchers.is("test_admin");
+            final Matcher<String> runByRealmMatcher = realm.equals("default_file") ? Matchers.nullValue(String.class)
+                    : Matchers.is("default_file");
+            logCheckers.add(
+                    m -> eventType.equals(m.get("event_type"))
+                        && action.equals(m.get("action"))
+                        && principal.equals(m.get("principal"))
+                        && realm.equals(m.get("realm"))
+                        && runByPrincipalMatcher.matches(m.get("run_by_principal"))
+                        && runByRealmMatcher.matches(m.get("run_by_realm"))
+                        && indicesMatcher.matches(m.get("indices"))
+                        && request.equals(m.get("request")));
+            return this;
+        }
+
     }
 }

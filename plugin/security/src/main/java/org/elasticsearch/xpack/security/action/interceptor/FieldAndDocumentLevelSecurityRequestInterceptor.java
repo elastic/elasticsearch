@@ -10,10 +10,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.User;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -32,7 +32,8 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
         this.licenseState = licenseState;
     }
 
-    public void intercept(Request request, User user, Role userPermissions, String action) {
+    @Override
+    public void intercept(Request request, Authentication authentication, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }

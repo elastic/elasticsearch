@@ -162,15 +162,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer = new AuthorizationUtils.AsyncAuthorizer(authentication, listener,
                     (userRoles, runAsRoles) -> {
                         authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                        final User user = authentication.getUser();
-
                         /*
                          * We use a separate concept for code that needs to be run after authentication and authorization that could
                          * affect the running of the action. This is done to make it more clear of the state of the request.
                          */
                         for (RequestInterceptor interceptor : requestInterceptors) {
                             if (interceptor.supports(request)) {
-                                interceptor.intercept(request, user, runAsRoles != null ? runAsRoles : userRoles, securityAction);
+                                interceptor.intercept(request, authentication, runAsRoles != null ? runAsRoles : userRoles, securityAction);
                             }
                         }
                         listener.onResponse(null);

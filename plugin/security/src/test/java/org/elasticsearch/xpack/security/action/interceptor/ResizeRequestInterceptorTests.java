@@ -16,6 +16,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -41,7 +43,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
-        User user = new User("john", "role");
+        final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
@@ -66,7 +68,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
                 new ResizeRequestInterceptor(Settings.EMPTY, threadPool, licenseState, auditTrailService);
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> resizeRequestInterceptor.intercept(new ResizeRequest("bar", "foo"), user, role, action));
+                () -> resizeRequestInterceptor.intercept(new ResizeRequest("bar", "foo"), authentication, role, action));
         assertEquals("Resize requests are not allowed for users when field or document level security is enabled on the source index",
                 securityException.getMessage());
     }
@@ -79,7 +81,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
-        User user = new User("john", "role");
+        final Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null), null);
         Role role = Role.builder()
                 .add(IndexPrivilege.ALL, "target")
                 .add(IndexPrivilege.READ, "source")
@@ -90,11 +92,11 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         ResizeRequestInterceptor resizeRequestInterceptor =
                 new ResizeRequestInterceptor(Settings.EMPTY, threadPool, licenseState, auditTrailService);
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> resizeRequestInterceptor.intercept(new ResizeRequest("target", "source"), user, role, action));
+                () -> resizeRequestInterceptor.intercept(new ResizeRequest("target", "source"), authentication, role, action));
         assertEquals("Resizing an index is not allowed when the target index has more permissions than the source index",
                 securityException.getMessage());
 
         // swap target and source for success
-        resizeRequestInterceptor.intercept(new ResizeRequest("source", "target"), user, role, action);
+        resizeRequestInterceptor.intercept(new ResizeRequest("source", "target"), authentication, role, action);
     }
 }

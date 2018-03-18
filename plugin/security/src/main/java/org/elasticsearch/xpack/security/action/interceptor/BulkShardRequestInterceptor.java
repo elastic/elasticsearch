@@ -16,6 +16,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -35,7 +36,8 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
         this.licenseState = licenseState;
     }
 
-    public void intercept(BulkShardRequest request, User user, Role userPermissions, String action) {
+    @Override
+    public void intercept(BulkShardRequest request, Authentication authentication, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }

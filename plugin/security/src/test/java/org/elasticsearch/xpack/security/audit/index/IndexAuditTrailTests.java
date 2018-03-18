@@ -44,6 +44,8 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -563,7 +565,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessGranted(user, "_action", message, new String[] { role });
+        auditor.accessGranted(createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
@@ -571,9 +573,12 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
             assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("realm"), is("lookRealm"));
             assertThat(sourceMap.get("run_by_principal"), is("_username"));
+            assertThat(sourceMap.get("run_by_realm"), is("authRealm"));
         } else {
-            assertEquals("_username", sourceMap.get("principal"));
+            assertThat(sourceMap.get("principal"), is("_username"));
+            assertThat(sourceMap.get("realm"), is("authRealm"));
         }
         assertEquals("_action", sourceMap.get("action"));
         assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
@@ -588,13 +593,14 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize(new String[] { "system_access_granted" }, null);
         TransportMessage message = randomBoolean() ? new RemoteHostMockMessage() : new LocalHostMockMessage();
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessGranted(SystemUser.INSTANCE, "internal:_action", message, new String[] { role });
+        auditor.accessGranted(createAuthentication(SystemUser.INSTANCE), "internal:_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "access_granted");
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertEquals(SystemUser.INSTANCE.principal(), sourceMap.get("principal"));
+        assertThat(sourceMap.get("realm"), is("authRealm"));
         assertEquals("internal:_action", sourceMap.get("action"));
         assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
@@ -611,7 +617,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             user = new User("_username", new String[]{"r1"});
         }
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.accessDenied(user, "_action", message, new String[] { role });
+        auditor.accessDenied(createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         Map<String, Object> sourceMap = hit.getSourceAsMap();
@@ -619,9 +625,12 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
             assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("realm"), is("lookRealm"));
             assertThat(sourceMap.get("run_by_principal"), is("_username"));
+            assertThat(sourceMap.get("run_by_realm"), is("authRealm"));
         } else {
-            assertEquals("_username", sourceMap.get("principal"));
+            assertThat(sourceMap.get("principal"), is("_username"));
+            assertThat(sourceMap.get("realm"), is("authRealm"));
         }
         assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
@@ -721,14 +730,16 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
         String role = randomAlphaOfLengthBetween(1, 6);
-        auditor.runAsGranted(user, "_action", message, new String[] { role });
+        auditor.runAsGranted(createAuthentication(user), "_action", message, new String[] { role });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_granted");
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is("_username"));
+        assertThat(sourceMap.get("realm"), is("authRealm"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
+        assertThat(sourceMap.get("run_as_realm"), is("lookRealm"));
         assertThat((Iterable<String>) sourceMap.get(IndexAuditTrail.Field.ROLE_NAMES), containsInAnyOrder(role));
         assertEquals("_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
@@ -738,14 +749,16 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         initialize();
         TransportMessage message = randomFrom(new RemoteHostMockMessage(), new LocalHostMockMessage(), new MockIndicesTransportMessage());
         User user = new User("running as", new String[]{"r2"}, new User("_username", new String[] {"r1"}));
-        auditor.runAsDenied(user, "_action", message, new String[] { "r1" });
+        auditor.runAsDenied(createAuthentication(user), "_action", message, new String[] { "r1" });
 
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
         assertAuditMessage(hit, "transport", "run_as_denied");
         Map<String, Object> sourceMap = hit.getSourceAsMap();
         assertEquals("transport", sourceMap.get("origin_type"));
         assertThat(sourceMap.get("principal"), is("_username"));
+        assertThat(sourceMap.get("realm"), is("authRealm"));
         assertThat(sourceMap.get("run_as_principal"), is("running as"));
+        assertThat(sourceMap.get("run_as_realm"), is("lookRealm"));
         assertEquals("_action", sourceMap.get("action"));
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -938,6 +951,11 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         logger.debug("indices {} are yellow", indices.length == 0 ? "[_all]" : indices);
         return actionGet.getStatus();
+    }
+
+    private static Authentication createAuthentication(User user) {
+        final RealmRef lookedUpBy = user.authenticatedUser() == user ? null : new RealmRef("lookRealm", "up", "by");
+        return new Authentication(user, new RealmRef("authRealm", "test", "foo"), lookedUpBy);
     }
 }
 

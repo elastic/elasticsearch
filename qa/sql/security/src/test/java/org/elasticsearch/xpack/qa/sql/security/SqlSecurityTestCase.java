@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -192,7 +193,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     public void testQueryWorksAsAdmin() throws Exception {
         actions.queryWorksAsAdmin();
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .assertLogs();
     }
@@ -201,7 +202,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("full_access", "test")
             .assertLogs();
@@ -211,7 +212,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectScrollMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scroll. */
@@ -227,7 +228,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "SELECT * FROM test");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expect(false, SQL_ACTION_NAME, "no_access", empty())
             .assertLogs();
     }
@@ -236,7 +237,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("wrong_access", "read_something_else");
 
         actions.expectUnknownIndex("wrong_access", "SELECT * FROM test");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             //This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             //the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
@@ -248,7 +249,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("only_a", "read_test_a");
 
         actions.expectMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("only_a", "test")
             .assertLogs();
@@ -258,7 +259,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("only_a", "read_test_a");
 
         actions.expectScrollMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scoll. */
@@ -280,7 +281,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("only_a", "test")
             .assertLogs();
     }
@@ -289,7 +290,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("not_c", "read_test_a_and_b");
 
         actions.expectMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("not_c", "test")
             .assertLogs();
@@ -299,7 +300,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("not_c", "read_test_a_and_b");
 
         actions.expectScrollMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scroll. */
@@ -321,7 +322,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * query from the audit side because all the permissions checked
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("not_c", "test")
             .assertLogs();
     }
@@ -330,7 +331,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("no_3s", "read_test_without_c_3");
 
         actions.expectMatchesAdmin("SELECT * FROM test WHERE c != 3 ORDER BY a", "no_3s", "SELECT * FROM test ORDER BY a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("no_3s", "test")
             .assertLogs();
@@ -338,7 +339,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
     public void testShowTablesWorksAsAdmin() throws Exception {
         actions.expectShowTables(Arrays.asList("bort", "test"), null);
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .assertLogs();
     }
@@ -347,7 +348,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE '%t'", "full_access", "SHOW TABLES");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort", "test")
             .expectSqlCompositeAction("full_access", "bort", "test")
             .assertLogs();
@@ -357,7 +358,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "SHOW TABLES");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expect(false, SQL_ACTION_NAME, "no_access", empty())
             .assertLogs();
     }
@@ -366,7 +367,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("read_bort", "read_bort");
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'bort'", "read_bort", "SHOW TABLES");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "bort")
             .expectSqlCompositeAction("read_bort", "bort")
             .assertLogs();
@@ -376,7 +377,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("read_bort", "read_bort");
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'not-created'", "read_bort", "SHOW TABLES LIKE 'test'");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, GetIndexAction.NAME, "test_admin", contains("*", "-*"))
             .expect(true, SQL_ACTION_NAME, "read_bort", empty())
@@ -390,7 +391,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         expected.put("b", "BIGINT");
         expected.put("c", "BIGINT");
         actions.expectDescribe(expected, null);
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .assertLogs();
     }
@@ -399,7 +400,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("full_access", actions.minimalPermissionsForAllActions());
 
         actions.expectMatchesAdmin("DESCRIBE test", "full_access", "DESCRIBE test");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("full_access", "test")
             .assertLogs();
@@ -409,7 +410,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("no_access", "read_nothing");
 
         actions.expectForbidden("no_access", "DESCRIBE test");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expect(false, SQL_ACTION_NAME, "no_access", empty())
             .assertLogs();
     }
@@ -418,7 +419,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("wrong_access", "read_something_else");
 
         actions.expectDescribe(Collections.emptyMap(), "wrong_access");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             //This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             //the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
@@ -430,7 +431,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("only_a", "read_test_a");
 
         actions.expectDescribe(singletonMap("a", "BIGINT"), "only_a");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("only_a", "test")
             .assertLogs();
     }
@@ -442,7 +443,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         expected.put("a", "BIGINT");
         expected.put("b", "BIGINT");
         actions.expectDescribe(expected, "not_c");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("not_c", "test")
             .assertLogs();
     }
@@ -451,7 +452,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         createUser("no_3s", "read_test_without_c_3");
 
         actions.expectMatchesAdmin("DESCRIBE test", "no_3s", "DESCRIBE test");
-        new AuditLogAsserter()
+        createAuditLogAsserter()
             .expectSqlCompositeAction("test_admin", "test")
             .expectSqlCompositeAction("no_3s", "test")
             .assertLogs();
@@ -480,13 +481,17 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 new StringEntity(Strings.toString(user), ContentType.APPLICATION_JSON));
     }
 
+    protected AuditLogAsserter createAuditLogAsserter() {
+        return new AuditLogAsserter();
+    }
+
     /**
      * Used to assert audit logs. Logs are asserted to match in any order because
      * we don't always scroll in the same order but each log checker must match a
      * single log and all logs must be matched.
      */
-    protected final class AuditLogAsserter {
-        private final List<Function<Map<String, Object>, Boolean>> logCheckers = new ArrayList<>();
+    protected class AuditLogAsserter {
+        protected final List<Function<Map<String, Object>, Boolean>> logCheckers = new ArrayList<>();
 
         public AuditLogAsserter expectSqlCompositeAction(String user, String... indices) {
             expect(true, SQL_ACTION_NAME, user, empty());
@@ -507,15 +512,19 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             default:
                 throw new IllegalArgumentException("Unknown action [" + action + "]");
             }
-            return expect(granted, action, principal, indicesMatcher, request);
+            final String eventType = granted ? "access_granted" : "access_denied";
+            final String realm = principal.equals("test_admin") ? "default_file" : "default_native";
+            return expect(eventType, action, principal, realm, indicesMatcher, request);
         }
 
-        public AuditLogAsserter expect(boolean granted, String action, String principal,
+        public AuditLogAsserter expect(String eventType, String action, String principal, String realm,
                     Matcher<? extends Iterable<? extends String>> indicesMatcher, String request) {
-            String eventType = granted ? "access_granted" : "access_denied";
             logCheckers.add(m -> eventType.equals(m.get("event_type"))
                 && action.equals(m.get("action"))
                 && principal.equals(m.get("principal"))
+                && realm.equals(m.get("realm"))
+                && Matchers.nullValue(String.class).matches(m.get("run_by_principal"))
+                && Matchers.nullValue(String.class).matches(m.get("run_by_realm"))
                 && indicesMatcher.matches(m.get("indices"))
                 && request.equals(m.get("request"))
             );
@@ -543,10 +552,10 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     List<Map<String, Object>> logs = new ArrayList<>();
                     String line;
                     Pattern logPattern = Pattern.compile(
-                            ("PART PART PART origin_type=PART, origin_address=PART, "
-                            + "principal=PART, (?:run_as_principal=PART, )?(?:run_by_principal=PART, )?"
+                            ("PART PART PART origin_type=PART, origin_address=PART, principal=PART, realm=PART, "
+                            + "(?:run_as_principal=IGN, )?(?:run_as_realm=IGN, )?(?:run_by_principal=PART, )?(?:run_by_realm=PART, )?"
                             + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
-                                .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]"));
+                                .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]").replace("IGN", "\\[[^\\]]*\\]"));
                     // fail(logPattern.toString());
                     while ((line = logReader.readLine()) != null) {
                         java.util.regex.Matcher m = logPattern.matcher(line);
@@ -568,8 +577,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         log.put("origin_address", m.group(i++));
                         String principal = m.group(i++);
                         log.put("principal", principal);
-                        log.put("run_as_principal", m.group(i++));
+                        log.put("realm", m.group(i++));
                         log.put("run_by_principal", m.group(i++));
+                        log.put("run_by_realm", m.group(i++));
                         log.put("roles", m.group(i++));
                         String action = m.group(i++);
                         if (false == (SQL_ACTION_NAME.equals(action) || GetIndexAction.NAME.equals(action))) {

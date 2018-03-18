@@ -10,6 +10,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -137,13 +139,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAccessGranted() throws Exception {
-        User user = new User("_username", "r1");
+        Authentication authentication =new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
+                new RealmRef(null, null, null));
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        service.accessGranted(user, "_action", message, roles);
+        service.accessGranted(authentication, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessGranted(user, "_action", message, roles);
+                verify(auditTrail).accessGranted(authentication, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -151,13 +154,14 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAccessDenied() throws Exception {
-        User user = new User("_username", "r1");
+        Authentication authentication = new Authentication(new User("_username", "r1"), new RealmRef(null, null, null),
+                new RealmRef(null, null, null));
         String[] roles = new String[] { randomAlphaOfLengthBetween(1, 6) };
-        service.accessDenied(user, "_action", message, roles);
+        service.accessDenied(authentication, "_action", message, roles);
         verify(licenseState).isAuditingAllowed();
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).accessDenied(user, "_action", message, roles);
+                verify(auditTrail).accessDenied(authentication, "_action", message, roles);
             }
         } else {
             verifyZeroInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

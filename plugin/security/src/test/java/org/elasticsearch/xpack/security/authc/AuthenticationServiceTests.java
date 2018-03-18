@@ -782,7 +782,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking(restRequest);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(User.class), eq(restRequest), eq(Role.EMPTY.names()));
+            verify(auditTrail).runAsDenied(any(Authentication.class), eq(restRequest), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }
@@ -799,7 +799,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             authenticateBlocking("_action", message, null);
             fail("exception should be thrown");
         } catch (ElasticsearchException e) {
-            verify(auditTrail).runAsDenied(any(User.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
+            verify(auditTrail).runAsDenied(any(Authentication.class), eq("_action"), eq(message), eq(Role.EMPTY.names()));
             verifyNoMoreInteractions(auditTrail);
         }
     }

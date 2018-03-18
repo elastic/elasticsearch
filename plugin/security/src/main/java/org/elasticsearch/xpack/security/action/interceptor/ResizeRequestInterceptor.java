@@ -16,11 +16,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 public final class ResizeRequestInterceptor extends AbstractComponent implements RequestInterceptor<ResizeRequest> {
@@ -38,7 +38,7 @@ public final class ResizeRequestInterceptor extends AbstractComponent implements
     }
 
     @Override
-    public void intercept(ResizeRequest request, User user, Role userPermissions, String action) {
+    public void intercept(ResizeRequest request, Authentication authentication, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(request.getSourceIndex());
@@ -57,7 +57,7 @@ public final class ResizeRequestInterceptor extends AbstractComponent implements
         final Automaton targetIndexPermissions = userPermissions.indices().allowedActionsMatcher(request.getTargetIndexRequest().index());
         if (Operations.subsetOf(targetIndexPermissions, sourceIndexPermissions) == false) {
             // TODO we've already audited a access granted event so this is going to look ugly
-            auditTrailService.accessDenied(user, action, request, userPermissions.names());
+            auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
             throw Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
                     "has more permissions than the source index");
         }

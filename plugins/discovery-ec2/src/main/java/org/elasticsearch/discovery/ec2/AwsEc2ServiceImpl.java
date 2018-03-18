@@ -47,8 +47,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
         super(settings);
     }
 
-    // protected for testing
-    protected AmazonEC2 buildClient(EC2ClientSettings clientSettings) {
+    private AmazonEC2 buildClient(EC2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         final ClientConfiguration configuration = buildConfiguration(logger, clientSettings);
         final AmazonEC2 client = buildClient(credentials, configuration);

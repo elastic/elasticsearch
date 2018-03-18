@@ -19,29 +19,20 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.Tag;
 
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
-public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
+public class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
 
-    private final int nodes;
-    private final List<List<Tag>> tagsList;
-
-    public AwsEc2ServiceMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
-        super(settings);
-        this.nodes = nodes;
-        this.tagsList = tagsList;
+    Ec2DiscoveryPluginMock(Settings settings) {
+        this(settings, 1, null);
     }
 
-    @Override
-    AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-        return new AmazonEC2Mock(nodes, tagsList);
+    public Ec2DiscoveryPluginMock(Settings settings, int nodes, List<List<Tag>> tagsList) {
+        super(settings, new AwsEc2ServiceMock(settings, nodes, tagsList));
     }
 
 }

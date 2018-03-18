@@ -78,16 +78,14 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReIni
     protected final AwsEc2Service ec2Service;
 
     public Ec2DiscoveryPlugin(Settings settings) {
-        this.settings = settings;
-        this.ec2Service = getAwsS3Service(settings);
-        // eagerly load client settings when secure settings are accessible
-        final EC2ClientSettings clientSettings = EC2ClientSettings.getClientSettings(settings);
-        this.ec2Service.updateClientSettings(clientSettings);
+        this(settings, new AwsEc2ServiceImpl(settings));
     }
 
-    // proxy method for testing
-    protected AwsEc2Service getAwsS3Service(Settings settings) {
-        return new AwsEc2ServiceImpl(settings);
+    protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
+        this.settings = settings;
+        this.ec2Service = ec2Service;
+        // eagerly load client settings when secure settings are accessible
+        reinit(settings);
     }
 
     @Override

@@ -2115,7 +2115,6 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public void shutdown() {
-        throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override

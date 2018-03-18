@@ -36,23 +36,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
-    class Ec2DiscoveryPluginMock extends Ec2DiscoveryPlugin {
-
-        Ec2DiscoveryPluginMock(Settings settings) {
-            super(settings);
-        }
-
-        // proxy method for testing
-        @Override
-        protected AwsEc2Service getAwsS3Service(Settings settings) {
-            return new AwsEc2ServiceMock(settings, 0, null);
-        }
-
-        AwsEc2Service getAwsEc2Service() {
-            return ec2Service;
-        }
-    }
-
     private Settings getNodeAttributes(Settings settings, String url) {
         final Settings realSettings = Settings.builder()
             .put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true)
@@ -105,7 +88,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
 
     public void testDefaultEndpoint() throws IOException {
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(Settings.EMPTY)) {
-            final String endpoint = ((AmazonEC2Mock) plugin.getAwsEc2Service().client().client()).getEndpoint();
+            final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().client()).getEndpoint();
             assertThat(endpoint, nullValue());
         }
     }
@@ -113,7 +96,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     public void testSpecificEndpoint() throws IOException {
         final Settings settings = Settings.builder().put(EC2ClientSettings.ENDPOINT_SETTING.getKey(), "ec2.endpoint").build();
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings)) {
-            final String endpoint = ((AmazonEC2Mock) plugin.getAwsEc2Service().client().client()).getEndpoint();
+            final String endpoint = ((AmazonEC2Mock) plugin.ec2Service.client().client()).getEndpoint();
             assertThat(endpoint, is("ec2.endpoint"));
         }
     }

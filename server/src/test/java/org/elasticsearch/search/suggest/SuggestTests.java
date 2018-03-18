@@ -183,7 +183,7 @@ public class SuggestTests extends ESTestCase {
             builder.endArray();
         }
         builder.endObject();
-        BytesReference originalBytes = builder.bytes();
+        BytesReference originalBytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             ParsingException ex = expectThrows(ParsingException.class, () -> Suggest.fromXContent(parser));

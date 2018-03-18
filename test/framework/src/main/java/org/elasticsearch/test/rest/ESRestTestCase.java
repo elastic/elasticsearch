@@ -303,7 +303,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (mustClear) {
             adminClient().performRequest("PUT", "/_cluster/settings", emptyMap(), new StringEntity(
-                clearCommand.string(), ContentType.APPLICATION_JSON));
+                Strings.toString(clearCommand), ContentType.APPLICATION_JSON));
         }
     }
 

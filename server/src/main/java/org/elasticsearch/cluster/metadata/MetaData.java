@@ -1081,7 +1081,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.startObject();
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

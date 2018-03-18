@@ -356,7 +356,7 @@ public class UpdateHelper extends AbstractComponent {
                     BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                     try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                         builder.value(value);
-                        sourceFilteredAsBytes = builder.bytes();
+                        sourceFilteredAsBytes = BytesReference.bytes(builder);
                     }
                 } catch (IOException e) {
                     throw new ElasticsearchException("Error filtering source", e);

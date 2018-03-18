@@ -1442,7 +1442,7 @@ public final class Settings implements ToXContentFragment {
             builder.startObject();
             toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -416,7 +416,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                 builder.copyCurrentStructure(parser);
                                 builder.flush();
-                                documents.add(builder.bytes());
+                                documents.add(BytesReference.bytes(builder));
                             }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
@@ -437,7 +437,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
                         builder.flush();
-                        documents.add(builder.bytes());
+                        documents.add(BytesReference.bytes(builder));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +

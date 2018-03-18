@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -50,7 +49,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setConfig(contentBuilder.bytes(), contentBuilder.contentType());
+            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 
     }

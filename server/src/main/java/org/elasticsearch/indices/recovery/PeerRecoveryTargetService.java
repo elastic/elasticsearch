@@ -364,7 +364,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), translogUUID);
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
             final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
-            final SequenceNumbers.CommitInfo seqNoStats = store.loadSeqNoInfo(safeCommit);
+            final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
             if (logger.isTraceEnabled()) {
                 final StringJoiner descriptionOfExistingCommits = new StringJoiner(",");
                 for (IndexCommit commit : existingCommits) {
@@ -406,7 +406,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.createNewTranslog(), request.totalTranslogOps());
+                recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

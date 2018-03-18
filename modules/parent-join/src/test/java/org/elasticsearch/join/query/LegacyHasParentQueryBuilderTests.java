@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -80,7 +81,7 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         // TODO: use a single type when inner hits have been changed to work with join field,
         // this test randomly generates queries with inner hits
-        mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
+        mapperService.merge(PARENT_TYPE, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
                 INT_FIELD_NAME, "type=integer",
@@ -88,8 +89,8 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(CHILD_TYPE, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -98,9 +99,9 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge("just_a_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("just_a_type", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

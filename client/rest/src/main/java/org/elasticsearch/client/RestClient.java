@@ -72,6 +72,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLHandshakeException;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.
@@ -714,6 +715,11 @@ public class RestClient implements Closeable {
                 }
                 if (exception instanceof ConnectionClosedException) {
                     ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
+                    e.initCause(exception);
+                    throw e;
+                }
+                if (exception instanceof SSLHandshakeException) {
+                    SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
                     e.initCause(exception);
                     throw e;
                 }

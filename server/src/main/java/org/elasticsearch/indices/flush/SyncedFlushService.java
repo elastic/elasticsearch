@@ -569,7 +569,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
 
         boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_7_0_0_alpha1);
+            if (version.major == Version.V_5_6_9.major) {
+                return version.onOrAfter(Version.V_5_6_9);
+            } else {
+                return version.onOrAfter(Version.V_6_3_0);
+            }
         }
 
         @Override

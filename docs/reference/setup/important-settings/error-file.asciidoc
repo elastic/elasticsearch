@@ -2,7 +2,7 @@
 === JVM fatal error logs
 
 By default, Elasticsearch configures the JVM to write fatal error logs
-to the default logging directory (this is `/var/lib/elasticsearch` for
+to the default logging directory (this is `/var/log/elasticsearch` for
 the <<rpm,RPM>> and <<deb,Debian>> package distributions, and the `logs`
 directory under the root of the Elasticsearch installation for the
 <<zip-targz,tar and zip>> archive distributions). These are logs

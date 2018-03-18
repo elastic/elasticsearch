@@ -69,6 +69,12 @@
         "realm": {
           "type": "keyword"
         },
+        "run_by_realm": {
+          "type": "keyword"
+        },
+        "run_as_realm": {
+          "type": "keyword"
+        },
         "transport_profile": {
           "type": "keyword"
         },

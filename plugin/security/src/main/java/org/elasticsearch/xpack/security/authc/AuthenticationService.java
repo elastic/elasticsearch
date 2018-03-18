@@ -364,7 +364,8 @@ public class AuthenticationService extends AbstractComponent {
                     } else {
                         assert runAsUsername.isEmpty() : "the run as username may not be empty";
                         logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-                        listener.onFailure(request.runAsDenied(new User(runAsUsername, null, user), authenticationToken));
+                        listener.onFailure(request.runAsDenied(
+                                new Authentication(new User(runAsUsername, null, user), authenticatedBy, lookedupBy), authenticationToken));
                     }
                 } else {
                     finishAuthentication(user);
@@ -467,7 +468,7 @@ public class AuthenticationService extends AbstractComponent {
 
         abstract ElasticsearchSecurityException anonymousAccessDenied();
 
-        abstract ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token);
+        abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
         abstract void authenticationSuccess(String realm, User user);
 
@@ -524,8 +525,8 @@ public class AuthenticationService extends AbstractComponent {
         }
 
         @Override
-        ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-            auditTrail.runAsDenied(user, action, message, Role.EMPTY.names());
+        ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
+            auditTrail.runAsDenied(authentication, action, message, Role.EMPTY.names());
             return failureHandler.failedAuthentication(message, token, action, threadContext);
         }
 
@@ -586,8 +587,8 @@ public class AuthenticationService extends AbstractComponent {
         }
 
         @Override
-        ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token) {
-            auditTrail.runAsDenied(user, request, Role.EMPTY.names());
+        ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token) {
+            auditTrail.runAsDenied(authentication, request, Role.EMPTY.names());
             return failureHandler.failedAuthentication(request, token, threadContext);
         }
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -37,9 +38,9 @@ public interface AuditTrail {
 
     void authenticationFailed(String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(User user, String action, TransportMessage message, String[] roleNames);
+    void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void accessDenied(User user, String action, TransportMessage message, String[] roleNames);
+    void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
     void tamperedRequest(RestRequest request);
 
@@ -51,9 +52,9 @@ public interface AuditTrail {
 
     void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void runAsGranted(User user, String action, TransportMessage message, String[] roleNames);
+    void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, String action, TransportMessage message, String[] roleNames);
+    void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames);
 
-    void runAsDenied(User user, RestRequest request, String[] roleNames);
+    void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames);
 }

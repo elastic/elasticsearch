@@ -13,11 +13,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.util.HashMap;
@@ -37,7 +37,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
     }
 
     @Override
-    public void intercept(IndicesAliasesRequest request, User user, Role userPermissions, String action) {
+    public void intercept(IndicesAliasesRequest request, Authentication authentication, Role userPermissions, String action) {
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
@@ -67,7 +67,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                                 permissionsMap.computeIfAbsent(alias, userPermissions.indices()::allowedActionsMatcher);
                         if (Operations.subsetOf(aliasPermissions, indexPermissions) == false) {
                             // TODO we've already audited a access granted event so this is going to look ugly
-                            auditTrailService.accessDenied(user, action, request, userPermissions.names());
+                            auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
                             throw Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                                     "has more permissions than any of the indices");
                         }

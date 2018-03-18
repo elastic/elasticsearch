@@ -14,6 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -37,7 +39,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
-        User user = new User("john", "role");
+        Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
+                new RealmRef(null, null, null));
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
@@ -70,7 +73,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index("foofoo"));
         }
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> interceptor.intercept(indicesAliasesRequest, user, role, action));
+                () -> interceptor.intercept(indicesAliasesRequest, authentication, role, action));
         assertEquals("Alias requests are not allowed for users who have field or document level security enabled on one of the indices",
                 securityException.getMessage());
     }
@@ -81,7 +84,8 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Settings.EMPTY, Collections.emptyList(), licenseState);
-        User user = new User("john", "role");
+        Authentication authentication = new Authentication(new User("john", "role"), new RealmRef(null, null, null),
+                new RealmRef(null, null, null));
         Role role = Role.builder()
                 .add(IndexPrivilege.ALL, "alias")
                 .add(IndexPrivilege.READ, "index")
@@ -102,7 +106,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }
 
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
-                () -> interceptor.intercept(indicesAliasesRequest, user, role, action));
+                () -> interceptor.intercept(indicesAliasesRequest, authentication, role, action));
         assertEquals("Adding an alias is not allowed when the alias has more permissions than any of the indices",
                 securityException.getMessage());
 
@@ -115,6 +119,6 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         if (randomBoolean()) {
             successRequest.addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index("foofoo"));
         }
-        interceptor.intercept(successRequest, user, role, action);
+        interceptor.intercept(successRequest, authentication, role, action);
     }
 }

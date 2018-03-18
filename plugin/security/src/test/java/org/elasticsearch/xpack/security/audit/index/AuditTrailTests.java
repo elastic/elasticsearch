@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 
@@ -90,7 +91,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
                             UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, EXECUTE_USER));
             fail("request should have failed");
-        } catch (ResponseException e) {
+        } catch (final ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
@@ -112,7 +113,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
                             UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
-        } catch (ResponseException e) {
+        } catch (final ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
 
@@ -121,19 +122,21 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         assertThat(events, iterableWithSize(1));
         final Map<String, Object> event = events.iterator().next();
         assertThat(event.get(IndexAuditTrail.Field.TYPE), equalTo("run_as_denied"));
-        assertThat(event.get(IndexAuditTrail.Field.PRINCIPAL), equalTo(""));
-        assertThat(event.get(IndexAuditTrail.Field.RUN_BY_PRINCIPAL), equalTo(AUTHENTICATE_USER));
+        assertThat(event.get(IndexAuditTrail.Field.PRINCIPAL), equalTo(AUTHENTICATE_USER));
+        assertThat(event.get(IndexAuditTrail.Field.RUN_AS_PRINCIPAL), equalTo(""));
+        assertThat(event.get(IndexAuditTrail.Field.REALM), equalTo("file"));
+        assertThat(event.get(IndexAuditTrail.Field.RUN_AS_REALM), nullValue());
     }
 
     private Collection<Map<String, Object>> waitForAuditEvents() throws InterruptedException {
         waitForAuditTrailToBeWritten();
-        AtomicReference<Collection<Map<String, Object>>> eventsRef = new AtomicReference<>();
+        final AtomicReference<Collection<Map<String, Object>>> eventsRef = new AtomicReference<>();
         awaitBusy(() -> {
             try {
                 final Collection<Map<String, Object>> events = getAuditEvents();
                 eventsRef.set(events);
                 return events.size() > 0;
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         });
@@ -142,14 +145,14 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     }
     private Collection<Map<String, Object>> getAuditEvents() throws Exception {
         final Client client = client();
-        DateTime now = new DateTime(DateTimeZone.UTC);
-        String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
+        final DateTime now = new DateTime(DateTimeZone.UTC);
+        final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
 
         assertTrue(awaitBusy(() -> indexExists(client, indexName), 5, TimeUnit.SECONDS));
 
         client.admin().indices().refresh(Requests.refreshRequest(indexName)).get();
 
-        SearchRequest request = client.prepareSearch(indexName)
+        final SearchRequest request = client.prepareSearch(indexName)
                 .setTypes(IndexAuditTrail.DOC_TYPE)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(1000)
@@ -157,7 +160,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
                 .request();
         request.indicesOptions().ignoreUnavailable();
 
-        PlainActionFuture<Collection<Map<String, Object>>> listener = new PlainActionFuture();
+        final PlainActionFuture<Collection<Map<String, Object>>> listener = new PlainActionFuture();
         ScrollHelper.fetchAllByEntity(client, request, listener, SearchHit::getSourceAsMap);
 
         return listener.get();

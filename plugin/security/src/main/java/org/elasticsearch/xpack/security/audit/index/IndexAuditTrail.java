@@ -47,6 +47,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -437,8 +438,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     public void authenticationSuccess(String realm, User user, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             try {
-                enqueue(message("authentication_success", realm, user, null, request), "authentication_success");
-            } catch (Exception e) {
+                enqueue(message("authentication_success", new Tuple<>(realm, realm), user, null, request), "authentication_success");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [authentication_success]", e);
             }
         }
@@ -448,8 +449,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             try {
-                enqueue(message("authentication_success", action, user, null, realm, null, message), "authentication_success");
-            } catch (Exception e) {
+                enqueue(message("authentication_success", action, user, null, new Tuple<>(realm, realm), null, message),
+                        "authentication_success");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [authentication_success]", e);
             }
         }
@@ -555,25 +557,34 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
+    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
             try {
-                enqueue(message("access_granted", action, user, roleNames, null, indices(message), message), "access_granted");
-            } catch (Exception e) {
+                assert authentication.getAuthenticatedBy() != null;
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                enqueue(message("access_granted", action, user, roleNames, new Tuple(authRealmName, lookRealmName), indices(message),
+                        message), "access_granted");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [access_granted]", e);
             }
         }
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
-        if (events.contains(ACCESS_DENIED) && XPackUser.is(user) == false) {
+    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false)) {
             try {
-                enqueue(message("access_denied", action, user, roleNames, null, indices(message), message), "access_denied");
-            } catch (Exception e) {
+                assert authentication.getAuthenticatedBy() != null;
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                enqueue(message("access_denied", action, authentication.getUser(), roleNames, new Tuple(authRealmName, lookRealmName),
+                        indices(message), message), "access_denied");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [access_denied]", e);
             }
         }
@@ -635,40 +646,53 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
     }
 
     @Override
-    public void runAsGranted(User user, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
-                enqueue(message("run_as_granted", action, user, roleNames, null, null, message), "run_as_granted");
-            } catch (Exception e) {
+                assert authentication.getAuthenticatedBy() != null;
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                enqueue(message("run_as_granted", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
+                        null, message), "run_as_granted");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [run_as_granted]", e);
             }
         }
     }
 
     @Override
-    public void runAsDenied(User user, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
-                enqueue(message("run_as_denied", action, user, roleNames, null, null, message), "run_as_denied");
-            } catch (Exception e) {
+                assert authentication.getAuthenticatedBy() != null;
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                enqueue(message("run_as_denied", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
+                        null, message), "run_as_denied");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [run_as_denied]", e);
             }
         }
     }
 
     @Override
-    public void runAsDenied(User user, RestRequest request, String[] roleNames) {
+    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
-                enqueue(message("run_as_denied", null, user, roleNames, request), "run_as_denied");
-            } catch (Exception e) {
+                assert authentication.getAuthenticatedBy() != null;
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                enqueue(message("run_as_denied", new Tuple<>(authRealmName, lookRealmName), authentication.getUser(), roleNames, request),
+                        "run_as_denied");
+            } catch (final Exception e) {
                 logger.warn("failed to index audit event: [run_as_denied]", e);
             }
         }
     }
 
-    private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames, @Nullable String realm,
-                            @Nullable Set<String> indices, TransportMessage message) throws Exception {
+    private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames,
+                            @Nullable Tuple<String, String> realms, @Nullable Set<String> indices, TransportMessage message)
+            throws Exception {
 
         Message msg = new Message().start();
         common("transport", type, msg.builder);
@@ -677,32 +701,50 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         if (action != null) {
             msg.builder.field(Field.ACTION, action);
         }
-        if (user != null) {
-            if (user.isRunAs()) {
-                if ("run_as_granted".equals(type) || "run_as_denied".equals(type)) {
-                    msg.builder.field(Field.PRINCIPAL, user.authenticatedUser().principal());
-                    msg.builder.field(Field.RUN_AS_PRINCIPAL, user.principal());
-                } else {
-                    // TODO: this doesn't make sense...
-                    msg.builder.field(Field.PRINCIPAL, user.principal());
-                    msg.builder.field(Field.RUN_BY_PRINCIPAL, user.authenticatedUser().principal());
-                }
-            } else {
-                msg.builder.field(Field.PRINCIPAL, user.principal());
-            }
-            if (roleNames != null) {
-                msg.builder.array(Field.ROLE_NAMES, roleNames);
-            }
+        addUserAndRealmFields(msg.builder, type, user, realms);
+        if (roleNames != null) {
+            msg.builder.array(Field.ROLE_NAMES, roleNames);
         }
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
-        if (realm != null) {
-            msg.builder.field(Field.REALM, realm);
-        }
         msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
 
         return msg.end();
+    }
+
+    private void addUserAndRealmFields(XContentBuilder builder, String type, @Nullable User user, @Nullable Tuple<String, String> realms)
+            throws IOException {
+        if (user != null) {
+            if (user.isRunAs()) {
+                if ("run_as_granted".equals(type) || "run_as_denied".equals(type)) {
+                    builder.field(Field.PRINCIPAL, user.authenticatedUser().principal());
+                    builder.field(Field.RUN_AS_PRINCIPAL, user.principal());
+                    if (realms != null) {
+                        // realms.v1() is the authenticating realm
+                        builder.field(Field.REALM, realms.v1());
+                        // realms.v2() is the lookup realm
+                        builder.field(Field.RUN_AS_REALM, realms.v2());
+                    }
+                } else {
+                    // TODO: this doesn't make sense...
+                    builder.field(Field.PRINCIPAL, user.principal());
+                    builder.field(Field.RUN_BY_PRINCIPAL, user.authenticatedUser().principal());
+                    if (realms != null) {
+                        // realms.v2() is the lookup realm
+                        builder.field(Field.REALM, realms.v2());
+                        // realms.v1() is the authenticating realm
+                        builder.field(Field.RUN_BY_REALM, realms.v1());
+                    }
+                }
+            } else {
+                builder.field(Field.PRINCIPAL, user.principal());
+                if (realms != null) {
+                    // realms.v1() is the authenticating realm
+                    builder.field(Field.REALM, realms.v1());
+                }
+            }
+        }
     }
 
     // FIXME - clean up the message generation
@@ -765,25 +807,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         return msg.end();
     }
 
-    private Message message(String type, @Nullable String realm, @Nullable User user, @Nullable String[] roleNames, RestRequest request)
-            throws Exception {
+    private Message message(String type, @Nullable Tuple<String,String> realms, @Nullable User user, @Nullable String[] roleNames,
+                            RestRequest request) throws Exception {
 
         Message msg = new Message().start();
         common("rest", type, msg.builder);
 
-        if (user != null) {
-            if (user.isRunAs()) {
-                msg.builder.field(Field.PRINCIPAL, user.principal());
-                msg.builder.field(Field.RUN_BY_PRINCIPAL, user.authenticatedUser().principal());
-            } else {
-                msg.builder.field(Field.PRINCIPAL, user.principal());
-            }
-            if (roleNames != null) {
-                msg.builder.array(Field.ROLE_NAMES, roleNames);
-            }
-        }
-        if (realm != null) {
-            msg.builder.field(Field.REALM, realm);
+        addUserAndRealmFields(msg.builder, type, user, realms);
+        if (roleNames != null) {
+            msg.builder.array(Field.ROLE_NAMES, roleNames);
         }
         if (includeRequestBody) {
             msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
@@ -1139,7 +1171,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         String PRINCIPAL = "principal";
         String ROLE_NAMES = "roles";
         String RUN_AS_PRINCIPAL = "run_as_principal";
+        String RUN_AS_REALM = "run_as_realm";
         String RUN_BY_PRINCIPAL = "run_by_principal";
+        String RUN_BY_REALM = "run_by_realm";
         String ACTION = "action";
         String INDICES = "indices";
         String REQUEST = "request";

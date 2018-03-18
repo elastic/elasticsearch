@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -334,21 +335,22 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessGranted(User user, String action, TransportMessage message, String[] roleNames) {
+    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), principal(user),
+                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName());
                 } else {
                     logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}]", localNodeInfo.prefix,
-                            originAttributes(threadContext, message, localNodeInfo), principal(user),
+                            originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName());
                 }
             }
@@ -356,20 +358,20 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void accessDenied(User user, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), principal(user),
+                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName());
                 } else {
                     logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}]", localNodeInfo.prefix,
-                            originAttributes(threadContext, message, localNodeInfo), principal(user),
+                            originAttributes(threadContext, message, localNodeInfo), subject(authentication),
                             arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName());
                 }
             }
@@ -444,25 +446,21 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsGranted(User user, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info(
-                            "{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], roles=[{}],"
-                                    + " action=[{}], indices=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo),
-                            user.authenticatedUser().principal(), user.principal(), arrayToCommaDelimitedString(roleNames), action,
-                            arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName());
+                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
+                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
+                            arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
+                            message.getClass().getSimpleName());
                 } else {
-                    logger.info(
-                            "{}[transport] [run_as_granted]\t{}, principal=[{}], run_as_principal=[{}], roles=[{}],"
-                                    + " action=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo),
-                            user.authenticatedUser().principal(), user.principal(), arrayToCommaDelimitedString(roleNames), action,
+                    logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], request=[{}]", localNodeInfo.prefix,
+                            originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
+                            arrayToCommaDelimitedString(roleNames), action,
                             message.getClass().getSimpleName());
                 }
             }
@@ -470,44 +468,65 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     @Override
-    public void runAsDenied(User user, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
-            if (eventFilterPolicyRegistry.ignorePredicate()
-                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), indices)) == false) {
+            if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
                 if (indices.isPresent()) {
-                    logger.info(
-                            "{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], roles=[{}],"
-                                    + " action=[{}], indices=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo),
-                            user.authenticatedUser().principal(), user.principal(), arrayToCommaDelimitedString(roleNames), action,
-                            arrayToCommaDelimitedString(indices.get()), message.getClass().getSimpleName());
-                } else {
-                    logger.info(
-                            "{}[transport] [run_as_denied]\t{}, principal=[{}], run_as_principal=[{}], roles=[{}],"
-                                    + " action=[{}], request=[{}]",
-                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo),
-                            user.authenticatedUser().principal(), user.principal(), arrayToCommaDelimitedString(roleNames), action,
+                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]",
+                            localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
+                            arrayToCommaDelimitedString(roleNames), action, arrayToCommaDelimitedString(indices.get()),
                             message.getClass().getSimpleName());
+                } else {
+                    logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], request=[{}]", localNodeInfo.prefix,
+                            originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
+                            arrayToCommaDelimitedString(roleNames), action, message.getClass().getSimpleName());
                 }
             }
         }
     }
 
     @Override
-    public void runAsDenied(User user, RestRequest request, String[] roleNames) {
-        if (events.contains(RUN_AS_DENIED) && (eventFilterPolicyRegistry.ignorePredicate()
-                .test(new AuditEventMetaInfo(Optional.of(user), Optional.empty(), Optional.of(roleNames), Optional.empty())) == false)) {
+    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
+        if (events.contains(RUN_AS_DENIED)
+                && (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
+                        Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [run_as_denied]\t{}, principal=[{}], roles=[{}], uri=[{}], request_body=[{}]", localNodeInfo.prefix,
-                        hostAttributes(request), user.principal(), arrayToCommaDelimitedString(roleNames), request.uri(),
+                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}], request_body=[{}]", localNodeInfo.prefix,
+                        hostAttributes(request), runAsSubject(authentication), arrayToCommaDelimitedString(roleNames), request.uri(),
                         restRequestContent(request));
             } else {
-                logger.info("{}[rest] [run_as_denied]\t{}, principal=[{}], roles=[{}], uri=[{}]", localNodeInfo.prefix,
-                        hostAttributes(request), user.principal(), arrayToCommaDelimitedString(roleNames), request.uri());
+                logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}]", localNodeInfo.prefix, hostAttributes(request),
+                        runAsSubject(authentication), arrayToCommaDelimitedString(roleNames), request.uri());
             }
         }
+    }
+
+    static String runAsSubject(Authentication authentication) {
+        final StringBuilder sb = new StringBuilder("principal=[");
+        sb.append(authentication.getUser().authenticatedUser().principal());
+        sb.append("], realm=[");
+        sb.append(authentication.getAuthenticatedBy().getName());
+        sb.append("], run_as_principal=[");
+        sb.append(authentication.getUser().principal());
+        if (authentication.getLookedUpBy() != null) {
+            sb.append("], run_as_realm=[").append(authentication.getLookedUpBy().getName());
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    static String subject(Authentication authentication) {
+        final StringBuilder sb = new StringBuilder("principal=[");
+        sb.append(authentication.getUser().principal()).append("], realm=[");
+        if (authentication.getUser().isRunAs()) {
+            sb.append(authentication.getLookedUpBy().getName()).append("], run_by_principal=[");
+            sb.append(authentication.getUser().authenticatedUser().principal()).append("], run_by_realm=[");
+        }
+        sb.append(authentication.getAuthenticatedBy().getName()).append("]");
+        return sb.toString();
     }
 
     private static String hostAttributes(RestRequest request) {
@@ -556,6 +575,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         return Optional.empty();
     }
 
+    static String effectiveRealmName(Authentication authentication) {
+        return authentication.getLookedUpBy() != null ? authentication.getLookedUpBy().getName()
+                : authentication.getAuthenticatedBy().getName();
+    }
+
     static String principal(User user) {
         final StringBuilder builder = new StringBuilder("principal=[");
         builder.append(user.principal());
@@ -583,7 +607,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
      * that will be ignored, aka filtered out, aka not logged. The event can be
      * filtered by the following fields : `user`, `realm`, `role` and `index`.
      * Predicates on each field are ANDed together to form the filter predicate of
-     * the policy. 
+     * the policy.
      */
     private static final class EventFilterPolicy {
         private final String name;

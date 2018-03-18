@@ -23,6 +23,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -172,20 +174,19 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
 
     public void testAccessGrantedMuted() {
         createAuditTrail(new String[] { "access_granted" });
-        TransportMessage message = mock(TransportMessage.class);
-        User user = mock(User.class);
-        auditTrail.accessGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
+        final TransportMessage message = mock(TransportMessage.class);
+        final Authentication authentication = mock(Authentication.class);
+        auditTrail.accessGranted(authentication, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-
-        verifyZeroInteractions(message, user);
+        verifyZeroInteractions(message);
     }
 
     public void testSystemAccessGrantedMuted() {
         createAuditTrail(randomFrom(new String[] { "access_granted" }, null));
-        TransportMessage message = mock(TransportMessage.class);
-        User user = SystemUser.INSTANCE;
-        auditTrail.accessGranted(user, "internal:foo", message, new String[] { "role" });
+        final TransportMessage message = mock(TransportMessage.class);
+        final Authentication authentication = new Authentication(SystemUser.INSTANCE, new RealmRef(null, null, null), null);
+        auditTrail.accessGranted(authentication, "internal:foo", message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
@@ -194,13 +195,13 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
 
     public void testAccessDeniedMuted() {
         createAuditTrail(new String[] { "access_denied" });
-        TransportMessage message = mock(TransportMessage.class);
-        User user = mock(User.class);
-        auditTrail.accessDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
+        final TransportMessage message = mock(TransportMessage.class);
+        final Authentication authentication = mock(Authentication.class);
+        auditTrail.accessDenied(authentication, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
-        verifyZeroInteractions(message, user);
+        verifyZeroInteractions(message, authentication);
     }
 
     public void testTamperedRequestMuted() {
@@ -248,25 +249,25 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
     public void testRunAsGrantedMuted() {
         createAuditTrail(new String[] { "run_as_granted" });
         TransportMessage message = mock(TransportMessage.class);
-        User user = mock(User.class);
+        Authentication authentication = mock(Authentication.class);
 
-        auditTrail.runAsGranted(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
+        auditTrail.runAsGranted(authentication, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
-        verifyZeroInteractions(message, user);
+        verifyZeroInteractions(message, authentication);
     }
 
     public void testRunAsDeniedMuted() {
         createAuditTrail(new String[] { "run_as_denied" });
         TransportMessage message = mock(TransportMessage.class);
-        User user = mock(User.class);
+        Authentication authentication = mock(Authentication.class);
 
-        auditTrail.runAsDenied(user, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
+        auditTrail.runAsDenied(authentication, randomAlphaOfLengthBetween(6, 40), message, new String[] { "role" });
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
 
-        verifyZeroInteractions(message, user);
+        verifyZeroInteractions(message, authentication);
     }
 
     public void testAuthenticationSuccessRest() {

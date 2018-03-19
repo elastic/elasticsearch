@@ -312,7 +312,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
-    static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
+    public static boolean needsReassignment(final Assignment assignment, final DiscoveryNodes nodes) {
         return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
     }
 

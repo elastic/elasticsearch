@@ -17,8 +17,27 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.vagrantsupport'
-apply plugin: 'elasticsearch.vagrant'
+plugins {
+  id 'groovy'
+  id 'application'
+  id 'com.github.johnrengelman.shadow' version '2.0.2'
+  id 'elasticsearch.build'
+  id 'elasticsearch.vagrantsupport'
+  id 'elasticsearch.vagrant'
+}
+
+dependencies {
+  compile localGroovy()
+  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  runtime project(':libs:elasticsearch-core') // needs to be on the classpath for JarHell
+  packagingTest project(path: project.path, configuration: 'shadow')
+}
+
+shadowJar {
+  dependencies {
+    exclude(project(":libs:elasticsearch-core")) // isn't needed in tests
+  }
+}
 
 List<String> plugins = []
 for (Project subproj : project.rootProject.subprojects) {
@@ -39,3 +58,16 @@ setupPackagingTest {
     expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
   }
 }
+
+mainClassName = 'org.elasticsearch.packaging.PackagingMain'
+
+tasks.test.enabled = false
+
+tasks.dependencyLicenses.enabled = false
+tasks.dependenciesInfo.enabled = false
+
+tasks.thirdPartyAudit.enabled = false
+
+tasks.forbiddenApis.enabled = false
+tasks.forbiddenApisMain.enabled = false
+tasks.forbiddenApisTest.enabled = false

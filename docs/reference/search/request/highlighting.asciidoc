@@ -140,10 +140,10 @@ by Java's https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html
 You can specify the locale to use with `boundary_scanner_locale`.
 
 boundary_scanner_locale:: Controls which locale is used to search for sentence
-and word boundaries. This parameter takes a form of a language tag, e.g. `US`, `CHINA`, `JAPAN`.
-The full list can be found in the
-https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#forLanguageTag-java.lang.String-[Locale]
-documentation.
+and word boundaries. This parameter takes a form of a language tag,
+e.g. `"en-US"`,  `"fr-FR"`, `"ja-JP"`. More info can be found in the
+https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#forLanguageTag-java.lang.String-[Locale Language Tag]
+documentation. The default value is https://docs.oracle.com/javase/8/docs/api/java/util/Locale.html#ROOT[ Locale.ROOT].
 
 encoder:: Indicates if the snippet should be HTML encoded:
 `default` (no encoding) or `html` (HTML-escape the snippet text and then
@@ -206,10 +206,11 @@ is 0, `fragment_size` is ignored. Defaults to 5.
 order:: Sorts highlighted fragments by score when set to `score`.  By default,
 fragments will be output in the order they appear in the field (order: `none`).
 Setting this option to `score` will output the most relevant fragments first.
-Only `unified` highlighter truly calculates the score, other highlighters with
-order: `sort` setting, will rank fragments by the number of query words found
-in them. See a section below for more details how different highlighters find the best
-fragments.
+Only `unified` highlighter truly calculates the score in a similar way the score
+is calculated in the query. Other highlighters with order: `score` setting,
+will rank fragments by the number of query words found in them multiplied
+by their boost values.  See a section below for more details how different
+highlighters find the best fragments.
 
 phrase_limit:: Controls the number of matching phrases in a document that are
 considered. Prevents the `fvh` highlighter from analyzing too many phrases
@@ -991,8 +992,9 @@ so the highest scored fragments will be output first.
 
 FVH doesn't need to analyze the text and build an in-memory index, as it uses
 pre-indexed document term vectors, and finds among them terms that correspond to the query.
-FVH scores each fragment by the number of query terms found in this fragment
-(in contrast to plain highlighter that counts only unique query terms).
+FVH scores each fragment by the number of query terms found in this fragment.
+Similarly to plain highlighter, score of individual term is equal to its boost value.
+In contrast to plain highlighter, all query terms are counted, not only unique terms.
 
 Unified highlighter can use pre-indexed term vectors or pre-indexed terms offsets,
 if they are available. Otherwise, similar to Plain Highlighter, it has to create

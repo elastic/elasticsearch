@@ -1191,9 +1191,17 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testExistsAliasNoAliasNoIndex() {
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
-        assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
+        {
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+            assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
+        }
+        {
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest((String[])null);
+            getAliasesRequest.indices((String[])null);
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+            assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
+        }
     }
 
     public void testRankEval() throws Exception {

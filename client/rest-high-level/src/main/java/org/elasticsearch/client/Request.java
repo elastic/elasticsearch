@@ -520,7 +520,8 @@ public final class Request {
         Params params = Params.builder();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
-        if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) && getAliasesRequest.aliases().length == 0) {
+        if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
+                (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
             throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
         }
         String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();

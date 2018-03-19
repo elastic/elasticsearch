@@ -32,6 +32,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
+    private String[] name = Strings.EMPTY_ARRAY;
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
 
@@ -96,6 +97,28 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    /**
+     * Sets the value of "name".
+     * Used only by the high-level REST client.
+     * 
+     * @param name value of the aliases names.
+     * @return this request
+     */
+    public GetAliasesRequest name(String[] name) {
+        this.name = name;
+        return this;
+    }
+
+    /**
+     * Return the alias name.
+     * Used only by the high-level REST client.
+     * 
+     * @return aliases names.
+     */
+    public String[] name() {
+        return name;
     }
 
     @Override

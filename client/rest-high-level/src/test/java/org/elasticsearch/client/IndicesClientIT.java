@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -63,6 +64,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -495,4 +498,125 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
     }
+
+    public void testGetAlias() throws IOException {
+        {
+            createIndex("index1", Settings.EMPTY);
+            client().performRequest(HttpPut.METHOD_NAME, "/index1/_alias/alias1");
+
+            createIndex("index2", Settings.EMPTY);
+            client().performRequest(HttpPut.METHOD_NAME, "/index2/_alias/alias2");
+
+            createIndex("index3", Settings.EMPTY);
+        }
+        GetAliasesRequest getAliasesRequest1 = new GetAliasesRequest().aliases("alias1");
+        GetAliasesResponse getAliasesResponse = execute(getAliasesRequest1, highLevelClient().indices()::getAlias,
+                highLevelClient().indices()::getAliasAsync);
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).getFilter(), nullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).getIndexRouting(), nullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).getSearchRouting(), nullValue());
+
+        GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest().aliases("alias*");
+        getAliasesResponse = execute(getAliasesRequest2, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync);
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+        assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+
+        GetAliasesRequest getAliasesRequest3 = new GetAliasesRequest().indices("_all");
+        getAliasesResponse = execute(getAliasesRequest3, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync);
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
+        assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+        assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+        assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
+
+        GetAliasesRequest getAliasesRequest4 = new GetAliasesRequest();
+        getAliasesResponse = execute(getAliasesRequest4, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync);
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
+        assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+        assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+        assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
+
+        GetAliasesRequest getAliasesRequest5 = new GetAliasesRequest().indices("ind*");
+        getAliasesResponse = execute(getAliasesRequest5, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync);
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(3));
+        assertThat(getAliasesResponse.getAliases().get("index1").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index1").get(0).alias(), equalTo("alias1"));
+        assertThat(getAliasesResponse.getAliases().get("index2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0), notNullValue());
+        assertThat(getAliasesResponse.getAliases().get("index2").get(0).alias(), equalTo("alias2"));
+        assertThat(getAliasesResponse.getAliases().get("index3").size(), equalTo(0));
+    }
+
+    public void testGetAliasesNonExistentIndexOrAlias() throws IOException {
+
+        String alias = "alias";
+        String index = "index";
+
+        GetAliasesRequest getAliasesRequest1 = new GetAliasesRequest().indices(index);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getAliasesRequest1, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync));
+
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+
+        GetAliasesRequest getAliasesRequest2 = new GetAliasesRequest(alias);
+        exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getAliasesRequest2, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync));
+
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=alias [" + alias + "] missing]"));
+
+        createIndex(index, Settings.EMPTY);
+        client().performRequest(HttpPut.METHOD_NAME, index + "/_alias/" + alias);
+
+        GetAliasesRequest getAliasesRequest3 = new GetAliasesRequest().indices(index, "non_existent_index");
+        exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getAliasesRequest3, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync));
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+
+        GetAliasesRequest getAliasesRequest4 = new GetAliasesRequest().indices(index, "non_existent_index").aliases(alias);
+        exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getAliasesRequest4, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync));
+        assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+
+        GetAliasesRequest getAliasesRequest5 = new GetAliasesRequest().indices(index).aliases(alias, "non_existent_alias");
+        exception = expectThrows(ElasticsearchException.class,
+                () -> execute(getAliasesRequest5, highLevelClient().indices()::getAlias, highLevelClient().indices()::getAliasAsync));
+        /*
+        {
+         "error": "alias [something] missing",
+         "status": 404,
+         "index": {
+           "aliases": {
+             "alias": {}
+           }
+         }
+        }
+        */
+    }
+
 }

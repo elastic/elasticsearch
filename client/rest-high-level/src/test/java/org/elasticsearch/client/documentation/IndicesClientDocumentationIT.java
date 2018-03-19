@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -47,6 +48,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,9 +62,13 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -1055,4 +1062,76 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
+
+    public void testGetAlias() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index").alias(new Alias("alias")));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        {
+            // tag::get-alias-request
+            GetAliasesRequest request = new GetAliasesRequest();
+            GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
+            GetAliasesRequest requestWithAliases =
+                    new GetAliasesRequest(new String[] {"alias1", "alias2"});
+            // end::get-alias-request
+
+            // tag::get-alias-request-alias
+            request.aliases("alias"); // <1>
+            // end::get-alias-request-alias
+            // tag::get-alias-request-indices
+            request.indices("index"); // <1>
+            // end::get-alias-request-indices
+
+            // tag::get-alias-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::get-alias-request-indicesOptions
+
+            // tag::get-alias-request-local
+            request.local(true); // <1>
+            // end::get-alias-request-local
+
+            // tag::get-alias-execute
+            GetAliasesResponse response = client.indices().getAlias(request);
+            // end::get-alias-execute
+
+            // tag::get-alias-response
+            ImmutableOpenMap<String,List<AliasMetaData>> aliases =
+                    response.getAliases(); // <1>
+            // end::get-alias-response
+
+            assertThat(response.getAliases().get("index").size(), equalTo(1));
+            assertThat(response.getAliases().get("index").get(0).alias(), equalTo("alias"));
+
+            // tag::get-alias-listener
+            ActionListener<GetAliasesResponse> listener =
+                    new ActionListener<GetAliasesResponse>() {
+
+                @Override
+                public void onResponse(GetAliasesResponse getAliasesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-alias-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-alias-execute-async
+            client.indices().getAliasAsync(request, listener); // <1>
+            // end::get-alias-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 }

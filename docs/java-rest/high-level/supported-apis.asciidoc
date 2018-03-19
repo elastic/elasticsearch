@@ -60,6 +60,7 @@ Mapping Management::
 Alias Management::
 * <<java-rest-high-update-aliases>>
 * <<java-rest-high-exists-alias>>
+* <<java-rest-high-get-alias>>
 
 include::indices/create_index.asciidoc[]
 include::indices/delete_index.asciidoc[]
@@ -72,6 +73,7 @@ include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
+include::indices/get_alias.asciidoc[]
 
 == Cluster APIs
 

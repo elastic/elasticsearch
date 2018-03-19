@@ -254,6 +254,8 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 } else {
                     parser.skipChildren();
                 }
+            } else if (token == Token.START_ARRAY) {
+                parser.skipChildren();
             }
         }
         return aliases;

@@ -60,6 +60,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -555,6 +556,33 @@ public final class Request {
         return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
+    static Request getAlias(GetAliasesRequest getAliasesRequest) {
+        Params params = Params.builder();
+        params.withIndicesOptions(getAliasesRequest.indicesOptions());
+        params.withLocal(getAliasesRequest.local());
+        if (false == CollectionUtils.isEmpty(getAliasesRequest.aliases())) {
+            params.withName(getAliasesRequest.aliases());
+        } else {
+            params.withName(getAliasesRequest.name());
+        }
+        String endpoint = endpoint(optional(getAliasesRequest.indices(), "_all"), "_alias");
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    private static String[] optional(String[] params) {
+        return optional(params, null);
+    }
+
+    private static String[] optional(String[] params, String defaultParam) {
+        if (CollectionUtils.isEmpty(params)) {
+            if (defaultParam != null) {
+                return new String[] {defaultParam};
+            }
+            return Strings.EMPTY_ARRAY;
+        }
+        return params;
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -803,6 +831,13 @@ public final class Request {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withName(String[] names) {
+            if (false == CollectionUtils.isEmpty(names)) {
+                return putParam("name", String.join(",", names));
             }
             return this;
         }

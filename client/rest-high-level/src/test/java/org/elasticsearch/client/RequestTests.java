@@ -70,6 +70,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -1180,6 +1181,45 @@ public class RequestTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertToXContentBody(rolloverRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetAlias() {
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(getAliasesRequest, expectedParams);
+        setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
+
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
+        String[] aliases = randomBoolean() ? null : randomIndicesNames(0, 2);
+        getAliasesRequest.indices(indices);
+        if (randomBoolean()) {
+            getAliasesRequest.aliases(aliases);
+        } else {
+            getAliasesRequest.name(aliases);
+            if (false == CollectionUtils.isEmpty(aliases)) {
+                expectedParams.put("name", String.join(",", aliases));
+            }
+        }
+
+        Request request = Request.getAlias(getAliasesRequest);
+        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+
+        if (CollectionUtils.isEmpty(indices)) {
+            expectedEndpoint.add("_all");
+        } else {
+            expectedEndpoint.add(String.join(",", indices));
+        }
+        expectedEndpoint.add("_alias");
+
+        if (false == CollectionUtils.isEmpty(aliases)) {
+            expectedParams.put("name", String.join(",", aliases));
+        }
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

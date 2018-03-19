@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -313,4 +314,27 @@ public final class IndicesClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, Request::rollover, RolloverResponse::fromXContent,
                 listener, emptySet(), headers);
     }
+
+    /**
+     * Gets one or more aliases using the Get Index Aliases API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     */
+    public GetAliasesResponse getAlias(GetAliasesRequest getAliasesRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getAliasesRequest, Request::getAlias, GetAliasesResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously gets one or more aliases using the Get Index Aliases API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Indices Aliases API on
+     * elastic.co</a>
+     */
+    public void getAliasAsync(GetAliasesRequest getAliasesRequest, ActionListener<GetAliasesResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, Request::getAlias, GetAliasesResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
 }

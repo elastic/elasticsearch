@@ -100,6 +100,10 @@ This results in the need to always escape all parts of an URL.
 * The new built-in HTTP client also enforces a maximum request size, which defaults to 10mb.
 * The watch `_status` field has been renamed to `status`, as underscores in
 field names will not be allowed.
+* The use of the `system_key` file for encrypting sensitive values was deprecated
+in 5.6 and removed in 6.0. To continue using watches with encrypted data, use the
+`elasticsearch-keystore` tool to store the key in the secure settings keystore.
+See {xpack-ref}/encrypting-data.html[Encrypting sensitive data in Watcher].
 
 Security::
 * The fields returned as part of the mappings section by get index, get

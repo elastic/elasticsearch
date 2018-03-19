@@ -16,40 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.gradle
 
-import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.OutputFile
-import org.gradle.api.tasks.TaskAction
+package org.elasticsearch.packaging;
+
+import org.junit.Test;
 
 /**
- * Creates a file and sets it contents to something.
+ * This class doesn't have any tests yet
  */
-class FileContentsTask extends DefaultTask {
-  /**
-   * The file to be built. Must be of type File to make @OutputFile happy.
-   */
-  @OutputFile
-  File file
+public class PackagingTests {
 
-  @Input
-  Object contents
-
-  @Input
-  boolean executable = false
-
-  /**
-   * The file to be built. Takes any objecct and coerces to a file.
-   */
-  void setFile(Object file) {
-    this.file = file as File
-  }
-
-  @TaskAction
-  void setContents() {
-    file = file as File
-    file.text = contents.toString()
-    file.setExecutable(executable)
-  }
+    @Test
+    public void testDummy() {}
 }

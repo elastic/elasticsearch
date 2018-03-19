@@ -34,6 +34,9 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.decider.AssignmentDecider;
+import org.elasticsearch.persistent.decider.AssignmentDecision;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Objects;
@@ -45,12 +48,14 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
+    private final AssignmentDecider<PersistentTaskParams> decider;
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         clusterService.addListener(this);
         this.registry = registry;
+        this.decider = new EnableAssignmentDecider<>(settings, clusterService.getClusterSettings());
     }
 
     /**
@@ -224,6 +229,12 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                                                                               final @Nullable Params taskParams,
                                                                               final ClusterState currentState) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
+
+        AssignmentDecision decision = decider.canAssign(taskName, taskParams);
+        if (decision.getType() == AssignmentDecision.Type.NO) {
+            return new Assignment(null, "persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+        }
+
         return persistentTasksExecutor.getAssignment(taskParams, currentState);
     }
 
@@ -249,7 +260,8 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
     /**
      * Returns true if the cluster state change(s) require to reassign some persistent tasks. It can happen in the following
-     * situations: a node left or is added, the routing table changed, the master node changed or the persistent tasks changed.
+     * situations: a node left or is added, the routing table changed, the master node changed, the metadata changed or the
+     * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
         final PersistentTasksCustomMetaData tasks = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -259,7 +271,12 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
         boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
 
-        if (persistentTasksChanged(event) || event.nodesChanged() || event.routingTableChanged() || masterChanged) {
+        if (persistentTasksChanged(event)
+            || event.nodesChanged()
+            || event.routingTableChanged()
+            || event.metaDataChanged()
+            || masterChanged) {
+
             for (PersistentTask<?> task : tasks.tasks()) {
                 if (needsReassignment(task.getAssignment(), event.state().nodes())) {
                     Assignment assignment = createAssignment(task.getTaskName(), task.getParams(), event.state());

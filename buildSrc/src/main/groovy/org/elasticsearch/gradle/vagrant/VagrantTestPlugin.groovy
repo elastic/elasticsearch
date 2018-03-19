@@ -157,15 +157,9 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static void createPrepareVagrantTestEnvTask(Project project) {
         File packagingDir = new File(project.buildDir, PACKAGING_CONFIGURATION)
-        Task createPackagingDirTask = project.tasks.create('creatingPackagingDir')
-        createPackagingDirTask.outputs.dir(packagingDir)
-        createPackagingDirTask.doLast {
-            packagingDir.mkdirs()
-        }
 
         File archivesDir = new File(packagingDir, 'archives')
         Copy copyPackagingArchives = project.tasks.create('copyPackagingArchives', Copy) {
-            dependsOn createPackagingDirTask
             into archivesDir
             from project.configurations[PACKAGING_CONFIGURATION]
         }
@@ -183,14 +177,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         File batsDir = new File(packagingDir, BATS)
-        Task createBatsDirsTask = project.tasks.create('createBatsDirs')
-        createBatsDirsTask.outputs.dir batsDir
-        createBatsDirsTask.doLast {
-            batsDir.mkdirs()
-        }
-
         Copy copyBatsTests = project.tasks.create('copyBatsTests', Copy) {
-            dependsOn createBatsDirsTask
             into "${batsDir}/tests"
             from {
                 "${project.extensions.esvagrant.batsDir}/tests"
@@ -198,7 +185,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Copy copyBatsUtils = project.tasks.create('copyBatsUtils', Copy) {
-            dependsOn createBatsDirsTask
             into "${batsDir}/utils"
             from {
                 "${project.extensions.esvagrant.batsDir}/utils"
@@ -376,7 +362,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 finalizedBy halt
             }
 
-            TaskExecutionAdapter batsPackagingReproListener = createReproListener(project)
+            TaskExecutionAdapter batsPackagingReproListener = createReproListener(project, batsPackagingTest.path)
             batsPackagingTest.doFirst {
                 project.gradle.addListener(batsPackagingReproListener)
             }
@@ -387,14 +373,12 @@ class VagrantTestPlugin implements Plugin<Project> {
                 packagingTest.dependsOn(batsPackagingTest)
             }
 
+            // This task doesn't do anything yet. In the future it will execute a jar containing tests on the vm
             Task groovyPackagingTest = project.tasks.create("vagrant${boxTask}#groovyPackagingTest")
             groovyPackagingTest.dependsOn(up)
             groovyPackagingTest.finalizedBy(halt)
-            groovyPackagingTest.doLast {
-                // no op
-            }
 
-            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project)
+            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, groovyPackagingTest.path)
             groovyPackagingTest.doFirst {
                 project.gradle.addListener(groovyPackagingReproListener)
             }
@@ -413,7 +397,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 finalizedBy halt
                 args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
             }
-            TaskExecutionAdapter platformReproListener = createReproListener(project)
+            TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
             platform.doFirst {
                 project.gradle.addListener(platformReproListener)
             }
@@ -426,13 +410,13 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static TaskExecutionAdapter createReproListener(Project project) {
+    private static TaskExecutionAdapter createReproListener(Project project, String reproTaskPath) {
         return new TaskExecutionAdapter() {
             @Override
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${task.path} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
                 }
             }
         }

@@ -131,7 +131,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     @FunctionalInterface
-    interface Writer {
+    public interface Writer {
         void write(XContentBuilder builder, Object value) throws IOException;
     }
 
@@ -139,7 +139,7 @@ public final class XContentBuilder implements Releasable, Flushable {
      * Interface for transforming complex objects into their "raw" equivalents for human-readable fields
      */
     @FunctionalInterface
-    interface HumanReadableTransformer {
+    public interface HumanReadableTransformer {
         Object rawValue(Object value) throws IOException;
     }
 

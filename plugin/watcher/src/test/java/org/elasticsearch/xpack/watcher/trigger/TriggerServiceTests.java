@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -29,17 +31,29 @@ import static org.mockito.Mockito.when;
 public class TriggerServiceTests extends ESTestCase {
 
     private static final String ENGINE_TYPE = "foo";
+    private TriggerService service;
+    private Watch watch1;
+    private Watch watch2;
 
-    public void testStats() {
+    @Before
+    public void setupTriggerService() {
         TriggerEngine triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(ENGINE_TYPE);
-        TriggerService service = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
+        service = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
 
         // simple watch, input and simple action
-        Watch watch1 = createWatch("1");
+        watch1 = createWatch("1");
         setMetadata(watch1);
         setInput(watch1);
         addAction(watch1, "my_action", null, null);
+
+        watch2 = createWatch("2");
+        setInput(watch2);
+        setCondition(watch2, "script");
+        addAction(watch2, "my_action", "script", null);
+    }
+
+    public void testStats() {
         service.add(watch1);
 
         Counters stats = service.stats();
@@ -54,11 +68,8 @@ public class TriggerServiceTests extends ESTestCase {
         assertThat(stats.get("watch.metadata.total"), is(1L));
         assertThat(stats.get("count.active"), is(1L));
         assertThat(stats.get("count.total"), is(1L));
+        assertThat(service.count(), is(1L));
 
-        Watch watch2 = createWatch("2");
-        setInput(watch2);
-        setCondition(watch2, "script");
-        addAction(watch2, "my_action", "script", null);
         service.add(watch2);
 
         stats = service.stats();
@@ -74,11 +85,13 @@ public class TriggerServiceTests extends ESTestCase {
         assertThat(stats.get("watch.action.condition._all.active"), is(1L));
         assertThat(stats.get("watch.metadata.active"), is(1L));
         assertThat(stats.get("count.active"), is(2L));
+        assertThat(service.count(), is(2L));
 
         service.remove("1");
         stats = service.stats();
         assertThat(stats.size(), is(22L));
         assertThat(stats.get("count.active"), is(1L));
+        assertThat(service.count(), is(1L));
         assertThat(stats.get("watch.input.none.active"), is(1L));
         assertThat(stats.get("watch.input._all.active"), is(1L));
         assertThat(stats.get("watch.condition.script.active"), is(1L));
@@ -93,6 +106,31 @@ public class TriggerServiceTests extends ESTestCase {
         assertThat(stats.size(), is(6L));
         assertThat(stats.get("count.active"), is(0L));
         assertThat(stats.get("count.total"), is(0L));
+
+    }
+
+    public void testCountOnPause() {
+        assertThat(service.count(), is(0L));
+        service.add(watch2);
+        assertThat(service.count(), is(1L));
+        service.add(watch1);
+        assertThat(service.count(), is(2L));
+        service.pauseExecution();
+        assertThat(service.count(), is(0L));
+    }
+
+    public void testCountOnStart() {
+        assertThat(service.count(), is(0L));
+        service.start(Arrays.asList(watch1, watch2));
+        assertThat(service.count(), is(2L));
+    }
+
+    public void testCountOnStop() {
+        assertThat(service.count(), is(0L));
+        service.start(Arrays.asList(watch1, watch2));
+        assertThat(service.count(), is(2L));
+        service.stop();
+        assertThat(service.count(), is(0L));
     }
 
     private Watch createWatch(String id) {

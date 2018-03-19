@@ -62,6 +62,7 @@ public class TriggerService extends AbstractComponent {
      */
     public synchronized void pauseExecution() {
         engines.values().forEach(TriggerEngine::pauseExecution);
+        perWatchStats.clear();
     }
 
     /**

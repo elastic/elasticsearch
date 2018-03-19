@@ -34,8 +34,7 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        // TODO: Change to 6.3 after backport
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             type = in.readString();
         } else {
             type = "trial";
@@ -45,8 +44,7 @@ public class PostStartTrialRequest extends MasterNodeRequest<PostStartTrialReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO: Change to 6.3 after backport
-        Version version = Version.V_7_0_0_alpha1;
+        Version version = Version.V_6_3_0;
         if (out.getVersion().onOrAfter(version)) {
             out.writeString(type);
         } else {

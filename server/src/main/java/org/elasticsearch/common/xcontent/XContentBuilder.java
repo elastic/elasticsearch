@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A utility to build XContent (ie json).
@@ -114,7 +113,7 @@ public final class XContentBuilder implements Releasable, Flushable {
         humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
 
         // Load pluggable extensions
-        for (XContentBuilderProvider service : ServiceLoader.load(XContentBuilderProvider.class)) {
+        for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
             Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
             Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
 

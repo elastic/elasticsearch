@@ -28,7 +28,7 @@ import java.util.Map;
  * in the class for encoding, however, in some situations you may not own the
  * class, in which case you can add an implementation here for encoding it.
  */
-public interface XContentBuilderProvider {
+public interface XContentBuilderExtension {
 
     /**
      * Used for plugging in a generic writer for a class, for example, an example implementation:

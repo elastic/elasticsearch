@@ -37,8 +37,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -150,11 +149,12 @@ public abstract class EngineTestCase extends ESTestCase {
                 .build()); // TODO randomize more settings
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
+        primaryTranslogDir = store.getTranslogPath();
         storeReplica = createStore();
+        replicaTranslogDir = storeReplica.getTranslogPath();
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
-        primaryTranslogDir = createTempDir("translog-primary");
-        engine = createEngine(store, primaryTranslogDir);
+        engine = createEngine(store);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -162,8 +162,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
-        replicaTranslogDir = createTempDir("translog-replica");
-        replicaEngine = createEngine(storeReplica, replicaTranslogDir);
+        replicaEngine = createEngine(storeReplica);
         currentIndexWriterConfig = replicaEngine.getCurrentIndexWriterConfig();
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -248,17 +247,17 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Store createStore(final Directory directory) throws IOException {
-        return createStore(INDEX_SETTINGS, directory);
+        return createStore(INDEX_SETTINGS, directory, createTempDir());
     }
 
-    protected Store createStore(final IndexSettings indexSettings, final Directory directory) throws IOException {
+    protected Store createStore(final IndexSettings indexSettings, final Directory directory, final Path translogPath) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
                 return directory;
             }
         };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId), translogPath);
     }
 
     protected Translog createTranslog() throws IOException {
@@ -272,58 +271,54 @@ public abstract class EngineTestCase extends ESTestCase {
             translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED);
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
+    protected InternalEngine createEngine(Store store) throws IOException {
+        return createEngine(defaultSettings, store, newMergePolicy(), null);
     }
 
-    protected InternalEngine createEngine(Store store, Path translogPath, LongSupplier globalCheckpointSupplier) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
+    protected InternalEngine createEngine(Store store, LongSupplier globalCheckpointSupplier) throws IOException {
+        return createEngine(defaultSettings, store, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 
     protected InternalEngine createEngine(
             Store store,
-            Path translogPath,
             BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null, localCheckpointTrackerSupplier, null);
+        return createEngine(defaultSettings, store, newMergePolicy(), null, localCheckpointTrackerSupplier, null);
     }
 
     protected InternalEngine createEngine(
             Store store,
-            Path translogPath,
             BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation) throws IOException {
         return createEngine(
-                defaultSettings, store, translogPath, newMergePolicy(), null, localCheckpointTrackerSupplier, null, seqNoForOperation);
+                defaultSettings, store, newMergePolicy(), null, localCheckpointTrackerSupplier, null, seqNoForOperation);
     }
 
     protected InternalEngine createEngine(
-            IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, null);
+            IndexSettings indexSettings, Store store, MergePolicy mergePolicy) throws IOException {
+        return createEngine(indexSettings, store, mergePolicy, null);
 
     }
 
-    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+    protected InternalEngine createEngine(IndexSettings indexSettings, Store store, MergePolicy mergePolicy,
                                           @Nullable IndexWriterFactory indexWriterFactory) throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterFactory, null, null);
+        return createEngine(indexSettings, store, mergePolicy, indexWriterFactory, null, null);
     }
 
     protected InternalEngine createEngine(
             IndexSettings indexSettings,
             Store store,
-            Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
             @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             @Nullable LongSupplier globalCheckpointSupplier) throws IOException {
         return createEngine(
-                indexSettings, store, translogPath, mergePolicy, indexWriterFactory, localCheckpointTrackerSupplier, null, null,
+                indexSettings, store, mergePolicy, indexWriterFactory, localCheckpointTrackerSupplier, null, null,
                 globalCheckpointSupplier);
     }
 
     protected InternalEngine createEngine(
             IndexSettings indexSettings,
             Store store,
-            Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
             @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
@@ -332,7 +327,6 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(
                 indexSettings,
                 store,
-                translogPath,
                 mergePolicy,
                 indexWriterFactory,
                 localCheckpointTrackerSupplier,
@@ -344,14 +338,13 @@ public abstract class EngineTestCase extends ESTestCase {
     protected InternalEngine createEngine(
             IndexSettings indexSettings,
             Store store,
-            Path translogPath,
             MergePolicy mergePolicy,
             @Nullable IndexWriterFactory indexWriterFactory,
             @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
             @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
             @Nullable Sort indexSort,
             @Nullable LongSupplier globalCheckpointSupplier) throws IOException {
-        EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, null, indexSort, globalCheckpointSupplier);
+        EngineConfig config = config(indexSettings, store, mergePolicy, null, indexSort, globalCheckpointSupplier);
         return createEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
     }
 
@@ -365,7 +358,7 @@ public abstract class EngineTestCase extends ESTestCase {
                                         EngineConfig config) throws IOException {
         final Directory directory = config.getStore().directory();
         if (Lucene.indexExists(directory) == false) {
-            EngineDiskUtils.createEmpty(directory, config.getTranslogConfig().getTranslogPath(), config.getShardId());
+            config.getStore().createEmpty();
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
         internalEngine.recoverFromTranslog();
@@ -419,15 +412,16 @@ public abstract class EngineTestCase extends ESTestCase {
 
     }
 
-    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+    public EngineConfig config(IndexSettings indexSettings, Store store, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener) {
-        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, () -> SequenceNumbers.NO_OPS_PERFORMED);
+        return config(indexSettings, store, mergePolicy, refreshListener, null, () -> SequenceNumbers.NO_OPS_PERFORMED);
     }
 
-    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+    public EngineConfig config(IndexSettings indexSettings, Store store, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, store.getTranslogPath(), indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {

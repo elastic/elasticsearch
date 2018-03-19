@@ -48,7 +48,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
@@ -59,6 +58,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -93,7 +93,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StoreTests extends ESTestCase {
@@ -108,7 +110,7 @@ public class StoreTests extends ESTestCase {
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         IndexSettings indexSettings = INDEX_SETTINGS;
 
-        Store store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId), createTempDir());
         int incs = randomIntBetween(1, 100);
         for (int i = 0; i < incs; i++) {
             if (randomBoolean()) {
@@ -306,7 +308,7 @@ public class StoreTests extends ESTestCase {
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         // set default codec - all segments need checksums
         IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
         int docs = 1 + random().nextInt(100);
@@ -521,7 +523,7 @@ public class StoreTests extends ESTestCase {
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+            Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -551,7 +553,7 @@ public class StoreTests extends ESTestCase {
             iwc.setUseCompoundFile(random.nextBoolean());
             final ShardId shardId = new ShardId("index", "_na_", 1);
             DirectoryService directoryService = new LuceneManagedDirectoryService(random);
-            store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+            store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
             IndexWriter writer = new IndexWriter(store.directory(), iwc);
             final boolean lotsOfSegments = rarely(random);
             for (Document d : docs) {
@@ -649,7 +651,7 @@ public class StoreTests extends ESTestCase {
     public void testCleanupFromSnapshot() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         // this time random codec....
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         // we keep all commits and that allows us clean based on multiple snapshots
@@ -744,7 +746,7 @@ public class StoreTests extends ESTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        });
+        }, createTempDir());
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -761,7 +763,8 @@ public class StoreTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueMinutes(0)).build();
-        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, IndexSettingsModule.newIndexSettings("index", settings), directoryService,
+            new DummyShardLock(shardId), createTempDir());
         long initialStoreSize = 0;
         for (String extraFiles : store.directory().listAll()) {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
@@ -852,7 +855,7 @@ public class StoreTests extends ESTestCase {
     public void testUserDataRead() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec());
         SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         config.setIndexDeletionPolicy(deletionPolicy);
@@ -902,7 +905,7 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         IndexWriter writer = new IndexWriter(store.directory(), iwc);
 
         int numDocs = 1 + random().nextInt(10);
@@ -961,7 +964,7 @@ public class StoreTests extends ESTestCase {
                 return dir;
             }
         };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
         assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         store.close();
@@ -977,7 +980,7 @@ public class StoreTests extends ESTestCase {
                 return dir;
             }
         };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
         CorruptIndexException ex = new CorruptIndexException("foo", "bar");
         store.markStoreCorrupted(ex);
         try {
@@ -1013,7 +1016,7 @@ public class StoreTests extends ESTestCase {
                 return dir;
             }
         };
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
 
         CorruptIndexException exception = new CorruptIndexException("foo", "bar");
         String uuid = Store.CORRUPTED + UUIDs.randomBase64UUID();
@@ -1071,4 +1074,55 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
+    public void testEnsureIndexHasHistoryUUID() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir())) {
+
+            store.createEmpty();
+
+            // remove the history uuid
+            IndexWriterConfig iwc = new IndexWriterConfig(null)
+                .setCommitOnClose(false)
+                // we don't want merges to happen here - we call maybe merge on the engine
+                // later once we stared it up otherwise we would need to wait for it here
+                // we also don't specify a codec here and merges should use the engines for this index
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+                Map<String, String> newCommitData = new HashMap<>();
+                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
+                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
+                        newCommitData.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                writer.setLiveCommitData(newCommitData.entrySet());
+                writer.commit();
+            }
+
+            store.ensureIndexHasHistoryUUID();
+
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+        }
+    }
+
+    public void testHistoryUUIDCanBeForced() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir())) {
+
+            store.createEmpty();
+
+            SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            final String oldHistoryUUID = segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY);
+
+            store.bootstrapNewHistoryFromLuceneIndex();
+
+            segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
+        }
+    }
 }

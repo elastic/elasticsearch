@@ -25,12 +25,15 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -47,8 +50,8 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.UUIDs;
@@ -70,11 +73,13 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -143,6 +148,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
     private final SingleObjectCache<StoreStats> statsCache;
+    private final Path translogPath;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -152,12 +158,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
-        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
+    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock,
+                 Path translogPath) throws IOException {
+        this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY, translogPath);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
+    public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose,
+                 Path translogPath) throws IOException {
         super(shardId, indexSettings);
+        this.translogPath = translogPath;
         final Settings settings = indexSettings.getSettings();
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
@@ -720,6 +729,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public int refCount() {
         return refCounter.refCount();
+    }
+
+    public Path getTranslogPath() {
+        return translogPath;
     }
 
     static final class StoreDirectory extends FilterDirectory {
@@ -1453,6 +1466,115 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             return estimatedSize;
         }
+    }
+
+    /**
+     * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
+     */
+    public void createEmpty() throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(true, directory)) {
+            final String translogUuid =
+                Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            final Map<String, String> map = new HashMap<>();
+            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
+            map.put(Translog.TRANSLOG_UUID_KEY, translogUuid);
+            map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+            map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+            map.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+            updateCommitData(writer, map);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+
+    /**
+     * Converts an existing lucene index and marks it with a new history uuid. Also creates a new empty translog file.
+     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     */
+    public void bootstrapNewHistoryFromLuceneIndex()
+        throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(false, directory)) {
+            final Map<String, String> userData = getUserData(writer);
+            final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
+            final String translogUuid = Translog.createEmptyTranslog(translogPath, maxSeqNo, shardId);
+            final Map<String, String> map = new HashMap<>();
+            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
+            map.put(Translog.TRANSLOG_UUID_KEY, translogUuid);
+            map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+            updateCommitData(writer, map);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Creates a new empty translog and associates it with an existing lucene index.
+     */
+    public void createNewTranslog(long initialGlobalCheckpoint)
+        throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(false, directory)) {
+            if (Assertions.ENABLED) {
+                final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
+                assert existingCommits.size() == 1 : "creating a translog translog should have one commit, commits[" + existingCommits + "]";
+                SequenceNumbers.CommitInfo commitInfo = loadSeqNoInfo(existingCommits.get(0));
+                assert commitInfo.localCheckpoint >= initialGlobalCheckpoint :
+                    "trying to create a shard whose local checkpoint [" + commitInfo.localCheckpoint + "] is < global checkpoint ["
+                        + initialGlobalCheckpoint + "]";
+            }
+            final String translogUuid = Translog.createEmptyTranslog(translogPath, initialGlobalCheckpoint, shardId);
+            final Map<String, String> map = new HashMap<>();
+            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
+            map.put(Translog.TRANSLOG_UUID_KEY, translogUuid);
+            updateCommitData(writer, map);
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+
+    /**
+     * Checks that the Lucene index contains a history uuid marker. If not, a new one is generated and committed.
+     */
+    public void ensureIndexHasHistoryUUID() throws IOException {
+        metadataLock.writeLock().lock();
+        try (IndexWriter writer = newIndexWriter(false, directory)) {
+            final Map<String, String> userData = getUserData(writer);
+            if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
+                updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    private void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
+        final Map<String, String> userData = getUserData(writer);
+        userData.putAll(keysToUpdate);
+        writer.setLiveCommitData(userData.entrySet());
+        writer.commit();
+    }
+
+    private Map<String, String> getUserData(IndexWriter writer) {
+        final Map<String, String> userData = new HashMap<>();
+        writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
+        return userData;
+    }
+
+    private IndexWriter newIndexWriter(final boolean create, final Directory dir) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setCommitOnClose(false)
+            // we don't want merges to happen here - we call maybe merge on the engine
+            // later once we stared it up otherwise we would need to wait for it here
+            // we also don't specify a codec here and merges should use the engines for this index
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+        return new IndexWriter(dir, iwc);
     }
 
 }

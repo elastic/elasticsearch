@@ -40,7 +40,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -390,7 +389,7 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                EngineDiskUtils.bootstrapNewHistoryFromLuceneIndex(store.directory(), indexShard.shardPath().resolveTranslog(), shardId);
+                store.bootstrapNewHistoryFromLuceneIndex();
             } else if (indexShouldExists) {
                 // since we recover from local, just fill the files and size
                 try {
@@ -402,7 +401,7 @@ final class StoreRecovery {
                     logger.debug("failed to list file details", e);
                 }
             } else {
-                EngineDiskUtils.createEmpty(store.directory(), indexShard.shardPath().resolveTranslog(), shardId);
+                store.createEmpty();
             }
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
@@ -445,8 +444,7 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
-            EngineDiskUtils.bootstrapNewHistoryFromLuceneIndex(indexShard.store().directory(), indexShard.shardPath().resolveTranslog(),
-                shardId);
+            indexShard.store().bootstrapNewHistoryFromLuceneIndex();
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());

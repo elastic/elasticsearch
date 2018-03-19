@@ -21,10 +21,12 @@ introduction to monitoring your Elastic stack, including Logstash and {kib}, see
 {xpack-ref}/xpack-monitoring.html[Monitoring the Elastic Stack].
 
 * <<configuring-monitoring>>
+* <<es-monitoring-overview>>
 * <<stats-export>>
 * <<http-exporter>>
 
 --
 
+include::overview.asciidoc[]
 include::stats-export.asciidoc[]
 include::http-export.asciidoc[]

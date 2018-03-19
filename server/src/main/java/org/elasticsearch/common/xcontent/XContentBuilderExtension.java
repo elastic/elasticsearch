@@ -34,9 +34,11 @@ public interface XContentBuilderExtension {
      * Used for plugging in a generic writer for a class, for example, an example implementation:
      *
      * <pre>
+     * {@code
      *     Map<Class<?>, XContentBuilder.Writer> addlWriters = new HashMap<>();
      *     addlWriters.put(BytesRef.class, (builder, value) -> b.value(((BytesRef) value).utf8String()));
      *     return addlWriters;
+     * }
      * </pre>
      *
      * @return a map of class name to writer
@@ -51,8 +53,10 @@ public interface XContentBuilderExtension {
      * An example implementation:
      *
      * <pre>
+     * {@code
      *     Map<Class<?>, XContentBuilder.HumanReadableTransformer> transformers = new HashMap<>();
      *     transformers.put(ByteSizeValue.class, (value) -> ((ByteSizeValue) value).bytes());
+     * }
      * </pre>
      * @return a map of class name to transformer used to retrieve raw value
      */

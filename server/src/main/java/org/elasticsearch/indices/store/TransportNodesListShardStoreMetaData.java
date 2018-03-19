@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -139,7 +140,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }
             final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings);
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            final ShardPath shardPath;
+            try (ShardLock ignored = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
+                shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+            }
             if (shardPath == null) {
                 return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
             }

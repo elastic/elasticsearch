@@ -20,9 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -98,7 +96,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
         writers.put(float[].class, (b, v) -> b.values((float[]) v));
-        writers.put(GeoPoint.class, (b, v) -> b.value((GeoPoint) v));
         writers.put(Integer.class, (b, v) -> b.value((Integer) v));
         writers.put(int[].class, (b, v) -> b.values((int[]) v));
         writers.put(Long.class, (b, v) -> b.value((Long) v));
@@ -107,7 +104,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
-        writers.put(Text.class, (b, v) -> b.value((Text) v));
 
         WRITERS = Collections.unmodifiableMap(writers);
     }
@@ -631,26 +627,6 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Text
-    //////////////////////////////////
-
-    public XContentBuilder field(String name, Text value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder value(Text value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        } else if (value.hasString()) {
-            return value(value.string());
-        } else {
-            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
-            // request to jackson to support InputStream as well?
-            return utf8Value(value.bytes().toBytesRef());
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
     // Date
     //////////////////////////////////
 
@@ -714,19 +690,8 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // GeoPoint & LatLon
+    // LatLon
     //////////////////////////////////
-
-    public XContentBuilder field(String name, GeoPoint value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder value(GeoPoint value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return latlon(value.getLat(), value.getLon());
-    }
 
     public XContentBuilder latlon(String name, double lat, double lon) throws IOException {
         return field(name).latlon(lat, lon);

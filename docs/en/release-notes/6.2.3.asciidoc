@@ -7,22 +7,15 @@
 
 coming[6.2.3]
 
-
-////
 [[xes-bug-6.2.3]]
 [float]
 === Bug fixes
-////
-////
+
 Machine Learning::
-* [ML] Filter non-ml attributes from data feed node stats
-  - When a datafeed is started the GET datafeed stats API returns only ML specific node attributes.
+* Fixed the <<ml-get-datafeed-stats,get datafeed statistics API>> such that it
+returns only machine learning-specific node attributes.
 // Repo: x-pack-elasticsearch
 // Pull: 3994
-* [ML] Add notification for job updates coming from a user action
-// Repo: x-pack-elasticsearch
-// Pull: 3890
-////
 ////
 Monitoring::
 * [Logstash][Monitoring] Fix Registered Usage and Add Tests

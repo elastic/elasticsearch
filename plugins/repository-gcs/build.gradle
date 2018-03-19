@@ -60,11 +60,10 @@ thirdPartyAudit.excludes = [
 
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
 task googleCloudStorageFixture(type: AntFixture) {
-  dependsOn compileTestJava
-  executable = new File(project.runtimeJavaHome, 'bin/java')
-  args '-cp', "${ -> project.sourceSets.test.runtimeClasspath.asPath }",
-          'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture',
-          baseDir, 'bucket_test'
+    dependsOn compileTestJava
+    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+    executable = new File(project.runtimeJavaHome, 'bin/java')
+    args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/

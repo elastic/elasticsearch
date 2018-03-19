@@ -299,7 +299,7 @@ public class ExecutionService extends AbstractComponent {
                 }
 
                 if (ctx.watch() != null) {
-                    if (ctx.watch().status().state().isActive()) {
+                    if (ctx.shouldBeExecuted()) {
                         logger.debug("executing watch [{}]", watchId);
 
                         record = executeInner(ctx);
@@ -307,7 +307,7 @@ public class ExecutionService extends AbstractComponent {
                             updateWatchStatus(ctx.watch());
                         }
                     } else {
-                        logger.debug("not executing watch [{}] because it is marked as inactive", watchId);
+                        logger.debug("not executing watch [{}]", watchId);
                         record = ctx.abortBeforeExecution(ExecutionState.EXECUTION_NOT_NEEDED, "Watch is not active");
                     }
                 }

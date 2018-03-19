@@ -121,7 +121,7 @@ GET my_index/_search?size=0
     "by_day": {
       "auto_date_histogram": {
         "field":     "date",
-        "buckets" : 2
+        "buckets" : 3
       }
     }
   }
@@ -172,7 +172,7 @@ GET my_index/_search?size=0
     "by_day": {
       "auto_date_histogram": {
         "field":     "date",
-        "buckets" : 2,
+        "buckets" : 3,
         "time_zone": "-01:00"
       }
     }

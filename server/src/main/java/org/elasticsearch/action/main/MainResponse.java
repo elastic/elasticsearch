@@ -107,6 +107,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
             .field("number", version.toString())
+            .field("build_flavor", build.flavor().displayName())
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
@@ -128,8 +129,13 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
         PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
         PARSER.declareObject((response, value) -> {
-            response.build = new Build((String) value.get("build_hash"), (String) value.get("build_date"),
-                    (boolean) value.get("build_snapshot"));
+            final String buildFlavor = (String) value.get("build_flavor");
+            response.build =
+                    new Build(
+                            buildFlavor == null ? Build.Flavor.UNKNOWN : Build.Flavor.fromDisplayName(buildFlavor),
+                            (String) value.get("build_hash"),
+                            (String) value.get("build_date"),
+                            (boolean) value.get("build_snapshot"));
             response.version = Version.fromString((String) value.get("number"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }

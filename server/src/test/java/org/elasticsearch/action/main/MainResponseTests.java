@@ -40,7 +40,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
+        Build build =
+                new Build(Build.Flavor.UNKNOWN, randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
@@ -57,7 +58,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
 
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        Build build = new Build(Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
+        Build build = new Build(Build.CURRENT.flavor(), Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -68,6 +69,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
                     + "\"number\":\"" + version.toString() + "\","
+                    + "\"build_flavor\":\"" + Build.CURRENT.flavor().displayName() + "\","
                     + "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\","
                     + "\"build_date\":\"" + Build.CURRENT.date() + "\","
                     + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ","
@@ -94,7 +96,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 break;
             case 2:
                 // toggle the snapshot flag of the original Build parameter
-                build = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+                build = new Build(Build.Flavor.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot());
                 break;
             case 3:
                 version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));

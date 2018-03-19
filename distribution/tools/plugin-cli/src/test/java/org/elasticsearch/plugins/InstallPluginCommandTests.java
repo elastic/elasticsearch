@@ -24,6 +24,7 @@ import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
@@ -888,6 +889,29 @@ public class InstallPluginCommandTests extends ESTestCase {
                 line = reader.readLine();
             }
         }
+    }
+
+    public void testInstallXPack() throws IOException {
+        runInstallXPackTest(Build.Flavor.DEFAULT, UserException.class, "this distribution of Elasticsearch contains X-Pack by default");
+        runInstallXPackTest(
+                Build.Flavor.OSS,
+                UserException.class,
+                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution");
+        runInstallXPackTest(Build.Flavor.UNKNOWN, IllegalStateException.class, "your distribution is broken");
+    }
+
+    private <T extends Exception> void runInstallXPackTest(
+            final Build.Flavor flavor, final Class<T> clazz, final String expectedMessage) throws IOException {
+        final InstallPluginCommand flavorCommand = new InstallPluginCommand() {
+            @Override
+            Build.Flavor buildFlavor() {
+                return flavor;
+            }
+        };
+
+        final Environment environment = createEnv(fs, temp).v2();
+        final T exception = expectThrows(clazz, () -> flavorCommand.execute(terminal, "x-pack", false, environment));
+        assertThat(exception, hasToString(containsString(expectedMessage)));
     }
 
     public void testInstallMisspelledOfficialPlugins() throws Exception {

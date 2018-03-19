@@ -42,14 +42,14 @@ task createPluginsDir(type: EmptyDirTask) {
   dirMode 0755
 }
 
-CopySpec archiveFiles(CopySpec modulesFiles) {
+CopySpec archiveFiles(CopySpec modulesFiles, boolean oss) {
   return copySpec {
     into("elasticsearch-${version}") {
       with libFiles
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles('def', false)
+        with configFiles('def', oss)
       }
       into('bin') {
         with binFiles('def', oss)
@@ -58,7 +58,7 @@ CopySpec archiveFiles(CopySpec modulesFiles) {
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
-          MavenFilteringHack.filter(it, expansionsForDistribution('def'))
+          MavenFilteringHack.filter(it, expansionsForDistribution('def', oss))
         }
       }
       into('') {
@@ -94,15 +94,15 @@ tasks.withType(AbstractArchiveTask) {
 }
 
 task buildIntegTestZip(type: Zip) {
-  with archiveFiles(transportModulesFiles)
+  with archiveFiles(transportModulesFiles, false)
 }
 
 task buildZip(type: Zip) {
-  with archiveFiles(modulesFiles(false))
+  with archiveFiles(modulesFiles(false), false)
 }
 
 task buildOssZip(type: Zip) {
-  with archiveFiles(modulesFiles(true))
+  with archiveFiles(modulesFiles(true), true)
 }
 
 Closure commonTarConfig = {
@@ -114,12 +114,12 @@ Closure commonTarConfig = {
 
 task buildTar(type: Tar) {
   configure(commonTarConfig)
-  with archiveFiles(modulesFiles(false))
+  with archiveFiles(modulesFiles(false), false)
 }
 
 task buildOssTar(type: Tar) {
   configure(commonTarConfig)
-  with archiveFiles(modulesFiles(true))
+  with archiveFiles(modulesFiles(true), true)
 }
 
 // This configures the default artifact for the distribution specific

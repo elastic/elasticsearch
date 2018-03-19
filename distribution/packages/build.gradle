@@ -69,6 +69,7 @@ void addProcessFilesTask(String type, boolean oss) {
     into('config') {
       with configFiles(type, oss)
     }
+    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -150,7 +151,7 @@ Closure commonPackageConfig(String type, boolean oss) {
       fileType CONFIG | NOREPLACE
       from "${packagingFiles}/config"
     }
-    String envFile = expansionsForDistribution(type)['path.env']
+    String envFile = expansionsForDistribution(type, false)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE

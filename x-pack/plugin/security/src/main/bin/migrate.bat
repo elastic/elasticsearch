@@ -15,6 +15,7 @@ call "%~dp0x-pack-security-env.bat" || exit /b 1
   %ES_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
+  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -cp "%ES_CLASSPATH%" ^
   org.elasticsearch.xpack.security.authc.esnative.ESNativeRealmMigrateTool ^
   %*

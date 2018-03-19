@@ -222,6 +222,23 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         install(terminal, isBatch, extractedZip, env);
     }
 
+    Build.Flavor buildFlavor() {
+        return Build.CURRENT.flavor();
+    }
+
+    private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
+        switch (flavor) {
+            case DEFAULT:
+                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
+            case OSS:
+                throw new UserException(
+                        ExitCodes.CONFIG,
+                        "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution");
+            case UNKNOWN:
+                throw new IllegalStateException("your distribution is broken");
+        }
+    }
+
     /** Downloads the plugin and returns the file it was downloaded to. */
     private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {

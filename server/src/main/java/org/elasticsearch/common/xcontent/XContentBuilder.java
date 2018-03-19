@@ -107,13 +107,27 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
 
-        WRITERS = Collections.unmodifiableMap(writers);
 
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
         // These will be moved to a different class at a later time to decouple them from XContentBuilder
         humanReadableTransformer.put(TimeValue.class, v -> ((TimeValue) v).millis());
         humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
 
+        // Load pluggable extensions
+        for (XContentBuilderProvider service : ServiceLoader.load(XContentBuilderProvider.class)) {
+            Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
+            Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
+
+            addlWriters.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent writer for class " + key));
+            addlTransformers.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent transformer for human readable class " + key));
+
+            writers.putAll(addlWriters);
+            humanReadableTransformer.putAll(addlTransformers);
+        }
+
+        WRITERS = Collections.unmodifiableMap(writers);
         HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
     }
 
@@ -144,16 +158,6 @@ public final class XContentBuilder implements Releasable, Flushable {
      * When this flag is set to true, some types of values are written in a format easier to read for a human.
      */
     private boolean humanReadable = false;
-
-    /**
-     * Additional pluggable writers for classes outside of XContent's control
-     */
-    private final Map<Class<?>, Writer> additionalWriters;
-
-    /**
-     * Additional transformers for human readable fields
-     */
-    private final Map<Class<?>, HumanReadableTransformer> additionalHumanReadableTransformers;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
@@ -187,14 +191,6 @@ public final class XContentBuilder implements Releasable, Flushable {
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos, includes, excludes);
-        Map<Class<?>, Writer> writers = new HashMap<>();
-        Map<Class<?>, HumanReadableTransformer> transformers = new HashMap<>();
-        for (XContentBuilderProvider service : ServiceLoader.load(XContentBuilderProvider.class)) {
-            writers.putAll(service.getXContentWriters());
-            transformers.putAll(service.getXContentHumanReadableTransformers());
-        }
-        additionalWriters = Collections.unmodifiableMap(writers);
-        additionalHumanReadableTransformers = Collections.unmodifiableMap(transformers);
     }
 
     public XContentType contentType() {
@@ -798,13 +794,6 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((ReadableInstant) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
-        } else if (additionalWriters.containsKey(value.getClass())) {
-            Writer additionalWriter = additionalWriters.get(value.getClass());
-            if (additionalWriter == null) {
-                throw new NullPointerException("xcontent writer for class " + value.getClass() + " cannot be null");
-            } else {
-                additionalWriter.write(this, value);
-            }
         } else {
             // This is a "value" object (like enum, DistanceUnit, etc) just toString() it
             // (yes, it can be misleading when toString a Java class, but really, jackson should be used in that case)
@@ -913,13 +902,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         if (transformer != null) {
             Object rawValue = transformer.rawValue(value);
             field(rawFieldName, rawValue);
-        } else if (additionalHumanReadableTransformers.containsKey(value.getClass())) {
-            HumanReadableTransformer additionalTransformer = additionalHumanReadableTransformers.get(value.getClass());
-            if (additionalTransformer == null) {
-                throw new NullPointerException("xcontent transformer for class " + value.getClass() + " cannot be null");
-            } else {
-                field(rawFieldName, additionalTransformer.rawValue(value));
-            }
         } else {
             throw new IllegalArgumentException("no raw transformer found for class " + value.getClass());
         }

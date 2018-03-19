@@ -40,12 +40,13 @@ Security::
 // Repo: x-pack-elasticsearch
 // Pull: 3993
 ////
-////
 Watcher::
-* Watcher: Fix hipchat message failure serialization
+* Fixed the serialization of failed hipchat messages, such that it no longer
+tries to write the status field twice.
 // Repo: x-pack-elasticsearch
 // Pull: 3939
-* Watcher: Fix TransformInput toXContent serialization
+* Fixed TransformInput toXContent serialization errors. For more information,
+see
+{xpack-ref}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 // Repo: x-pack-elasticsearch
 // Pull: 4061
-////

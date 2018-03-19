@@ -4343,7 +4343,7 @@ public class InternalEngineTests extends EngineTestCase {
                         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
                     }
                 } catch (EngineException ex) {
-                    // This happens because the test may have open too many files (max 2048 fds on test)
+                    // This happened because the test may have opened too many files (max 2048 fds on test)
                     assertThat(engine.getTranslog().currentFileGeneration() - engine.getTranslog().getMinFileGeneration(),
                         greaterThan(100L));
                     return;
@@ -4359,7 +4359,7 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }
         } catch (EngineException ex) {
-            // This happens because the test may have open too many files (max 2048 fds on test)
+            // This happened because the test may have opened too many files (max 2048 fds on test)
             assertThat(engine.getTranslog().currentFileGeneration() - engine.getTranslog().getMinFileGeneration(),
                 greaterThan(100L));
         }

@@ -454,7 +454,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 return baseDirectoryWrapper;
             }
         };
-        return new Store(shardId,  INDEX_SETTINGS, directoryService, new DummyShardLock(shardId), createTempDir());
+        return new Store(shardId,  INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
 

@@ -378,7 +378,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             };
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
-                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)), path.resolveTranslog());
+                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,

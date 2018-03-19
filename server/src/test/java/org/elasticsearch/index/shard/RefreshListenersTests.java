@@ -51,6 +51,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
@@ -64,7 +65,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -111,10 +111,9 @@ public class RefreshListenersTests extends ESTestCase {
                 return directory;
             }
         };
-        final Path translogPath = createTempDir("translog");
-        store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId), translogPath);
+        store = new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings,
+        TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
@@ -123,6 +122,9 @@ public class RefreshListenersTests extends ESTestCase {
             }
         };
         store.createEmpty();
+        final String translogUUID =
+            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,

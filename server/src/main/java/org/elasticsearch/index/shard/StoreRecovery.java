@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -390,6 +391,10 @@ final class StoreRecovery {
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
                 store.bootstrapNewHistoryFromLuceneIndex();
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
+                final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId);
+                store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
                 // since we recover from local, just fill the files and size
                 try {
@@ -402,6 +407,9 @@ final class StoreRecovery {
                 }
             } else {
                 store.createEmpty();
+                final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(),
+                    SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                store.associateIndexWithNewTranslog(translogUUID);
             }
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
@@ -444,7 +452,12 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
-            indexShard.store().bootstrapNewHistoryFromLuceneIndex();
+            final Store store = indexShard.store();
+            store.bootstrapNewHistoryFromLuceneIndex();
+            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
+            final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId);
+            store.associateIndexWithNewTranslog(translogUUID);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());

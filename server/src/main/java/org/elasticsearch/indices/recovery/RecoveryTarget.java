@@ -443,7 +443,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 store.ensureIndexHasHistoryUUID();
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            store.createNewTranslog(SequenceNumbers.UNASSIGNED_SEQ_NO);
+            final String translogUUID =
+                Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

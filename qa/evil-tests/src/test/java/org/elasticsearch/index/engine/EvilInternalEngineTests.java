@@ -56,6 +56,7 @@ public class EvilInternalEngineTests extends EngineTestCase {
             try (Engine e = createEngine(
                     defaultSettings,
                     store,
+                    primaryTranslogDir,
                     newMergePolicy(),
                     (directory, iwc) -> new IndexWriter(directory, iwc) {
                         @Override

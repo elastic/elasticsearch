@@ -148,7 +148,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 return newFSDirectory(shardPath.resolveIndex());
             }
         };
-        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId), shardPath.resolveTranslog());
+        return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
     }
 
     /**

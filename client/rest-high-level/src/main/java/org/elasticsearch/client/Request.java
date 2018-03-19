@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -200,6 +201,17 @@ public final class Request {
 
         HttpEntity entity = createEntity(indicesAliasesRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPost.METHOD_NAME, "/_aliases", parameters.getParams(), entity);
+    }
+
+    static Request updateSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+        String endpoint = endpoint(updateSettingsRequest.indices(), "_settings");
+
+        Params parameters = Params.builder()
+            .withTimeout(updateSettingsRequest.timeout())
+            .withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
+
+        HttpEntity entity = createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     static Request putMapping(PutMappingRequest putMappingRequest) throws IOException {

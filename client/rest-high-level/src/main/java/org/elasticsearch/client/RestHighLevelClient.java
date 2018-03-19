@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -373,6 +375,24 @@ public class RestHighLevelClient implements Closeable {
      */
     public final void updateAsync(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(updateRequest, Request::update, UpdateResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     *Updates the settings of an index/indices or all the indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"</a>
+     */
+    public final UpdateSettingsResponse updateSettings(UpdateSettingsRequest updateSettingsRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(updateSettingsRequest, Request::updateSettings, UpdateSettingsResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     *Asynchronously updates the settings of an index/indices or all the indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"</a>
+     */
+    public final void updateSettingsAsync(UpdateSettingsRequest updateSettingsRequest, ActionListener<UpdateSettingsResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(updateSettingsRequest, Request::updateSettings, UpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

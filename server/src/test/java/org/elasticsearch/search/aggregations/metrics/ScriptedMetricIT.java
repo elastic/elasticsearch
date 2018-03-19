@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -62,6 +64,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.scripted
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -322,11 +325,11 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(numShardsRun, greaterThan(0));
     }
 
-    public void testMapWithParams() {
+    public void testExplicitAggParam() {
         Map<String, Object> params = new HashMap<>();
         params.put("_agg", new ArrayList<>());
 
-        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", params);
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", Collections.emptyMap());
 
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -1000,5 +1003,17 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 .getHitCount(), equalTo(0L));
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(0L));
+    }
+
+    public void testConflictingAggAndScriptParams() {
+        Map<String, Object> params = Collections.singletonMap("param1", "12");
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_agg.add(1)", params);
+
+        SearchRequestBuilder builder = client().prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(scriptedMetric("scripted").params(params).mapScript(mapScript));
+
+        SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, builder::get);
+        assertThat(ex.getCause().getMessage(), containsString("Parameter name \"param1\" used in both aggregation and script parameters"));
     }
 }

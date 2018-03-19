@@ -71,6 +71,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Collections.singletonMap("itemValue", 12));
     private static final Script COMBINE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptParams",
             Collections.singletonMap("divisor", 4));
+    private static final String CONFLICTING_PARAM_NAME = "initialValue";
 
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
@@ -229,6 +230,29 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
                 // The result value depends on the script params.
                 assertEquals(306, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testConflictingAggAndScriptParams() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 100; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                Map<String, Object> aggParams = Collections.singletonMap(CONFLICTING_PARAM_NAME, "blah");
+                aggregationBuilder.params(aggParams).initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS).
+                    combineScript(COMBINE_SCRIPT_PARAMS);
+
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+                    search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
+                );
+                assertEquals("Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
+                    ex.getMessage());
             }
         }
     }

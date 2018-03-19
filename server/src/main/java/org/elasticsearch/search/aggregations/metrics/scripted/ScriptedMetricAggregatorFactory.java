@@ -136,15 +136,17 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
     }
 
     private static Map<String, Object> mergeParams(Map<String, Object> agg, Map<String, Object> script) {
-        // TODO Should we throw an exception when param names conflict between aggregation and script? Need to add test coverage
-        // for error or override behavior depending on the decision. Should this check be added at call time or at
-        // construction?
+        // Start with script params
+        Map<String, Object> combined = new HashMap<>(script);
 
-        // Aggregation level commands need to win in case of conflict so that params can keep the same identity and
-        // content across all the scripts that are run in the aggregation.
-        Map<String, Object> combined = new HashMap<>();
-        combined.putAll(script);
-        combined.putAll(agg);
+        // Add in agg params, throwing an exception if any conflicts are detected
+        for (Map.Entry<String, Object> aggEntry : agg.entrySet()) {
+            if (combined.putIfAbsent(aggEntry.getKey(), aggEntry.getValue()) != null) {
+                throw new IllegalArgumentException("Parameter name \"" + aggEntry.getKey() +
+                    "\" used in both aggregation and script parameters");
+            }
+        }
+
         return combined;
     }
 }

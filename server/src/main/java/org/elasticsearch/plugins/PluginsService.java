@@ -328,7 +328,7 @@ public class PluginsService extends AbstractComponent {
         public Collection<Bundle> bundles() {
             return bundles;
         }
-
+        
     }
 
     /**

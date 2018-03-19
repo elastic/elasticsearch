@@ -519,9 +519,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class AmazonEC2Mock implements AmazonEC2 {
+public class AmazonEc2Mock implements AmazonEC2 {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(AmazonEC2Mock.class.getName());
+    private static final Logger logger = ESLoggerFactory.getLogger(AmazonEc2Mock.class.getName());
 
     public static final String PREFIX_PRIVATE_IP = "10.0.0.";
     public static final String PREFIX_PUBLIC_IP = "8.8.8.";
@@ -535,7 +535,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
     final AWSCredentialsProvider credentials;
     final ClientConfiguration configuration;
 
-    public AmazonEC2Mock(int nodes, List<List<Tag>> tagsList, AWSCredentialsProvider credentials, ClientConfiguration configuration) {
+    public AmazonEc2Mock(int nodes, List<List<Tag>> tagsList, AWSCredentialsProvider credentials, ClientConfiguration configuration) {
         if (tagsList != null) {
             assert tagsList.size() == nodes;
         }

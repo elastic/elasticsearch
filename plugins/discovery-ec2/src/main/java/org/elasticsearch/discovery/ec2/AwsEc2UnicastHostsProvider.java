@@ -105,7 +105,7 @@ class AwsEc2UnicastHostsProvider extends AbstractComponent implements UnicastHos
         final List<DiscoveryNode> discoNodes = new ArrayList<>();
 
         final DescribeInstancesResult descInstances;
-        try (AmazonEC2Reference clientReference = awsEc2Service.client()) {
+        try (AmazonEc2Reference clientReference = awsEc2Service.client()) {
             // Query EC2 API based on AZ, instance state, and tag.
 
             // NOTE: we don't filter by security group during the describe instances request for two reasons:

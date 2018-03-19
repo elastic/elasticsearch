@@ -104,15 +104,15 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReIni
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
         // Register EC2 discovery settings: discovery.ec2
-        EC2ClientSettings.ACCESS_KEY_SETTING,
-        EC2ClientSettings.SECRET_KEY_SETTING,
-        EC2ClientSettings.ENDPOINT_SETTING,
-        EC2ClientSettings.PROTOCOL_SETTING,
-        EC2ClientSettings.PROXY_HOST_SETTING,
-        EC2ClientSettings.PROXY_PORT_SETTING,
-        EC2ClientSettings.PROXY_USERNAME_SETTING,
-        EC2ClientSettings.PROXY_PASSWORD_SETTING,
-        EC2ClientSettings.READ_TIMEOUT_SETTING,
+        Ec2ClientSettings.ACCESS_KEY_SETTING,
+        Ec2ClientSettings.SECRET_KEY_SETTING,
+        Ec2ClientSettings.ENDPOINT_SETTING,
+        Ec2ClientSettings.PROTOCOL_SETTING,
+        Ec2ClientSettings.PROXY_HOST_SETTING,
+        Ec2ClientSettings.PROXY_PORT_SETTING,
+        Ec2ClientSettings.PROXY_USERNAME_SETTING,
+        Ec2ClientSettings.PROXY_PASSWORD_SETTING,
+        Ec2ClientSettings.READ_TIMEOUT_SETTING,
         AwsEc2Service.HOST_TYPE_SETTING,
         AwsEc2Service.ANY_GROUP_SETTING,
         AwsEc2Service.GROUPS_SETTING,
@@ -178,7 +178,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReIni
     @Override
     public boolean reinit(Settings settings) {
         // secure settings should be readable
-        final EC2ClientSettings clientSettings = EC2ClientSettings.getClientSettings(settings);
+        final Ec2ClientSettings clientSettings = Ec2ClientSettings.getClientSettings(settings);
         ec2Service.updateClientSettings(clientSettings);
         return true;
     }

@@ -80,14 +80,14 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(EC2ClientSettings.ACCESS_KEY_SETTING.getKey(), "some_access");
-        secureSettings.setString(EC2ClientSettings.SECRET_KEY_SETTING.getKey(), "some_secret");
+        secureSettings.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), "some_access");
+        secureSettings.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "some_secret");
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "ec2")
             .put("path.logs", resolve)
             .put("transport.tcp.port", 0)
             .put("node.portsfile", "true")
-            .put(EC2ClientSettings.ENDPOINT_SETTING.getKey(), "http://" + httpServer.getAddress().getHostName() + ":" +
+            .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), "http://" + httpServer.getAddress().getHostName() + ":" +
                 httpServer.getAddress().getPort())
             .setSecureSettings(secureSettings)
             .build();

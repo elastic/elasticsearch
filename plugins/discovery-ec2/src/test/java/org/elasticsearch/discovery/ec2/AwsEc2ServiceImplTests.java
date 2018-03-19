@@ -36,7 +36,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
         final AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger,
-                EC2ClientSettings.getClientSettings(Settings.EMPTY));
+                Ec2ClientSettings.getClientSettings(Settings.EMPTY));
         assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
@@ -49,7 +49,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
     }
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings settings, String expectedKey, String expectedSecret) {
-        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, EC2ClientSettings.getClientSettings(settings))
+        final AWSCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(settings))
                 .getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
@@ -82,7 +82,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
                                               String expectedProxyPassword,
                                               int expectedReadTimeout) {
         final ClientConfiguration configuration = AwsEc2ServiceImpl.buildConfiguration(logger,
-                EC2ClientSettings.getClientSettings(settings));
+                Ec2ClientSettings.getClientSettings(settings));
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

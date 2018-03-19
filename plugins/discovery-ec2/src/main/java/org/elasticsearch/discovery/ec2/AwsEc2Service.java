@@ -82,7 +82,7 @@ interface AwsEc2Service {
      * Creates then caches an {@code AmazonEC2} client using the current client
      * settings.
      */
-    AmazonEC2Reference client();
+    AmazonEc2Reference client();
 
     /**
      * Updates settings for building the client. Future client requests will use the
@@ -93,7 +93,7 @@ interface AwsEc2Service {
      *            the new settings
      * @return the old settings
      */
-    EC2ClientSettings updateClientSettings(EC2ClientSettings clientSettings);
+    Ec2ClientSettings updateClientSettings(Ec2ClientSettings clientSettings);
 
     /**
      * Releases the cached client. Subsequent client requests will recreate the

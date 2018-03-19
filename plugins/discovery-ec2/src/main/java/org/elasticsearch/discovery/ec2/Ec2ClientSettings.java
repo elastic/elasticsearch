@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import java.util.Locale;
 
-public class EC2ClientSettings {
+public class Ec2ClientSettings {
 
     /** The access key (ie login id) for connecting to ec2. */
     static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.secureString("discovery.ec2.access_key", null);
@@ -93,7 +93,7 @@ public class EC2ClientSettings {
     /** The read timeout for the ec2 client. */
     final int readTimeoutMillis;
 
-    protected EC2ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol, String proxyHost, int proxyPort,
+    protected Ec2ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol, String proxyHost, int proxyPort,
             String proxyUsername, String proxyPassword, int readTimeoutMillis) {
         this.credentials = credentials;
         this.endpoint = endpoint;
@@ -123,11 +123,11 @@ public class EC2ClientSettings {
 
     // pkg private for tests
     /** Parse settings for a single client. */
-    static EC2ClientSettings getClientSettings(Settings settings) {
+    static Ec2ClientSettings getClientSettings(Settings settings) {
         final BasicAWSCredentials credentials = loadCredentials(settings);
         try (SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
              SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)) {
-            return new EC2ClientSettings(
+            return new Ec2ClientSettings(
                 credentials,
                 ENDPOINT_SETTING.get(settings),
                 PROTOCOL_SETTING.get(settings),

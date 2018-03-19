@@ -40,14 +40,14 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
-    private volatile AmazonEC2Reference clientReference;
-    private volatile EC2ClientSettings clientSettings;
+    private volatile AmazonEc2Reference clientReference;
+    private volatile Ec2ClientSettings clientSettings;
 
     AwsEc2ServiceImpl(Settings settings) {
         super(settings);
     }
 
-    private AmazonEC2 buildClient(EC2ClientSettings clientSettings) {
+    private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         final ClientConfiguration configuration = buildConfiguration(logger, clientSettings);
         final AmazonEC2 client = buildClient(credentials, configuration);
@@ -65,7 +65,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(Logger logger, EC2ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -95,7 +95,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(Logger logger, EC2ClientSettings clientSettings) {
+    static AWSCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
         final BasicAWSCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             logger.debug("Using either environment variables, system properties or instance profile credentials");
@@ -107,7 +107,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
     }
 
     @Override
-    public AmazonEC2Reference client() {
+    public AmazonEc2Reference client() {
         if ((clientReference != null) && clientReference.tryIncRef()) {
             return clientReference;
         }
@@ -118,7 +118,7 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
             if (clientSettings == null) {
                 throw new IllegalArgumentException("Missing ec2 client configs.");
             }
-            final AmazonEC2Reference clientReference = new AmazonEC2Reference(buildClient(clientSettings));
+            final AmazonEc2Reference clientReference = new AmazonEc2Reference(buildClient(clientSettings));
             clientReference.incRef();
             this.clientReference = clientReference;
             return clientReference;
@@ -132,11 +132,11 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
      * destroyed instead of being returned to the cache.
      */
     @Override
-    public synchronized EC2ClientSettings updateClientSettings(EC2ClientSettings clientSettings) {
+    public synchronized Ec2ClientSettings updateClientSettings(Ec2ClientSettings clientSettings) {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClient();
-        final EC2ClientSettings prevSettings = this.clientSettings;
+        final Ec2ClientSettings prevSettings = this.clientSettings;
         this.clientSettings = clientSettings;
         return prevSettings;
     }

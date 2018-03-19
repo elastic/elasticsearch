@@ -28,11 +28,11 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
  * Handles the shutdown of the wrapped {@link AmazonEC2Client} using reference
  * counting.
  */
-public class AmazonEC2Reference extends AbstractRefCounted implements Releasable {
+public class AmazonEc2Reference extends AbstractRefCounted implements Releasable {
 
     private final AmazonEC2 client;
 
-    AmazonEC2Reference(AmazonEC2 client) {
+    AmazonEc2Reference(AmazonEC2 client) {
         super("AWS_EC2_CLIENT");
         this.client = client;
     }

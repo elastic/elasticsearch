@@ -41,7 +41,7 @@ public class AwsEc2ServiceMock extends AwsEc2ServiceImpl {
 
     @Override
     AmazonEC2 buildClient(AWSCredentialsProvider credentials, ClientConfiguration configuration) {
-        return new AmazonEC2Mock(nodes, tagsList, credentials, configuration);
+        return new AmazonEc2Mock(nodes, tagsList, credentials, configuration);
     }
 
 }

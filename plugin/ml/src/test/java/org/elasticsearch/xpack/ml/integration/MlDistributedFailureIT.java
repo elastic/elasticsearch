@@ -18,6 +18,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
@@ -34,13 +36,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
 
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
@@ -210,7 +212,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             assertNotNull(tasks);
             assertEquals("Expected 2 tasks, but got [" + tasks.taskMap() + "]", 2, tasks.taskMap().size());
             for (PersistentTask<?> task : tasks.tasks()) {
-                assertFalse(task.needsReassignment(clusterState.nodes()));
+                assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             }
 
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);

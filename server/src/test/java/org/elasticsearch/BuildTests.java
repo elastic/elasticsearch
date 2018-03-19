@@ -25,6 +25,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class BuildTests extends ESTestCase {
 
@@ -40,17 +43,23 @@ public class BuildTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         Build build = Build.CURRENT;
-        Build another = new Build(build.shortHash(), build.date(), build.isSnapshot());
+
+        Build another = new Build(build.flavor(), build.shortHash(), build.date(), build.isSnapshot());
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
 
-        Build differentHash = new Build(randomAlphaOfLengthBetween(3, 10), build.date(), build.isSnapshot());
+        final Set<Build.Flavor> otherFlavors =
+                Arrays.stream(Build.Flavor.values()).filter(f -> !f.equals(build.flavor())).collect(Collectors.toSet());
+        Build differentFlavor = new Build(randomFrom(otherFlavors), build.shortHash(), build.date(), build.isSnapshot());
+        assertNotEquals(build, differentFlavor);
+
+        Build differentHash = new Build(build.flavor(), randomAlphaOfLengthBetween(3, 10), build.date(), build.isSnapshot());
         assertNotEquals(build, differentHash);
 
-        Build differentDate = new Build(build.shortHash(), "1970-01-01", build.isSnapshot());
+        Build differentDate = new Build(build.flavor(), build.shortHash(), "1970-01-01", build.isSnapshot());
         assertNotEquals(build, differentDate);
 
-        Build differentSnapshot = new Build(build.shortHash(), build.date(), !build.isSnapshot());
+        Build differentSnapshot = new Build(build.flavor(), build.shortHash(), build.date(), !build.isSnapshot());
         assertNotEquals(build, differentSnapshot);
     }
 }

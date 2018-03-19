@@ -269,7 +269,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
         if (oss) {
           from project(':distribution').buildOssLog4jConfig
@@ -287,11 +287,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main bin files, processed with distribution specific substitutions
           // everything except windows files
           from '../src/bin'
-          exclude '*.bat'
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
         with copySpec {
           eachFile { it.setMode(0755) }
@@ -356,7 +355,7 @@ task run(type: RunTask) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType ->
+  ext.expansionsForDistribution = { distributionType, oss ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
@@ -427,6 +426,10 @@ subprojects {
         'deb': "exit 0\n${footer}",
         'def': footer
       ],
+
+      'es.distribution.flavor': [
+        'def': oss ? 'oss' : 'default'
+      ]
     ]
     Map<String, String> result = [:]
     expansions = expansions.each { key, value ->

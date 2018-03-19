@@ -47,11 +47,6 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    String type() {
-        return "binary";
-    }
-
-    @Override
     public void copyCurrent(int slot) {
         values[slot] = BytesRef.deepCopyOf(currentValue);
     }
@@ -113,11 +108,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
-        final BytesRef filterValue = (BytesRef) value;
+        currentValue = (BytesRef) value;
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                currentValue = filterValue;
                 next.collect(doc, bucket);
             }
         };

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -33,7 +32,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 
 /**
- * A source that can record and compare values produced by documents.
+ * A source that can record and compare values of similar type.
  */
 abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
     protected final int size;
@@ -57,12 +56,10 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     }
 
     /**
-     * The type of this source.
-     */
-    abstract String type();
-
-    /**
-     * Copies the current value in <code>slot</code>.
+     * The current value is filled by a {@link LeafBucketCollector} that visits all the
+     * values of each document. This method saves this current value in a slot and should only be used
+     * in the context of a collection.
+     * See {@link this#getLeafCollector}.
      */
     abstract void copyCurrent(int slot);
 
@@ -72,12 +69,18 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract int compare(int from, int to);
 
     /**
-     * Compares the current value with the value in <code>slot</code>.
+     * The current value is filled by a {@link LeafBucketCollector} that visits all the
+     * values of each document. This method compares this current value with the value present in
+     * the provided slot and should only be used in the context of a collection.
+     * See {@link this#getLeafCollector}.
      */
     abstract int compareCurrent(int slot);
 
     /**
-     * Compares the current value with the after value set in this source.
+     * The current value is filled by a {@link LeafBucketCollector} that visits all the
+     * values of each document. This method compares this current value with the after value
+     * set on this source and should only be used in the context of a collection.
+     * See {@link this#getLeafCollector}.
      */
     abstract int compareCurrentWithAfter();
 
@@ -99,12 +102,17 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
     abstract T toComparable(int slot) throws IOException;
 
     /**
-     * Gets the {@link LeafCollector} that will record the values of the visited documents.
+     * Creates a {@link LeafBucketCollector} that extracts all values from a document and invokes
+     * {@link LeafBucketCollector#collect} on the provided <code>next</code> collector for each of them.
+     * The current value of this source is set on each call and can be accessed by <code>next</code> via
+     * the {@link this#copyCurrent(int)} and {@link this#compareCurrent(int)} methods. Note that these methods
+     * are only valid when invoked from the {@link LeafBucketCollector} created in this source.
      */
     abstract LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException;
 
     /**
-     * Gets a {@link LeafCollector} that will produce the provided value for all visited documents.
+     * Creates a {@link LeafBucketCollector} that sets the current value for each document to the provided
+     * <code>value</code> and invokes {@link LeafBucketCollector#collect} on the provided <code>next</code> collector.
      */
     abstract LeafBucketCollector getLeafCollector(Comparable<?> value,
                                                   LeafReaderContext context, LeafBucketCollector next) throws IOException;

@@ -64,11 +64,6 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     }
 
     @Override
-    String type() {
-        return "long";
-    }
-
-    @Override
     void copyCurrent(int slot) {
         values.set(slot, currentValue);
     }
@@ -132,11 +127,10 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         if (value.getClass() != Long.class) {
             throw new IllegalArgumentException("Expected Long, got " + value.getClass());
         }
-        long filterValue = (Long) value;
+        currentValue = (Long) value;
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                currentValue = filterValue;
                 next.collect(doc, bucket);
             }
         };

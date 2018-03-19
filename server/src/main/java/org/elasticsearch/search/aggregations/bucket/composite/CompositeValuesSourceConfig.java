@@ -33,14 +33,6 @@ class CompositeValuesSourceConfig {
     private final DocValueFormat format;
     private final int reverseMul;
 
-    /**
-     *
-     * @param name
-     * @param fieldType
-     * @param vs
-     * @param format
-     * @param order
-     */
     CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format, SortOrder order) {
         this.name = name;
         this.fieldType = fieldType;

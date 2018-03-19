@@ -59,11 +59,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    String type() {
-        return "global_ordinals";
-    }
-
-    @Override
     void copyCurrent(int slot) {
         values.set(slot, currentValue);
     }

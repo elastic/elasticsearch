@@ -49,11 +49,6 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     }
 
     @Override
-    String type() {
-        return "long";
-    }
-
-    @Override
     void copyCurrent(int slot) {
         values.set(slot, currentValue);
     }
@@ -113,11 +108,10 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         if (value.getClass() != Double.class) {
             throw new IllegalArgumentException("Expected Double, got " + value.getClass());
         }
-        double filterValue = (Double) value;
+        currentValue = (Double) value;
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                currentValue = filterValue;
                 next.collect(doc, bucket);
             }
         };

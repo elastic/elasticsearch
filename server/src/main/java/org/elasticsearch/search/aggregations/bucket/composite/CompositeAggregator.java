@@ -211,7 +211,7 @@ final class CompositeAggregator extends BucketsAggregator {
         deferredCollectors.preCollection();
         for (Entry entry : entries) {
             DocIdSetIterator docIdSetIterator = entry.docIdSet.iterator();
-            if (docIdSetIterator == null || docIdSetIterator.cost() == 0) {
+            if (docIdSetIterator == null) {
                 continue;
             }
             final LeafBucketCollector subCollector = deferredCollectors.getLeafCollector(entry.context);
@@ -244,7 +244,8 @@ final class CompositeAggregator extends BucketsAggregator {
     private LeafBucketCollector getSecondPassCollector(LeafBucketCollector subCollector) {
         return new LeafBucketCollector() {
             @Override
-            public void collect(int doc, long bucket) throws IOException {
+            public void collect(int doc, long zeroBucket) throws IOException {
+                assert zeroBucket == 0;
                 Integer slot = queue.compareCurrent();
                 if (slot != null) {
                     // The candidate key is a top bucket.

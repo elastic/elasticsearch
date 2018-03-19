@@ -54,10 +54,14 @@ abstract class SortedDocsProducer {
                                     Comparable<?> leadSourceBucket, @Nullable DocIdSetBuilder builder) throws IOException {
         final int[] topCompositeCollected = new int[1];
         final boolean[] hasCollected = new boolean[1];
-        int cost = (int) iterator.cost();
-        final DocIdSetBuilder.BulkAdder adder = builder != null ? builder.grow(cost) : null;
         final LeafBucketCollector queueCollector = new LeafBucketCollector() {
             int lastDoc = -1;
+
+            // we need to add the matching document in the builder
+            // so we build a bulk adder from the approximate cost of the iterator
+            // and rebuild the adder during the collection if needed
+            int remainingBits = (int) iterator.cost();
+            DocIdSetBuilder.BulkAdder adder = builder == null ? null : builder.grow(remainingBits);
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -66,7 +70,14 @@ abstract class SortedDocsProducer {
                 if (slot != -1) {
                     topCompositeCollected[0]++;
                     if (adder != null && doc != lastDoc) {
+                        if (remainingBits == 0) {
+                            // the cost approximation was lower than the real size, we need to grow the adder
+                            // by some numbers (128) to ensure that we can add the extra documents
+                            adder = builder.grow(128);
+                            remainingBits = 128;
+                        }
                         adder.add(doc);
+                        remainingBits --;
                         lastDoc = doc;
                     }
                 }

@@ -119,9 +119,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch");
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("executed"));
+        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
     }
@@ -172,9 +170,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch");
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("executed"));
+        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -226,10 +222,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             indexWatch("my_watch", builder);
         }
 
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch");
-
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("executed"));
+        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -253,10 +246,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             indexWatch("my_watch", builder);
         }
 
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch");
-
-        String state = objectPath.evaluate("hits.hits.0._source.state");
-        assertThat(state, is("executed"));
+        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -275,6 +265,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     }
 
     private ObjectPath getWatchHistoryEntry(String watchId) throws Exception {
+        return getWatchHistoryEntry(watchId, null);
+    }
+
+    private ObjectPath getWatchHistoryEntry(String watchId, String state) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
         assertBusy(() -> {
             client().performRequest("POST", ".watcher-history-*/_refresh");
@@ -284,6 +278,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.startObject("query").startObject("bool").startArray("must");
                 builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
                         .endObject();
+                if (Strings.isNullOrEmpty(state) == false) {
+                    builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
+                            .endObject();
+                }
                 builder.endArray().endObject().endObject();
                 builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
                         .endObject().endArray();

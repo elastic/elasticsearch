@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -290,6 +291,12 @@ public class RequestTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testIndicesExistEmptyIndices() {
+        String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        ActionRequestValidationException validationException = new GetIndexRequest().indices(indices).validate();
+        assertNotNull(validationException);
+    }
+
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
         String index = randomAlphaOfLengthBetween(3, 10);
         String type = randomAlphaOfLengthBetween(3, 10);
@@ -363,6 +370,11 @@ public class RequestTests extends ESTestCase {
         assertToXContentBody(createIndexRequest, request.getEntity());
     }
 
+    public void testCreateIndexNullIndex() {
+        ActionRequestValidationException validationException = new CreateIndexRequest(null).validate();
+        assertNotNull(validationException);
+    }
+
     public void testUpdateAliases() throws IOException {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         AliasActions aliasAction = randomAliasAction();
@@ -424,6 +436,12 @@ public class RequestTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testDeleteIndexEmptyIndices() {
+        String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        ActionRequestValidationException validationException = new DeleteIndexRequest(indices).validate();
+        assertNotNull(validationException);
+    }
+
     public void testOpenIndex() {
         String[] indices = randomIndicesNames(1, 5);
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(indices);
@@ -443,6 +461,12 @@ public class RequestTests extends ESTestCase {
         assertThat(request.getEntity(), nullValue());
     }
 
+    public void testOpenIndexEmptyIndices() {
+        String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        ActionRequestValidationException validationException = new OpenIndexRequest(indices).validate();
+        assertNotNull(validationException);
+    }
+
     public void testCloseIndex() {
         String[] indices = randomIndicesNames(1, 5);
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
@@ -458,6 +482,12 @@ public class RequestTests extends ESTestCase {
         assertThat(expectedParams, equalTo(request.getParameters()));
         assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(request.getEntity(), nullValue());
+    }
+
+    public void testCloseIndexEmptyIndices() {
+        String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
+        ActionRequestValidationException validationException = new CloseIndexRequest(indices).validate();
+        assertNotNull(validationException);
     }
 
     public void testIndex() throws IOException {
@@ -539,13 +569,19 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testRefresh() {
-        String[] indices = randomIndicesNames(0, 5);
-        RefreshRequest refreshRequest = new RefreshRequest(indices);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        RefreshRequest refreshRequest;
+        if (randomBoolean()) {
+            refreshRequest = new RefreshRequest(indices);
+        } else {
+            refreshRequest = new RefreshRequest();
+            refreshRequest.indices(indices);
+        }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(refreshRequest::indicesOptions, refreshRequest::indicesOptions, expectedParams);
         Request request = Request.refresh(refreshRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices.length > 0) {
+        if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_refresh");
@@ -556,8 +592,14 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testFlush() {
-        String[] indices = randomIndicesNames(0, 5);
-        FlushRequest flushRequest = new FlushRequest(indices);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        FlushRequest flushRequest;
+        if (randomBoolean()) {
+            flushRequest = new FlushRequest(indices);
+        } else {
+            flushRequest = new FlushRequest();
+            flushRequest.indices(indices);
+        }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(flushRequest::indicesOptions, flushRequest::indicesOptions, expectedParams);
         if (randomBoolean()) {
@@ -571,7 +613,7 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.flush(flushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices.length > 0) {
+        if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
@@ -582,8 +624,14 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testClearCache() {
-        String[] indices = randomIndicesNames(0, 5);
-        ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(indices);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        ClearIndicesCacheRequest clearIndicesCacheRequest;
+        if (randomBoolean()) {
+            clearIndicesCacheRequest = new ClearIndicesCacheRequest(indices);
+        } else {
+            clearIndicesCacheRequest = new ClearIndicesCacheRequest();
+            clearIndicesCacheRequest.indices(indices);
+        }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(clearIndicesCacheRequest::indicesOptions, clearIndicesCacheRequest::indicesOptions, expectedParams);
         if (randomBoolean()) {
@@ -605,7 +653,7 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.clearCache(clearIndicesCacheRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        if (indices.length > 0) {
+        if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_cache/clear");
@@ -1027,6 +1075,12 @@ public class RequestTests extends ESTestCase {
         assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
 
+    public void testSearchNullIndicesAndTypes() {
+        expectThrows(NullPointerException.class, () -> new SearchRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new SearchRequest().indices((String[]) null));
+        expectThrows(NullPointerException.class, () -> new SearchRequest().types((String[]) null));
+    }
+
     public void testMultiSearch() throws IOException {
         int numberOfSearchRequests = randomIntBetween(0, 32);
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
@@ -1107,10 +1161,16 @@ public class RequestTests extends ESTestCase {
 
     public void testExistsAlias() {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        String[] indices = randomIndicesNames(0, 5);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
         getAliasesRequest.indices(indices);
         //the HEAD endpoint requires at least an alias or an index
-        String[] aliases = randomIndicesNames(indices.length == 0 ? 1 : 0, 5);
+        boolean hasIndices = indices != null && indices.length > 0;
+        String[] aliases;
+        if (hasIndices) {
+            aliases = randomBoolean() ? null : randomIndicesNames(0, 5);
+        } else {
+            aliases = randomIndicesNames(1, 5);
+        }
         getAliasesRequest.aliases(aliases);
         Map<String, String> expectedParams = new HashMap<>();
         setRandomLocal(getAliasesRequest, expectedParams);
@@ -1118,14 +1178,12 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.existsAlias(getAliasesRequest);
         StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            expectedEndpoint.add(index);
+        if (indices != null && indices.length > 0) {
+            expectedEndpoint.add(String.join(",", indices));
         }
         expectedEndpoint.add("_alias");
-        String alias = String.join(",", aliases);
-        if (Strings.hasLength(alias)) {
-            expectedEndpoint.add(alias);
+        if (aliases != null && aliases.length > 0) {
+            expectedEndpoint.add(String.join(",", aliases));
         }
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint.toString(), request.getEndpoint());
@@ -1296,30 +1354,99 @@ public class RequestTests extends ESTestCase {
         assertEquals("1", requestParams.values().iterator().next());
     }
 
-    public void testBuildEndpoint() {
-        assertEquals("/", Request.buildEndpoint());
-        assertEquals("/", Request.buildEndpoint(Strings.EMPTY_ARRAY));
-        assertEquals("/", Request.buildEndpoint(""));
-        assertEquals("/a/b", Request.buildEndpoint("a", "b"));
-        assertEquals("/a/b/_create", Request.buildEndpoint("a", "b", "_create"));
-        assertEquals("/a/b/c/_create", Request.buildEndpoint("a", "b", "c", "_create"));
-        assertEquals("/a/_create", Request.buildEndpoint("a", null, null, "_create"));
+    public void testEndpointBuilder() {
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder();
+            assertEquals("/", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart(Strings.EMPTY_ARRAY);
+            assertEquals("/", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("");
+            assertEquals("/", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a", "b");
+            assertEquals("/a/b", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a").addPathPart("b")
+                    .addPathPartAsIs("_create");
+            assertEquals("/a/b/_create", endpointBuilder.build());
+        }
+
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a", "b", "c")
+                    .addPathPartAsIs("_create");
+            assertEquals("/a/b/c/_create", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a").addPathPartAsIs("_create");
+            assertEquals("/a/_create", endpointBuilder.build());
+        }
     }
 
-    public void testBuildEndPointEncodeParts() {
-        assertEquals("/-%23index1,index%232/type/id", Request.buildEndpoint("-#index1,index#2", "type", "id"));
-        assertEquals("/index/type%232/id", Request.buildEndpoint("index", "type#2", "id"));
-        assertEquals("/index/type/this%2Fis%2Fthe%2Fid", Request.buildEndpoint("index", "type", "this/is/the/id"));
-        assertEquals("/index/type/this%7Cis%7Cthe%7Cid", Request.buildEndpoint("index", "type", "this|is|the|id"));
-        assertEquals("/index/type/id%231", Request.buildEndpoint("index", "type", "id#1"));
-        assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", Request.buildEndpoint("<logstash-{now/M}>", "_search"));
-        assertEquals("/中文", Request.buildEndpoint("中文"));
-        assertEquals("/foo%20bar", Request.buildEndpoint("foo bar"));
-        assertEquals("/foo+bar", Request.buildEndpoint("foo+bar"));
-        assertEquals("/foo%2Fbar", Request.buildEndpoint("foo/bar"));
-        assertEquals("/foo%5Ebar", Request.buildEndpoint("foo^bar"));
-        assertEquals("/cluster1:index1,index2/_search", Request.buildEndpoint("cluster1:index1,index2", "_search"));
-        assertEquals("/*", Request.buildEndpoint("*"));
+    public void testEndpointBuilderEncodeParts() {
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("-#index1,index#2", "type", "id");
+            assertEquals("/-%23index1,index%232/type/id", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type#2", "id");
+            assertEquals("/index/type%232/id", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "this/is/the/id");
+            assertEquals("/index/type/this%2Fis%2Fthe%2Fid", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "this|is|the|id");
+            assertEquals("/index/type/this%7Cis%7Cthe%7Cid", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "id#1");
+            assertEquals("/index/type/id%231", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("<logstash-{now/M}>", "_search");
+            assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("中文");
+            assertEquals("/中文", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo bar");
+            assertEquals("/foo%20bar", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo+bar");
+            assertEquals("/foo+bar", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo+bar");
+            assertEquals("/foo+bar", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo/bar");
+            assertEquals("/foo%2Fbar", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo^bar");
+            assertEquals("/foo%5Ebar", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("cluster1:index1,index2")
+                    .addPathPartAsIs("_search");
+            assertEquals("/cluster1:index1,index2/_search", endpointBuilder.build());
+        }
+        {
+            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder()
+                    .addCommaSeparatedPathParts(new String[]{"index1", "index2"}).addPathPartAsIs("cache/clear");
+            assertEquals("/index1,index2/cache/clear", endpointBuilder.build());
+        }
     }
 
     public void testEndpoint() {

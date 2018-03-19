@@ -79,7 +79,7 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             buildProperties.extension.plugins.each { String bundledPluginProjectName ->
                 Project bundledPluginProject = project.project(bundledPluginProjectName)
                 bundledPluginProject.afterEvaluate {
-                    String bundledPluginName = bundledPLuginProject.esplugin.name
+                    String bundledPluginName = bundledPluginProject.esplugin.name
                     bundle.configure {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {

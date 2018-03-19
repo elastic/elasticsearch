@@ -69,6 +69,11 @@ public abstract class WatchExecutionContext {
     public abstract boolean skipThrottling(String actionId);
 
     /**
+     * @return true if execution is allowed (this depends on the type of the watch context)
+     */
+    public abstract boolean shouldBeExecuted();
+
+    /**
      * @return true if this execution should be recorded in the .watcher-history index
      */
     public abstract boolean recordExecution();

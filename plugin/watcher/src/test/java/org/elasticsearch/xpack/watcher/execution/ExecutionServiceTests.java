@@ -1037,6 +1037,42 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(assertionsTriggered.get(), is(true));
     }
 
+    public void testManualWatchExecutionContextGetsAlwaysExecuted() throws Exception {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        ManualExecutionContext ctx = ManualExecutionContext.builder(watch, true,
+                new ManualTriggerEvent("foo", event), timeValueSeconds(5)).build();
+
+        when(watch.input()).thenReturn(input);
+        Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
+        ExecutableCondition condition = mock(ExecutableCondition.class);
+        when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
+        when(watch.condition()).thenReturn(condition);
+
+        Action.Result actionResult = mock(Action.Result.class);
+        when(actionResult.type()).thenReturn("_action_type");
+        when(actionResult.status()).thenReturn(Action.Result.Status.SUCCESS);
+        ExecutableAction action = mock(ExecutableAction.class);
+        when(action.logger()).thenReturn(logger);
+        when(action.execute(eq("_action"), eq(ctx), eq(payload))).thenReturn(actionResult);
+
+        ActionWrapper actionWrapper = mock(ActionWrapper.class);
+        ActionWrapperResult actionWrapperResult = new ActionWrapperResult("_action", actionResult);
+        when(actionWrapper.execute(anyObject())).thenReturn(actionWrapperResult);
+
+        when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
+
+        WatchStatus status = mock(WatchStatus.class);
+        when(status.state()).thenReturn(new WatchStatus.State(false, now()));
+        when(watch.status()).thenReturn(status);
+
+        WatchRecord watchRecord = executionService.execute(ctx);
+        assertThat(watchRecord.state(), is(ExecutionState.EXECUTED));
+    }
+
     private WatchExecutionContext createMockWatchExecutionContext(String watchId, DateTime executionTime) {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.id()).thenReturn(new Wid(watchId, executionTime));

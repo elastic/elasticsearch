@@ -96,6 +96,13 @@ public class ManualExecutionContext extends WatchExecutionContext {
     }
 
     @Override
+    public boolean shouldBeExecuted() {
+        // we always want to execute a manually triggered watch as the user has triggered this via an
+        // external API call
+        return true;
+    }
+
+    @Override
     public final boolean recordExecution() {
         return recordExecution;
     }

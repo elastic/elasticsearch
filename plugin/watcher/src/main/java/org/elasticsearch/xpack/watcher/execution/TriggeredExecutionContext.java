@@ -45,6 +45,11 @@ public class TriggeredExecutionContext extends WatchExecutionContext {
     }
 
     @Override
+    public boolean shouldBeExecuted() {
+        return watch().status().state().isActive();
+    }
+
+    @Override
     public final boolean recordExecution() {
         return true;
     }

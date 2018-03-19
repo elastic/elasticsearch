@@ -170,15 +170,11 @@ public final class Request {
     }
 
     static Request closeIndex(CloseIndexRequest closeIndexRequest) {
-        String[] indices = closeIndexRequest.indices() == null ? Strings.EMPTY_ARRAY : closeIndexRequest.indices();
-        String endpoint = endpoint(indices, "_close");
-
+        String endpoint = endpoint(closeIndexRequest.indices(), "_close");
         Params parameters = Params.builder();
-
         parameters.withTimeout(closeIndexRequest.timeout());
         parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
-
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 

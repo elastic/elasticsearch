@@ -1,8 +1,7 @@
 [[indices-put-mapping]]
 == Put Mapping
 
-The PUT mapping API allows you to add a new type to an existing index, or add new
-fields to an existing type:
+The PUT mapping API allows you to add fields to an existing index or to change search only settings of existing fields.
 
 [source,js]
 --------------------------------------------------
@@ -10,15 +9,6 @@ PUT twitter <1>
 {}
 
 PUT twitter/_mapping/_doc <2>
-{
-  "properties": {
-    "name": {
-      "type": "text"
-    }
-  }
-}
-
-PUT twitter/_mapping/_doc <3>
 {
   "properties": {
     "email": {
@@ -29,8 +19,7 @@ PUT twitter/_mapping/_doc <3>
 --------------------------------------------------
 // CONSOLE
 <1> <<indices-create-index,Creates an index>> called `twitter` without any type mapping.
-<2> Uses the PUT mapping API to add a new mapping type called `user`.
-<3> Uses the PUT mapping API to add a new field called `email` to the `user` mapping type.
+<2> Uses the PUT mapping API to add a new field called `email` to the `_doc` mapping type.
 
 More information on how to define type mappings can be found in the
 <<mapping,mapping>> section.
@@ -125,4 +114,3 @@ PUT my_index/_mapping/_doc
 
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
-

@@ -26,13 +26,11 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -66,8 +64,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -93,8 +89,6 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
@@ -1106,7 +1100,7 @@ public final class InternalTestCluster extends TestCluster {
         // test that have ongoing write operations after the test (for example because ttl is used
         // and not all docs have been purged after the test) and inherit from
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
-        assertShardIndexCounter();
+        assertNoPendingIndexOperations();
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
@@ -1136,30 +1130,19 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void assertShardIndexCounter() throws Exception {
+    private void assertNoPendingIndexOperations() throws Exception {
         assertBusy(() -> {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
                     for (IndexShard indexShard : indexService) {
-                        int activeOperationsCount = indexShard.getActiveOperationsCount();
-                        if (activeOperationsCount > 0) {
-                            TaskManager taskManager = getInstance(TransportService.class, nodeAndClient.name).getTaskManager();
-                            DiscoveryNode localNode = getInstance(ClusterService.class, nodeAndClient.name).localNode();
-                            List<TaskInfo> taskInfos = taskManager.getTasks().values().stream()
-                                    .filter(task -> task instanceof ReplicationTask)
-                                    .map(task -> task.taskInfo(localNode.getId(), true))
-                                    .collect(Collectors.toList());
-                            ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
-                            try {
-                                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().value(response);
-                                throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
-                                        nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
-                                        builder.string());
-                            } catch (IOException e) {
-                                throw new RuntimeException("caught exception while building response [" + response + "]", e);
-                            }
+                        List<String> operations = indexShard.getActiveOperations();
+                        if (operations.size() > 0) {
+                            throw new AssertionError(
+                                "shard " + indexShard.shardId() + " on node [" + nodeAndClient.name + "] has pending operations:\n --> " +
+                                    operations.stream().collect(Collectors.joining("\n --> "))
+                            );
                         }
                     }
                 }

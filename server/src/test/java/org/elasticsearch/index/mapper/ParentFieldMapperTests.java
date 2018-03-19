@@ -21,7 +21,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,13 +60,13 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testParentSetInDocNotAllowed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject().field("_parent", "1122").endObject().bytes(), XContentType.JSON));
+            docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().field("_parent", "1122").endObject()), XContentType.JSON));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_parent] is a metadata field and cannot be added inside a document"));
@@ -72,11 +74,11 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testJoinFieldSet() throws Exception {
-        String parentMapping = XContentFactory.jsonBuilder().startObject().startObject("parent_type")
-                .endObject().endObject().string();
-        String childMapping = XContentFactory.jsonBuilder().startObject().startObject("child_type")
+        String parentMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("parent_type")
+                .endObject().endObject());
+        String childMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
         indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE);
         indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE);
@@ -97,14 +99,14 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testJoinFieldNotSet() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+                .endObject().endObject());
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("x_field", "x_value")
-                .endObject()
-                .bytes(), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("x_field", "x_value")
+                        .endObject()), XContentType.JSON));
         assertEquals(0, getNumberOfFieldWithParentPrefix(doc.rootDoc()));
     }
 
@@ -121,7 +123,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .endObject()
             .endObject().endObject();
-        mapperService.merge("some_type", new CompressedXContent(mappingSource.string()), MergeReason.MAPPING_UPDATE);
+        mapperService.merge("some_type", new CompressedXContent(Strings.toString(mappingSource)), MergeReason.MAPPING_UPDATE);
         Set<String> allFields = new HashSet<>(mapperService.simpleMatchToIndexNames("*"));
         assertTrue(allFields.contains("_parent"));
         assertFalse(allFields.contains("_parent#null"));
@@ -140,20 +142,20 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testUpdateEagerGlobalOrds() throws IOException {
-        String parentMapping = XContentFactory.jsonBuilder().startObject().startObject("parent_type")
-                .endObject().endObject().string();
-        String childMapping = XContentFactory.jsonBuilder().startObject().startObject("child_type")
+        String parentMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("parent_type")
+                .endObject().endObject());
+        String childMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         IndexService indexService = createIndex("test", Settings.builder().put("index.version.created", Version.V_5_6_0).build());
         indexService.mapperService().merge("parent_type", new CompressedXContent(parentMapping), MergeReason.MAPPING_UPDATE);
         indexService.mapperService().merge("child_type", new CompressedXContent(childMapping), MergeReason.MAPPING_UPDATE);
 
         assertTrue(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());
 
-        String childMappingUpdate = XContentFactory.jsonBuilder().startObject().startObject("child_type")
+        String childMappingUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child_type")
                 .startObject("_parent").field("type", "parent_type").field("eager_global_ordinals", false).endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         indexService.mapperService().merge("child_type", new CompressedXContent(childMappingUpdate), MergeReason.MAPPING_UPDATE);
 
         assertFalse(indexService.mapperService().documentMapper("child_type").parentFieldMapper().fieldType().eagerGlobalOrdinals());

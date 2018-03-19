@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -49,7 +49,7 @@ final class PSubDefField extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        actual = expected == null || explicit ? locals.getDefinition().DefType : expected;
+        actual = expected == null || explicit ? def.class : expected;
     }
 
     @Override
@@ -57,7 +57,7 @@ final class PSubDefField extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, org.objectweb.asm.Type.getType(Object.class));
+            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
         writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -72,7 +72,7 @@ final class PSubDefField extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         this.actual = actual;
     }
 
@@ -86,7 +86,7 @@ final class PSubDefField extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType =
-            org.objectweb.asm.Type.getMethodType(actual.type, org.objectweb.asm.Type.getType(Object.class));
+            org.objectweb.asm.Type.getMethodType(MethodWriter.getType(actual), org.objectweb.asm.Type.getType(Object.class));
         writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -95,7 +95,7 @@ final class PSubDefField extends AStoreable {
         writer.writeDebugInfo(location);
 
         org.objectweb.asm.Type methodType = org.objectweb.asm.Type.getMethodType(
-            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), actual.type);
+            org.objectweb.asm.Type.getType(void.class), org.objectweb.asm.Type.getType(Object.class), MethodWriter.getType(actual));
         writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 

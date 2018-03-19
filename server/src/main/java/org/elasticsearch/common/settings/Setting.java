@@ -29,6 +29,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -789,7 +790,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.startObject();
                 subSettings.toXContent(builder, EMPTY_PARAMS);
                 builder.endObject();
-                return builder.string();
+                return Strings.toString(builder);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -1143,8 +1144,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     private static List<String> parseableStringToList(String parsableString) {
-        // EMPTY is safe here because we never call namedObject
-        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, parsableString)) {
+        // fromXContent doesn't use named xcontent or deprecation.
+        try (XContentParser xContentParser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
             XContentParser.Token token = xContentParser.nextToken();
             if (token != XContentParser.Token.START_ARRAY) {
                 throw new IllegalArgumentException("expected START_ARRAY but got " + token);
@@ -1170,7 +1172,7 @@ public class Setting<T> implements ToXContentObject {
                 builder.value(element);
             }
             builder.endArray();
-            return builder.string();
+            return Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException(ex);
         }

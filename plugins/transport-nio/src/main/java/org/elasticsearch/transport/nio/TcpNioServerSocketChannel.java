@@ -38,10 +38,8 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
 
     private final String profile;
 
-    public TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel,
-                                     ChannelFactory<TcpNioServerSocketChannel, TcpNioSocketChannel> channelFactory,
-                                     AcceptingSelector selector) throws IOException {
-        super(socketChannel, channelFactory, selector);
+    public TcpNioServerSocketChannel(String profile, ServerSocketChannel socketChannel) throws IOException {
+        super(socketChannel);
         this.profile = profile;
     }
 
@@ -62,7 +60,7 @@ public class TcpNioServerSocketChannel extends NioServerSocketChannel implements
 
     @Override
     public void close() {
-        getSelector().queueChannelClose(this);
+        getContext().closeChannel();
     }
 
     @Override

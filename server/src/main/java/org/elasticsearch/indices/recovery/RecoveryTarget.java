@@ -31,17 +31,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
@@ -117,7 +119,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = ServerLoggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
@@ -362,14 +364,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        if (createNewTranslog) {
-            // TODO: Assigns the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            indexShard().openIndexAndCreateTranslog(false, SequenceNumbers.UNASSIGNED_SEQ_NO);
-        } else {
-            indexShard().openIndexAndSkipTranslogRecovery();
-        }
+        indexShard().openEngineAndSkipTranslogRecovery();
     }
 
     @Override
@@ -387,7 +384,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void handoffPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+    public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         indexShard.activateWithPrimaryContext(primaryContext);
     }
 
@@ -440,8 +437,15 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // to recover from in case of a full cluster shutdown just when this code executes...
         renameAllTempFiles();
         final Store store = store();
+        store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
+                EngineDiskUtils.ensureIndexHasHistoryUUID(store.directory());
+            }
+            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are
@@ -465,6 +469,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
             fail(rfe, true);
             throw rfe;
+        } finally {
+            store.decRef();
         }
     }
 

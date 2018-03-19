@@ -164,8 +164,8 @@ public class MockNioTransport extends TcpTransport {
             };
             SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
-            BytesChannelContext context = new BytesChannelContext(nioChannel, MockNioTransport.this::exceptionCaught, nioReadConsumer,
-                new InboundChannelBuffer(pageSupplier));
+            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
+                nioReadConsumer, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
         }
@@ -173,7 +173,8 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockServerChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
             MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel, this, selector);
-            ServerChannelContext context = new ServerChannelContext(nioServerChannel, MockNioTransport.this::acceptChannel, (c, e) -> {});
+            ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
+                (e) -> {});
             nioServerChannel.setContext(context);
             return nioServerChannel;
         }
@@ -185,13 +186,13 @@ public class MockNioTransport extends TcpTransport {
 
         MockServerChannel(String profile, ServerSocketChannel channel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
             throws IOException {
-            super(channel, channelFactory, selector);
+            super(channel);
             this.profile = profile;
         }
 
         @Override
         public void close() {
-            getSelector().queueChannelClose(this);
+            getContext().closeChannel();
         }
 
         @Override
@@ -226,7 +227,7 @@ public class MockNioTransport extends TcpTransport {
 
         private MockSocketChannel(String profile, java.nio.channels.SocketChannel socketChannel, SocketSelector selector)
             throws IOException {
-            super(socketChannel, selector);
+            super(socketChannel);
             this.profile = profile;
         }
 

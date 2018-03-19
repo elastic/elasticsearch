@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,8 +36,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Represents an alias, to be associated with an index
@@ -100,7 +101,7 @@ public class Alias implements Streamable, ToXContentObject {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(filter);
-            this.filter = builder.string();
+            this.filter = Strings.toString(builder);
             return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
@@ -119,7 +120,7 @@ public class Alias implements Streamable, ToXContentObject {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.close();
-            this.filter = builder.string();
+            this.filter = Strings.toString(builder);
             return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -205,16 +206,16 @@ public class Alias implements Streamable, ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (FILTER.match(currentFieldName)) {
+                if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
                     alias.filter(filter);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ROUTING.match(currentFieldName)) {
+                if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.routing(parser.text());
-                } else if (INDEX_ROUTING.match(currentFieldName)) {
+                } else if (INDEX_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.indexRouting(parser.text());
-                } else if (SEARCH_ROUTING.match(currentFieldName)) {
+                } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
                 }
             }
@@ -227,7 +228,9 @@ public class Alias implements Streamable, ToXContentObject {
         builder.startObject(name);
 
         if (filter != null) {
-            builder.rawField(FILTER.getPreferredName(), new BytesArray(filter), XContentType.JSON);
+            try (InputStream stream = new BytesArray(filter).streamInput()) {
+                builder.rawField(FILTER.getPreferredName(), stream, XContentType.JSON);
+            }
         }
 
         if (indexRouting != null && indexRouting.equals(searchRouting)) {

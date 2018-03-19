@@ -23,9 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -85,7 +85,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Reques
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
         private Map<String, String> grokPatterns;
 
         public Response(Map<String, String> grokPatterns) {

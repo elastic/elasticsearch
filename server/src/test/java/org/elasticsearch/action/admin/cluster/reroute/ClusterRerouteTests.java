@@ -120,7 +120,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
-                    new UnsupportedOperationException()));
+                    new UnsupportedOperationException(), randomBoolean()));
             newState = allocationService.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;

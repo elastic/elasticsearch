@@ -256,7 +256,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets an artificial document from which term vectors are requested for.
      */
     public TermVectorsRequest doc(XContentBuilder documentBuilder) {
-        return this.doc(documentBuilder.bytes(), true, documentBuilder.contentType());
+        return this.doc(BytesReference.bytes(documentBuilder), true, documentBuilder.contentType());
     }
 
     /**
@@ -516,7 +516,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (in.readBoolean()) {
             doc = in.readBytesReference();
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType = XContentType.readFrom(in);
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 xContentType = XContentFactory.xContentType(doc);
             }
@@ -561,7 +561,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         if (doc != null) {
             out.writeBytesReference(doc);
             if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType.writeTo(out);
+                out.writeEnum(xContentType);
             }
         }
         out.writeOptionalString(routing);
@@ -610,7 +610,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName != null) {
-                if (FIELDS.match(currentFieldName)) {
+                if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                             fields.add(parser.text());
@@ -618,43 +618,43 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     } else {
                         throw new ElasticsearchParseException("failed to parse term vectors request. field [fields] must be an array");
                     }
-                } else if (OFFSETS.match(currentFieldName)) {
+                } else if (OFFSETS.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.offsets(parser.booleanValue());
-                } else if (POSITIONS.match(currentFieldName)) {
+                } else if (POSITIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.positions(parser.booleanValue());
-                } else if (PAYLOADS.match(currentFieldName)) {
+                } else if (PAYLOADS.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.payloads(parser.booleanValue());
                 } else if (currentFieldName.equals("term_statistics") || currentFieldName.equals("termStatistics")) {
                     termVectorsRequest.termStatistics(parser.booleanValue());
                 } else if (currentFieldName.equals("field_statistics") || currentFieldName.equals("fieldStatistics")) {
                     termVectorsRequest.fieldStatistics(parser.booleanValue());
-                } else if (DFS.match(currentFieldName)) {
+                } else if (DFS.match(currentFieldName, parser.getDeprecationHandler())) {
                     throw new IllegalArgumentException("distributed frequencies is not supported anymore for term vectors");
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorsRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
-                } else if (FILTER.match(currentFieldName)) {
+                } else if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.filterSettings(readFilterSettings(parser));
-                } else if (INDEX.match(currentFieldName)) { // the following is important for multi request parsing.
+                } else if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) { // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
-                } else if (TYPE.match(currentFieldName)) {
+                } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                } else if (ID.match(currentFieldName)) {
+                } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
                         throw new ElasticsearchParseException("failed to parse term vectors request. either [id] or [doc] can be specified, but not both!");
                     }
                     termVectorsRequest.id = parser.text();
-                } else if (DOC.match(currentFieldName)) {
+                } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
                         throw new ElasticsearchParseException("failed to parse term vectors request. either [id] or [doc] can be specified, but not both!");
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
-                } else if (ROUTING.match(currentFieldName)) {
+                } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.routing = parser.text();
-                } else if (PARENT.match(currentFieldName)) {
+                } else if (PARENT.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.parent = parser.text();
-                } else if (VERSION.match(currentFieldName)) {
+                } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.version = parser.longValue();
-                } else if (VERSION_TYPE.match(currentFieldName)) {
+                } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
                 } else {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);

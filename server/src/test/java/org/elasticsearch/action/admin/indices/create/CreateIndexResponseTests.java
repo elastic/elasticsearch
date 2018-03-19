@@ -21,34 +21,50 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+public class CreateIndexResponseTests extends AbstractStreamableXContentTestCase<CreateIndexResponse> {
 
-public class CreateIndexResponseTests extends ESTestCase {
+    @Override
+    protected CreateIndexResponse createTestInstance() {
+        boolean acknowledged = randomBoolean();
+        boolean shardsAcknowledged = acknowledged && randomBoolean();
+        String index = randomAlphaOfLength(5);
+        return new CreateIndexResponse(acknowledged, shardsAcknowledged, index);
+    }
 
-    public void testSerialization() throws IOException {
-        CreateIndexResponse response = new CreateIndexResponse(true, true, "foo");
+    @Override
+    protected CreateIndexResponse createBlankInstance() {
+        return new CreateIndexResponse();
+    }
 
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            response.writeTo(output);
-
-            try (StreamInput in = output.bytes().streamInput()) {
-                CreateIndexResponse serialized = new CreateIndexResponse();
-                serialized.readFrom(in);
-                assertEquals(response.isShardsAcknowledged(), serialized.isShardsAcknowledged());
-                assertEquals(response.isAcknowledged(), serialized.isAcknowledged());
-                assertEquals(response.index(), serialized.index());
+    @Override
+    protected CreateIndexResponse mutateInstance(CreateIndexResponse response) {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                boolean acknowledged = response.isAcknowledged() == false;
+                boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
+                return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
+            } else {
+                boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
+                boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
+                return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }
+        } else {
+            return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
+                        response.index() + randomAlphaOfLengthBetween(2, 5));
         }
+    }
+
+    @Override
+    protected CreateIndexResponse doParseInstance(XContentParser parser) {
+        return CreateIndexResponse.fromXContent(parser);
     }
 
     public void testSerializationWithOldVersion() throws IOException {
@@ -76,52 +92,15 @@ public class CreateIndexResponseTests extends ESTestCase {
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 
-    public void testToAndFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(false);
-    }
-
-    /**
-     * This test adds random fields and objects to the xContent rendered out to
-     * ensure we can parse it back to be forward compatible with additions to
-     * the xContent
-     */
-    public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(true);
-    }
-
-    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-
-        final CreateIndexResponse createIndexResponse = createTestItem();
-
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(createIndexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        BytesReference mutated;
-        if (addRandomFields) {
-            mutated = insertRandomFields(xContentType, originalBytes, null, random());
-        } else {
-            mutated = originalBytes;
+    public void testToAndFromXContentIndexNull() throws IOException {
+        CreateIndexResponse response = new CreateIndexResponse(true, false, null);
+        String output = Strings.toString(response);
+        assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":null}", output);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
+            CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);
+            assertNull(parsedResponse.index());
+            assertTrue(parsedResponse.isAcknowledged());
+            assertFalse(parsedResponse.isShardsAcknowledged());
         }
-        CreateIndexResponse parsedCreateIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedCreateIndexResponse = CreateIndexResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertEquals(createIndexResponse.index(), parsedCreateIndexResponse.index());
-        assertEquals(createIndexResponse.isShardsAcknowledged(), parsedCreateIndexResponse.isShardsAcknowledged());
-        assertEquals(createIndexResponse.isAcknowledged(), parsedCreateIndexResponse.isAcknowledged());
-    }
-
-    /**
-     * Returns a random {@link CreateIndexResponse}.
-     */
-    private static CreateIndexResponse createTestItem() throws IOException {
-        boolean acknowledged = randomBoolean();
-        boolean shardsAcknowledged = acknowledged && randomBoolean();
-        String index = randomAlphaOfLength(5);
-
-        return new CreateIndexResponse(acknowledged, shardsAcknowledged, index);
     }
 }

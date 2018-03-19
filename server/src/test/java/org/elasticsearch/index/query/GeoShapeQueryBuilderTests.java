@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -119,8 +120,9 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
             builder.field(expectedShapePath, indexedShapeToReturn);
+            builder.field(randomAlphaOfLengthBetween(10, 20), "something");
             builder.endObject();
-            json = builder.string();
+            json = Strings.toString(builder);
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
@@ -227,13 +229,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     @Override
     public void testMustRewrite() throws IOException {
-        GeoShapeQueryBuilder sqb;
-        do {
-            sqb = doCreateTestQueryBuilder();
-            // do this until we get one without a shape
-        } while (sqb.shape() != null);
-
-        GeoShapeQueryBuilder query = sqb;
+        GeoShapeQueryBuilder query = doCreateTestQueryBuilder(true);
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
@@ -242,6 +238,23 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         geoShapeQueryBuilder.strategy(query.strategy());
         geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
+    }
+
+    public void testMultipleRewrite() throws IOException {
+        GeoShapeQueryBuilder shape = doCreateTestQueryBuilder(true);
+        QueryBuilder builder = new BoolQueryBuilder()
+            .should(shape)
+            .should(shape);
+
+        builder = rewriteAndFetch(builder, createShardContext());
+
+        GeoShapeQueryBuilder expectedShape = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
+        expectedShape.strategy(shape.strategy());
+        expectedShape.relation(shape.relation());
+        QueryBuilder expected = new BoolQueryBuilder()
+            .should(expectedShape)
+            .should(expectedShape);
+        assertEquals(expected, builder);
     }
 
     public void testIgnoreUnmapped() throws IOException {

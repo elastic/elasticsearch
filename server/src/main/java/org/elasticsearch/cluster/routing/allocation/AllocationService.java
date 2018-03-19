@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -138,8 +139,8 @@ public class AllocationService extends AbstractComponent {
     }
 
     // Used for testing
-    public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null)), emptyList());
+    public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard, boolean markAsStale) {
+        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null, markAsStale)), emptyList());
     }
 
     // Used for testing
@@ -160,7 +161,7 @@ public class AllocationService extends AbstractComponent {
         if (staleShards.isEmpty() && failedShards.isEmpty()) {
             return clusterState;
         }
-        ClusterState tmpState = IndexMetaDataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards);
+        ClusterState tmpState = IndexMetaDataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards, logger);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(tmpState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
@@ -185,6 +186,10 @@ public class AllocationService extends AbstractComponent {
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, message,
                     failedShardEntry.getFailure(), failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
                     AllocationStatus.NO_ATTEMPT);
+                if (failedShardEntry.markAsStale()) {
+                    allocation.removeAllocationId(failedShard);
+                }
+                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.getFailure());
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetaData, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);

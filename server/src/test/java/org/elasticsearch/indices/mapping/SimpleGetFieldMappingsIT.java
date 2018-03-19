@@ -21,6 +21,7 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -224,12 +225,12 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
         responseBuilder.endObject();
-        String responseStrings = responseBuilder.string();
+        String responseStrings = Strings.toString(responseBuilder);
 
 
         XContentBuilder prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, equalTo(prettyJsonBuilder.string()));
+        assertThat(responseStrings, equalTo(Strings.toString(prettyJsonBuilder)));
 
         params.put("pretty", "false");
 
@@ -238,11 +239,11 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         responseBuilder.startObject();
         response.toXContent(responseBuilder, new ToXContent.MapParams(params));
         responseBuilder.endObject();
-        responseStrings = responseBuilder.string();
+        responseStrings = Strings.toString(responseBuilder);
 
         prettyJsonBuilder = XContentFactory.jsonBuilder().prettyPrint();
         prettyJsonBuilder.copyCurrentStructure(createParser(JsonXContent.jsonXContent, responseStrings));
-        assertThat(responseStrings, not(equalTo(prettyJsonBuilder.string())));
+        assertThat(responseStrings, not(equalTo(Strings.toString(prettyJsonBuilder))));
 
     }
 

@@ -46,7 +46,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -111,7 +111,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
-        final Predicate<String> loggerPredicate = ServerLoggers.LOG_LEVEL_SETTING::match;
+        final Predicate<String> loggerPredicate = Loggers.LOG_LEVEL_SETTING::match;
         private final Settings settings;
 
         LoggingSettingUpdater(Settings settings) {
@@ -129,10 +129,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             builder.put(current.filter(loggerPredicate));
             for (String key : previous.keySet()) {
                 if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
-                    if (ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
+                    if (Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
+                        builder.put(key, Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }
@@ -150,12 +150,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
                     }
                 } else {
-                    ServerLoggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -264,6 +264,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
                     ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
+                    SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
@@ -379,8 +380,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
-                    ServerLoggers.LOG_DEFAULT_LEVEL_SETTING,
-                    ServerLoggers.LOG_LEVEL_SETTING,
+                    Loggers.LOG_DEFAULT_LEVEL_SETTING,
+                    Loggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,

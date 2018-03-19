@@ -183,27 +183,35 @@ public abstract class AbstractObjectParser<Value, Context>
 
     public <T> void declareObjectArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> objectParser,
             ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, () -> objectParser.parse(p, c)), field, ValueType.OBJECT_ARRAY);
+        declareFieldArray(consumer, (p, c) -> objectParser.parse(p, c), field, ValueType.OBJECT_ARRAY);
     }
 
     public void declareStringArray(BiConsumer<Value, List<String>> consumer, ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, p::text), field, ValueType.STRING_ARRAY);
+        declareFieldArray(consumer, (p, c) -> p.text(), field, ValueType.STRING_ARRAY);
     }
 
     public void declareDoubleArray(BiConsumer<Value, List<Double>> consumer, ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, p::doubleValue), field, ValueType.DOUBLE_ARRAY);
+        declareFieldArray(consumer, (p, c) -> p.doubleValue(), field, ValueType.DOUBLE_ARRAY);
     }
 
     public void declareFloatArray(BiConsumer<Value, List<Float>> consumer, ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, p::floatValue), field, ValueType.FLOAT_ARRAY);
+        declareFieldArray(consumer, (p, c) -> p.floatValue(), field, ValueType.FLOAT_ARRAY);
     }
 
     public void declareLongArray(BiConsumer<Value, List<Long>> consumer, ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, p::longValue), field, ValueType.LONG_ARRAY);
+        declareFieldArray(consumer, (p, c) -> p.longValue(), field, ValueType.LONG_ARRAY);
     }
 
     public void declareIntArray(BiConsumer<Value, List<Integer>> consumer, ParseField field) {
-        declareField(consumer, (p, c) -> parseArray(p, p::intValue), field, ValueType.INT_ARRAY);
+        declareFieldArray(consumer, (p, c) -> p.intValue(), field, ValueType.INT_ARRAY);
+    }
+
+    /**
+     * Declares a field that can contain an array of elements listed in the type ValueType enum
+     */
+    public <T> void declareFieldArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> itemParser,
+                                      ParseField field, ValueType type) {
+        declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
     }
 
     public void declareRawObject(BiConsumer<Value, BytesReference> consumer, ParseField field) {
@@ -211,7 +219,7 @@ public abstract class AbstractObjectParser<Value, Context>
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.prettyPrint();
                 builder.copyCurrentStructure(p);
-                return builder.bytes();
+                return BytesReference.bytes(builder);
             }
         };
         declareField(consumer, bytesParser, field, ValueType.OBJECT);
@@ -220,13 +228,18 @@ public abstract class AbstractObjectParser<Value, Context>
     private interface IOSupplier<T> {
         T get() throws IOException;
     }
+
     private static <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
         List<T> list = new ArrayList<>();
-        if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken().isValue()
+                || parser.currentToken() == XContentParser.Token.VALUE_NULL
+                || parser.currentToken() == XContentParser.Token.START_OBJECT) {
             list.add(supplier.get()); // single value
         } else {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (parser.currentToken().isValue() || parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                if (parser.currentToken().isValue()
+                        || parser.currentToken() == XContentParser.Token.VALUE_NULL
+                        || parser.currentToken() == XContentParser.Token.START_OBJECT) {
                     list.add(supplier.get());
                 } else {
                     throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");

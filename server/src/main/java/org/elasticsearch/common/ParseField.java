@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -31,9 +30,6 @@ import java.util.Set;
  * variants, which may be deprecated.
  */
 public class ParseField {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
-
     private final String name;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
@@ -99,12 +95,14 @@ public class ParseField {
     }
 
     /**
+     * Does {@code fieldName} match this field?
      * @param fieldName
      *            the field name to match against this {@link ParseField}
+     * @param deprecationHandler called if {@code fieldName} is deprecated
      * @return true if <code>fieldName</code> matches any of the acceptable
      *         names for this {@link ParseField}.
      */
-    public boolean match(String fieldName) {
+    public boolean match(String fieldName, DeprecationHandler deprecationHandler) {
         Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name
@@ -114,17 +112,13 @@ public class ParseField {
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
         // fields will be in the deprecatedNames array
-        String msg;
         for (String depName : deprecatedNames) {
             if (fieldName.equals(depName)) {
-                msg = "Deprecated field [" + fieldName + "] used, expected [" + name + "] instead";
-                if (allReplacedWith != null) {
-                    // If the field is entirely deprecated then there is no
-                    // preferred name so instead use the `allReplaceWith`
-                    // message to indicate what should be used instead
-                    msg = "Deprecated field [" + fieldName + "] used, replaced by [" + allReplacedWith + "]";
+                if (allReplacedWith == null) {
+                    deprecationHandler.usedDeprecatedName(fieldName, name);
+                } else {
+                    deprecationHandler.usedDeprecatedField(fieldName, allReplacedWith);
                 }
-                DEPRECATION_LOGGER.deprecated(msg);
                 return true;
             }
         }

@@ -111,6 +111,10 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_6_6 = new Version(V_5_6_6_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_5_6_7_ID = 5060799;
     public static final Version V_5_6_7 = new Version(V_5_6_7_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_8_ID = 5060899;
+    public static final Version V_5_6_8 = new Version(V_5_6_8_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_9_ID = 5060999;
+    public static final Version V_5_6_9 = new Version(V_5_6_9_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
     public static final int V_6_0_0_alpha1_ID = 6000001;
     public static final Version V_6_0_0_alpha1 =
             new Version(V_6_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_7_0_0);
@@ -135,9 +139,6 @@ public class Version implements Comparable<Version> {
     public static final int V_6_0_1_ID = 6000199;
     public static final Version V_6_0_1 =
         new Version(V_6_0_1_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
-    public static final int V_6_0_2_ID = 6000299;
-    public static final Version V_6_0_2 =
-        new Version(V_6_0_2_ID, org.apache.lucene.util.Version.LUCENE_7_0_1);
     public static final int V_6_1_0_ID = 6010099;
     public static final Version V_6_1_0 = new Version(V_6_1_0_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_1_ID = 6010199;
@@ -148,6 +149,12 @@ public class Version implements Comparable<Version> {
     public static final Version V_6_1_3 = new Version(V_6_1_3_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_2_0_ID = 6020099;
     public static final Version V_6_2_0 = new Version(V_6_2_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final int V_6_2_1_ID = 6020199;
+    public static final Version V_6_2_1 = new Version(V_6_2_1_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final int V_6_2_2_ID = 6020299;
+    public static final Version V_6_2_2 = new Version(V_6_2_2_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
+    public static final int V_6_2_3_ID = 6020399;
+    public static final Version V_6_2_3 = new Version(V_6_2_3_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
     public static final int V_6_3_0_ID = 6030099;
     public static final Version V_6_3_0 = new Version(V_6_3_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
     public static final int V_7_0_0_alpha1_ID = 7000001;
@@ -170,6 +177,12 @@ public class Version implements Comparable<Version> {
                 return V_7_0_0_alpha1;
             case V_6_3_0_ID:
                 return V_6_3_0;
+            case V_6_2_3_ID:
+                return V_6_2_3;
+            case V_6_2_2_ID:
+                return V_6_2_2;
+            case V_6_2_1_ID:
+                return V_6_2_1;
             case V_6_2_0_ID:
                 return V_6_2_0;
             case V_6_1_3_ID:
@@ -180,8 +193,6 @@ public class Version implements Comparable<Version> {
                 return V_6_1_1;
             case V_6_1_0_ID:
                 return V_6_1_0;
-            case V_6_0_2_ID:
-                return V_6_0_2;
             case V_6_0_1_ID:
                 return V_6_0_1;
             case V_6_0_0_ID:
@@ -198,6 +209,10 @@ public class Version implements Comparable<Version> {
                 return V_6_0_0_alpha2;
             case V_6_0_0_alpha1_ID:
                 return V_6_0_0_alpha1;
+            case V_5_6_9_ID:
+                return V_5_6_9;
+            case V_5_6_8_ID:
+                return V_5_6_8;
             case V_5_6_7_ID:
                 return V_5_6_7;
             case V_5_6_6_ID:
@@ -395,6 +410,15 @@ public class Version implements Comparable<Version> {
         return Integer.compare(this.id, other.id);
     }
 
+    /*
+     * We need the declared versions when computing the minimum compatibility version. As computing the declared versions uses reflection it
+     * is not cheap. Since computing the minimum compatibility version can occur often, we use this holder to compute the declared versions
+     * lazily once.
+     */
+    private static class DeclaredVersionsHolder {
+        static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
+    }
+
     /**
      * Returns the minimum compatible version based on the current
      * version. Ie a node needs to have at least the return version in order
@@ -405,10 +429,10 @@ public class Version implements Comparable<Version> {
     public Version minimumCompatibilityVersion() {
         if (major >= 6) {
             // all major versions from 6 onwards are compatible with last minor series of the previous major
-            final List<Version> declaredVersions = getDeclaredVersions(getClass());
             Version bwcVersion = null;
-            for (int i = declaredVersions.size() - 1; i >= 0; i--) {
-                final Version candidateVersion = declaredVersions.get(i);
+
+            for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
+                final Version candidateVersion = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
                 if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;

@@ -46,6 +46,9 @@ Central]. The minimum Java version required is `1.8`.
 The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
+If you are looking for a SNAPSHOT version, the Elastic Maven Snapshot repository is available
+at https://snapshots.elastic.co/maven/.
+
 [[java-rest-high-getting-started-maven-maven]]
 ==== Maven configuration
 
@@ -123,7 +126,7 @@ to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
@@ -136,7 +139,7 @@ method, which will close the internal `RestClient` instance.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance

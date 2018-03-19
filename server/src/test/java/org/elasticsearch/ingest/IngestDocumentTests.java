@@ -22,6 +22,8 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -74,7 +76,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -984,6 +986,22 @@ public class IngestDocumentTests extends ESTestCase {
         IngestDocument copy = new IngestDocument(ingestDocument);
         assertThat(ingestDocument.getSourceAndMetadata(), not(sameInstance(copy.getSourceAndMetadata())));
         assertIngestDocument(ingestDocument, copy);
+    }
+
+    public void testCopyConstructorWithZonedDateTime() {
+        ZoneId timezone = ZoneId.of("Europe/London");
+
+        Map<String, Object> sourceAndMetadata = new HashMap<>();
+        sourceAndMetadata.put("beforeClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509237000), timezone));
+        sourceAndMetadata.put("afterClockChange", ZonedDateTime.ofInstant(Instant.ofEpochSecond(1509240600), timezone));
+
+        IngestDocument original = new IngestDocument(sourceAndMetadata, new HashMap<>());
+        IngestDocument copy = new IngestDocument(original);
+
+        assertThat(copy.getSourceAndMetadata().get("beforeClockChange"),
+            equalTo(original.getSourceAndMetadata().get("beforeClockChange")));
+        assertThat(copy.getSourceAndMetadata().get("afterClockChange"),
+            equalTo(original.getSourceAndMetadata().get("afterClockChange")));
     }
 
     public void testSetInvalidSourceField() throws Exception {

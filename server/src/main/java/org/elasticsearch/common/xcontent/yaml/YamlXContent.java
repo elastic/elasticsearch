@@ -22,9 +22,7 @@ package org.elasticsearch.common.xcontent.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.Set;
 
 /**
@@ -66,7 +65,7 @@ public class YamlXContent implements XContent {
 
     @Override
     public byte streamSeparator() {
-        throw new ElasticsearchParseException("yaml does not support stream parsing...");
+        throw new UnsupportedOperationException("yaml does not support stream parsing...");
     }
 
     @Override
@@ -75,32 +74,32 @@ public class YamlXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException {
-        return new YamlXContentParser(xContentRegistry, yamlFactory.createParser(new FastStringReader(content)));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, String content) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new StringReader(content)));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException {
-        return new YamlXContentParser(xContentRegistry, yamlFactory.createParser(is));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException {
-        return new YamlXContentParser(xContentRegistry, yamlFactory.createParser(data));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
-        return new YamlXContentParser(xContentRegistry, yamlFactory.createParser(data, offset, length));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
-        return createParser(xContentRegistry, bytes.streamInput());
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException {
-        return new YamlXContentParser(xContentRegistry, yamlFactory.createParser(reader));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
+            DeprecationHandler deprecationHandler, Reader reader) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(reader));
     }
 }

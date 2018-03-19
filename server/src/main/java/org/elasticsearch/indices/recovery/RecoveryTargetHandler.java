@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -32,10 +32,10 @@ public interface RecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
-     *  @param createNewTranslog whether or not to delete the local translog on the target
+     *  @param fileBasedRecovery whether or not this call is part of an file based recovery
      * @param totalTranslogOps    total translog operations expected to be sent
      */
-    void prepareForTranslogOperations(boolean createNewTranslog, int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
@@ -55,7 +55,7 @@ public interface RecoveryTargetHandler {
      *
      * @param primaryContext the primary context from the relocation source
      */
-    void handoffPrimaryContext(GlobalCheckpointTracker.PrimaryContext primaryContext);
+    void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext);
 
     /**
      * Index a set of translog operations on the target

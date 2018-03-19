@@ -22,7 +22,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +33,8 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 public final class IndexingSlowLog implements IndexingOperationListener {
@@ -87,7 +89,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = ServerLoggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
+        this.indexLogger = Loggers.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index", indexSettings.getSettings());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);
@@ -117,7 +119,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
 
     private void setLevel(SlowLogLevel level) {
         this.level = level;
-        ServerLoggers.setLevel(this.indexLogger, level.name());
+        Loggers.setLevel(this.indexLogger, level.name());
     }
 
     private void setWarnThreshold(TimeValue warnThreshold) {
@@ -194,6 +196,12 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 sb.append(", source[").append(Strings.cleanTruncate(source, maxSourceCharsToLog)).append("]");
             } catch (IOException e) {
                 sb.append(", source[_failed_to_convert_[").append(e.getMessage()).append("]]");
+                /*
+                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
+                 * will be logged at the warn level.
+                 */
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sb.toString());
+                throw new UncheckedIOException(message, e);
             }
             return sb.toString();
         }

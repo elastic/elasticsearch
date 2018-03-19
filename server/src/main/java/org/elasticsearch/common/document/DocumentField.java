@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.document;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,7 +37,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 
 /**
  * A single field name and values part of {@link SearchHit} and {@link GetResult}.
@@ -124,9 +125,13 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         for (Object value : values) {
             // this call doesn't really need to support writing any kind of object.
             // Stored fields values are converted using MappedFieldType#valueForDisplay.
-            // As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's
+            // As a result they can either be Strings, Numbers, or Booleans, that's
             // all.
-            builder.value(value);
+            if (value instanceof BytesReference) {
+                builder.binaryValue(((BytesReference) value).toBytesRef());
+            } else {
+                builder.value(value);
+            }
         }
         builder.endArray();
         return builder;
@@ -139,7 +144,7 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            values.add(parseStoredFieldsValue(parser));
+            values.add(parseFieldsValue(parser));
         }
         return new DocumentField(fieldName, values);
     }

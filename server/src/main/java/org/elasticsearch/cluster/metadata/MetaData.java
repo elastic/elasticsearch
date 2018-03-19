@@ -43,7 +43,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1081,7 +1081,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.startObject();
             toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            return builder.string();
+            return Strings.toString(builder);
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1205,7 +1205,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     /**
      * State format for {@link MetaData} to write to and load from disk
      */
-    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(XContentType.SMILE, GLOBAL_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
 
         @Override
         public void toXContent(XContentBuilder builder, MetaData state) throws IOException {

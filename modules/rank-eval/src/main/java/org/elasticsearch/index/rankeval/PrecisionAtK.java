@@ -34,6 +34,7 @@ import java.util.Optional;
 
 import javax.naming.directory.SearchResult;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
@@ -216,10 +217,10 @@ public class PrecisionAtK implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold, ignoreUnlabeled, k);
     }
 
-    static class Breakdown implements MetricDetails {
+    static class Breakdown implements MetricDetail {
 
-        private static final String DOCS_RETRIEVED_FIELD = "docs_retrieved";
-        private static final String RELEVANT_DOCS_RETRIEVED_FIELD = "relevant_docs_retrieved";
+        private static final ParseField DOCS_RETRIEVED_FIELD = new ParseField("docs_retrieved");
+        private static final ParseField RELEVANT_DOCS_RETRIEVED_FIELD = new ParseField("relevant_docs_retrieved");
         private int relevantRetrieved;
         private int retrieved;
 
@@ -234,11 +235,24 @@ public class PrecisionAtK implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
                 throws IOException {
-            builder.field(RELEVANT_DOCS_RETRIEVED_FIELD, relevantRetrieved);
-            builder.field(DOCS_RETRIEVED_FIELD, retrieved);
+            builder.field(RELEVANT_DOCS_RETRIEVED_FIELD.getPreferredName(), relevantRetrieved);
+            builder.field(DOCS_RETRIEVED_FIELD.getPreferredName(), retrieved);
             return builder;
+        }
+
+        private static final ConstructingObjectParser<Breakdown, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Breakdown((Integer) args[0], (Integer) args[1]);
+        });
+
+        static {
+            PARSER.declareInt(constructorArg(), RELEVANT_DOCS_RETRIEVED_FIELD);
+            PARSER.declareInt(constructorArg(), DOCS_RETRIEVED_FIELD);
+        }
+
+        public static Breakdown fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override

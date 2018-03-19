@@ -29,7 +29,7 @@ import java.util.List;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -74,12 +74,12 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     KeyStoreWrapper createKeystore(String password, String... settings) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.create(password.toCharArray());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
         assertEquals(0, settings.length % 2);
         for (int i = 0; i < settings.length; i += 2) {
             keystore.setString(settings[i], settings[i + 1].toCharArray());
         }
-        keystore.save(env.configFile());
+        keystore.save(env.configFile(), password.toCharArray());
         return keystore;
     }
 

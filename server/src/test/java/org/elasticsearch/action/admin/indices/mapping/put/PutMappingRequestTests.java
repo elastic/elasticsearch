@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -85,7 +85,7 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testPutMappingRequestSerialization() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        String mapping = Strings.toString(YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         request.source(mapping, XContentType.YAML);
         assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.source());
 
@@ -172,7 +172,7 @@ public class PutMappingRequestTests extends ESTestCase {
         builder.startObject();
 
         if (randomBoolean()) {
-            CreateIndexRequestTests.randomMappingFields(builder, true);
+            RandomCreateIndexGenerator.randomMappingFields(builder, true);
         }
 
         builder.endObject();

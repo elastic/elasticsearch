@@ -25,7 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -404,8 +405,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
-                        XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, query);
+                    XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                    XContentParser parser = JsonXContent.jsonXContent
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -962,9 +964,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-                msg(expected, builder.string()),
+                msg(expected, Strings.toString(builder)),
                 expected.replaceAll("\\s+", ""),
-                builder.string().replaceAll("\\s+", ""));
+                Strings.toString(builder).replaceAll("\\s+", ""));
     }
 
     private static String msg(String left, String right) {
@@ -1075,7 +1077,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             });
 
             for (String type : currentTypes) {
-                mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
+                mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
                         STRING_FIELD_NAME, "type=text",
                         STRING_FIELD_NAME_2, "type=keyword",
                         INT_FIELD_NAME, "type=integer",
@@ -1087,7 +1089,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         OBJECT_FIELD_NAME, "type=object",
                         GEO_POINT_FIELD_NAME, "type=geo_point",
                         GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-                ).string()), MapperService.MergeReason.MAPPING_UPDATE);
+                ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
                                 + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +

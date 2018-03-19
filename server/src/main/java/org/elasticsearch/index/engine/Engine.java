@@ -34,7 +34,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -51,7 +50,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
@@ -131,7 +130,7 @@ public abstract class Engine implements Closeable {
         this.shardId = engineConfig.getShardId();
         this.allocationId = engineConfig.getAllocationId();
         this.store = engineConfig.getStore();
-        this.logger = ServerLoggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
+        this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings().getSettings(), engineConfig.getShardId());
         this.eventListener = engineConfig.getEventListener();
     }
@@ -154,10 +153,6 @@ public abstract class Engine implements Closeable {
         assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
                 IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
         return IndexWriter.SOURCE_MERGE.equals(source);
-    }
-
-    protected Searcher newSearcher(String source, IndexSearcher searcher, ReferenceManager<IndexSearcher> manager) {
-        return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
     public final EngineConfig config() {
@@ -510,38 +505,7 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public final Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
-        boolean success = false;
-         /* Acquire order here is store -> manager since we need
-          * to make sure that the store is not closed before
-          * the searcher is acquired. */
-        store.incRef();
-        try {
-            final ReferenceManager<IndexSearcher> manager = getSearcherManager(source, scope); // can never be null
-            /* This might throw NPE but that's fine we will run ensureOpen()
-            *  in the catch block and throw the right exception */
-            final IndexSearcher searcher = manager.acquire();
-            try {
-                final Searcher retVal = newSearcher(source, searcher, manager);
-                success = true;
-                return retVal;
-            } finally {
-                if (!success) {
-                    manager.release(searcher);
-                }
-            }
-        } catch (AlreadyClosedException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            if (!success) {  // release the ref in the case of an error...
-                store.decRef();
-            }
-        }
-    }
+    public abstract Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException;
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -557,10 +521,18 @@ public abstract class Engine implements Closeable {
 
     public abstract void syncTranslog() throws IOException;
 
-    protected void ensureOpen() {
+    protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
-            throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+            AlreadyClosedException ace = new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
+            if (suppressed != null) {
+                ace.addSuppressed(suppressed);
+            }
+            throw ace;
         }
+    }
+
+    protected final void ensureOpen() {
+        ensureOpen(null);
     }
 
     /** get commits stats for the last commit */
@@ -785,13 +757,8 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                ReferenceManager<IndexSearcher> manager = getSearcherManager("refresh_needed", SearcherScope.EXTERNAL);
-                final IndexSearcher searcher =  manager.acquire();
-                try {
-                    final IndexReader r = searcher.getIndexReader();
-                    return ((DirectoryReader) r).isCurrent() == false;
-                } finally {
-                    manager.release(searcher);
+                try (Searcher searcher = acquireSearcher("refresh_needed", SearcherScope.EXTERNAL)) {
+                    return searcher.getDirectoryReader().isCurrent() == false;
                 }
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
@@ -868,19 +835,47 @@ public abstract class Engine implements Closeable {
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade, boolean upgradeOnlyAncientSegments) throws EngineException, IOException;
 
     /**
-     * Snapshots the index and returns a handle to it. If needed will try and "commit" the
+     * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
      *
-     * @param safeCommit indicates whether the engine should acquire the most recent safe commit, or the most recent commit.
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommitRef acquireIndexCommit(boolean safeCommit, boolean flushFirst) throws EngineException;
+    public abstract IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException;
+
+    /**
+     * Snapshots the most recent safe index commit from the engine.
+     */
+    public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
+     * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error, the
+     * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal   the throwable that maybe contains a fatal error
+     */
+    @SuppressWarnings("finally")
+    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+            try {
+                logger.error(maybeMessage, error);
+            } finally {
+                throw error;
+            }
+        });
+    }
 
     /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        if (failure != null) {
+            maybeDie(reason, failure);
+        }
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
@@ -1337,8 +1332,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract ReferenceManager<IndexSearcher> getSearcherManager(String source, SearcherScope scope);
-
     /**
      * Method to close the engine while the write lock is held.
      * Must decrement the supplied when closing work is done and resources are
@@ -1537,4 +1530,9 @@ public abstract class Engine implements Closeable {
     public boolean isRecovering() {
         return false;
     }
+
+    /**
+     * Tries to prune buffered deletes from the version map.
+     */
+    public abstract void maybePruneDeletes();
 }

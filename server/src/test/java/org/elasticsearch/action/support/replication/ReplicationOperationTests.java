@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -69,99 +68,135 @@ public class ReplicationOperationTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
-        ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
-        IndexMetaData indexMetaData = state.getMetaData().index(index);
+        ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
+        IndexMetaData indexMetaData = initialState.getMetaData().index(index);
         final long primaryTerm = indexMetaData.primaryTerm(0);
-        final IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().shardRoutingTable(shardId);
+        final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
         if (primaryShard.relocating() && randomBoolean()) {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
-            state = ClusterState.builder(state)
-                .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
+            initialState = ClusterState.builder(initialState)
+                .nodes(DiscoveryNodes.builder(initialState.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
             primaryShard = primaryShard.getTargetRelocatingShard();
         }
         // add a few in-sync allocation ids that don't have corresponding routing entries
-        Set<String> staleAllocationIds = Sets.newHashSet(generateRandomStringArray(4, 10, false));
-        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
-            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), staleAllocationIds)))).build();
+        final Set<String> staleAllocationIds = Sets.newHashSet(generateRandomStringArray(4, 10, false));
 
-        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
+        final Set<String> inSyncAllocationIds = Sets.union(indexMetaData.inSyncAllocationIds(0), staleAllocationIds);
 
-        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
-        final Set<ShardRouting> expectedFailedShards = new HashSet<>();
+        final Set<String> trackedShards = new HashSet<>();
+        final Set<String> untrackedShards = new HashSet<>();
+        addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, untrackedShards);
+        trackedShards.addAll(staleAllocationIds);
+
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards);
+
+        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
+
+        final Map<ShardRouting, Exception> simulatedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> reportedFailures = new HashMap<>();
         for (ShardRouting replica : expectedReplicas) {
             if (randomBoolean()) {
                 Exception t;
                 boolean criticalFailure = randomBoolean();
                 if (criticalFailure) {
                     t = new CorruptIndexException("simulated", (String) null);
+                    reportedFailures.put(replica, t);
                 } else {
                     t = new IndexShardNotStartedException(shardId, IndexShardState.RECOVERING);
                 }
                 logger.debug("--> simulating failure on {} with [{}]", replica, t.getClass().getSimpleName());
-                expectedFailures.put(replica, t);
-                if (criticalFailure) {
-                    expectedFailedShards.add(replica);
-                }
+                simulatedFailures.put(replica, t);
             }
         }
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
-        final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, expectedFailures);
-        final ClusterState finalState = state;
-        final TestPrimary primary = new TestPrimary(primaryShard, () -> finalState);
+        final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, simulatedFailures);
+
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup);
         final TestReplicationOperation op = new TestReplicationOperation(request,
             primary, listener, replicasProxy);
         op.execute();
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
-        assertThat(replicasProxy.failedReplicas, equalTo(expectedFailedShards));
+        assertThat(replicasProxy.failedReplicas, equalTo(simulatedFailures.keySet()));
         assertThat(replicasProxy.markedAsStaleCopies, equalTo(staleAllocationIds));
         assertTrue("listener is not marked as done", listener.isDone());
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
-        assertThat(shardInfo.getFailed(), equalTo(expectedFailedShards.size()));
-        assertThat(shardInfo.getFailures(), arrayWithSize(expectedFailedShards.size()));
-        assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - expectedFailures.size()));
+        assertThat(shardInfo.getFailed(), equalTo(reportedFailures.size()));
+        assertThat(shardInfo.getFailures(), arrayWithSize(reportedFailures.size()));
+        assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - simulatedFailures.size()));
         final List<ShardRouting> unassignedShards =
             indexShardRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED);
-        final int totalShards = 1 + expectedReplicas.size() + unassignedShards.size();
-        assertThat(shardInfo.getTotal(), equalTo(totalShards));
+        final int totalShards = 1 + expectedReplicas.size() + unassignedShards.size() + untrackedShards.size();
+        assertThat(replicationGroup.toString(), shardInfo.getTotal(), equalTo(totalShards));
 
         assertThat(primary.knownLocalCheckpoints.remove(primaryShard.allocationId().getId()), equalTo(primary.localCheckpoint));
         assertThat(primary.knownLocalCheckpoints, equalTo(replicasProxy.generatedLocalCheckpoints));
         assertThat(primary.knownGlobalCheckpoints, equalTo(replicasProxy.generatedGlobalCheckpoints));
     }
 
+    private void addTrackingInfo(IndexShardRoutingTable indexShardRoutingTable, ShardRouting primaryShard, Set<String> trackedShards,
+                                 Set<String> untrackedShards) {
+        for (ShardRouting shr : indexShardRoutingTable.shards()) {
+            if (shr.unassigned() == false) {
+                if (shr.initializing()) {
+                    if (randomBoolean()) {
+                        trackedShards.add(shr.allocationId().getId());
+                    } else {
+                        untrackedShards.add(shr.allocationId().getId());
+                    }
+                } else {
+                    trackedShards.add(shr.allocationId().getId());
+                    if (shr.relocating()) {
+                        if (primaryShard == shr.getTargetRelocatingShard() || randomBoolean()) {
+                            trackedShards.add(shr.getTargetRelocatingShard().allocationId().getId());
+                        } else {
+                            untrackedShards.add(shr.getTargetRelocatingShard().allocationId().getId());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testDemotedPrimary() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
-        ClusterState state = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
-        IndexMetaData indexMetaData = state.getMetaData().index(index);
+        ClusterState initialState = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
+        IndexMetaData indexMetaData = initialState.getMetaData().index(index);
         final long primaryTerm = indexMetaData.primaryTerm(0);
-        ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
+        final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
+        ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
         if (primaryShard.relocating() && randomBoolean()) {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
-            state = ClusterState.builder(state)
-                .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
+            initialState = ClusterState.builder(initialState)
+                .nodes(DiscoveryNodes.builder(initialState.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
             primaryShard = primaryShard.getTargetRelocatingShard();
         }
-        // add in-sync allocation id that doesn't have a corresponding routing entry
-        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
-            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), Sets.newHashSet(randomAlphaOfLength(10))))))
-            .build();
+        // add an in-sync allocation id that doesn't have a corresponding routing entry
+        final Set<String> staleAllocationIds = Sets.newHashSet(randomAlphaOfLength(10));
+        final Set<String> inSyncAllocationIds = Sets.union(indexMetaData.inSyncAllocationIds(0), staleAllocationIds);
+        final Set<String> trackedShards = new HashSet<>();
+        addTrackingInfo(indexShardRoutingTable, primaryShard, trackedShards, new HashSet<>());
+        trackedShards.addAll(staleAllocationIds);
 
-        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
+        final ReplicationGroup replicationGroup = new ReplicationGroup(indexShardRoutingTable, inSyncAllocationIds, trackedShards);
+
+        final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, initialState, trackedShards);
 
         final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
+        if (expectedReplicas.isEmpty()) {
+            return;
+        }
         final ShardRouting failedReplica = randomFrom(new ArrayList<>(expectedReplicas));
         expectedFailures.put(failedReplica, new CorruptIndexException("simulated", (String) null));
 
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
-        final ClusterState finalState = state;
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(primaryTerm, expectedFailures) {
             @Override
@@ -187,7 +222,7 @@ public class ReplicationOperationTests extends ESTestCase {
             }
         };
         AtomicBoolean primaryFailed = new AtomicBoolean();
-        final TestPrimary primary = new TestPrimary(primaryShard, () -> finalState) {
+        final TestPrimary primary = new TestPrimary(primaryShard, () -> replicationGroup) {
             @Override
             public void failShard(String message, Exception exception) {
                 assertTrue(primaryFailed.compareAndSet(false, true));
@@ -207,6 +242,12 @@ public class ReplicationOperationTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         final ClusterState initialState = stateWithActivePrimary(index, true, 0);
+        Set<String> inSyncAllocationIds = initialState.metaData().index(index).inSyncAllocationIds(0);
+        IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
+        Set<String> trackedShards = new HashSet<>();
+        addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
+        ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+
         final ClusterState stateWithAddedReplicas;
         if (randomBoolean()) {
             stateWithAddedReplicas = state(index, true, ShardRoutingState.STARTED,
@@ -214,16 +255,24 @@ public class ReplicationOperationTests extends ESTestCase {
         } else {
             stateWithAddedReplicas = state(index, true, ShardRoutingState.RELOCATING);
         }
-        AtomicReference<ClusterState> state = new AtomicReference<>(initialState);
-        logger.debug("--> using initial state:\n{}", state.get());
+
+        inSyncAllocationIds = stateWithAddedReplicas.metaData().index(index).inSyncAllocationIds(0);
+        shardRoutingTable = stateWithAddedReplicas.getRoutingTable().shardRoutingTable(shardId);
+        trackedShards = new HashSet<>();
+        addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
+
+        ReplicationGroup updatedReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+
+        final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
+        logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
         final long primaryTerm = initialState.getMetaData().index(shardId.getIndexName()).primaryTerm(shardId.id());
-        final ShardRouting primaryShard = state.get().routingTable().shardRoutingTable(shardId).primaryShard();
-        final TestPrimary primary = new TestPrimary(primaryShard, state::get) {
+        final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
+        final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get) {
             @Override
             public Result perform(Request request) throws Exception {
                 Result result = super.perform(request);
-                state.set(stateWithAddedReplicas);
-                logger.debug("--> state after primary operation:\n{}", state.get());
+                replicationGroup.set(updatedReplicationGroup);
+                logger.debug("--> state after primary operation:\n{}", replicationGroup.get());
                 return result;
             }
         };
@@ -235,7 +284,7 @@ public class ReplicationOperationTests extends ESTestCase {
         op.execute();
 
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
-        Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state.get());
+        Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, stateWithAddedReplicas, trackedShards);
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
     }
 
@@ -265,10 +314,16 @@ public class ReplicationOperationTests extends ESTestCase {
             passesActiveShardCheck ? "succeed" : "retry", state);
         final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
+
+        final Set<String> inSyncAllocationIds = state.metaData().index(index).inSyncAllocationIds(0);
+        Set<String> trackedShards = new HashSet<>();
+        addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
-            new TestPrimary(primaryShard, () -> state),
+            new TestPrimary(primaryShard, () -> initialReplicationGroup),
                 listener, new TestReplicaProxy(primaryTerm), logger, "test");
 
         if (passesActiveShardCheck) {
@@ -296,10 +351,15 @@ public class ReplicationOperationTests extends ESTestCase {
         final long primaryTerm = indexMetaData.primaryTerm(0);
         final ShardRouting primaryRouting = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
 
+        final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(0);
+        final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
+        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards);
+
         final boolean fatal = randomBoolean();
         final AtomicBoolean primaryFailed = new AtomicBoolean();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary =
-            new TestPrimary(primaryRouting, () -> state) {
+            new TestPrimary(primaryRouting, () -> initialReplicationGroup) {
 
             @Override
             public void failShard(String message, Exception exception) {
@@ -330,10 +390,10 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(0));
         assertThat(shardInfo.getFailures(), arrayWithSize(0));
-        assertThat(shardInfo.getSuccessful(), equalTo(1 + getExpectedReplicas(shardId, state).size()));
+        assertThat(shardInfo.getSuccessful(), equalTo(1 + getExpectedReplicas(shardId, state, trackedShards).size()));
     }
 
-    private Set<ShardRouting> getExpectedReplicas(ShardId shardId, ClusterState state) {
+    private Set<ShardRouting> getExpectedReplicas(ShardId shardId, ClusterState state, Set<String> trackedShards) {
         Set<ShardRouting> expectedReplicas = new HashSet<>();
         String localNodeId = state.nodes().getLocalNodeId();
         if (state.routingTable().hasIndex(shardId.getIndexName())) {
@@ -342,11 +402,15 @@ public class ReplicationOperationTests extends ESTestCase {
                     continue;
                 }
                 if (localNodeId.equals(shardRouting.currentNodeId()) == false) {
-                    expectedReplicas.add(shardRouting);
+                    if (trackedShards.contains(shardRouting.allocationId().getId())) {
+                        expectedReplicas.add(shardRouting);
+                    }
                 }
 
                 if (shardRouting.relocating() && localNodeId.equals(shardRouting.relocatingNodeId()) == false) {
-                    expectedReplicas.add(shardRouting.getTargetRelocatingShard());
+                    if (trackedShards.contains(shardRouting.getTargetRelocatingShard().allocationId().getId())) {
+                        expectedReplicas.add(shardRouting.getTargetRelocatingShard());
+                    }
                 }
             }
         }
@@ -379,13 +443,13 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting routing;
         final long localCheckpoint;
         final long globalCheckpoint;
-        final Supplier<ClusterState> clusterStateSupplier;
+        final Supplier<ReplicationGroup> replicationGroupSupplier;
         final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
         final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
 
-        TestPrimary(ShardRouting routing, Supplier<ClusterState> clusterStateSupplier) {
+        TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier) {
             this.routing = routing;
-            this.clusterStateSupplier = clusterStateSupplier;
+            this.replicationGroupSupplier = replicationGroupSupplier;
             this.localCheckpoint = random().nextLong();
             this.globalCheckpoint = randomNonNegativeLong();
         }
@@ -453,9 +517,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public ReplicationGroup getReplicationGroup() {
-            ClusterState clusterState = clusterStateSupplier.get();
-            return new ReplicationGroup(clusterState.routingTable().shardRoutingTable(routing.shardId()),
-                clusterState.metaData().index(routing.index()).inSyncAllocationIds(routing.id()));
+            return replicationGroupSupplier.get();
         }
 
     }

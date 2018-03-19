@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite Aggregation
 
-experimental[]
+beta[]
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 
@@ -352,7 +352,7 @@ and in ascending order when comparing values from the `terms` source.
 
 The `size` parameter can be set to define how many composite buckets should be returned.
 Each composite bucket is considered as a single bucket so setting a size of 10 will return the
-first 1O composite buckets created from the values source.
+first 10 composite buckets created from the values source.
 The response contains the values for each composite bucket in an array containing the values extracted
 from each value source.
 

@@ -58,3 +58,11 @@ as each additional term demands extra processing and memory.
 To safeguard against this, the maximum number of terms that can be used in a
 Terms Query request has been limited to 65536. This default maximum can be changed
 for a particular index with the index setting `index.max_terms_count`.
+
+
+==== Limiting the length of regex that can be used in a Regexp Query request
+
+Executing a Regexp Query with a long regex string may degrade search performance.
+To safeguard against this, the maximum length of regex that can be used in a
+Regexp Query request has been limited to 1000. This default maximum can be changed
+for a particular index with the index setting `index.max_regex_length`.

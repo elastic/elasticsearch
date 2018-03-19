@@ -30,11 +30,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -64,34 +65,26 @@ import java.util.stream.Collectors;
  * @param <T> the type of the XContent base data-structure
  */
 public abstract class MetaDataStateFormat<T> {
+    public static final XContentType FORMAT = XContentType.SMILE;
     public static final String STATE_DIR_NAME = "_state";
     public static final String STATE_FILE_EXTENSION = ".st";
+
     private static final String STATE_FILE_CODEC = "state";
     private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 0;
     private static final int STATE_FILE_VERSION = 1;
     private static final int STATE_FILE_VERSION_ES_2X_AND_BELOW = 0;
     private static final int BUFFER_SIZE = 4096;
-    private final XContentType format;
     private final String prefix;
     private final Pattern stateFilePattern;
 
 
     /**
      * Creates a new {@link MetaDataStateFormat} instance
-     * @param format the format of the x-content
      */
-    protected MetaDataStateFormat(XContentType format, String prefix) {
-        this.format = format;
+    protected MetaDataStateFormat(String prefix) {
         this.prefix = prefix;
         this.stateFilePattern = Pattern.compile(Pattern.quote(prefix) + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
 
-    }
-
-    /**
-     * Returns the {@link XContentType} used to serialize xcontent on write.
-     */
-    public XContentType format() {
-        return format;
     }
 
     /**
@@ -123,8 +116,8 @@ public abstract class MetaDataStateFormat<T> {
             try (OutputStreamIndexOutput out =
                      new OutputStreamIndexOutput(resourceDesc, fileName, Files.newOutputStream(tmpStatePath), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
-                out.writeInt(format.index());
-                try (XContentBuilder builder = newXContentBuilder(format, new IndexOutputOutputStream(out) {
+                out.writeInt(FORMAT.index());
+                try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                     @Override
                     public void close() throws IOException {
                         // this is important since some of the XContentBuilders write bytes on close.
@@ -190,6 +183,9 @@ public abstract class MetaDataStateFormat<T> {
                 final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,
                     STATE_FILE_VERSION);
                 final XContentType xContentType = XContentType.values()[indexInput.readInt()];
+                if (xContentType != FORMAT) {
+                    throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
+                }
                 if (fileVersion == STATE_FILE_VERSION_ES_2X_AND_BELOW) {
                     // format version 0, wrote a version that always came from the content state file and was never used
                     indexInput.readLong(); // version currently unused
@@ -197,8 +193,9 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(namedXContentRegistry,
-                            new InputStreamIndexInput(slice, contentSize))) {
+                    try (XContentParser parser = XContentFactory.xContent(FORMAT)
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
+                                new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
                 }
@@ -312,7 +309,8 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {

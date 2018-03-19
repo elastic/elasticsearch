@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
 
@@ -180,9 +181,10 @@ public class MeanReciprocalRank implements EvaluationMetric {
         return Objects.hash(relevantRatingThreshhold, k);
     }
 
-    static class Breakdown implements MetricDetails {
+    static class Breakdown implements MetricDetail {
 
         private final int firstRelevantRank;
+        private static ParseField FIRST_RELEVANT_RANK_FIELD = new ParseField("first_relevant");
 
         Breakdown(int firstRelevantRank) {
             this.firstRelevantRank = firstRelevantRank;
@@ -193,10 +195,27 @@ public class MeanReciprocalRank implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params)
+        public
+        String getMetricName() {
+            return NAME;
+        }
+
+        @Override
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
                 throws IOException {
-            builder.field("first_relevant", firstRelevantRank);
-            return builder;
+            return builder.field(FIRST_RELEVANT_RANK_FIELD.getPreferredName(), firstRelevantRank);
+        }
+
+        private static final ConstructingObjectParser<Breakdown, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Breakdown((Integer) args[0]);
+        });
+
+        static {
+            PARSER.declareInt(constructorArg(), FIRST_RELEVANT_RANK_FIELD);
+        }
+
+        public static Breakdown fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override

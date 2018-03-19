@@ -22,7 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -123,11 +123,11 @@ public final class IndexSettings {
      * A setting describing the maximum number of characters that will be analyzed for a highlight request.
      * This setting is only applicable when highlighting is requested on a text that was indexed without
      * offsets or term vectors.
-     * The default maximum of 10000 characters is defensive as for highlighting larger texts,
+     * The default maximum of 1M characters is defensive as for highlighting larger texts,
      * indexing with offsets or term vectors is recommended.
      */
     public static final Setting<Integer> MAX_ANALYZED_OFFSET_SETTING =
-        Setting.intSetting("index.highlight.max_analyzed_offset", 10000, 1, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.highlight.max_analyzed_offset", 1000000, 1, Property.Dynamic, Property.IndexScope);
 
 
     /**
@@ -183,8 +183,15 @@ public final class IndexSettings {
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
             Property.Dynamic, Property.IndexScope);
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
-            Property.IndexScope);
+        Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB),
+            /*
+             * An empty translog occupies 43 bytes on disk. If the flush threshold is below this, the flush thread
+             * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
+             * However, small thresholds are useful for testing so we do not add a large lower bound here.
+             */
+            new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            Property.Dynamic, Property.IndexScope);
 
     /**
      * Controls how long translog files that are no longer needed for persistence reasons
@@ -219,9 +226,9 @@ public final class IndexSettings {
                      * generation threshold. However, small thresholds are useful for testing so we
                      * do not add a large lower bound here.
                      */
-                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1, ByteSizeUnit.BYTES),
                     new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-                    new Property[]{Property.Dynamic, Property.IndexScope});
+                    Property.Dynamic, Property.IndexScope);
 
     /**
      * Index setting to enable / disable deletes garbage collection.
@@ -242,6 +249,12 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
         1024, 1, Property.Dynamic, Property.IndexScope);
+
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
+        1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final String INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY = "index.mapping.single_type";
     private static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING; // private - should not be registered
@@ -306,6 +319,12 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
+
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    private volatile int maxRegexLength;
+
     /**
      * Whether the index is required to have at most one type.
      */
@@ -374,7 +393,7 @@ public final class IndexSettings {
         this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
-        logger = ServerLoggers.getLogger(getClass(), settings, index);
+        logger = Loggers.getLogger(getClass(), settings, index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
@@ -408,6 +427,7 @@ public final class IndexSettings {
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
+        maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
@@ -455,6 +475,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
+        scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -814,6 +835,17 @@ public final class IndexSettings {
 
     private void setMaxSlicesPerScroll(int value) {
         this.maxSlicesPerScroll = value;
+    }
+
+    /**
+     * The maximum length of regex string allowed in a regexp query.
+     */
+    public int getMaxRegexLength() {
+        return maxRegexLength;
+    }
+
+    private void setMaxRegexLength(int maxRegexLength) {
+        this.maxRegexLength = maxRegexLength;
     }
 
     /**

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 
@@ -13,11 +15,15 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
-  'distribution:integ-test-zip',
-  'distribution:zip',
-  'distribution:tar',
-  'distribution:deb',
-  'distribution:rpm',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:zip',
+  'distribution:archives:tar',
+  'distribution:packages:deb',
+  'distribution:packages:rpm',
+  'distribution:bwc:next-minor-snapshot',
+  'distribution:bwc:staged-minor-snapshot',
+  'distribution:bwc:next-bugfix-snapshot',
+  'distribution:bwc:maintenance-bugfix-snapshot',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'server',
@@ -36,7 +42,7 @@ List projects = [
   * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
   * all files/directories in the source tree to find all projects.
   */
-void addSubProjects(String path, File dir, List<String> projects, List<String> branches) {
+void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
@@ -44,44 +50,28 @@ void addSubProjects(String path, File dir, List<String> projects, List<String> b
 
   final String projectName = "${path}:${dir.name}"
   include projectName
-
-  if (dir.name == 'bwc-snapshot-dummy-projects') {
-    for (final String branch : branches) {
-      final String snapshotProjectName = "${projectName}:bwc-snapshot-${branch}"
-      projects.add(snapshotProjectName)
-      include snapshotProjectName
-      project("${snapshotProjectName}").projectDir = dir
-    }
-    // TODO do we want to assert that there's nothing else in the bwc directory?
-  } else {
-    if (path.isEmpty() || path.startsWith(':example-plugins')) {
+  if (path.isEmpty() || path.startsWith(':example-plugins')) {
       project(projectName).projectDir = dir
     }
     for (File subdir : dir.listFiles()) {
-      addSubProjects(projectName, subdir, projects, branches)
+      addSubProjects(projectName, subdir)
     }
   }
-}
+
 
 // include example plugins first, so adding plugin dirs below won't muck with :example-plugins
 File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
 for (File example : examplePluginsDir.listFiles()) {
   if (example.isDirectory() == false) continue;
   if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  addSubProjects(':example-plugins', example, projects, [])
+  addSubProjects(':example-plugins', example)
 }
 project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
 
-addSubProjects('', new File(rootProject.projectDir, 'libs'), projects, [])
-addSubProjects('', new File(rootProject.projectDir, 'modules'), projects, [])
-addSubProjects('', new File(rootProject.projectDir, 'plugins'), projects, [])
-addSubProjects('', new File(rootProject.projectDir, 'qa'), projects, [])
-
-/* Create projects for building BWC snapshot distributions from the heads of other branches */
-final List<String> branches = ['5.6', '6.0', '6.1', '6.2', '6.x']
-for (final String branch : branches) {
-  projects.add("distribution:bwc-snapshot-${branch}".toString())
-}
+addSubProjects('', new File(rootProject.projectDir, 'libs'))
+addSubProjects('', new File(rootProject.projectDir, 'modules'))
+addSubProjects('', new File(rootProject.projectDir, 'plugins'))
+addSubProjects('', new File(rootProject.projectDir, 'qa'))
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {
@@ -90,17 +80,13 @@ if (isEclipse) {
   projects << 'server-tests'
   projects << 'libs:elasticsearch-core-tests'
   projects << 'libs:elasticsearch-nio-tests'
+  projects << 'libs:secure-sm-tests'
+  projects << 'libs:grok-tests'
 }
 
 include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
-
-/* The BWC snapshot projects share the same build directory and build file,
- * but apply to different backwards compatibility branches. */
-for (final String branch : branches) {
-  project(":distribution:bwc-snapshot-${branch}").projectDir = new File(rootProject.projectDir, 'distribution/bwc')
-}
 
 if (isEclipse) {
   project(":server").projectDir = new File(rootProject.projectDir, 'server/src/main')
@@ -115,13 +101,20 @@ if (isEclipse) {
   project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
   project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
+  project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
+  project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch
 File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
 if (extraProjects.exists()) {
   for (File extraProjectDir : extraProjects.listFiles()) {
-    addSubProjects('', extraProjectDir, projects, branches)
+    addSubProjects('', extraProjectDir)
   }
 }
-

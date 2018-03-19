@@ -103,7 +103,7 @@ allprojects {
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
-    versionCollection = versions
+    bwcVersions = versions
 
     buildMetadata = buildMetadataMap
   }
@@ -122,13 +122,13 @@ task verifyVersions {
     Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= versions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
+    knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(versions.versionsIndexCompatibleWithCurrent.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -144,13 +144,24 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-allprojects {
-  ext.bwc_tests_enabled = true
+final boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+if (bwc_tests_enabled == false) {
+  if (bwc_tests_disabled_issue.isEmpty()) {
+    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
+  }
+  println "========================= WARNING ========================="
+  println "         Backwards compatibility tests are disabled!"
+  println "See ${bwc_tests_disabled_issue}"
+  println "==========================================================="
+}
+subprojects {
+  ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
 task verifyBwcTestsEnabled {
   doLast {
-    if (project.bwc_tests_enabled == false) {
+    if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
     }
   }
@@ -185,17 +196,18 @@ subprojects {
     "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
@@ -207,13 +219,14 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
-  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
-    if (version.branch != null) {
-      final String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
+  bwcVersions.snapshotProjectNames.each { snapshotName ->
+    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
+    if (snapshot != null ) {
+      String snapshotProject = ":distribution:bwc:${snapshotName}"
+      project(snapshotProject).ext.bwcVersion = snapshot
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
     }
   }
 
@@ -244,7 +257,7 @@ subprojects {
         }
       }
       project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }

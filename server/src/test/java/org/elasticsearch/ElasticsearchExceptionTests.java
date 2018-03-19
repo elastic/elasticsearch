@@ -35,6 +35,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,6 +77,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
@@ -178,7 +180,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\"," +
                     "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":" +
                     "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
@@ -198,7 +200,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1," +
                     "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\"," +
                     "\"index_uuid\":\"_na_\",\"index\":\"foo1\"}}]}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
@@ -217,7 +219,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\"," +
                     "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]," +
                     "\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
-            assertEquals(expected, builder.string());
+            assertEquals(expected, Strings.toString(builder));
         }
     }
 
@@ -303,7 +305,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 builder.startObject();
                 e.toXContent(builder, params);
                 builder.endObject();
-                actual = builder.string();
+                actual = Strings.toString(builder);
             }
             assertThat(actual, startsWith("{\"type\":\"exception\",\"reason\":\"foo\"," +
                     "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
@@ -429,7 +431,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         builder = shuffleXContent(builder);
         ElasticsearchException parsed;
-        try (XContentParser parser = createParser(xContent, builder.bytes())) {
+        try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -574,7 +576,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     .endObject()
             .endObject();
             try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
-                originalBytes = shuffledBuilder.bytes();
+                originalBytes = BytesReference.bytes(shuffledBuilder);
             }
         }
 
@@ -650,7 +652,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         ElasticsearchException parsedFailure;
@@ -795,7 +797,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
-            failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
+            failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
         }
 
         ElasticsearchException parsedFailure;

@@ -31,13 +31,12 @@ task bwcTest {
     group = 'verification'
 }
 
-for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
+for (Version version : bwcVersions.indexCompatible) {
     String baseName = "v${version}"
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
         mustRunAfter(precommit)
     }
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-        distribution = 'zip'
         bwcVersion = version
         numBwcNodes = 1
         numNodes = 1
@@ -57,9 +56,10 @@ for (Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
 test.enabled = false
 
 task integTest {
-    for (final def version : versionCollection.basicIntegrationTestVersions) {
-        dependsOn "v${version}#bwcTest"
-    }
+  if (project.bwc_tests_enabled) {
+    final def version = bwcVersions.snapshotsIndexCompatible.first()
+    dependsOn "v${version}#bwcTest"
+  }
 }
 
 task verifyDocsLuceneVersion {

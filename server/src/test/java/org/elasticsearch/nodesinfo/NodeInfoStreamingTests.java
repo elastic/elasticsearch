@@ -23,6 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +102,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         param2Builder.startObject();
         param2.toXContent(param2Builder, params);
         param2Builder.endObject();
-        assertThat(param1Builder.string(), equalTo(param2Builder.string()));
+        assertThat(Strings.toString(param1Builder), equalTo(Strings.toString(param2Builder)));
     }
 
     private static NodeInfo createNodeInfo() {
@@ -144,15 +145,15 @@ public class NodeInfoStreamingTests extends ESTestCase {
             List<PluginInfo> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
                 plugins.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
-                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), Collections.emptyList(),
-                    randomBoolean(), randomBoolean()));
+                    randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
+                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean()));
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginInfo> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
                 modules.add(new PluginInfo(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10),
-                        randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), Collections.emptyList(),
-                    randomBoolean(), randomBoolean()));
+                    randomAlphaOfLengthBetween(3, 10), VersionUtils.randomVersion(random()), "1.8",
+                    randomAlphaOfLengthBetween(3, 10), Collections.emptyList(), randomBoolean()));
             }
             pluginsAndModules = new PluginsAndModules(plugins, modules);
         }

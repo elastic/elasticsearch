@@ -22,6 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -63,31 +64,30 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     void analyze(Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
-            if (captured.type.dynamic) {
+            if (captured.clazz == def.class) {
                 // dynamic implementation
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
-                defPointer = "S" + captured.type.name + "." + call + ",1";
+                defPointer = "S" + Definition.ClassToName(captured.clazz) + "." + call + ",1";
             }
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
         } else {
             defPointer = null;
             // static case
-            if (captured.type.dynamic == false) {
+            if (captured.clazz != def.class) {
                 try {
-                    ref = new FunctionRef(locals.getDefinition(), expected, captured.type.name, call, 1);
+                    ref = new FunctionRef(locals.getDefinition(), expected, Definition.ClassToName(captured.clazz), call, 1);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = ref.interfaceMethod.arguments.get(i);
-                        Definition.Type to = ref.delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, Definition.TypeToClass(from), Definition.TypeToClass(to), false, true);
+                        Class<?> from = ref.interfaceMethod.arguments.get(i);
+                        Class<?> to = ref.delegateMethod.arguments.get(i);
+                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn.equals(locals.getDefinition().voidType) == false) {
-                        AnalyzerCaster.getLegalCast(location,
-                            Definition.TypeToClass(ref.delegateMethod.rtn), Definition.TypeToClass(ref.interfaceMethod.rtn), false, true);
+                    if (ref.interfaceMethod.rtn != void.class) {
+                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
                     }
                 } catch (IllegalArgumentException e) {
                     throw createError(e);
@@ -104,15 +104,15 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // dynamic interface: push captured parameter on stack
             // TODO: don't do this: its just to cutover :)
             writer.push((String)null);
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
+            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
         } else if (ref == null) {
             // typed interface, dynamic implementation
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
-            Type methodType = Type.getMethodType(expected.type, captured.type.type);
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, expected.name);
+            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
+            Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, Definition.ClassToName(expected));
         } else {
             // typed interface, typed implementation
-            writer.visitVarInsn(captured.type.type.getOpcode(Opcodes.ILOAD), captured.getSlot());
+            writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
             writer.invokeDynamic(
                 ref.interfaceMethodName,
                 ref.factoryDescriptor,
@@ -133,7 +133,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
 
     @Override
     public Type[] getCaptures() {
-        return new Type[] { captured.type.type };
+        return new Type[] { MethodWriter.getType(captured.clazz) };
     }
 
     @Override

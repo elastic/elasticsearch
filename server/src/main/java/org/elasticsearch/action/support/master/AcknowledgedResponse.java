@@ -24,9 +24,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -34,12 +36,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * Abstract class that allows to mark action responses that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedResponse extends ActionResponse {
+public abstract class AcknowledgedResponse extends ActionResponse implements ToXContentObject {
 
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
-    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> PARSER) {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
+    protected static <T extends AcknowledgedResponse> void declareAcknowledgedField(ConstructingObjectParser<T, Void> objectParser) {
+        objectParser.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ACKNOWLEDGED,
             ObjectParser.ValueType.BOOLEAN);
     }
 
@@ -62,20 +64,46 @@ public abstract class AcknowledgedResponse extends ActionResponse {
     }
 
     /**
-     * Reads the timeout value
+     * Reads the acknowledged value
      */
     protected void readAcknowledged(StreamInput in) throws IOException {
         acknowledged = in.readBoolean();
     }
 
     /**
-     * Writes the timeout value
+     * Writes the acknowledged value
      */
     protected void writeAcknowledged(StreamOutput out) throws IOException {
         out.writeBoolean(acknowledged);
     }
 
-    protected void addAcknowledgedField(XContentBuilder builder) throws IOException {
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(ACKNOWLEDGED.getPreferredName(), isAcknowledged());
+        addCustomFields(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        AcknowledgedResponse that = (AcknowledgedResponse) o;
+        return isAcknowledged() == that.isAcknowledged();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAcknowledged());
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -206,7 +208,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(registry, data.slice(from, nextMarker - from))) {
+                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
+                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -225,6 +228,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.preference(nodeStringValue(value, null));
                         } else if ("routing".equals(entry.getKey())) {
                             searchRequest.routing(nodeStringValue(value, null));
+                        } else if ("allow_partial_search_results".equals(entry.getKey())) {
+                            searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
                         }
                     }
                     defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
@@ -240,7 +245,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, bytes)) {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers
@@ -296,8 +302,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 if (request.routing() != null) {
                     xContentBuilder.field("routing", request.routing());
                 }
+                if (request.allowPartialSearchResults() != null) {
+                    xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
+                }
                 xContentBuilder.endObject();
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
@@ -307,7 +316,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.startObject();
                     xContentBuilder.endObject();
                 }
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }

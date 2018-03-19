@@ -19,14 +19,15 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -64,15 +65,15 @@ public final class EMapInit extends AExpression {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
 
-        actual = locals.getDefinition().HashMapType;
+        actual = HashMap.class;
 
-        constructor = actual.struct.constructors.get(new MethodKey("<init>", 0));
+        constructor = locals.getDefinition().ClassToType(actual).struct.constructors.get(new MethodKey("<init>", 0));
 
         if (constructor == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        method = actual.struct.methods.get(new MethodKey("put", 2));
+        method = locals.getDefinition().ClassToType(actual).struct.methods.get(new MethodKey("put", 2));
 
         if (method == null) {
             throw createError(new IllegalStateException("Illegal tree structure."));
@@ -85,7 +86,7 @@ public final class EMapInit extends AExpression {
         for (int index = 0; index < keys.size(); ++index) {
             AExpression expression = keys.get(index);
 
-            expression.expected = locals.getDefinition().DefType;
+            expression.expected = def.class;
             expression.internal = true;
             expression.analyze(locals);
             keys.set(index, expression.cast(locals));
@@ -94,7 +95,7 @@ public final class EMapInit extends AExpression {
         for (int index = 0; index < values.size(); ++index) {
             AExpression expression = values.get(index);
 
-            expression.expected = locals.getDefinition().DefType;
+            expression.expected = def.class;
             expression.internal = true;
             expression.analyze(locals);
             values.set(index, expression.cast(locals));
@@ -105,7 +106,7 @@ public final class EMapInit extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        writer.newInstance(actual.type);
+        writer.newInstance(MethodWriter.getType(actual));
         writer.dup();
         writer.invokeConstructor(constructor.owner.type, constructor.method);
 

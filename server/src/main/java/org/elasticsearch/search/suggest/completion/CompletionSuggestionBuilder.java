@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +95,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             builder.copyCurrentStructure(p);
-            v.contextBytes = builder.bytes();
+            v.contextBytes = BytesReference.bytes(builder);
             p.skipChildren();
         }, CONTEXTS_FIELD, ObjectParser.ValueType.OBJECT); // context is deprecated
         PARSER.declareBoolean(CompletionSuggestionBuilder::skipDuplicates, SKIP_DUPLICATES_FIELD);
@@ -217,7 +219,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     private CompletionSuggestionBuilder contexts(XContentBuilder contextBuilder) {
-        contextBytes = contextBuilder.bytes();
+        contextBytes = BytesReference.bytes(contextBuilder);
         return this;
     }
 
@@ -261,7 +263,9 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             builder.field(SKIP_DUPLICATES_FIELD.getPreferredName(), skipDuplicates);
         }
         if (contextBytes != null) {
-            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
+            try (InputStream stream = contextBytes.streamInput()) {
+                builder.rawField(CONTEXTS_FIELD.getPreferredName(), stream);
+            }
         }
         return builder;
     }
@@ -311,7 +315,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
 
     static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(BytesReference contextBytes,
             NamedXContentRegistry xContentRegistry, ContextMappings contextMappings) throws IOException {
-        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
+        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry,
+            LoggingDeprecationHandler.INSTANCE, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
             contextParser.nextToken();
             Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
             assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;

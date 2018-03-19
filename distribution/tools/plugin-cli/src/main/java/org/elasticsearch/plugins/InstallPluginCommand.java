@@ -21,9 +21,10 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -461,17 +462,15 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path target = stagingDirectory(pluginsDir);
         pathsToDeleteOnShutdown.add(target);
 
-        boolean hasEsDir = false;
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zipInput.getNextEntry()) != null) {
-                if (entry.getName().startsWith("elasticsearch/") == false) {
-                    // only extract the elasticsearch directory
-                    continue;
+                if (entry.getName().startsWith("elasticsearch/")) {
+                    throw new UserException(PLUGIN_MALFORMED, "This plugin was built with an older plugin structure." +
+                        " Contact the plugin author to remove the intermediate \"elasticsearch\" directory within the plugin zip.");
                 }
-                hasEsDir = true;
-                Path targetFile = target.resolve(entry.getName().substring("elasticsearch/".length()));
+                Path targetFile = target.resolve(entry.getName());
 
                 // Using the entry name as a path can result in an entry outside of the plugin dir,
                 // either if the name starts with the root of the filesystem, or it is a relative
@@ -498,13 +497,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 }
                 zipInput.closeEntry();
             }
+        } catch (UserException e) {
+            IOUtils.rm(target);
+            throw e;
         }
         Files.delete(zip);
-        if (hasEsDir == false) {
-            IOUtils.rm(target);
-            throw new UserException(PLUGIN_MALFORMED,
-                                    "`elasticsearch` directory is missing in the plugin zip");
-        }
         return target;
     }
 
@@ -566,8 +563,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Load information about the plugin, and verify it can be installed with no errors. */
-    private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
+    private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+        PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
         verifyPluginName(env.pluginsFile(), info.getName(), pluginRoot);
@@ -585,13 +583,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
-
-        // read optional security policy (extra permissions)
-        // if it exists, confirm or warn the user
-        Path policy = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
-        if (Files.exists(policy)) {
-            PluginSecurity.readPolicy(info, policy, terminal, env::tmpFile, isBatch);
-        }
 
         return info;
     }
@@ -659,28 +650,42 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     continue;
                 }
                 final PluginInfo info = PluginInfo.readFromProperties(plugin);
+                PluginsService.verifyCompatibility(info);
                 verifyPluginName(env.pluginsFile(), info.getName(), plugin);
                 pluginPaths.add(plugin);
             }
         }
+
+        // read optional security policy from each bundled plugin, and confirm all exceptions one time with user
+
+        Set<String> permissions = new HashSet<>();
         final List<PluginInfo> pluginInfos = new ArrayList<>();
+        boolean hasNativeController = false;
         for (Path plugin : pluginPaths) {
-            final PluginInfo info = verify(terminal, plugin, isBatch, env);
+            final PluginInfo info = loadPluginInfo(terminal, plugin, isBatch, env);
             pluginInfos.add(info);
-            installPluginSupportFiles(info, plugin, env.binFile().resolve(metaInfo.getName()),
+
+            hasNativeController |= info.hasNativeController();
+
+            Path policy = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
+            if (Files.exists(policy)) {
+                permissions.addAll(PluginSecurity.parsePermissions(policy, env.tmpFile()));
+            }
+        }
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, hasNativeController, isBatch);
+
+        // move support files and rename as needed to prepare the exploded plugin for its final location
+        for (int i = 0; i < pluginPaths.size(); ++i) {
+            Path pluginPath = pluginPaths.get(i);
+            PluginInfo info = pluginInfos.get(i);
+            installPluginSupportFiles(info, pluginPath, env.binFile().resolve(metaInfo.getName()),
                                       env.configFile().resolve(metaInfo.getName()), deleteOnFailure);
             // ensure the plugin dir within the tmpRoot has the correct name
-            if (plugin.getFileName().toString().equals(info.getName()) == false) {
-                Files.move(plugin, plugin.getParent().resolve(info.getName()), StandardCopyOption.ATOMIC_MOVE);
+            if (pluginPath.getFileName().toString().equals(info.getName()) == false) {
+                Files.move(pluginPath, pluginPath.getParent().resolve(info.getName()), StandardCopyOption.ATOMIC_MOVE);
             }
         }
         movePlugin(tmpRoot, destination);
-        for (PluginInfo info : pluginInfos) {
-            if (info.requiresKeystore()) {
-                createKeystoreIfNeeded(terminal, env, info);
-                break;
-            }
-        }
         String[] plugins = pluginInfos.stream().map(PluginInfo::getName).toArray(String[]::new);
         terminal.println("-> Installed " + metaInfo.getName() + " with: " + Strings.arrayToCommaDelimitedString(plugins));
     }
@@ -691,16 +696,20 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      */
     private void installPlugin(Terminal terminal, boolean isBatch, Path tmpRoot,
                                Environment env, List<Path> deleteOnFailure) throws Exception {
-        final PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
+        final PluginInfo info = loadPluginInfo(terminal, tmpRoot, isBatch, env);
+        // read optional security policy (extra permissions), if it exists, confirm or warn the user
+        Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        if (Files.exists(policy)) {
+            Set<String> permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+            PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
+        }
+
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
                                   env.configFile().resolve(info.getName()), deleteOnFailure);
         movePlugin(tmpRoot, destination);
-        if (info.requiresKeystore()) {
-            createKeystoreIfNeeded(terminal, env, info);
-        }
         terminal.println("-> Installed " + info.getName());
     }
 
@@ -804,15 +813,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
-    }
-
-    private void createKeystoreIfNeeded(Terminal terminal, Environment env, PluginInfo info) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-            keystore = KeyStoreWrapper.create(new char[0]);
-            keystore.save(env.configFile());
-        }
     }
 
     private static void setOwnerGroup(final Path path, final PosixFileAttributes attributes) throws IOException {

@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -44,8 +44,8 @@ public final class EBinary extends AExpression {
     private AExpression left;
     private AExpression right;
 
-    private Type promote = null;                // promoted type
-    private Type shiftDistance = null;          // for shifts, the rhs is promoted independently
+    private Class<?> promote = null;            // promoted type
+    private Class<?> shiftDistance = null;      // for shifts, the rhs is promoted independently
     boolean cat = false;
     private boolean originallyExplicit = false; // record whether there was originally an explicit cast
 
@@ -102,17 +102,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply multiply [*] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -127,15 +126,13 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant * (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant * (long)right.constant;
-            } else if (sort == float.class) {
+            } else if (promote == float.class) {
                 constant = (float)left.constant * (float)right.constant;
-            } else if (sort == double.class) {
+            } else if (promote == double.class) {
                 constant = (double)left.constant * (double)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -147,17 +144,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply divide [/] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -173,16 +169,14 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
             try {
-                if (sort == int.class) {
+                if (promote == int.class) {
                     constant = (int)left.constant / (int)right.constant;
-                } else if (sort == long.class) {
+                } else if (promote == long.class) {
                     constant = (long)left.constant / (long)right.constant;
-                } else if (sort == float.class) {
+                } else if (promote == float.class) {
                     constant = (float)left.constant / (float)right.constant;
-                } else if (sort == double.class) {
+                } else if (promote == double.class) {
                     constant = (double)left.constant / (double)right.constant;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -197,17 +191,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply remainder [%] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -223,16 +216,14 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
             try {
-                if (sort == int.class) {
+                if (promote == int.class) {
                     constant = (int)left.constant % (int)right.constant;
-                } else if (sort == long.class) {
+                } else if (promote == long.class) {
                     constant = (long)left.constant % (long)right.constant;
-                } else if (sort == float.class) {
+                } else if (promote == float.class) {
                     constant = (float)left.constant % (float)right.constant;
-                } else if (sort == double.class) {
+                } else if (promote == double.class) {
                     constant = (double)left.constant % (double)right.constant;
                 } else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
@@ -247,31 +238,28 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteAdd(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
+        promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply add [+] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
-
-        Class<?> sort = promote.clazz;
 
         actual = promote;
 
-        if (sort == String.class) {
+        if (promote == String.class) {
             left.expected = left.actual;
 
-            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual.clazz == String.class) {
+            if (left instanceof EBinary && ((EBinary)left).operation == Operation.ADD && left.actual == String.class) {
                 ((EBinary)left).cat = true;
             }
 
             right.expected = right.actual;
 
-            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual.clazz == String.class) {
+            if (right instanceof EBinary && ((EBinary)right).operation == Operation.ADD && right.actual == String.class) {
                 ((EBinary)right).cat = true;
             }
-        } else if (promote.dynamic) {
+        } else if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -287,15 +275,15 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant + (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant + (long)right.constant;
-            } else if (sort == float.class) {
+            } else if (promote == float.class) {
                 constant = (float)left.constant + (float)right.constant;
-            } else if (sort == double.class) {
+            } else if (promote == double.class) {
                 constant = (double)left.constant + (double)right.constant;
-            } else if (sort == String.class) {
+            } else if (promote == String.class) {
                 constant = left.constant.toString() + right.constant.toString();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -308,17 +296,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), true));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply subtract [-] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -334,15 +321,13 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant - (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant - (long)right.constant;
-            } else if (sort == float.class) {
+            } else if (promote == float.class) {
                 constant = (float)left.constant - (float)right.constant;
-            } else if (sort == double.class) {
+            } else if (promote == double.class) {
                 constant = (double)left.constant - (double)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -354,32 +339,32 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        left.expected = variables.getDefinition().StringType;
-        right.expected = variables.getDefinition().PatternType;
+        left.expected = String.class;
+        right.expected = Pattern.class;
 
         left = left.cast(variables);
         right = right.cast(variables);
 
-        promote = variables.getDefinition().booleanType;
-        actual = variables.getDefinition().booleanType;
+        promote = boolean.class;
+        actual = boolean.class;
     }
 
     private void analyzeLSH(Locals variables) {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
-        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
+        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply left shift [<<] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
 
-        if (lhspromote.dynamic || rhspromote.dynamic) {
+        if (lhspromote == def.class || rhspromote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -389,8 +374,8 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.clazz == long.class) {
-                right.expected = variables.getDefinition().intType;
+            if (rhspromote == long.class) {
+                right.expected = int.class;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -401,11 +386,9 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = lhspromote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant << (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant << (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -417,18 +400,18 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
-        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
+        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply right shift [>>] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
 
-        if (lhspromote.dynamic || rhspromote.dynamic) {
+        if (lhspromote == def.class || rhspromote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -438,8 +421,8 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.clazz == long.class) {
-                right.expected = variables.getDefinition().intType;
+            if (rhspromote == long.class) {
+                right.expected = int.class;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -450,11 +433,9 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = lhspromote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant >> (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant >> (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -466,18 +447,18 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        Type lhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), false));
-        Type rhspromote = variables.getDefinition().ClassToType(AnalyzerCaster.promoteNumeric(Definition.TypeToClass(right.actual), false));
+        Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
+        Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
 
         actual = promote = lhspromote;
         shiftDistance = rhspromote;
 
         if (lhspromote == null || rhspromote == null) {
             throw createError(new ClassCastException("Cannot apply unsigned shift [>>>] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
-        if (lhspromote.dynamic || rhspromote.dynamic) {
+        if (lhspromote == def.class || rhspromote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -487,8 +468,8 @@ public final class EBinary extends AExpression {
         } else {
             left.expected = lhspromote;
 
-            if (rhspromote.clazz == long.class) {
-                right.expected = variables.getDefinition().intType;
+            if (rhspromote == long.class) {
+                right.expected = int.class;
                 right.explicit = true;
             } else {
                 right.expected = rhspromote;
@@ -499,11 +480,9 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = lhspromote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant >>> (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant >>> (int)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -515,17 +494,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), false));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply and [&] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
 
@@ -541,11 +519,9 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant & (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant & (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -557,17 +533,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteXor(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual)));
+        promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply xor [^] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -582,13 +557,11 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == boolean.class) {
+            if (promote == boolean.class) {
                 constant = (boolean)left.constant ^ (boolean)right.constant;
-            } else if (sort == int.class) {
+            } else if (promote == int.class) {
                 constant = (int)left.constant ^ (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant ^ (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -600,17 +573,16 @@ public final class EBinary extends AExpression {
         left.analyze(variables);
         right.analyze(variables);
 
-        promote = variables.getDefinition().ClassToType(
-            AnalyzerCaster.promoteNumeric(Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), false));
+        promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply or [|] to types " +
-                "[" + left.actual.name + "] and [" + right.actual.name + "]."));
+                "[" + Definition.ClassToName(left.actual) + "] and [" + Definition.ClassToName(right.actual) + "]."));
         }
 
         actual = promote;
 
-        if (promote.dynamic) {
+        if (promote == def.class) {
             left.expected = left.actual;
             right.expected = right.actual;
             if (expected != null) {
@@ -625,11 +597,9 @@ public final class EBinary extends AExpression {
         right = right.cast(variables);
 
         if (left.constant != null && right.constant != null) {
-            Class<?> sort = promote.clazz;
-
-            if (sort == int.class) {
+            if (promote == int.class) {
                 constant = (int)left.constant | (int)right.constant;
-            } else if (sort == long.class) {
+            } else if (promote == long.class) {
                 constant = (long)left.constant | (long)right.constant;
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
@@ -641,7 +611,7 @@ public final class EBinary extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (promote.clazz == String.class && operation == Operation.ADD) {
+        if (promote == String.class && operation == Operation.ADD) {
             if (!cat) {
                 writer.writeNewStrings();
             }
@@ -649,13 +619,13 @@ public final class EBinary extends AExpression {
             left.write(writer, globals);
 
             if (!(left instanceof EBinary) || !((EBinary)left).cat) {
-                writer.writeAppendStrings(Definition.TypeToClass(left.actual));
+                writer.writeAppendStrings(left.actual);
             }
 
             right.write(writer, globals);
 
             if (!(right instanceof EBinary) || !((EBinary)right).cat) {
-                writer.writeAppendStrings(Definition.TypeToClass(right.actual));
+                writer.writeAppendStrings(right.actual);
             }
 
             if (!cat) {
@@ -677,17 +647,16 @@ public final class EBinary extends AExpression {
             left.write(writer, globals);
             right.write(writer, globals);
 
-            if (promote.dynamic || (shiftDistance != null && shiftDistance.dynamic)) {
+            if (promote == def.class || (shiftDistance != null && shiftDistance == def.class)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,
                 // we need to flag that so that its done at runtime.
                 int flags = 0;
                 if (originallyExplicit) {
                     flags |= DefBootstrap.OPERATOR_EXPLICIT_CAST;
                 }
-                writer.writeDynamicBinaryInstruction(location, Definition.TypeToClass(actual),
-                    Definition.TypeToClass(left.actual), Definition.TypeToClass(right.actual), operation, flags);
+                writer.writeDynamicBinaryInstruction(location, actual, left.actual, right.actual, operation, flags);
             } else {
-                writer.writeBinaryInstruction(location, Definition.TypeToClass(actual), operation);
+                writer.writeBinaryInstruction(location, actual, operation);
             }
         }
     }

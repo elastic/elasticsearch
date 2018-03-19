@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -109,7 +110,8 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     }
 
     protected T read(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, bytes)) {
+        try (XContentParser parser = XContentHelper
+                .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
             T obj = reader.apply(parser);
             return obj;
         }

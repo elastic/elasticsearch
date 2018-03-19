@@ -26,11 +26,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -108,7 +111,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 if (parser.currentToken() == Token.START_OBJECT) {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
-                    source = builder.copyCurrentStructure(parser).string();
+                    source = Strings.toString(builder.copyCurrentStructure(parser));
                     options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     source = parser.text();
@@ -242,7 +245,9 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @return        The parsed {@link StoredScriptSource}.
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
-        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, content)) {
+        try (InputStream stream = content.streamInput();
+             XContentParser parser = xContentType.xContent()
+                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {
@@ -288,7 +293,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, builder.string(), Collections.emptyMap());
+                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, Strings.toString(builder), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {
@@ -316,7 +321,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      */
-    public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
+    public static StoredScriptSource fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null).build();
     }
 

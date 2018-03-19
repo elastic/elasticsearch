@@ -20,8 +20,8 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.ServerLoggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -134,14 +134,14 @@ public class SettingsFilterTests extends ESTestCase {
                                            MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
         Logger testLogger = Loggers.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
-        ServerLoggers.addAppender(testLogger, appender);
+        Loggers.addAppender(testLogger, appender);
         try {
             appender.start();
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();
         } finally {
-            ServerLoggers.removeAppender(testLogger, appender);
+            Loggers.removeAppender(testLogger, appender);
         }
     }
 
@@ -159,7 +159,7 @@ public class SettingsFilterTests extends ESTestCase {
         xContentBuilder.startObject();
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = xContentBuilder.string();
+        String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings, equalTo(filtered));
     }

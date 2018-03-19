@@ -263,14 +263,14 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testStoreScript() throws Exception {
-        BytesReference script = XContentFactory.jsonBuilder()
+        BytesReference script = BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
             .field("script")
             .startObject()
             .field("lang", "_lang")
             .field("source", "abc")
             .endObject()
-            .endObject().bytes();
+            .endObject());
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse(script, XContentType.JSON));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id").getSource());

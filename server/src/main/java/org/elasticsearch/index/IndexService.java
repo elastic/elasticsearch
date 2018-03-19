@@ -24,7 +24,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -448,7 +448,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (Exception e) {
                 logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] failed to close store on shard removal (reason: [{}])", shardId, reason), e);
             }
         }
@@ -467,7 +467,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
             }
         }
@@ -623,7 +623,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.onSettingsChanged();
                 } catch (Exception e) {
                     logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        () -> new ParameterizedMessage(
                             "[{}] failed to notify shard about setting change", shard.shardId().id()), e);
                 }
             }
@@ -775,7 +775,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                                             e);
                                                 }
                                             }),
-                                    ThreadPool.Names.SAME);
+                                    ThreadPool.Names.SAME, "background global checkpoint sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -832,7 +832,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                     // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                     indexService.logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                        () -> new ParameterizedMessage(
                             "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
                             toString()),
                         ex);

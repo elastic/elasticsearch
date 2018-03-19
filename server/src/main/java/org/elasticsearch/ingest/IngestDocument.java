@@ -20,14 +20,14 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
@@ -56,7 +56,8 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing, String parent,
+                          Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -67,6 +68,12 @@ public final class IngestDocument {
         }
         if (parent != null) {
             this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
+        }
+        if (version != null) {
+            sourceAndMetadata.put(MetaData.VERSION.getFieldName(), version);
+        }
+        if (versionType != null) {
+            sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -559,10 +566,10 @@ public final class IngestDocument {
      * one time operation that extracts the metadata fields from the ingest document and returns them.
      * Metadata fields that used to be accessible as ordinary top level fields will be removed as part of this call.
      */
-    public Map<MetaData, String> extractMetadata() {
-        Map<MetaData, String> metadataMap = new EnumMap<>(MetaData.class);
+    public Map<MetaData, Object> extractMetadata() {
+        Map<MetaData, Object> metadataMap = new EnumMap<>(MetaData.class);
         for (MetaData metaData : MetaData.values()) {
-            metadataMap.put(metaData, cast(metaData.getFieldName(), sourceAndMetadata.remove(metaData.getFieldName()), String.class));
+            metadataMap.put(metaData, sourceAndMetadata.remove(metaData.getFieldName()));
         }
         return metadataMap;
     }
@@ -609,13 +616,11 @@ public final class IngestDocument {
             return Arrays.copyOf(bytes, bytes.length);
         } else if (value == null || value instanceof String || value instanceof Integer ||
             value instanceof Long || value instanceof Float ||
-            value instanceof Double || value instanceof Boolean) {
+            value instanceof Double || value instanceof Boolean ||
+            value instanceof ZonedDateTime) {
             return value;
         } else if (value instanceof Date) {
             return ((Date) value).clone();
-        } else if (value instanceof ZonedDateTime) {
-            ZonedDateTime zonedDateTime = (ZonedDateTime) value;
-            return ZonedDateTime.of(zonedDateTime.toLocalDate(), zonedDateTime.toLocalTime(), zonedDateTime.getZone());
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }
@@ -651,7 +656,9 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME);
+        PARENT(ParentFieldMapper.NAME),
+        VERSION(VersionFieldMapper.NAME),
+        VERSION_TYPE("_version_type");
 
         private final String fieldName;
 

@@ -209,7 +209,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> isolated replica " + replica1.routingEntry());
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
             for (int i = 1; i < replicas.size(); i++) {
-                indexOnReplica(replicationRequest, replicas.get(i));
+                indexOnReplica(replicationRequest, shards, replicas.get(i));
             }
 
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
@@ -318,7 +318,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> Isolate replica1");
             IndexRequest indexDoc1 = new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexDoc1, shards.getPrimary());
-            indexOnReplica(replicationRequest, replica2);
+            indexOnReplica(replicationRequest, shards, replica2);
 
             final Translog.Operation op1;
             final List<Translog.Operation> initOperations = new ArrayList<>(initDocs);

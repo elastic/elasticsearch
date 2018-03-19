@@ -53,7 +53,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -219,17 +218,17 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
 
-        Path pluginZip = download(terminal, pluginId, env.tmpFile(), env.pluginsFile());
+        Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
         install(terminal, isBatch, extractedZip, env);
     }
 
     /** Downloads the plugin and returns the file it was downloaded to. */
-    private Path download(Terminal terminal, String pluginId, Path tmpDir, Path pluginsDir) throws Exception {
+    private Path download(Terminal terminal, String pluginId, Path tmpDir) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadZipAndChecksum(terminal, url, tmpDir, pluginsDir, false);
+            return downloadZipAndChecksum(terminal, url, tmpDir, false);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
@@ -237,7 +236,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, pluginsDir, true);
+            return downloadZipAndChecksum(terminal, mavenUrl, tmpDir, true);
         }
 
         // fall back to plain old URL
@@ -251,7 +250,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, msg);
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(terminal, pluginId, tmpDir, pluginsDir);
+        return downloadZip(terminal, pluginId, tmpDir);
     }
 
     // pkg private so tests can override
@@ -325,17 +324,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(Terminal terminal, String urlString, Path tmpDir, Path pluginsDir) throws IOException {
+    Path downloadZip(Terminal terminal, String urlString, Path tmpDir) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
-        if (url.getProtocol().equals("file")) {
-            Path pluginsFile = Paths.get(url.getFile());
-            if (pluginsFile.startsWith(pluginsDir)) {
-                throw new IllegalStateException("Installation failed! " +
-                    "Make sure the plugins directory [" + pluginsDir + "] can not contain the plugin distribution [" +
-                    pluginsFile + "]; move the distribution to an alternate location!");
-            }
-        }
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
         URLConnection urlConnection = url.openConnection();
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
@@ -384,9 +375,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads a zip from the url, as well as a SHA512 (or SHA1) checksum, and checks the checksum. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use openStream to download plugins")
-    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir, Path pluginsDir, boolean allowSha1)
-            throws Exception {
-        Path zip = downloadZip(terminal, urlString, tmpDir, pluginsDir);
+    private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir, boolean allowSha1) throws Exception {
+        Path zip = downloadZip(terminal, urlString, tmpDir);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
         URL checksumUrl = openUrl(checksumUrlString);

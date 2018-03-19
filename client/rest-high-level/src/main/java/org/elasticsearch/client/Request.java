@@ -586,6 +586,10 @@ public final class Request {
     }
 
     static Request indicesExist(GetIndexRequest request) {
+        //this can be called with no indices as argument by transport client, not via REST though
+        if (request.indices() == null || request.indices().length == 0) {
+            throw new IllegalArgumentException("indices are mandatory");
+        }
         String endpoint = endpoint(request.indices(), "");
         Params params = Params.builder();
         params.withLocal(request.local());

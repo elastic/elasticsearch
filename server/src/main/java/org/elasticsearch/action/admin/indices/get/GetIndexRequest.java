@@ -24,11 +24,8 @@ import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
@@ -109,11 +106,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (CollectionUtils.isEmpty(indices())) {
-            validationException = addValidationError("index / indices is missing", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     public GetIndexRequest humanReadable(boolean humanReadable) {

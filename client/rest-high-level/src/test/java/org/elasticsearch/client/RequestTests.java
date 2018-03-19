@@ -291,9 +291,8 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndicesExistEmptyIndices() {
-        String[] indices = randomBoolean() ? null : Strings.EMPTY_ARRAY;
-        ActionRequestValidationException validationException = new GetIndexRequest().indices(indices).validate();
-        assertNotNull(validationException);
+        expectThrows(IllegalArgumentException.class, () -> Request.indicesExist(new GetIndexRequest()));
+        expectThrows(IllegalArgumentException.class, () -> Request.indicesExist(new GetIndexRequest().indices((String[])null)));
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {

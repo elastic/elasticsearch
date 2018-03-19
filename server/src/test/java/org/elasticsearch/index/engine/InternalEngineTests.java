@@ -65,6 +65,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -163,6 +164,7 @@ import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTr
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -4300,7 +4302,6 @@ public class InternalEngineTests extends EngineTestCase {
             final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 2L, seqno, false));
             assertThat(result.isCreated(), equalTo(true));
         }
-        // A flush must change the periodically flush condition.
         lastCommitInfo = engine.getLastCommittedSegmentInfos();
         if (engine.shouldPeriodicallyFlush()) {
             engine.flush();
@@ -4309,6 +4310,60 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
+    public void testStressShouldPeriodicallyFlush() throws Exception {
+        final long flushThreshold = randomLongBetween(100, 5000);
+        final long generationThreshold = randomLongBetween(1000, 5000);
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), generationThreshold + "b")
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
+        indexSettings.updateIndexMetaData(indexMetaData);
+        engine.onSettingsChanged();
+        final int iterations = scaledRandomIntBetween(100, 1000);
+        final List<Long> pendingSeqNo = new ArrayList<>();
+        for (int iteration = 0; iteration < iterations; iteration++) {
+            final int opsPerIter = scaledRandomIntBetween(1, 100);
+            for (int op = 0; op < opsPerIter; op++) {
+                final String id = UUIDs.randomBase64UUID();
+                final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                final long seqno;
+                if (randomBoolean() && pendingSeqNo.isEmpty() == false) {
+                    seqno = pendingSeqNo.remove(0);
+                } else {
+                    seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+                }
+                engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
+                try {
+                    if (rarely() || engine.getTranslog().shouldRollGeneration()) {
+                        engine.rollTranslogGeneration();
+                    }
+                    if (engine.shouldPeriodicallyFlush()) {
+                        engine.flush();
+                        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+                    }
+                } catch (EngineException ex) {
+                    // This happens because the test may have open too many files (max 2048 fds on test)
+                    assertThat(engine.getTranslog().currentFileGeneration() - engine.getTranslog().getMinFileGeneration(),
+                        greaterThan(100L));
+                    return;
+                }
+            }
+            if (randomBoolean() && pendingSeqNo.isEmpty()) {
+                pendingSeqNo.add(engine.getLocalCheckpointTracker().generateSeqNo());
+            }
+        }
+        try {
+            if (engine.shouldPeriodicallyFlush()) {
+                engine.flush();
+                assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            }
+        } catch (EngineException ex) {
+            // This happens because the test may have open too many files (max 2048 fds on test)
+            assertThat(engine.getTranslog().currentFileGeneration() - engine.getTranslog().getMinFileGeneration(),
+                greaterThan(100L));
+        }
+    }
 
     public void testStressUpdateSameDocWhileGettingIt() throws IOException, InterruptedException {
         final int iters = randomIntBetween(1, 15);

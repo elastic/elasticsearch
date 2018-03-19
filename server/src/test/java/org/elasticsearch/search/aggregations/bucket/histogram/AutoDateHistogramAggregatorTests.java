@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -334,6 +335,57 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     assertEquals(1, bucket.getDocCount());
                 }
         );
+    }
+
+    public void testIntervalDayWithTZ() throws IOException {
+        testSearchCase(new MatchAllDocsQuery(),
+                Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+                aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)), histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(4, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2017-01-31T23:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2017-02-01T23:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2017-02-02T23:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2017-02-04T23:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(),
+                Arrays.asList("2017-02-01", "2017-02-02", "2017-02-02", "2017-02-03", "2017-02-03", "2017-02-03", "2017-02-05"),
+                aggregation -> aggregation.setNumBuckets(5).field(DATE_FIELD).timeZone(DateTimeZone.forOffsetHours(-1)), histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(5, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2017-01-31T00:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2017-02-01T00:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(2, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2017-02-02T00:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2017-02-03T00:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(0, bucket.getDocCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2017-02-04T00:00:00.000-01:00", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                });
     }
 
     public void testIntervalHour() throws IOException {

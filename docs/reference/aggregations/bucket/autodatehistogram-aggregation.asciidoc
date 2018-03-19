@@ -129,9 +129,8 @@ GET my_index/_search?size=0
 ---------------------------------
 // CONSOLE
 
-UTC is used if no time zone is specified, which would result in all of these
-documents being placed into the same day bucket, which starts at midnight UTC
-on 1 October 2015:
+UTC is used if no time zone is specified, three 1-hour buckets are returned 
+starting at midnight UTC on 1 October 2015:
 
 [source,js]
 ---------------------------------
@@ -142,8 +141,18 @@ on 1 October 2015:
       "buckets": [
         {
           "key_as_string": "2015-10-01T00:00:00.000Z",
-          "key":           1443657600000,
-          "doc_count":     3
+          "key": 1443657600000,
+          "doc_count": 1
+        },
+        {
+          "key_as_string": "2015-10-01T01:00:00.000Z",
+          "key": 1443661200000,
+          "doc_count": 1
+        },
+        {
+          "key_as_string": "2015-10-01T02:00:00.000Z",
+          "key": 1443664800000,
+          "doc_count": 1
         }
       ]
     }
@@ -173,8 +182,10 @@ GET my_index/_search?size=0
 // CONSOLE
 // TEST[continued]
 
-Now the first document falls into the bucket for 30 September 2015, while the
-other two documents fall into the bucket for 1 October 2015:
+
+Now three 1-hour buckets are still returned but the first bucket starts at 
+11:00pm on 30 September 2015 since that is the local time for the bucket in 
+the specified time zone.
 
 [source,js]
 ---------------------------------
@@ -184,14 +195,19 @@ other two documents fall into the bucket for 1 October 2015:
     "by_day": {
       "buckets": [
         {
-          "key_as_string": "2015-09-30T00:00:00.000-01:00", <1>
-          "key": 1443574800000,
+          "key_as_string": "2015-09-30T23:00:00.000-01:00",
+          "key": 1443657600000,
           "doc_count": 1
         },
         {
-          "key_as_string": "2015-10-01T00:00:00.000-01:00", <1>
+          "key_as_string": "2015-10-01T00:00:00.000-01:00",
           "key": 1443661200000,
-          "doc_count": 2
+          "doc_count": 1
+        },
+        {
+          "key_as_string": "2015-10-01T01:00:00.000-01:00",
+          "key": 1443664800000,
+          "doc_count": 1
         }
       ]
     }

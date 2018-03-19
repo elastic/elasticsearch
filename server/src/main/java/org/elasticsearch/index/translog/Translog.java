@@ -356,26 +356,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
-    /**
-     * Returns the number of operations in the translog files that aren't committed to lucene.
-     */
-    public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
-    /**
-     * Returns the size in bytes of the translog files that aren't committed to lucene.
-     */
-    public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
     /**
      * Returns the number of operations in the translog files
      */
     public int totalOperations() {
-        return totalOperations(-1);
+        return totalOperationsByMinGen(-1);
     }
 
     /**
@@ -406,19 +391,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
-     */
-    private int totalOperations(long minGeneration) {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            return Stream.concat(readers.stream(), Stream.of(current))
-                .filter(r -> r.getGeneration() >= minGeneration)
-                .mapToInt(BaseTranslogReader::totalOperations)
-                .sum();
-        }
-    }
-
-    /**
      * Returns the number of operations in the transaction files that contain operations with seq# above the given number.
      */
     public int estimateTotalOperationsFromMinSeq(long minSeqNo) {
@@ -431,7 +403,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the size in bytes of the translog files above the given generation
      */
-    long sizeInBytesByMinGen(long minGeneration) {
+    public long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
@@ -442,12 +414,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the size in bytes of the translog files with ops above the given seqNo
+     * Returns the number of operations in the transaction files above the given generation
      */
-    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
+    public int totalOperationsByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            return sizeInBytesByMinGen(minGenerationForSeqNo(minSeqNo));
+            return Stream.concat(readers.stream(), Stream.of(current))
+                .filter(r -> r.getGeneration() >= minGeneration)
+                .mapToInt(BaseTranslogReader::totalOperations)
+                .sum();
         }
     }
 
@@ -758,7 +733,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes(), earliestLastModifiedAge());
+            final long uncommittedGen = uncommittedGeneration();
+            return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen), sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
         }
     }
 
@@ -1508,13 +1484,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Gets the minimum generation that could contain any sequence number after the specified sequence number, or the current generation if
-     * there is no generation that could any such sequence number.
+     * Gets the minimum generation that could contain any sequence number after the specified sequence number
      *
-     * @param seqNo the sequence number
+     * @param seqNo                the sequence number
+     * @param alwaysIncludeCurrent if true, the current generation is returned there is no generation that could any such seq#
      * @return the minimum generation for the sequence number
      */
-    public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
+    public TranslogGeneration getMinGenerationForSeqNo(final long seqNo, final boolean alwaysIncludeCurrent) {
         try (ReleasableLock ignored = readLock.acquire()) {
             /*
              * When flushing, the engine will ask the translog for the minimum generation that could contain any sequence number after the
@@ -1522,27 +1498,17 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
              * be the current translog generation as we do not need any prior generations to have a complete history up to the current local
              * checkpoint.
              */
-            final long minOrCurrentGeneration = Math.min(minGenerationForSeqNo(seqNo), currentFileGeneration());
-            return new TranslogGeneration(translogUUID, minOrCurrentGeneration);
-        }
-    }
-
-    /**
-     * Returns the minimum generation that contains the given seqno.
-     * If no generation contains it, returns {@link Long#MAX_VALUE}.
-     */
-    private long minGenerationForSeqNo(final long seqNo) {
-        assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread() : "Translog lock is not held by the current thread";
-        long minGen = Long.MAX_VALUE;
-        if (seqNo <= this.current.getCheckpoint().maxSeqNo) {
-            minGen = this.current.generation;
-        }
-        for (final TranslogReader reader : readers) {
-            if (seqNo <= reader.getCheckpoint().maxSeqNo) {
-                minGen = Math.min(minGen, reader.getGeneration());
+            long minGen = Long.MAX_VALUE;
+            if (alwaysIncludeCurrent || seqNo <= this.current.getCheckpoint().maxSeqNo) {
+                minGen = this.current.generation;
             }
+            for (final TranslogReader reader : readers) {
+                if (seqNo <= reader.getCheckpoint().maxSeqNo) {
+                    minGen = Math.min(minGen, reader.getGeneration());
+                }
+            }
+            return new TranslogGeneration(translogUUID, minGen);
         }
-        return minGen;
     }
 
     /**
@@ -1661,6 +1627,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = writeLock.acquire()) {
             return new TranslogGeneration(translogUUID, currentFileGeneration());
         }
+    }
+
+    /**
+     * Returns the translog generation of the last Lucene commit.
+     */
+    public long uncommittedGeneration() {
+        return deletionPolicy.getTranslogGenerationOfLastCommit();
     }
 
     /**

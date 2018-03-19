@@ -42,6 +42,7 @@ import org.elasticsearch.index.replication.RecoveryDuringReplicationTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.SnapshotMatchers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.HashMap;
@@ -306,7 +307,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             int numDocs = shards.indexDocs(between(10, 100));
-            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            final long translogSizeOnPrimary = shards.getPrimary().translogStats().getUncommittedSizeInBytes();
             shards.flush();
 
             final IndexShard replica = shards.addReplica();

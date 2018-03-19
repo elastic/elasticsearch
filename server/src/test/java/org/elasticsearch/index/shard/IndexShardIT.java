@@ -342,29 +342,32 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = shard.getEngine().getTranslog();
-        assertEquals(2, translog.uncommittedOperations());
+        assertEquals(2, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        assertEquals(0, translog.uncommittedOperations());
+        assertEquals(0, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
         translog.sync();
-        long size = Math.max(translog.uncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
-        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-            translog.uncommittedOperations(), translog.getGeneration());
+        long size = Math.max(translog.sizeInBytesByMinGen(translog.uncommittedGeneration()), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
+            translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
+            translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
-        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-            translog.uncommittedOperations(), translog.getGeneration());
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
+            translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
+            translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-                translog.uncommittedOperations(), translog.getGeneration());
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
+                translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
+                translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        assertEquals(0, translog.uncommittedOperations());
+        assertEquals(0, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {

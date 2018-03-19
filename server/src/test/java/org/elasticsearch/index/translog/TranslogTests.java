@@ -31,6 +31,7 @@ import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -53,7 +54,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -113,7 +113,6 @@ import java.util.stream.LongStream;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -502,65 +501,13 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
                 operationsInLastGen = 0;
             }
-            assertThat(translog.uncommittedOperations(), equalTo(uncommittedOps));
+            assertThat(translog.totalOperationsByMinGen(translog.uncommittedGeneration()), equalTo(uncommittedOps));
             if (frequently()) {
                 markCurrentGenAsCommitted(translog);
-                assertThat(translog.uncommittedOperations(), equalTo(operationsInLastGen));
+                assertThat(translog.totalOperationsByMinGen(translog.uncommittedGeneration()), equalTo(operationsInLastGen));
                 uncommittedOps = operationsInLastGen;
             }
         }
-    }
-
-    public void testSizeOfGensAboveSeqNoInBytes() throws Exception {
-        final long emptyTranslogSize = Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomNonNegativeLong()), equalTo(0L));
-        // Gen1: seqno in 1001-2000
-        int ops = between(1, 100);
-        final Set<Long> seqnoGen1 = new HashSet<>();
-        final long gen1 = translog.currentFileGeneration();
-        for (int i = 0; i < ops; i++) {
-            long seqno = randomValueOtherThanMany(n -> seqnoGen1.add(n) == false, () -> randomLongBetween(1001, 2000));
-            translog.add(new Translog.Index("test", UUIDs.randomBase64UUID(), seqno, new byte[]{1}));
-        }
-        final long maxSeqnoGen1 = Collections.max(seqnoGen1);
-        long sizeGen1 = translog.getCurrent().sizeInBytes();
-        for (int numOfEmptyGen = between(0, 10), i = 0; i < numOfEmptyGen; i++) {
-            translog.rollGeneration();
-            sizeGen1 += emptyTranslogSize;
-        }
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(maxSeqnoGen1 + 1, Long.MAX_VALUE)), equalTo(0L));
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(0, maxSeqnoGen1)),
-            allOf(equalTo(sizeGen1), equalTo(translog.sizeInBytesByMinGen(gen1))));
-        // Gen2: seqno in 0-1000
-        translog.rollGeneration();
-        ops = between(1, 100);
-        for (int i = 0; i < ops; i++) {
-            translog.add(new Translog.Index("test", UUIDs.randomBase64UUID(), i, new byte[]{1}));
-        }
-        long sizeGen2 = translog.getCurrent().sizeInBytes();
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(maxSeqnoGen1 + 1, Long.MAX_VALUE)), equalTo(0L));
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(0, maxSeqnoGen1)),
-            allOf(equalTo(sizeGen1 + sizeGen2), equalTo(translog.sizeInBytesByMinGen(gen1))));
-        // Gen3: seqno in 2001+
-        ops = between(1, 100);
-        translog.rollGeneration();
-        final long gen3 = translog.currentFileGeneration();
-        final Set<Long> seqnoGen3 = new HashSet<>();
-        for (int i = 0; i < ops; i++) {
-            long seqno = randomValueOtherThanMany(n -> seqnoGen3.add(n) == false, () -> randomLongBetween(2001, Long.MAX_VALUE));
-            translog.add(new Translog.Index("test", UUIDs.randomBase64UUID(), seqno, new byte[]{1}));
-        }
-        final long maxSeqnoGen3 = Collections.max(seqnoGen3);
-        long sizeGen3 = translog.getCurrent().sizeInBytes();
-        for (int numOfEmptyGen = between(0, 10), i = 0; i < numOfEmptyGen; i++) {
-            translog.rollGeneration();
-            sizeGen3 += emptyTranslogSize; // check an empty generation is included
-        }
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(maxSeqnoGen3 + 1, Long.MAX_VALUE)), equalTo(0L));
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(maxSeqnoGen1 + 1, maxSeqnoGen3)),
-            allOf(equalTo(sizeGen3), equalTo(translog.sizeInBytesByMinGen(gen3)))); // Since gen3
-        assertThat(translog.sizeOfGensAboveSeqNoInBytes(randomLongBetween(0, maxSeqnoGen1)),
-            allOf(equalTo(sizeGen1 + sizeGen2 + sizeGen3), equalTo(translog.sizeInBytesByMinGen(gen1)))); // Since gen1
     }
 
     public void testTotalTests() {
@@ -957,7 +904,7 @@ public class TranslogTests extends ESTestCase {
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
                                 deletionPolicy.setTranslogGenerationOfLastCommit(translog.currentFileGeneration());
                                 deletionPolicy.setMinTranslogGenerationForRecovery(
-                                    translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
+                                    translog.getMinGenerationForSeqNo(localCheckpoint + 1, true).translogFileGeneration);
                                 translog.trimUnreferencedReaders();
                             }
                         }
@@ -2567,7 +2514,7 @@ public class TranslogTests extends ESTestCase {
         long minGenForRecovery = randomLongBetween(generation, generation + rolls);
         commit(translog, minGenForRecovery, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-        assertThat(translog.uncommittedOperations(), equalTo(0));
+        assertThat(translog.totalOperationsByMinGen(translog.uncommittedGeneration()), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
                 assertFileIsPresent(translog, generation + i);
@@ -2616,7 +2563,7 @@ public class TranslogTests extends ESTestCase {
         translog.rollGeneration();
         for (long seqNo = 0; seqNo < operations; seqNo++) {
             final Set<Tuple<Long, Long>> seenSeqNos = new HashSet<>();
-            final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
+            final long generation = translog.getMinGenerationForSeqNo(seqNo, randomBoolean()).translogFileGeneration;
             int expectedSnapshotOps = 0;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
                 if (!seqNoPerGeneration.containsKey(g)) {
@@ -2643,7 +2590,6 @@ public class TranslogTests extends ESTestCase {
                 seenSeqNos.addAll(generationSeqNo);
             }
             assertThat(translog.estimateTotalOperationsFromMinSeq(seqNo), equalTo(expectedSnapshotOps));
-            assertThat(translog.sizeInBytesByMinGen(generation), equalTo(translog.sizeOfGensAboveSeqNoInBytes(seqNo)));
             int readFromSnapshot = 0;
             try (Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(seqNo)) {
                 assertThat(snapshot.totalOperations(), equalTo(expectedSnapshotOps));

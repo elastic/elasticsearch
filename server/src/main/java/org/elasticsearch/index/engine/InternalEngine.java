@@ -1361,7 +1361,8 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && indexWriter.hasUncommittedChanges()
+                && translog.totalOperationsByMinGen(translog.uncommittedGeneration()) == 0) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1383,19 +1384,20 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
+        final long translogGenerationOfCurrentCommit = translog.uncommittedGeneration();
+        final long uncommittedTranslogSize = translog.sizeInBytesByMinGen(translogGenerationOfCurrentCommit);
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        final long uncommittedSizeOfCurrentCommit = translog.uncommittedSizeInBytes();
-        if (uncommittedSizeOfCurrentCommit < flushThreshold) {
+        if (uncommittedTranslogSize < flushThreshold) {
             return false;
         }
         /*
-         * We should only flush ony if the shouldFlush condition can become false after flushing.
-         * This condition will change if the `uncommittedSize` of the new commit is smaller than
-         * the `uncommittedSize` of the current commit. This method is to maintain translog only,
-         * thus the IndexWriter#hasUncommittedChanges condition is not considered.
+         * We should only flush ony if the shouldPeriodicallyFlush condition can become false after flushing.
+         * This condition will change if the new commit points to the later translog generation than the current commit's.
+         * This method is to maintain translog only, thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */
-        final long uncommittedSizeOfNewCommit = translog.sizeOfGensAboveSeqNoInBytes(localCheckpointTracker.getCheckpoint() + 1);
-        return uncommittedSizeOfNewCommit < uncommittedSizeOfCurrentCommit;
+        final long translogGenerationOfNewCommit =
+            translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1, false).translogFileGeneration;
+        return translogGenerationOfCurrentCommit < translogGenerationOfNewCommit;
     }
 
     @Override
@@ -2015,7 +2017,7 @@ public class InternalEngine extends Engine {
         ensureCanFlush();
         try {
             final long localCheckpoint = localCheckpointTracker.getCheckpoint();
-            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
+            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1, true);
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpointValue = Long.toString(localCheckpoint);

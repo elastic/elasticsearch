@@ -101,8 +101,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -333,7 +333,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(117 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(160 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -407,15 +407,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldPeriodicallyFlush());
-        final String key;
         final boolean flush = randomBoolean();
+        final Settings settings;
         if (flush) {
-            key = "index.translog.flush_threshold_size";
+            // size of the operation plus two generations of overhead.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
         } else {
-            key = "index.translog.generation_threshold_size";
+            // size of the operation plus header and footer
+            settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
         }
-        // size of the operation plus header and footer
-        final Settings settings = Settings.builder().put(key, "117b").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         client().prepareIndex("test", "test", "0")
                 .setSource("{}", XContentType.JSON)

@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -478,7 +479,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
 
         for (int i = 0; i < 100; i++) {
             XContentBuilder builder = jsonBuilder().startObject().field("field", i).endObject();
-            HttpEntity entity = new NStringEntity(builder.string(), ContentType.APPLICATION_JSON);
+            HttpEntity entity = new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             client().performRequest(HttpPut.METHOD_NAME, "test/type1/" + Integer.toString(i), Collections.emptyMap(), entity);
         }
         client().performRequest(HttpPost.METHOD_NAME, "/test/_refresh");

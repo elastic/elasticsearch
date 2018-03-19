@@ -580,7 +580,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         if(testPipeline) {
             logger.info("-->  creating test pipeline");
-            BytesReference pipelineSource = jsonBuilder().startObject()
+            BytesReference pipelineSource = BytesReference.bytes(jsonBuilder().startObject()
                 .field("description", "my_pipeline")
                 .startArray("processors")
                 .startObject()
@@ -588,7 +588,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .endObject()
                 .endObject()
                 .endArray()
-                .endObject().bytes();
+                .endObject());
             assertAcked(client().admin().cluster().preparePutPipeline("barbaz", pipelineSource, XContentType.JSON).get());
         }
 

@@ -20,7 +20,7 @@
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-    description 'Out of memory plugin'
+    description 'Die with dignity plugin'
     classname 'org.elasticsearch.DieWithDignityPlugin'
 }
 

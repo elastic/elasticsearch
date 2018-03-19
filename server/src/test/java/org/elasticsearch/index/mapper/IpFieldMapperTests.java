@@ -23,6 +23,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -58,19 +60,19 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaults() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "::1")
+                        .endObject()),
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -87,19 +89,19 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNotIndexed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").field("index", false).endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "::1")
+                        .endObject()),
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -109,19 +111,19 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNoDocValues() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").field("doc_values", false).endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "::1")
+                        .endObject()),
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -132,19 +134,19 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testStore() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").field("store", true).endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "::1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", "::1")
+                        .endObject()),
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -160,34 +162,34 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIgnoreMalformed() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ThrowingRunnable runnable = () -> mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", ":1")
-                .endObject()
-                .bytes(),
+        ThrowingRunnable runnable = () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", ":1")
+                        .endObject()),
                 XContentType.JSON));
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString("':1' is not an IP string literal"));
 
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").field("ignore_malformed", true).endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = mapper2.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", ":1")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper2.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("field", ":1")
+                        .endObject()),
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -195,27 +197,27 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testNullValue() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject()
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("properties")
                         .startObject("field")
                             .field("type", "ip")
                         .endObject()
                     .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .nullField("field")
-                .endObject()
-                .bytes(),
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .nullField("field")
+                        .endObject()),
                 XContentType.JSON));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapping = XContentFactory.jsonBuilder().startObject()
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("type")
                     .startObject("properties")
                         .startObject("field")
@@ -223,16 +225,16 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
                             .field("null_value", "::1")
                         .endObject()
                     .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                .nullField("field")
-                .endObject()
-                .bytes(),
+        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .nullField("field")
+                        .endObject()),
                 XContentType.JSON));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
@@ -248,15 +250,15 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSerializeDefaults() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping));
         IpFieldMapper mapper = (IpFieldMapper)docMapper.root().getMapper("field");
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
-        String got = builder.endObject().string();
+        String got = Strings.toString(builder.endObject());
 
         // it would be nice to check the entire serialized default mapper, but there are
         // a whole lot of bogus settings right now it picks up from calling super.doXContentBody...
@@ -265,9 +267,9 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyName() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("").field("type", "ip").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> parser.parse("type", new CompressedXContent(mapping))

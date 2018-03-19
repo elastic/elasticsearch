@@ -49,6 +49,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -832,9 +833,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("_doc",
+                Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
-                    "_field_names", "enabled=false").string()),
+                    "_field_names", "enabled=false"))),
             MapperService.MergeReason.MAPPING_UPDATE);
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -845,9 +846,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // restore mappings as they were before
             context.getMapperService().merge("_doc",
                 new CompressedXContent(
-                    PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
-                        "_field_names", "enabled=true").string()),
+                        "_field_names", "enabled=true"))),
                 MapperService.MergeReason.MAPPING_UPDATE);
         }
     }

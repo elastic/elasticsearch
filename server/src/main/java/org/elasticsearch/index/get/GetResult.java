@@ -304,7 +304,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                         //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
                         //it all depends on the current builder settings
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes();
+                        source = BytesReference.bytes(builder);
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {

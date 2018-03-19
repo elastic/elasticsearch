@@ -16,15 +16,12 @@ Machine Learning::
 returns only machine learning-specific node attributes.
 // Repo: x-pack-elasticsearch
 // Pull: 3994
-////
+
 Monitoring::
-* [Logstash][Monitoring] Fix Registered Usage and Add Tests
-// Repo: x-pack-elasticsearch
-// Pull: 4075
-* [Monitoring] Align indices/index stats with local cluster state
+* Aligned reporting of index statistics that exist in the current cluster state.
+This fix avoids subtle race conditions in stats reporting.
 // Repo: x-pack-elasticsearch
 // Pull: 4079
-////
 ////
 Security::
 * Disregard comments in XML documents

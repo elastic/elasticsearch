@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.joda.time.format.DateTimeFormatter;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -114,7 +116,8 @@ public final class MonitoringTemplateUtils {
     /**
      * Create a pipeline that allows documents for different template versions to be upgraded.
      * <p>
-     * The expectation is that you will call either {@link XContentBuilder#string()} or {@link XContentBuilder#bytes()}}.
+     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
+     * {@link BytesReference#bytes(XContentBuilder)}}.
      *
      * @param id The API version (e.g., "2") to use
      * @param type The type of data you want to format for the request
@@ -142,7 +145,8 @@ public final class MonitoringTemplateUtils {
      *   "processors": [ ]
      * }
      * </code></pre>
-     * The expectation is that you will call either {@link XContentBuilder#string()} or {@link XContentBuilder#bytes()}}.
+     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
+     * {@link BytesReference#bytes(XContentBuilder)}}.
      *
      * @param type The type of data you want to format for the request
      * @return Never {@code null}. Always an ended-object.
@@ -223,7 +227,8 @@ public final class MonitoringTemplateUtils {
      *   "processors": [ ]
      * }
      * </code></pre>
-     * The expectation is that you will call either {@link XContentBuilder#string()} or {@link XContentBuilder#bytes()}}.
+     * The expectation is that you will call either {@link Strings#toString(XContentBuilder)} or
+     * {@link BytesReference#bytes(XContentBuilder)}}.
      *
      * @param type The type of data you want to format for the request
      * @return Never {@code null}. Always an ended-object.

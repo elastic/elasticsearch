@@ -532,7 +532,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     // checking for existing version of the plugin
     private void verifyPluginName(Path pluginPath, String pluginName, Path candidateDir) throws UserException, IOException {
-        // don't let luser install plugin conflicting with module...
+        // don't let user install plugin conflicting with module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(pluginName)) {
             throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");

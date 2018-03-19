@@ -95,7 +95,7 @@ public class RankEvalRequest extends ActionRequest {
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             indices = in.readStringArray();
         } else {
-            // older 6.2 format
+            // readStringArray uses readVInt for size, we used readInt in 6.2
             int indicesSize = in.readInt();
             String[] indices = new String[indicesSize];
             for (int i = 0; i < indicesSize; i++) {
@@ -111,7 +111,7 @@ public class RankEvalRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeStringArray(indices);
         } else {
-            // older 6.2 format
+            // writeStringArray uses writeVInt for size, we used writeInt in 6.2
             out.writeInt(indices.length);
             for (String index : indices) {
                 out.writeString(index);

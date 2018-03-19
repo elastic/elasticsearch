@@ -8,6 +8,10 @@
       "parts" : {
       },
       "params": {
+        "type": {
+          "type" : "string",
+          "description" : "The type of trial license to generate (default: \"trial\")"
+        }
       }
     },
     "body": null

@@ -46,11 +46,9 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
     }
 
-    public void testUpgradeToTrial() throws Exception {
+    public void testStartTrial() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
-        GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
-
-        assertEquals("basic", getLicenseResponse.license().type());
+        ensureStartingWithBasic();
 
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest("GET", "/_xpack/license/trial_status");
@@ -58,22 +56,58 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
         assertEquals(200, response.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":true}", body);
 
-        Response response2 = restClient.performRequest("POST", "/_xpack/license/start_trial");
+        String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+
+        Response response2 = restClient.performRequest("POST", "/_xpack/license/start_trial?type=" + type);
         String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertEquals("{\"trial_was_started\":true}", body2);
+        assertTrue(body2.contains("\"trial_was_started\":true"));
+        assertTrue(body2.contains("\"type\":\"" + type + "\""));
+
+        assertBusy(() -> {
+            GetLicenseResponse postTrialLicenseResponse = licensingClient.prepareGetLicense().get();
+            assertEquals(type, postTrialLicenseResponse.license().type());
+        });
 
         Response response3 = restClient.performRequest("GET", "/_xpack/license/trial_status");
         String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response3.getStatusLine().getStatusCode());
         assertEquals("{\"eligible_to_start_trial\":false}", body3);
 
+        String secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+
         ResponseException ex = expectThrows(ResponseException.class,
-                () -> restClient.performRequest("POST", "/_xpack/license/start_trial"));
+                () -> restClient.performRequest("POST", "/_xpack/license/start_trial?type=" + secondAttemptType));
         Response response4 = ex.getResponse();
         String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(403, response4.getStatusLine().getStatusCode());
         assertTrue(body4.contains("\"trial_was_started\":false"));
         assertTrue(body4.contains("\"error_message\":\"Operation failed: Trial was already activated.\""));
+    }
+
+    public void testInvalidType() throws Exception {
+        ensureStartingWithBasic();
+
+        ResponseException ex = expectThrows(ResponseException.class, () ->
+                getRestClient().performRequest("POST", "/_xpack/license/start_trial?type=basic"));
+        Response response = ex.getResponse();
+        String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertEquals(400, response.getStatusLine().getStatusCode());
+        assertTrue(body.contains("\"type\":\"illegal_argument_exception\""));
+        assertTrue(body.contains("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
+    }
+
+    private void ensureStartingWithBasic() throws Exception {
+        LicensingClient licensingClient = new LicensingClient(client());
+        GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
+
+        if ("basic".equals(getLicenseResponse.license().type()) == false) {
+            licensingClient.preparePostStartBasic().setAcknowledge(true).get();
+        }
+
+        assertBusy(() -> {
+            GetLicenseResponse postTrialLicenseResponse = licensingClient.prepareGetLicense().get();
+            assertEquals("basic", postTrialLicenseResponse.license().type());
+        });
     }
 }

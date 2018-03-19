@@ -43,7 +43,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "auto_date_histogram" : {
                 "field" : "date",
-                "buckets" : 10,
+                "buckets" : 5,
                 "format" : "yyyy-MM-dd" <1>
             }
         }

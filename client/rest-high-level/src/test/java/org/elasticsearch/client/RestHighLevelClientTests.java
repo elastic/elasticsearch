@@ -54,6 +54,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -112,22 +113,26 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
     private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
 
-    private RestClient restClient;
+    private RestClientActions restClient;
+    private CheckedConsumer<RestClientActions, IOException> doClose;
     private RestHighLevelClient restHighLevelClient;
 
     @Before
     public void initClient() {
-        restClient = mock(RestClient.class);
-        restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+        restClient = mock(RestClientActions.class);
+        @SuppressWarnings("unchecked")
+        CheckedConsumer<RestClientActions, IOException> doClose = mock(CheckedConsumer.class);
+        this.doClose = doClose;
+        restHighLevelClient = new RestHighLevelClient(restClient, doClose, Collections.emptyList());
     }
 
     public void testCloseIsIdempotent() throws IOException {
         restHighLevelClient.close();
-        verify(restClient, times(1)).close();
+        verify(doClose, times(1)).accept(restClient);
         restHighLevelClient.close();
-        verify(restClient, times(2)).close();
+        verify(doClose, times(2)).accept(restClient);
         restHighLevelClient.close();
-        verify(restClient, times(3)).close();
+        verify(doClose, times(3)).accept(restClient);
     }
 
     public void testPingSuccessful() throws IOException {

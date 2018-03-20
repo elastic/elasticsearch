@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
- * Compatible with elasticsearch 5.x and 2.x.
+ * Compatible with elasticsearch 2.x+.
  */
 public final class ElasticsearchHostsSniffer implements HostsSniffer {
 

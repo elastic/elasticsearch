@@ -181,9 +181,9 @@ import static java.util.stream.Collectors.toList;
  */
 public class RestHighLevelClient implements Closeable {
 
-    private final RestClient client;
+    private final RestClientActions client;
     private final NamedXContentRegistry registry;
-    private final CheckedConsumer<RestClient, IOException> doClose;
+    private final CheckedConsumer<RestClientActions, IOException> doClose;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
@@ -201,7 +201,7 @@ public class RestHighLevelClient implements Closeable {
      * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
      */
     protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
+        this(restClientBuilder.build(), (RestClientActions c) -> ((RestClient) c).close(), namedXContentEntries);
     }
 
     /**
@@ -211,7 +211,7 @@ public class RestHighLevelClient implements Closeable {
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
+    protected RestHighLevelClient(RestClientActions restClient, CheckedConsumer<RestClientActions, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
@@ -223,7 +223,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
-    public final RestClient getLowLevelClient() {
+    public final RestClientActions getLowLevelClient() {
         return client;
     }
 

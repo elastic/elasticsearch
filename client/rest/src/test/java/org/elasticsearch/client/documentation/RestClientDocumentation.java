@@ -28,6 +28,7 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -37,9 +38,11 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientActions;
 import org.elasticsearch.client.RestClientBuilder;
 
 import javax.net.ssl.SSLContext;
@@ -253,7 +256,16 @@ public class RestClientDocumentation {
             latch.await();
             //end::rest-client-async-example
         }
+    }
 
+    public void testNodeSelector() throws IOException {
+        try (RestClient restClient = RestClient.builder(
+                new HttpHost("localhost", 9200, "http"),
+                new HttpHost("localhost", 9201, "http")).build()) {
+            RestClientActions client = restClient.withNodeSelector(NodeSelector.NOT_MASTER);
+            client.performRequest("POST", "/test_index/test_type", Collections.<String, String>emptyMap(),
+                new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
+        }
     }
 
     @SuppressWarnings("unused")

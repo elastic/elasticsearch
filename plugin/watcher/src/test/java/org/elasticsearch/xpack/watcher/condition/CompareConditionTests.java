@@ -46,6 +46,13 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.EQ.eval(singletonMap("k", "v"), singletonMap("k1", "v1")), is(false));
         assertThat(CompareCondition.Op.EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k", "v")), is(true));
         assertThat(CompareCondition.Op.EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k1", "v1")), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(Double.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(250000, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(Double.NaN, Double.NaN), is(true));
+        assertThat(CompareCondition.Op.EQ.eval(Float.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(250000, Float.NaN), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(Float.NaN, Float.NaN), is(true));
+
     }
 
     public void testOpEvalNotEQ() throws Exception {
@@ -65,6 +72,12 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.NOT_EQ.eval(singletonMap("k", "v"), singletonMap("k1", "v1")), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k", "v")), is(false));
         assertThat(CompareCondition.Op.NOT_EQ.eval(Arrays.asList("k", "v"), Arrays.asList("k1", "v1")), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(Double.NaN, 250000), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(250000, Double.NaN), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(Double.NaN, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(Float.NaN, 250000), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(250000, Float.NaN), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(Float.NaN, Float.NaN), is(false));
     }
 
     public void testOpEvalGTE() throws Exception {
@@ -79,6 +92,12 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.GTE.eval("a", "aa"), is(false));
         assertThat(CompareCondition.Op.GTE.eval("a", "a"), is(true));
         assertThat(CompareCondition.Op.GTE.eval("aa", "ab"), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(Double.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(250000, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(Double.NaN, Double.NaN), is(true));
+        assertThat(CompareCondition.Op.GTE.eval(Float.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(250000, Float.NaN), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(Float.NaN, Float.NaN), is(true));
     }
 
     public void testOpEvalGT() throws Exception {
@@ -93,6 +112,13 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.GT.eval("a", "aa"), is(false));
         assertThat(CompareCondition.Op.GT.eval("a", "a"), is(false));
         assertThat(CompareCondition.Op.GT.eval("aa", "ab"), is(false));
+        assertThat(CompareCondition.Op.GT.eval(Double.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.GT.eval(250000, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.GT.eval(Double.NaN, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.GT.eval(Float.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.GT.eval(250000, Float.NaN), is(false));
+        assertThat(CompareCondition.Op.GT.eval(Float.NaN, Float.NaN), is(false));
+
     }
 
     public void testOpEvalLTE() throws Exception {
@@ -107,6 +133,12 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.LTE.eval("a", "aa"), is(true));
         assertThat(CompareCondition.Op.LTE.eval("a", "a"), is(true));
         assertThat(CompareCondition.Op.LTE.eval("aa", "ab"), is(true));
+        assertThat(CompareCondition.Op.LTE.eval(Double.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.LTE.eval(250000, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.LTE.eval(Double.NaN, Double.NaN), is(true));
+        assertThat(CompareCondition.Op.LTE.eval(Float.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.LTE.eval(250000, Float.NaN), is(false));
+        assertThat(CompareCondition.Op.LTE.eval(Float.NaN, Float.NaN), is(true));
     }
 
     public void testOpEvalLT() throws Exception {
@@ -121,6 +153,12 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.LT.eval("a", "aa"), is(true));
         assertThat(CompareCondition.Op.LT.eval("a", "a"), is(false));
         assertThat(CompareCondition.Op.LT.eval("aa", "ab"), is(true));
+        assertThat(CompareCondition.Op.LT.eval(Double.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.LT.eval(250000, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.LT.eval(Double.NaN, Double.NaN), is(false));
+        assertThat(CompareCondition.Op.LT.eval(Float.NaN, 250000), is(false));
+        assertThat(CompareCondition.Op.LT.eval(250000, Float.NaN), is(false));
+        assertThat(CompareCondition.Op.LT.eval(Float.NaN, Float.NaN), is(false));
     }
 
     public void testExecute() throws Exception {

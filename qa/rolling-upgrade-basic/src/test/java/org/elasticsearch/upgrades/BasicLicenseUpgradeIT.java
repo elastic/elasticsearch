@@ -36,6 +36,6 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
         Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
         assertEquals("basic", licenseMap.get("type"));
         assertEquals("active", licenseMap.get("status"));
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseMap.get("expiry_date_in_millis"));
+        assertNull(licenseMap.get("expiry_date_in_millis"));
     }
 }

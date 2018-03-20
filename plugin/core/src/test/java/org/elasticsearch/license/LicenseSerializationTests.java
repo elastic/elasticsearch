@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -93,6 +94,36 @@ public class LicenseSerializationTests extends ESTestCase {
         assertThat(map.get("issue_date"), notNullValue());
         assertThat(map.get("expiry_date"), notNullValue());
         assertThat(map.get("status"), equalTo("invalid"));
+        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        license.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.flush();
+        map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+        assertThat(map.get("status"), nullValue());
+    }
+
+    public void testLicenseRestViewNonExpiringBasic() throws Exception {
+        long now = System.currentTimeMillis();
+
+        License.Builder specBuilder = License.builder()
+                .uid(UUID.randomUUID().toString())
+                .issuedTo("test")
+                .maxNodes(1000)
+                .issueDate(now)
+                .type("basic")
+                .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
+        License license = SelfGeneratedLicense.create(specBuilder);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        license.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(License.REST_VIEW_MODE, "true")));
+        builder.flush();
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+
+        // should have an extra status field, human readable issue_data and no expiry_date
+        assertThat(map.get("status"), notNullValue());
+        assertThat(map.get("type"), equalTo("basic"));
+        assertThat(map.get("issue_date"), notNullValue());
+        assertThat(map.get("expiry_date"), nullValue());
+        assertThat(map.get("expiry_date_in_millis"), nullValue());
+        assertThat(map.get("status"), equalTo("active"));
         builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.flush();

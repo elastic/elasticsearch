@@ -83,19 +83,26 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
         assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
 
-        Response response3 = restClient.performRequest("GET", "/_xpack/license/basic_status");
+        Response response3 = restClient.performRequest("GET", "/_xpack/license");
         String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertTrue(body3.contains("\"type\" : \"basic\""));
+        assertFalse(body3.contains("expiry_date"));
+        assertFalse(body3.contains("expiry_date_in_millis"));
+
+
+        Response response4 = restClient.performRequest("GET", "/_xpack/license/basic_status");
+        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
         assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_basic\":false}", body3);
+        assertEquals("{\"eligible_to_start_basic\":false}", body4);
 
         ResponseException ex = expectThrows(ResponseException.class,
                 () -> restClient.performRequest("POST", "/_xpack/license/start_basic"));
-        Response response4 = ex.getResponse();
-        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(403, response4.getStatusLine().getStatusCode());
-        assertTrue(body4.contains("\"basic_was_started\":false"));
-        assertTrue(body4.contains("\"acknowledged\":true"));
-        assertTrue(body4.contains("\"error_message\":\"Operation failed: Current license is basic.\""));
+        Response response5 = ex.getResponse();
+        String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
+        assertEquals(403, response5.getStatusLine().getStatusCode());
+        assertTrue(body5.contains("\"basic_was_started\":false"));
+        assertTrue(body5.contains("\"acknowledged\":true"));
+        assertTrue(body5.contains("\"error_message\":\"Operation failed: Current license is basic.\""));
     }
 
     public void testUnacknowledgedStartBasicLicense() throws Exception {

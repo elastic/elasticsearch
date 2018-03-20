@@ -20,14 +20,18 @@ package org.elasticsearch.common.text;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
  * Both {@link String} and {@link BytesReference} representation of the text. Starts with one of those, and if
  * the other is requests, caches the other one in a local reference so no additional conversion will be needed.
  */
-public final class Text implements Comparable<Text> {
+public final class Text implements Comparable<Text>, ToXContentFragment {
 
     public static final Text[] EMPTY_ARRAY = new Text[0];
 
@@ -112,5 +116,16 @@ public final class Text implements Comparable<Text> {
     @Override
     public int compareTo(Text text) {
         return bytes().compareTo(text.bytes());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (hasString()) {
+            return builder.value(this.string());
+        } else {
+            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
+            // request to jackson to support InputStream as well?
+            return builder.utf8Value(this.bytes().toBytesRef());
+        }
     }
 }

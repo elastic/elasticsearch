@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -208,7 +209,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             this.index = index;
             this.type = type;
-            this.doc = doc.bytes();
+            this.doc = BytesReference.bytes(doc);
             this.xContentType = doc.contentType();
         }
 
@@ -221,7 +222,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = XContentType.readFrom(in);
+                    xContentType = in.readEnum(XContentType.class);
                 } else {
                     xContentType = XContentFactory.xContentType(doc);
                 }
@@ -243,7 +244,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             if (doc != null) {
                 out.writeGenericValue(doc);
                 if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType.writeTo(out);
+                    out.writeEnum(xContentType);
                 }
             } else {
                 out.writeString(id);
@@ -373,7 +374,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                         item.id = parser.text();
                     } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
-                        item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
+                        item.doc = BytesReference.bytes(jsonBuilder().copyCurrentStructure(parser));
                         item.xContentType = XContentType.JSON;
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.START_ARRAY) {
@@ -424,7 +425,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 builder.field(ID.getPreferredName(), this.id);
             }
             if (this.doc != null) {
-                builder.rawField(DOC.getPreferredName(), this.doc, xContentType);
+                try (InputStream stream = this.doc.streamInput()) {
+                    builder.rawField(DOC.getPreferredName(), stream, xContentType);
+                }
             }
             if (this.fields != null) {
                 builder.array(FIELDS.getPreferredName(), this.fields);
@@ -450,7 +453,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.prettyPrint();
                 toXContent(builder, EMPTY_PARAMS);
-                return builder.string();
+                return Strings.toString(builder);
             } catch (Exception e) {
                 return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
             }

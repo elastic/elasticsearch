@@ -204,6 +204,6 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(this::toXContent, true, false);
+        return Strings.toString(this, true, false);
     }
 }

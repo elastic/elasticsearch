@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
@@ -117,7 +118,7 @@ public class SettingsModule implements Module {
                     xContentBuilder.startObject();
                     indexSettings.toXContent(xContentBuilder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
                     xContentBuilder.endObject();
-                    builder.append(xContentBuilder.string());
+                    builder.append(Strings.toString(xContentBuilder));
                 }
                 builder.append("'");
                 builder.append(System.lineSeparator());

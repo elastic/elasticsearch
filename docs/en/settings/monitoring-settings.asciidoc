@@ -5,11 +5,15 @@
 <titleabbrev>Monitoring Settings</titleabbrev>
 ++++
 
-By default when you install {xpack}, monitoring is enabled but data collection
-is disabled. To enable data collection, use the
-`xpack.monitoring.collection.enabled` setting.
+By default, monitoring is enabled but data collection is disabled. To enable
+data collection, use the `xpack.monitoring.collection.enabled` setting.
 
 You can configure these monitoring settings in the `elasticsearch.yml` file.
+Some of them can also be set across the cluster by using the
+<<cluster-update-settings,cluster update settings API>>.
+
+TIP: Cluster settings take precedence over settings in the `elasticsearch.yml`
+file.
 
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
@@ -25,7 +29,7 @@ For more information, see
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
 `xpack.monitoring.enabled`::
-Set to `false` to disable {es} {monitoring} for Elasticsearch on the node.
+Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
 
 [float]
 [[monitoring-collection-settings]]
@@ -36,7 +40,10 @@ your Elasticsearch nodes.
 
 `xpack.monitoring.collection.enabled`::
 
-Enable the collection of monitoring data. Defaults to `false`. added[6.3.0]
+added[6.3.0] Set to `true` to enable the collection of monitoring data. When
+this setting is `false` (default), {es} monitoring data is not collected and
+all monitoring data from other sources such as {kib}, Beats, and Logstash is
+ignored.
 +
 You can update this setting through the
 <<cluster-update-settings,Cluster Update Settings API>>.

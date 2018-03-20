@@ -12,10 +12,9 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-
-import static org.elasticsearch.xpack.core.XPackField.SECURITY;
 
 /**
  * Base class for security rest handlers. This handler takes care of ensuring that the license
@@ -45,12 +44,25 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      */
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RestChannelConsumer consumer = innerPrepareRequest(request, client);
-        if (licenseState.isAuthAllowed()) {
+        final String failedFeature = checkLicensedFeature(request);
+        if (failedFeature == null) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel, LicenseUtils.newComplianceException(SECURITY)));
+            return channel -> channel.sendResponse(new BytesRestResponse(channel, LicenseUtils.newComplianceException(failedFeature)));
         }
     }
+
+    /**
+     * Check whether the given request is allowed within the current license state, and return the name of any unlicensed feature.
+     * By default this returns {@link org.elasticsearch.xpack.core.XPackField#SECURITY} if the license state does not
+     * {@link XPackLicenseState#isAuthAllowed() allow authentication and authorization}.
+     * Sub-classes can override this method if they have additional licensing requirements.
+     * @return {@code null} if all required features are licensed, otherwise the name of the most significant unlicensed feature.
+     */
+    protected String checkLicensedFeature(RestRequest request) {
+        return licenseState.isAuthAllowed() ? null : XPackField.SECURITY;
+    }
+
 
     /**
      * Implementers should implement this method as they normally would for

@@ -266,7 +266,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         return converted;
     }
 
-    private static boolean isRealmTypeAvailable(AllowedRealmType enabledRealmType, String type) {
+    public static boolean isRealmTypeAvailable(AllowedRealmType enabledRealmType, String type) {
         switch (enabledRealmType) {
             case ALL:
                 return true;

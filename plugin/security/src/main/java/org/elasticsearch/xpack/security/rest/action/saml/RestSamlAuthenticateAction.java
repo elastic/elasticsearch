@@ -34,7 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
-public class RestSamlAuthenticateAction extends SecurityBaseRestHandler implements RestHandler {
+public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestHandler {
 
     static class Input {
         String content;

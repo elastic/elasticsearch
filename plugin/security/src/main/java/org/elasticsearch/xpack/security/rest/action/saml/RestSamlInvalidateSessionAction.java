@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Invalidates any security tokens associated with the provided SAML session.
  * The session identity is provided in a SAML {@code &lt;LogoutRequest&gt;}
  */
-public class RestSamlInvalidateSessionAction extends SecurityBaseRestHandler {
+public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER =
             new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);

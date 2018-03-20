@@ -23,7 +23,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -33,7 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This logout request is returned in the REST response as a redirect URI, and the REST client should
  * make it available to the browser.
  */
-public class RestSamlLogoutAction extends SecurityBaseRestHandler {
+public class RestSamlLogoutAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlLogoutRequest, Void> PARSER = new ObjectParser<>("saml_logout", SamlLogoutRequest::new);
 

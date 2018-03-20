@@ -59,6 +59,7 @@ Index Management::
 * <<java-rest-high-split-index>>
 * <<java-rest-high-refresh>>
 * <<java-rest-high-flush>>
+* <<java-rest-high-clear-cache>>
 * <<java-rest-high-rollover-index>>
 
 Mapping Management::
@@ -77,6 +78,7 @@ include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
+include::indices/clear_cache.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]

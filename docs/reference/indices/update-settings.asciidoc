@@ -19,6 +19,20 @@ PUT /twitter/_settings
 // CONSOLE
 // TEST[setup:twitter]
 
+To reset a setting back to the default value, use `null`. For example:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+    "index" : {
+        "refresh_interval" : null
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
 The list of per-index settings which can be updated dynamically on live
 indices can be found in <<index-modules>>.
 To preserve existing settings from being updated, the `preserve_existing`

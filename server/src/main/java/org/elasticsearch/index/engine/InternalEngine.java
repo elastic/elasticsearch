@@ -1361,8 +1361,8 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && indexWriter.hasUncommittedChanges()
-                && translog.totalOperationsByMinGen(translog.uncommittedGeneration()) == 0) {
+            long translogGenOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
+            if (syncId != null && indexWriter.hasUncommittedChanges() && translog.totalOperationsByMinGen(translogGenOfLastCommit) == 0) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1384,20 +1384,22 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
-        final long translogGenerationOfCurrentCommit = translog.uncommittedGeneration();
-        final long uncommittedTranslogSize = translog.sizeInBytesByMinGen(translogGenerationOfCurrentCommit);
+        final SegmentInfos lastCommit = this.lastCommittedSegmentInfos;
+        final long translogGenerationOfLastCommit = Long.parseLong(lastCommit.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
-        if (uncommittedTranslogSize < flushThreshold) {
+        if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
             return false;
         }
         /*
-         * We should only flush ony if the shouldPeriodicallyFlush condition can become false after flushing.
-         * This condition will change if the new commit points to the later translog generation than the current commit's.
+         * We should only flush ony if the shouldFlush condition can become false after flushing. This condition will change if:
+         * 1. The new commit points to the later generation the last commit's.
+         * 2. The local checkpoint equals to max_seqno. This makes the new commit point to the newly rolled translog generation.
          * This method is to maintain translog only, thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */
         final long translogGenerationOfNewCommit =
-            translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1, false).translogFileGeneration;
-        return translogGenerationOfCurrentCommit < translogGenerationOfNewCommit;
+            translog.getMinGenerationForSeqNo(localCheckpointTracker.getCheckpoint() + 1).translogFileGeneration;
+        return translogGenerationOfLastCommit < translogGenerationOfNewCommit
+            || localCheckpointTracker.getCheckpoint() == localCheckpointTracker.getMaxSeqNo();
     }
 
     @Override
@@ -2017,7 +2019,7 @@ public class InternalEngine extends Engine {
         ensureCanFlush();
         try {
             final long localCheckpoint = localCheckpointTracker.getCheckpoint();
-            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1, true);
+            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
             final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
             final String translogUUID = translogGeneration.translogUUID;
             final String localCheckpointValue = Long.toString(localCheckpoint);

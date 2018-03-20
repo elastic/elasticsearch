@@ -904,7 +904,7 @@ public class TranslogTests extends ESTestCase {
                                 lastCommittedLocalCheckpoint.set(localCheckpoint);
                                 deletionPolicy.setTranslogGenerationOfLastCommit(translog.currentFileGeneration());
                                 deletionPolicy.setMinTranslogGenerationForRecovery(
-                                    translog.getMinGenerationForSeqNo(localCheckpoint + 1, true).translogFileGeneration);
+                                    translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
                                 translog.trimUnreferencedReaders();
                             }
                         }
@@ -2563,7 +2563,7 @@ public class TranslogTests extends ESTestCase {
         translog.rollGeneration();
         for (long seqNo = 0; seqNo < operations; seqNo++) {
             final Set<Tuple<Long, Long>> seenSeqNos = new HashSet<>();
-            final long generation = translog.getMinGenerationForSeqNo(seqNo, randomBoolean()).translogFileGeneration;
+            final long generation = translog.getMinGenerationForSeqNo(seqNo).translogFileGeneration;
             int expectedSnapshotOps = 0;
             for (long g = generation; g < translog.currentFileGeneration(); g++) {
                 if (!seqNoPerGeneration.containsKey(g)) {

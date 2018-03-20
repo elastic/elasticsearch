@@ -171,6 +171,35 @@ shard.
 == Completed
 
 [float]
+=== Replicas can fall out of sync due to reliance on the timing of deletions (STATUS: DONE, V6.0.0)
+
+If a document is deleted and another document with the same id is indexed some
+time later then it was possible for these operations not to be replicated
+correctly, leading to the replica falling out of sync with the primary.
+
+Prior to v6.0.0, each shard copy kept a record of the ids, and versions, of
+recently-deleted documents to ensure that a document that was deleted and then
+indexed again was assigned the correct version number. By default Elasticsearch
+periodically discarded such records when they were older than 60 seconds. Once
+the version record for a deleted document had been discarded, a subsequent
+indexing operation for a document with the same document id would have been
+given version number 1 again.
+
+If the times at which the primary and its replicas received the deletion and
+indexing operations were sufficiently skewed then the records of the
+recently-deleted documents could have differed between the two shard copies.
+More precisely, if the primary had discarded the deletion record but a replica
+had not (at the point of processing the indexing operation) then the primary
+would assign version number 1 to the document again, which the replica would
+then ignore under the mistaken impression that it already had a version of the
+document that was at least as new.
+
+The times of the operations could be skewed like this due to a network
+partition, a GC pause, or because the operations were being replayed during
+recovery. The introduction of sequence numbers {GIT}10708[#10708] means that
+this timing issue is no longer present.
+
+[float]
 === Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: DONE, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in

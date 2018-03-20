@@ -88,12 +88,13 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             buildProperties.extension.plugins.each { String bundledPluginProjectName ->
                 Project bundledPluginProject = project.project(bundledPluginProjectName)
                 bundledPluginProject.afterEvaluate {
+                    String bundledPluginName = bundledPluginProject.esplugin.name
                     bundle.configure {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {
                             eachFile { FileCopyDetails details ->
                                 // we want each path to have the plugin name interjected
-                                details.relativePath = new RelativePath(true, bundledPluginProjectName, details.relativePath.toString())
+                                details.relativePath = new RelativePath(true, bundledPluginName, details.relativePath.toString())
                             }
                         }
                     }

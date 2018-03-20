@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
@@ -95,7 +96,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
             assertEquals(response.getStatusLine().getReasonPhrase(), 200, response.getStatusLine().getStatusCode());
         }
 
-        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME)) {
+        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME)) {
             String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
             BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,

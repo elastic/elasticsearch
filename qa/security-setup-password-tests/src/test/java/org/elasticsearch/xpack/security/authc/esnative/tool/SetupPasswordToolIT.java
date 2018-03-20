@@ -97,7 +97,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
             }
         });
 
-        assertEquals(3, userPasswordMap.size());
+        assertEquals(4, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
             final String basicHeader = "Basic " +
                     Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));

@@ -18,7 +18,8 @@ To get started with {security}:
 
 .  Start {es} and {kib}.
 
-. Set the passwords of the built in `elastic`, `kibana`, and `logstash_system` users.
+. Set the passwords of the built in `elastic`, `kibana`, `logstash_system`, and
+`beats_system` users.
 In most cases, you can simply run the `bin/x-pack/setup-passwords` tool on one of the nodes in your cluster.
 Run that command with the same user that is running your {es} process.
 In "auto" mode this tool will randomly generate passwords and print them to the console.

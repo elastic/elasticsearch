@@ -22,6 +22,7 @@ passwords have been set. The `elastic` user can be used to
 `elastic`:: A built-in _superuser_. See <<built-in-roles>>.
 `kibana`:: The user Kibana uses to connect and communicate with Elasticsearch.
 `logstash_system`:: The user Logstash uses when storing monitoring information in Elasticsearch.
+`beats_system`:: The user the Beats use when storing monitoring information in Elasticsearch.
 
 
 [float]
@@ -76,7 +77,7 @@ The +setup-passwords+ tool is the simplest method to set the built-in users'
 passwords for the first time. It uses the `elastic` user's bootstrap password to
 run user management API requests. For example, you can run the command in
 an "interactive" mode, which prompts you to enter new passwords for the
-`elastic`, `kibana`, and `logstash_system` users:
+`elastic`, `kibana`, `logstash_system`, and `beats_system` users:
 
 [source,shell]
 --------------------------------------------------
@@ -113,7 +114,7 @@ since at that point the bootstrap password is no longer required.
 
 [float]
 [[add-built-in-user-passwords]]
-==== Adding Built-in User Passwords To {kib} and Logstash
+==== Adding Built-in User Passwords To {kib}, Logstash, and Beats
 
 After the `kibana` user password is set, you need to update the {kib} server
 with the new password by setting `elasticsearch.password` in the `kibana.yml`
@@ -145,6 +146,24 @@ Once the password has been changed, you can enable the user via the following AP
 PUT _xpack/security/user/logstash_system/_enable
 ---------------------------------------------------------------------
 // CONSOLE
+
+The `beats_system` user is used internally within Beats when monitoring is
+enabled for Beats.
+
+To enable this feature in Beats, you need to update the configuration for each
+of your beats to reference the correct username and password. For example:
+
+[source,yaml]
+----------------------------------------------------------
+xpack.monitoring.elasticsearch.username: beats_system
+xpack.monitoring.elasticsearch.password: beatspassword
+----------------------------------------------------------
+
+If you have upgraded from an older version of {es}, then you may not have set a
+password for the `beats_system` user. If this is the case, then you should use
+the *Management > Users* page in {kib} or the
+{ref}/security-api-change-password.html[Change Password API] to set a password
+for this user.
 
 [float]
 [[disabling-default-password]]

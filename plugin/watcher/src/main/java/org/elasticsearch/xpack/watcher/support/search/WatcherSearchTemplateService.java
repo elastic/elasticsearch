@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -66,7 +67,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (InputStream stream = source.streamInput();
-                 XContentParser parser = XContentFactory.xContent(source)
+                 XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                          .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 sourceBuilder.parseXContent(parser);
                 searchRequest.source(sourceBuilder);

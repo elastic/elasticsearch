@@ -10,7 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -70,7 +70,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         XContentType responseContentType = response.xContentType();
         if (input.getExpectedResponseXContentType() == null) {
             //Attempt to auto detect content type, if not set in response
-            contentType = responseContentType != null ? responseContentType : XContentFactory.xContentType(response.body());
+            contentType = responseContentType != null ? responseContentType : XContentHelper.xContentType(response.body());
         } else {
             contentType = input.getExpectedResponseXContentType().contentType();
             if (responseContentType != contentType) {

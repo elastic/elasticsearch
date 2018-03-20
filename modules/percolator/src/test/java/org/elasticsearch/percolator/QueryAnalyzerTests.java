@@ -811,6 +811,24 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertTermsEqual(result.extractions, new Term("_field", "_value"));
     }
 
+    public void testFunctionScoreQuery_withMatchAll() {
+        MatchAllDocsQuery innerQuery = new MatchAllDocsQuery();
+        FunctionScoreQuery functionScoreQuery1 = new FunctionScoreQuery(innerQuery, new RandomScoreFunction(0, 0, null));
+        Result result = analyze(functionScoreQuery1, Version.CURRENT);
+        assertThat(result.verified, is(true));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.extractions.isEmpty(), is(true));
+
+        FunctionScoreQuery functionScoreQuery2 =
+            new FunctionScoreQuery(innerQuery, new RandomScoreFunction(0, 0, null), CombineFunction.MULTIPLY, 1f, 10f);
+        result = analyze(functionScoreQuery2, Version.CURRENT);
+        assertThat(result.verified, is(false));
+        assertThat(result.minimumShouldMatch, equalTo(0));
+        assertThat(result.matchAllDocs, is(true));
+        assertThat(result.extractions.isEmpty(), is(true));
+    }
+
     public void testSelectBestExtraction() {
         Set<QueryExtraction> queryTerms1 = terms(new int[0], "12", "1234", "12345");
         Set<QueryAnalyzer.QueryExtraction> queryTerms2 = terms(new int[0], "123", "1234", "12345");

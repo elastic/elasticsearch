@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Request to perform a search ranking evaluation.
@@ -32,9 +35,11 @@ import java.io.IOException;
 public class RankEvalRequest extends ActionRequest {
 
     private RankEvalSpec rankingEvaluationSpec;
+    private String[] indices = Strings.EMPTY_ARRAY;
 
-    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec) {
+    public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = rankingEvaluationSpec;
+        setIndices(indices);
     }
 
     RankEvalRequest() {
@@ -64,16 +69,53 @@ public class RankEvalRequest extends ActionRequest {
         this.rankingEvaluationSpec = task;
     }
 
+    /**
+     * Sets the indices the search will be executed on.
+     */
+    public RankEvalRequest setIndices(String... indices) {
+        Objects.requireNonNull(indices, "indices must not be null");
+        for (String index : indices) {
+            Objects.requireNonNull(index, "index must not be null");
+        }
+        this.indices = indices;
+        return this;
+    }
+
+    /**
+     * @return the indices for this request
+     */
+    public String[] getIndices() {
+        return indices;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         rankingEvaluationSpec = new RankEvalSpec(in);
-
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            indices = in.readStringArray();
+        } else {
+            // readStringArray uses readVInt for size, we used readInt in 6.2
+            int indicesSize = in.readInt();
+            String[] indices = new String[indicesSize];
+            for (int i = 0; i < indicesSize; i++) {
+                indices[i] = in.readString();
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         rankingEvaluationSpec.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeStringArray(indices);
+        } else {
+            // writeStringArray uses writeVInt for size, we used writeInt in 6.2
+            out.writeInt(indices.length);
+            for (String index : indices) {
+                out.writeString(index);
+            }
+        }
     }
 }

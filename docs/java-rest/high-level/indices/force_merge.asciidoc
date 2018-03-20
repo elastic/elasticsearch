@@ -79,7 +79,7 @@ provided as an argument
 <2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-force-merge-response]]
-==== Force merge Response
+==== Force Merge Response
 
 The returned `ForceMergeResponse` allows to retrieve information about the
 executed operation as follows:

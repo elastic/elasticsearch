@@ -100,6 +100,14 @@ setup() {
   }
 }
 
+@test "[TAR] test creating elasticearch.keystore" {
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" create
+    assert_file "$ESCONFIG/elasticsearch.keystore" f elasticsearch elasticsearch 660
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" list | grep "keystore.seed"
+    # cleanup for the next test
+    rm -rf "$ESCONFIG/elasticsearch.keystore"
+}
+
 ##################################
 # Check that Elasticsearch is working
 ##################################
@@ -107,6 +115,13 @@ setup() {
     start_elasticsearch_service
     run_elasticsearch_tests
     stop_elasticsearch_service
+}
+
+@test "[TAR] test auto-creating elasticearch.keystore" {
+    # a keystore should automatically be created after the service is started
+    assert_file "$ESCONFIG/elasticsearch.keystore" f elasticsearch elasticsearch 660
+    # the keystore should be seeded
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" list | grep "keystore.seed"
 }
 
 @test "[TAR] start Elasticsearch with custom JVM options" {

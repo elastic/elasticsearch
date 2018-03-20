@@ -19,7 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -887,7 +888,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
         assertEquals("{\"test_cluster\":{\"seeds\":[\"0.0.0.0:1\"],\"http_addresses\":[\"0.0.0.0:80\"],\"connected\":true," +
             "\"num_nodes_connected\":3,\"max_connections_per_cluster\":4,\"initial_connect_timeout\":\"30m\"," +
-                "\"skip_unavailable\":true}}", builder.string());
+                "\"skip_unavailable\":true}}", Strings.toString(builder));
 
         stats = new RemoteConnectionInfo("some_other_cluster",
             Arrays.asList(new TransportAddress(TransportAddress.META_ADDRESS,1), new TransportAddress(TransportAddress.META_ADDRESS,2)),
@@ -900,7 +901,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
         assertEquals("{\"some_other_cluster\":{\"seeds\":[\"0.0.0.0:1\",\"0.0.0.0:2\"],\"http_addresses\":[\"0.0.0.0:80\",\"0.0.0.0:81\"],"
                 + "\"connected\":false,\"num_nodes_connected\":0,\"max_connections_per_cluster\":2,\"initial_connect_timeout\":\"30s\"," +
-                "\"skip_unavailable\":false}}", builder.string());
+                "\"skip_unavailable\":false}}", Strings.toString(builder));
     }
 
     private RemoteConnectionInfo getRemoteConnectionInfo(RemoteClusterConnection connection) throws Exception {

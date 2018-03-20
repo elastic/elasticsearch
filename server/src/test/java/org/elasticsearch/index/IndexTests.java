@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -55,7 +56,7 @@ public class IndexTests extends ESTestCase {
         final Index original = new Index(name, uuid);
         final XContentBuilder builder = JsonXContent.contentBuilder();
         original.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the parser
         assertThat(Index.fromXContent(parser), equalTo(original));
     }

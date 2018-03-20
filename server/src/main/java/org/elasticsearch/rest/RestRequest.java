@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.HashMap;
@@ -385,8 +386,9 @@ public abstract class RestRequest implements ToXContent.Params {
             Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
             BytesReference content = tuple.v2();
             XContentType xContentType = tuple.v1();
-            try (XContentParser parser = xContentType.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, content.streamInput())) {
+            try (InputStream stream = content.streamInput();
+                 XContentParser parser = xContentType.xContent()
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 withParser.accept(parser);
             }
         } else {

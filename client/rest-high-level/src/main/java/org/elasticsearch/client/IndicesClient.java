@@ -24,6 +24,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -262,6 +264,7 @@ public final class IndicesClient {
     }
 
     /**
+<<<<<<< HEAD
      * Force merge one or more indices using the Force Merge API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
@@ -280,7 +283,30 @@ public final class IndicesClient {
      */
     public void forceMergeAsync(ForceMergeRequest forceMergeRequest, ActionListener<ForceMergeResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, Request::forceMerge, ForceMergeResponse::fromXContent,
-            listener, emptySet(), headers);
+                listener, emptySet(), headers);
+    }
+
+    /**
+     * Clears the cache of one or more indices using the Clear Cache API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
+     * Clear Cache API on elastic.co</a>
+     */
+    public ClearIndicesCacheResponse clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clearIndicesCacheRequest, Request::clearCache,
+                ClearIndicesCacheResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously clears the cache of one or more indices using the Clear Cache API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
+     * Clear Cache API on elastic.co</a>
+     */
+    public void clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, ActionListener<ClearIndicesCacheResponse> listener,
+                           Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clearIndicesCacheRequest, Request::clearCache,
+                ClearIndicesCacheResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

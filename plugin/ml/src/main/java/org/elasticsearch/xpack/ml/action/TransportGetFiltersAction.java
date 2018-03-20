@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -84,7 +85,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                         BytesReference docSource = getDocResponse.getSourceAsBytesRef();
                         try (InputStream stream = docSource.streamInput();
                              XContentParser parser =
-                                     XContentFactory.xContent(docSource)
+                                     XContentFactory.xContent(getDocResponse.getSourceAsBytes())
                                              .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                             MlFilter filter = MlFilter.PARSER.apply(parser, null).build();
                             responseBody = new QueryPage<>(Collections.singletonList(filter), 1, MlFilter.RESULTS_FIELD);
@@ -125,7 +126,7 @@ public class TransportGetFiltersAction extends HandledTransportAction<GetFilters
                 for (SearchHit hit : response.getHits().getHits()) {
                     BytesReference docSource = hit.getSourceRef();
                     try (InputStream stream = docSource.streamInput();
-                         XContentParser parser = XContentFactory.xContent(docSource).createParser(
+                         XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(docSource)).createParser(
                                  NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                         docs.add(MlFilter.PARSER.apply(parser, null).build());
                     } catch (IOException e) {

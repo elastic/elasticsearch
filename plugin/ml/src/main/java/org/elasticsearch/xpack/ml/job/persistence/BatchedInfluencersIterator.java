@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
@@ -28,7 +29,7 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
     protected Result<Influencer> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
         try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY,
+             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source)).createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
             Influencer influencer = Influencer.PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), influencer);

@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
@@ -75,7 +76,7 @@ public final class WatcherTestUtils {
     }
 
     public static XContentSource xContentSource(BytesReference bytes) {
-        XContent xContent = XContentFactory.xContent(bytes);
+        XContent xContent = XContentFactory.xContent(XContentHelper.xContentType(bytes));
         return new XContentSource(bytes, xContent.type());
     }
 

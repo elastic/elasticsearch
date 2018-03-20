@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -337,7 +338,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
         try (InputStream stream = bytesReference.streamInput();
-             XContentParser parser = XContentFactory.xContent(bytesReference)
+             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(bytesReference))
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             return PARSER.apply(parser, null).build();
         } catch (IOException e) {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
@@ -48,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Arrays.asList;
+
 /**
  * A tool to set passwords of reserved users (elastic, kibana and
  * logstash_system). Can run in `interactive` or `auto` mode. In `auto` mode
@@ -59,7 +62,7 @@ import java.util.Map;
 public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
-    public static final List<String> USERS = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);
+    public static final List<String> USERS = asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
 
     private final CheckedFunction<Environment, CommandLineHttpClient, Exception> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
@@ -240,8 +243,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         }
 
         private void setParser() {
-            urlOption = parser.acceptsAll(Arrays.asList("u", "url"), "The url for the change password request.").withRequiredArg();
-            noPromptOption = parser.acceptsAll(Arrays.asList("b", "batch"),
+            urlOption = parser.acceptsAll(asList("u", "url"), "The url for the change password request.").withRequiredArg();
+            noPromptOption = parser.acceptsAll(asList("b", "batch"),
                     "If enabled, run the change password process without prompting the user.").withOptionalArg();
         }
 

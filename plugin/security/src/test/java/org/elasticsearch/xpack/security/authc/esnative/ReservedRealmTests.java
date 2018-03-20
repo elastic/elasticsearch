@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
@@ -73,7 +74,8 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
-        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME);
+        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
+                UsernamesField.BEATS_NAME);
 
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
@@ -93,7 +95,7 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), settings, usersStore,
                         new AnonymousUser(settings), securityLifecycleService, new ThreadContext(Settings.EMPTY));
-        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expected = randomReservedUser(true);
         final String principal = expected.principal();
 
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
@@ -115,7 +117,7 @@ public class ReservedRealmTests extends ESTestCase {
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled));
+        final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
@@ -156,7 +158,7 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                         new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
@@ -181,7 +183,7 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
                         securityLifecycleService, new ThreadContext(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
@@ -195,7 +197,7 @@ public class ReservedRealmTests extends ESTestCase {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
                         new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
@@ -221,7 +223,7 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testIsReserved() {
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
         assertThat(ClientReservedRealm.isReserved(principal, Settings.EMPTY), is(true));
 
@@ -231,7 +233,7 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testIsReservedDisabled() {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
         assertThat(ClientReservedRealm.isReserved(principal, settings), is(false));
 
@@ -244,8 +246,8 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
-        assertThat(userFuture.actionGet(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true),
-                new LogstashSystemUser(true)));
+        assertThat(userFuture.actionGet(),
+                containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true), new BeatsSystemUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -373,7 +375,7 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
             callback.onResponse(null);
@@ -395,10 +397,14 @@ public class ReservedRealmTests extends ESTestCase {
                 new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME);
+        final String principal = randomFrom(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
+    }
+
+    private User randomReservedUser(boolean enabled) {
+        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled), new BeatsSystemUser(enabled));
     }
 
     /*
@@ -425,13 +431,20 @@ public class ReservedRealmTests extends ESTestCase {
                 assertThat(versionPredicate.test(Version.V_5_0_0), is(false));
                 assertThat(versionPredicate.test(Version.V_5_1_1), is(false));
                 assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
+                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
+                break;
+            case BeatsSystemUser.NAME:
+                assertThat(versionPredicate.test(Version.V_5_6_9), is(false));
+                assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
+                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             default:
                 assertThat(versionPredicate.test(Version.V_5_0_0), is(true));
                 assertThat(versionPredicate.test(Version.V_5_1_1), is(true));
                 assertThat(versionPredicate.test(Version.V_5_2_0), is(true));
+                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
         }
-        assertThat(versionPredicate.test(Version.V_6_0_0_alpha1), is(true));
+        assertThat(versionPredicate.test(Version.V_7_0_0_alpha1), is(true));
     }
 }

@@ -84,6 +84,8 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
+import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -130,6 +132,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
         assertThat(ReservedRolesStore.isReserved(XPackUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(LogstashSystemUser.ROLE_NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(BeatsSystemUser.ROLE_NAME), is(true));
     }
 
     public void testIngestAdminRole() {
@@ -452,6 +456,28 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testLogstashSystemRole() {
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_system");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
+        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME), is(true));
+        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME), is(true));
+        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME), is(false));
+        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
+        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME), is(true));
+
+        assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+                is(false));
+    }
+
+    public void testBeatsSystemRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor(BeatsSystemUser.ROLE_NAME);
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 

@@ -99,6 +99,16 @@ change between releases.
 NOTE: This role does not provide access to the logstash indices and is not
 suitable for use within a Logstash pipeline.
 
+[[built-in-roles-beats-system]] `beats_system` ::
+Grants access necessary for the Beats system user to send system-level data
+(such as monitoring) to {es}. 
++
+NOTE: This role should not be assigned to users as the granted permissions may
+change between releases.
++
+NOTE: This role does not provide access to the beats indices and is not
+suitable for writing beats output to {es}.
+
 [[built-in-roles-ml-admin]] `machine_learning_admin`::
 Grants `manage_ml` cluster privileges and read access to the `.ml-*` indices.
 

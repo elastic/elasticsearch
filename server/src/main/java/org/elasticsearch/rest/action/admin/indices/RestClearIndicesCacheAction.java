@@ -24,11 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-<<<<<<< HEAD
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-=======
-import org.elasticsearch.common.xcontent.XContentBuilder;
->>>>>>> master
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;

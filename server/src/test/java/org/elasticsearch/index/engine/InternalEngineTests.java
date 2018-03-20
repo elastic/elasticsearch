@@ -4289,25 +4289,21 @@ public class InternalEngineTests extends EngineTestCase {
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
         assertThat(translog.totalOperationsByMinGen(translog.uncommittedGeneration()), equalTo(0));
-
         // If the new index commit still points to the same translog generation as the current index commit,
         // we should not enable the periodically flush condition; otherwise we can get into an infinite loop of flushes.
         engine.getLocalCheckpointTracker().generateSeqNo(); // create a gap here
         for (int id = 0; id < numDocs; id++) {
-            if (randomBoolean()){
+            if (randomBoolean()) {
                 translog.rollGeneration();
             }
             final ParsedDocument doc = testParsedDocument("new" + id, null, testDocumentWithTextField(), SOURCE, null);
-            long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
-            final Engine.IndexResult result = engine.index(replicaIndexForDoc(doc, 2L, seqno, false));
-            assertThat(result.isCreated(), equalTo(true));
+            engine.index(replicaIndexForDoc(doc, 2L, engine.getLocalCheckpointTracker().generateSeqNo(), false));
+            if (engine.shouldPeriodicallyFlush()) {
+                engine.flush();
+                assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
+                assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            }
         }
-        lastCommitInfo = engine.getLastCommittedSegmentInfos();
-        if (engine.shouldPeriodicallyFlush()) {
-            engine.flush();
-            assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
-        }
-        assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
     }
 
     public void testStressShouldPeriodicallyFlush() throws Exception {
@@ -4320,26 +4316,19 @@ public class InternalEngineTests extends EngineTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
         indexSettings.updateIndexMetaData(indexMetaData);
         engine.onSettingsChanged();
-        final int iterations = scaledRandomIntBetween(10, 100);
-        for (int iteration = 0; iteration < iterations; iteration++) {
-            final int opsPerIter = scaledRandomIntBetween(1, 100);
-            for (int op = 0; op < opsPerIter; op++) {
-                final long localCheckPoint = engine.getLocalCheckpointTracker().getCheckpoint();
-                final long seqno = randomLongBetween(Math.max(0, localCheckPoint), localCheckPoint + 5);
-                final ParsedDocument doc = testParsedDocument(Long.toString(seqno), null, testDocumentWithTextField(), SOURCE, null);
-                engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
-                if (rarely() || engine.getTranslog().shouldRollGeneration()) {
-                    engine.rollTranslogGeneration();
-                }
-                if (engine.shouldPeriodicallyFlush()) {
-                    engine.flush();
-                    assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
-                }
+        final int numOps = scaledRandomIntBetween(100, 10_000);
+        for (int i = 0; i < numOps; i++) {
+            final long localCheckPoint = engine.getLocalCheckpointTracker().getCheckpoint();
+            final long seqno = randomLongBetween(Math.max(0, localCheckPoint), localCheckPoint + 5);
+            final ParsedDocument doc = testParsedDocument(Long.toString(seqno), null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
+            if (rarely() || engine.getTranslog().shouldRollGeneration()) {
+                engine.rollTranslogGeneration();
             }
-        }
-        if (engine.shouldPeriodicallyFlush()) {
-            engine.flush();
-            assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            if (engine.shouldPeriodicallyFlush()) {
+                engine.flush();
+                assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            }
         }
     }
 

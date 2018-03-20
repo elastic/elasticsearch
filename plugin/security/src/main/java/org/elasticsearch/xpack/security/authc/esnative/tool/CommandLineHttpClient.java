@@ -49,6 +49,14 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 public class CommandLineHttpClient {
 
     public static final String HTTP_SSL_SETTING = setting("http.ssl.");
+
+    /**
+     * Timeout HTTP(s) reads after 35 seconds.
+     * The default timeout for discovering a master is 30s, and we want to be longer than this, otherwise a querying a disconnected node
+     * will trigger as client side timeout rather than giving clear error details.
+     */
+    private static final int READ_TIMEOUT = 35 * 1000;
+
     private final Settings settings;
     private final Environment env;
 
@@ -91,7 +99,7 @@ public class CommandLineHttpClient {
             conn = (HttpURLConnection) url.openConnection();
         }
         conn.setRequestMethod(method);
-        conn.setReadTimeout(30 * 1000); // 30 second timeout
+        conn.setReadTimeout(READ_TIMEOUT);
         // Add basic-auth header
         String token = UsernamePasswordToken.basicAuthHeaderValue(user, password);
         conn.setRequestProperty("Authorization", token);

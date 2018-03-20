@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -55,7 +56,7 @@ public class XContentHelper {
             final XContentType contentType = XContentFactory.xContentType(compressedInput);
             return XContentFactory.xContent(contentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
+            return XContentFactory.xContent(xContentType(bytes)).createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 
@@ -151,7 +152,7 @@ public class XContentHelper {
 
     @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes));
+        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes.toBytesRef().bytes));
     }
 
     public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
@@ -435,5 +436,18 @@ public class XContentHelper {
             }
             return BytesReference.bytes(builder);
         }
+    }
+
+    /**
+     * Guesses the content type based on the provided bytes.
+     *
+     * @deprecated the content type should not be guessed except for few cases where we effectively don't know the content type.
+     * The REST layer should move to reading the Content-Type header instead. There are other places where auto-detection may be needed.
+     * This method is deprecated to prevent usages of it from spreading further without specific reasons.
+     */
+    @Deprecated
+    public static XContentType xContentType(BytesReference bytes) {
+        BytesRef br = bytes.toBytesRef();
+        return XContentFactory.xContentType(br.bytes, br.offset, br.length);
     }
 }

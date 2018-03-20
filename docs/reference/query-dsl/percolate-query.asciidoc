@@ -44,7 +44,7 @@ the query documents. The `query` field will hold a json
 object that represents an actual Elasticsearch query. The
 `query` field has been configured to use the
 <<percolator,percolator field type>>. This field type understands
-the query dsl and stored the query in such a way that it
+the query dsl and stores the query in such a way that it
 can be used later on to match documents defined on the `percolate` query.
 
 Register a query in the percolator:

@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * The request is returned in the REST response, and the REST client should make it available
  * to the browser.
  */
-public class RestSamlPrepareAuthenticationAction extends SecurityBaseRestHandler {
+public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>("saml_prepare_authn",
             SamlPrepareAuthenticationRequest::new);

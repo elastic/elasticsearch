@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
 import javax.net.ssl.SSLException;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -48,6 +47,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Arrays.asList;
 
@@ -80,7 +80,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     }
 
     SetupPasswordTool(CheckedFunction<Environment, CommandLineHttpClient, Exception> clientFunction,
-            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -120,6 +120,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(options, env);
             checkElasticKeystorePasswordValid(terminal, env);
+            checkClusterHealth(terminal);
 
             if (shouldPrompt) {
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
@@ -165,6 +166,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
             setupOptions(options, env);
             checkElasticKeystorePasswordValid(terminal, env);
+            checkClusterHealth(terminal);
 
             if (shouldPrompt) {
                 terminal.println("Initiating the setup of passwords for reserved users " + String.join(",", USERS) + ".");
@@ -262,8 +264,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * '_authenticate' call. Returns silently if server is reachable and password is
          * valid. Throws {@link UserException} otherwise.
          *
-         * @param terminal
-         *            where to write verbose info.
+         * @param terminal where to write verbose info.
          */
         void checkElasticKeystorePasswordValid(Terminal terminal, Environment env) throws Exception {
             URL route = createURL(url, "/_xpack/security/_authenticate", "?pretty");
@@ -373,13 +374,53 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to determine x-pack security feature configuration.");
         }
 
+        void checkClusterHealth(Terminal terminal) throws Exception {
+            URL route = createURL(url, "/_cluster/health", "?pretty");
+            terminal.println(Verbosity.VERBOSE, "");
+            terminal.println(Verbosity.VERBOSE, "Checking cluster health: " + route.toString());
+            final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
+                    is -> responseBuilder(is, terminal));
+            if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
+                terminal.println("");
+                terminal.println("Failed to determine the health of the cluster running at " + url);
+                terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
+                final String cause = getErrorCause(httpResponse);
+                if (cause != null) {
+                    terminal.println("Cause: " + cause);
+                }
+            } else {
+                final String clusterStatus = Objects.toString(httpResponse.getResponseBody().get("status"), "");
+                if (clusterStatus.isEmpty()) {
+                    terminal.println("");
+                    terminal.println("Failed to determine the health of the cluster running at " + url);
+                    terminal.println("Could not find a 'status' value at " + route.toString());
+                } else if ("red".equalsIgnoreCase(clusterStatus)) {
+                    terminal.println("");
+                    terminal.println("Your cluster health is currently RED.");
+                    terminal.println("This means that some cluster data is unavailable and your cluster is not fully functional.");
+                } else {
+                    // Cluster is yellow/green -> all OK
+                    return;
+                }
+            }
+            terminal.println("");
+            terminal.println("It is recommended that you resolve the issues with your cluster before running setup-passwords.");
+            terminal.println("It is very likely that the password changes will fail when run against an unhealthy cluster.");
+            terminal.println("");
+            if (shouldPrompt) {
+                final boolean keepGoing = terminal.promptYesNo("Do you want to continue with the password setup process", false);
+                if (keepGoing == false) {
+                    throw new UserException(ExitCodes.OK, "User cancelled operation");
+                }
+                terminal.println("");
+            }
+        }
+
         /**
          * Sets one user's password using the elastic superUser credentials.
          *
-         * @param user
-         *            The user who's password will change.
-         * @param password
-         *            the new password of the user.
+         * @param user     The user who's password will change.
+         * @param password the new password of the user.
          */
         private void changeUserPassword(String user, SecureString password, Terminal terminal) throws Exception {
             URL route = createURL(url, "/_xpack/security/user/" + user + "/_password", "?pretty");
@@ -401,8 +442,14 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.println("");
                     terminal.println(
                             "Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling PUT " + route.toString());
+                    String cause = getErrorCause(httpResponse);
+                    if (cause != null) {
+                        terminal.println("Cause: " + cause);
+                        terminal.println("");
+                    }
                     terminal.println("Possible next steps:");
                     terminal.println("* Try running this tool again.");
+                    terminal.println("* Try running with the --verbose parameter for additional messages.");
                     terminal.println("* Check the elasticsearch logs for additional error details.");
                     terminal.println("* Use the change password API manually. ");
                     terminal.println("");
@@ -423,13 +470,11 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
          * Collects passwords for all the users, then issues set requests. Fails on the
          * first failed request. In this case rerun the tool to redo all the operations.
          *
-         * @param passwordFn
-         *            Function to generate or prompt for each user's password.
-         * @param successCallback
-         *            Callback for each successful operation
+         * @param passwordFn      Function to generate or prompt for each user's password.
+         * @param successCallback Callback for each successful operation
          */
         void changePasswords(CheckedFunction<String, SecureString, UserException> passwordFn,
-                CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
+                             CheckedBiConsumer<String, SecureString, Exception> successCallback, Terminal terminal) throws Exception {
             Map<String, SecureString> passwordsMap = new HashMap<>(USERS.size());
             try {
                 for (String user : USERS) {
@@ -473,6 +518,32 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         }
     }
 
+    private String getErrorCause(HttpResponse httpResponse) {
+        final Object error = httpResponse.getResponseBody().get("error");
+        if (error == null) {
+            return null;
+        }
+        if (error instanceof Map) {
+            Object reason = ((Map) error).get("reason");
+            if (reason != null) {
+                return reason.toString();
+            }
+            final Object root = ((Map) error).get("root_cause");
+            if (root != null && root instanceof Map) {
+                reason = ((Map) root).get("reason");
+                if (reason != null) {
+                    return reason.toString();
+                }
+                final Object type = ((Map) root).get("type");
+                if (type != null) {
+                    return (String) type;
+                }
+            }
+            return String.valueOf(((Map) error).get("type"));
+        }
+        return error.toString();
+    }
+
     private static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
         URL route = new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
         return route;
@@ -484,6 +555,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     static class XPackSecurityFeatureConfig {
         final boolean isAvailable;
         final boolean isEnabled;
+
         XPackSecurityFeatureConfig(boolean isAvailable, boolean isEnabled) {
             this.isAvailable = isAvailable;
             this.isEnabled = isEnabled;

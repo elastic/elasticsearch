@@ -12,6 +12,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -42,6 +44,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -55,8 +58,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.net.ssl.SSLException;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -80,7 +81,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void setSecretsAndKeyStore() throws Exception {
         // sometimes we fall back to the keystore seed as this is the default when a new node starts
         boolean useFallback = randomBoolean();
-        bootstrapPassword = useFallback ?  new SecureString("0xCAFEBABE".toCharArray()) :
+        bootstrapPassword = useFallback ? new SecureString("0xCAFEBABE".toCharArray()) :
                 new SecureString("bootstrap-password".toCharArray());
         this.keyStore = mock(KeyStoreWrapper.class);
         this.httpClient = mock(CommandLineHttpClient.class);
@@ -102,6 +103,9 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         URL url = new URL(httpClient.getDefaultURL());
+        httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Collections.singletonMap("status", randomFrom("yellow", "green")));
+        when(httpClient.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+                any(CheckedFunction.class))).thenReturn(httpResponse);
 
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
         HttpResponse queryXPackSecurityConfigHttpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
@@ -132,7 +136,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     @Override
                     protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
-                        settings.forEach((k,v) -> builder.put(k, v));
+                        settings.forEach((k, v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
                     }
                 };
@@ -144,7 +148,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
                     @Override
                     protected Environment createEnv(Map<String, String> settings) throws UserException {
                         Settings.Builder builder = Settings.builder();
-                        settings.forEach((k,v) -> builder.put(k, v));
+                        settings.forEach((k, v) -> builder.put(k, v));
                         return TestEnvironment.newEnvironment(builder.build());
                     }
                 };
@@ -166,11 +170,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = checkURL(url);
+        URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwdURL(url, user);
+            URL urlWithRoute = passwordUrl(url, user);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     any(CheckedSupplier.class), any(CheckedFunction.class));
         }
@@ -178,7 +182,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testAuthnFail() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_UNAUTHORIZED, new HashMap<String, Object>());
 
@@ -195,7 +199,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testErrorMessagesWhenXPackIsNotAvailableOnNode() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
         when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
@@ -214,7 +218,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
-                        .thenReturn(createHttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, securityPluginQueryResponseBody));
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, securityPluginQueryResponseBody));
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack is not available on this Elasticsearch node.");
@@ -223,7 +227,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testErrorMessagesWhenXPackIsAvailableWithCorrectLicenseAndIsEnabledButStillFailedForUnknown() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
         when(httpClient.execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), any(CheckedSupplier.class),
@@ -245,7 +249,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
-                        .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
 
         thrown.expect(UserException.class);
         thrown.expectMessage("Unknown error");
@@ -255,7 +259,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testErrorMessagesWhenXPackPluginIsAvailableButNoSecurityLicense() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
@@ -276,7 +280,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
-                        .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is not available.");
@@ -286,7 +290,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testErrorMessagesWhenXPackPluginIsAvailableWithValidLicenseButDisabledSecurity() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
 
         HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_NOT_FOUND, new HashMap<String, Object>());
@@ -307,17 +311,16 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
         when(httpClient.execute(eq("GET"), eq(xpackSecurityPluginQueryURL), eq(ElasticUser.NAME), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class)))
-                        .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, securityPluginQueryResponseBody));
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is disabled by configuration.");
         execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
-
     }
 
     public void testWrongServer() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
-        URL authnURL = checkURL(url);
+        URL authnURL = authenticateUrl(url);
         doThrow(randomFrom(new IOException(), new SSLException(""))).when(httpClient).execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME),
                 any(SecureString.class), any(CheckedSupplier.class), any(CheckedFunction.class));
 
@@ -329,17 +332,39 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
     }
 
+    public void testRedCluster() throws Exception {
+        URL url = new URL(httpClient.getDefaultURL());
+
+        HttpResponse httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<>());
+        when(httpClient.execute(eq("GET"), eq(authenticateUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(httpResponse);
+
+        httpResponse = new HttpResponse(HttpURLConnection.HTTP_OK, MapBuilder.<String, Object>newMapBuilder()
+                .put("cluster_name", "elasticsearch").put("status", "red").put("number_of_nodes", 1).map());
+        when(httpClient.execute(eq("GET"), eq(clusterHealthUrl(url)), eq(ElasticUser.NAME), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedFunction.class))).thenReturn(httpResponse);
+
+        terminal.addTextInput("n");
+        try {
+            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            fail("Should have thrown exception");
+        } catch (UserException e) {
+            assertEquals(ExitCodes.OK, e.exitCode);
+            assertThat(terminal.getOutput(), Matchers.containsString("Your cluster health is currently RED."));
+        }
+    }
+
     public void testUrlOption() throws Exception {
         URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
         execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = checkURL(url);
+        URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwdURL(url, user);
+            URL urlWithRoute = passwordUrl(url, user);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     any(CheckedSupplier.class), any(CheckedFunction.class));
         }
@@ -348,7 +373,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void testSetUserPassFail() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
         String userToFail = randomFrom(SetupPasswordTool.USERS);
-        URL userToFailURL = passwdURL(url, userToFail);
+        URL userToFailURL = passwordUrl(url, userToFail);
 
         doThrow(new IOException()).when(httpClient).execute(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class),
                 any(CheckedSupplier.class), any(CheckedFunction.class));
@@ -368,11 +393,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = checkURL(url);
+        URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwdURL(url, user);
+            URL urlWithRoute = passwordUrl(url, user);
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
@@ -406,11 +431,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
-        URL checkUrl = checkURL(url);
+        URL checkUrl = authenticateUrl(url);
         inOrder.verify(httpClient).execute(eq("GET"), eq(checkUrl), eq(ElasticUser.NAME), eq(bootstrapPassword), any(CheckedSupplier.class),
                 any(CheckedFunction.class));
         for (String user : usersInSetOrder) {
-            URL urlWithRoute = passwdURL(url, user);
+            URL urlWithRoute = passwordUrl(url, user);
             ArgumentCaptor<CheckedSupplier<String, Exception>> passwordCaptor = ArgumentCaptor.forClass((Class) CheckedSupplier.class);
             inOrder.verify(httpClient).execute(eq("PUT"), eq(urlWithRoute), eq(ElasticUser.NAME), eq(bootstrapPassword),
                     passwordCaptor.capture(), any(CheckedFunction.class));
@@ -433,12 +458,16 @@ public class SetupPasswordToolTests extends CommandTestCase {
         throw new RuntimeException("Did not properly parse password.");
     }
 
-    private URL checkURL(URL url) throws MalformedURLException, URISyntaxException {
+    private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
         return new URL(url, (url.toURI().getPath() + "/_xpack/security/_authenticate").replaceAll("/+", "/") + "?pretty");
     }
 
-    private URL passwdURL(URL url, String user) throws MalformedURLException, URISyntaxException {
+    private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
         return new URL(url, (url.toURI().getPath() + "/_xpack/security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+    }
+
+    private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
     }
 
     private URL queryXPackSecurityFeatureConfigURL(URL url) throws MalformedURLException, URISyntaxException {

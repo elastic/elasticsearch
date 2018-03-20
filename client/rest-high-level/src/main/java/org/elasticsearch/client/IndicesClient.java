@@ -264,7 +264,6 @@ public final class IndicesClient {
     }
 
     /**
-<<<<<<< HEAD
      * Force merge one or more indices using the Force Merge API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">

@@ -532,6 +532,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     // checking for existing version of the plugin
     private void verifyPluginName(Path pluginPath, String pluginName, Path candidateDir) throws UserException, IOException {
+        // don't let user install plugin conflicting with module...
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(pluginName)) {
+            throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
+        }
+
         final Path destination = pluginPath.resolve(pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
@@ -573,13 +579,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
-
-        // don't let user install plugin as a module...
-        // they might be unavoidably in maven central and are packaged up the same way)
-        if (MODULES.contains(info.getName())) {
-            throw new UserException(ExitCodes.USAGE, "plugin '" + info.getName() +
-                "' cannot be installed like this, it is a system module");
-        }
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());

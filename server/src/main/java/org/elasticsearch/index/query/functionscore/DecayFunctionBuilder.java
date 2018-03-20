@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -186,7 +187,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (InputStream stream = functionBytes.streamInput();
-             XContentParser parser = XContentFactory.xContent(functionBytes)
+             XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
                  .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }

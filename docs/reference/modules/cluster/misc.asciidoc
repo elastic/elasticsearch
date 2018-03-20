@@ -56,24 +56,3 @@ PUT /_cluster/settings
 }
 -------------------------------
 // CONSOLE
-
-[[cluster-warning-headers]]
-==== Warning Headers
-For every distinct warning, elastic cluster will return a new warning header in the client HTTP response.
-Sometimes the amount of returned warning headers can be too large and exceed client configuration settings.
-These dynamic settings allow to set the maximum count and size of warning headers in client http responses.
-Once the maximum count or size is reached, any extra warning will not produce an additional warning header.
-The default value for `http.max_warning_header_count` is unbounded.
-The default value for `http.max_warning_header_size` is unbounded.
-
-[source,js]
--------------------------------
-PUT /_cluster/settings
-{
-    "persistent" : {
-        "http.max_warning_header_count" : 62,
-        "http.max_warning_header_size" : "7Kb"
-    }
-}
--------------------------------
-// CONSOLE

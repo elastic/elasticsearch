@@ -267,7 +267,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             assertThat(responses.get(0), warningValueMatcher);
             assertThat(responses.get(0), containsString("\"A simple message 1"));
             assertThat(responses.get(1), warningValueMatcher);
-            assertThat(responses.get(1), containsString("\"There were more warnings, but they were dropped as "));
+            assertThat(responses.get(1), containsString("\"A simple message 2"));
         }
     }
 

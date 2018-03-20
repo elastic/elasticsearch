@@ -88,8 +88,8 @@ public final class ThreadContext implements Closeable, Writeable {
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
-    private static volatile int maxWrnHeaderCount;
-    private static volatile long maxWrnHeaderSize;
+    private static volatile int maxWarningHeaderCount;
+    private static volatile long maxWarningHeaderSize;
 
     /**
      * Creates a new ThreadContext instance
@@ -107,8 +107,8 @@ public final class ThreadContext implements Closeable, Writeable {
             this.defaultHeader = Collections.unmodifiableMap(defaultHeader);
         }
         threadLocal = new ContextThreadLocal();
-        maxWrnHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
-        maxWrnHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
+        maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
+        maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
 
     @Override
@@ -116,12 +116,12 @@ public final class ThreadContext implements Closeable, Writeable {
         threadLocal.close();
     }
 
-    public static void setMaxWarningHeaderCount(int newMaxWrnHeaderCount){
-        maxWrnHeaderCount = newMaxWrnHeaderCount;
+    public static void setMaxWarningHeaderCount(final int maxWarningHeaderCount) {
+        ThreadContext.maxWarningHeaderCount = maxWarningHeaderCount;
     }
 
-    public static void setMaxWarningHeaderSize(ByteSizeValue newMaxWarningHeaderSize){
-        maxWrnHeaderSize = newMaxWarningHeaderSize.getBytes();
+    public static void setMaxWarningHeaderSize(final ByteSizeValue maxWarningHeaderSize) {
+        ThreadContext.maxWarningHeaderSize = maxWarningHeaderSize.getBytes();
     }
 
     /**
@@ -378,8 +378,8 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, Object> transientHeaders;
         private final Map<String, List<String>> responseHeaders;
         private final boolean isSystemContext;
-        private long wrnHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
-        private boolean isWrnLmtReached;
+        private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
+        private boolean isWarningLimitReached;
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
             Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
@@ -391,8 +391,8 @@ public final class ThreadContext implements Closeable, Writeable {
             this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
             isSystemContext = false; // we never serialize this it's a transient flag
-            wrnHeadersSize = 0L;
-            isWrnLmtReached = false;
+            this.warningHeadersSize = 0L;
+            this.isWarningLimitReached = false;
         }
 
         private ThreadContextStruct setSystemContext() {
@@ -409,20 +409,20 @@ public final class ThreadContext implements Closeable, Writeable {
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
-            this.wrnHeadersSize = 0L;
-            isWrnLmtReached = false;
+            this.warningHeadersSize = 0L;
+            this.isWarningLimitReached = false;
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, List<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext,
-                                    long wrnHeadersSize, boolean isWrnLmtReached) {
+                                    long warningHeadersSize, boolean isWarningLimitReached) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
-            this.wrnHeadersSize = wrnHeadersSize;
-            this.isWrnLmtReached = isWrnLmtReached;
+            this.warningHeadersSize = warningHeadersSize;
+            this.isWarningLimitReached = isWarningLimitReached;
         }
 
         /**
@@ -478,69 +478,55 @@ public final class ThreadContext implements Closeable, Writeable {
 
         private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
             assert value != null;
-            long curWrnHeaderSize = 0;
-            //check if we can add another warning header (max count or size within limits)
+            long newWarningHeaderSize = warningHeadersSize;
+            //check if we can add another warning header - if max size within limits
             if (key.equals("Warning")) {
-                if (isWrnLmtReached) return this; //can't add warning headers - limit reached
-                if (maxWrnHeaderCount != -1) { //if count is NOT unbounded, check its limits
-                    int wrnHeaderCount = this.responseHeaders.containsKey("Warning") ? this.responseHeaders.get("Warning").size() : 0;
-                    if (wrnHeaderCount >= maxWrnHeaderCount) return addWrnLmtReachedHeader();
-                }
-                if (maxWrnHeaderSize != -1) { //if size is NOT unbounded, check its limits
-                    curWrnHeaderSize = "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
-                    if ((wrnHeadersSize + curWrnHeaderSize) > maxWrnHeaderSize) return addWrnLmtReachedHeader();
+                if (isWarningLimitReached) return this; // can't add warning headers - limit reached
+                newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
+                //if size is NOT unbounded AND limit is exceeded
+                if ((maxWarningHeaderSize != -1) && (newWarningHeaderSize > maxWarningHeaderSize)) {
+                    logWarningsLimitReached();
+                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders,
+                        isSystemContext, newWarningHeaderSize, true);
                 }
             }
 
             final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             final List<String> existingValues = newResponseHeaders.get(key);
-
             if (existingValues != null) {
                 final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
                 assert existingValues.size() == existingUniqueValues.size();
                 if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-
                 final List<String> newValues = new ArrayList<>(existingValues);
                 newValues.add(value);
-
                 newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
             } else {
                 newResponseHeaders.put(key, Collections.singletonList(value));
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders,
-                isSystemContext, wrnHeadersSize + curWrnHeaderSize, isWrnLmtReached);
-        }
 
-        //replace last warning header(s) with "headers limit reached" warning
-        //respecting limitations on headers size if it is set by user
-        private ThreadContextStruct addWrnLmtReachedHeader(){
-            if ((maxWrnHeaderSize == 0) || (maxWrnHeaderCount ==0)) //can't even add "headers limit reached" warning
-                return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders,
-                    isSystemContext, wrnHeadersSize, true);
-            final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
-            final List<String> wrns = new ArrayList<>(newResponseHeaders.get("Warning"));
-            final String lastWrnMessage = DeprecationLogger.formatWarning(
-                "There were more warnings, but they were dropped as [" +
-                    HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "] or [" +
-                    HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "] were reached!");
-
-            if (maxWrnHeaderSize > 0) {
-                final long wrnSize = "Warning".getBytes(StandardCharsets.UTF_8).length;
-                wrnHeadersSize = wrnHeadersSize + wrnSize + lastWrnMessage.getBytes(StandardCharsets.UTF_8).length;
-                do {
-                    String wrn = wrns.remove(wrns.size() - 1);
-                    wrnHeadersSize = wrnHeadersSize - wrnSize - wrn.getBytes(StandardCharsets.UTF_8).length;
-                } while(wrnHeadersSize > maxWrnHeaderSize);
-            } else { //we don't care about size as it is unbounded
-                wrns.remove(wrns.size() - 1);
+            //check if we can add another warning header - if max count within limits
+            if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
+                final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
+                if (warningHeaderCount > maxWarningHeaderCount) {
+                    logWarningsLimitReached();
+                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders,
+                        isSystemContext, newWarningHeaderSize, true);
+                }
             }
-            wrns.add(lastWrnMessage);
-            newResponseHeaders.put("Warning", Collections.unmodifiableList(wrns));
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders,
-                isSystemContext, wrnHeadersSize, true);
+                isSystemContext, newWarningHeaderSize, isWarningLimitReached);
         }
+
+
+        private void logWarningsLimitReached() {
+            final String message = "There were more warnings, but they were dropped as [" +
+                HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "] or [" +
+                HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "] were reached!";
+            ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+        }
+
 
         private ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);

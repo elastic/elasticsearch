@@ -1384,8 +1384,7 @@ public class InternalEngine extends Engine {
     @Override
     public boolean shouldPeriodicallyFlush() {
         ensureOpen();
-        final SegmentInfos lastCommit = this.lastCommittedSegmentInfos;
-        final long translogGenerationOfLastCommit = Long.parseLong(lastCommit.userData.get(Translog.TRANSLOG_GENERATION_KEY));
+        final long translogGenerationOfLastCommit = Long.parseLong(lastCommittedSegmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY));
         final long flushThreshold = config().getIndexSettings().getFlushThresholdSize().getBytes();
         if (translog.sizeInBytesByMinGen(translogGenerationOfLastCommit) < flushThreshold) {
             return false;

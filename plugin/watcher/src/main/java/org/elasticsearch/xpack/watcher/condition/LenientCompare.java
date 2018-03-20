@@ -28,6 +28,10 @@ public class LenientCompare {
             return null;
         }
 
+        if (v1.equals(Double.NaN) || v2.equals(Double.NaN) || v1.equals(Float.NaN) || v2.equals(Float.NaN)) {
+            return null;
+        }
+
         // special case for numbers. If v1 is not a number, we'll try to convert it to a number
         if (v2 instanceof Number) {
             if (!(v1 instanceof Number)) {

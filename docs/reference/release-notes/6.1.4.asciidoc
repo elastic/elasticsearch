@@ -1,8 +1,6 @@
 [[release-notes-6.1.4]]
 == 6.1.4 Release Notes
 
-coming[6.1.4]
-
 Also see <<breaking-changes-6.1>>.
 
 [[enhancement-6.1.4]]

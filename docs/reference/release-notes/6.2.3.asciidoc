@@ -1,8 +1,6 @@
 [[release-notes-6.2.3]]
 == 6.2.3 Release Notes
 
-coming[6.2.3]
-
 Also see <<breaking-changes-6.2>>.
 
 [[enhancement-6.2.3]]

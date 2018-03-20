@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -40,7 +43,6 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
@@ -107,7 +109,7 @@ public final class IndexModule {
     final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
-    private final Map<String, SimilarityProvider.Factory> similarities = new HashMap<>();
+    private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, Function<IndexSettings, IndexStore>> storeTypes = new HashMap<>();
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
@@ -251,7 +253,7 @@ public final class IndexModule {
      * @param name Name of the SimilarityProvider
      * @param similarity SimilarityProvider to register
      */
-    public void addSimilarity(String name, SimilarityProvider.Factory similarity) {
+    public void addSimilarity(String name, TriFunction<Settings, Version, ScriptService, Similarity> similarity) {
         ensureNotFrozen();
         if (similarities.containsKey(name) || SimilarityService.BUILT_IN.containsKey(name)) {
             throw new IllegalArgumentException("similarity for name: [" + name + " is already registered");

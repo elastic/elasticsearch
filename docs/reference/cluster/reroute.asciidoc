@@ -83,6 +83,11 @@ Reasons why a primary shard cannot be automatically allocated include the follow
 the cluster. To prevent data loss, the system does not automatically promote a stale
 shard copy to primary.
 
+NOTE: The following two commands are dangerous and may result in data loss. They are
+meant to be used in cases where the original data can not be recovered and the cluster
+administrator accepts the loss. If you have suffered a temporary issue that has been 
+fixed, please see the `retry_failed` flag described below.
+
 As a manual override, two commands to forcefully allocate primary shards
 are available:
 

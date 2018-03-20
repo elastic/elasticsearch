@@ -330,8 +330,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         String status = (String) license.get(License.Fields.STATUS);
         assertThat(status, not(isEmptyOrNullString()));
 
-        Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
-        assertThat(expiryDate, greaterThan(0L));
+        if ("basic".equals(license.get("type")) == false) {
+            Long expiryDate = (Long) license.get(License.Fields.EXPIRY_DATE_IN_MILLIS);
+            assertThat(expiryDate, greaterThan(0L));
+        }
 
         Boolean clusterNeedsTLS = (Boolean) license.get("cluster_needs_tls");
         assertThat(clusterNeedsTLS, isOneOf(true, null));

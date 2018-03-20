@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
@@ -138,7 +138,7 @@ public class PutWatchRequest extends MasterNodeRequest<PutWatchRequest> {
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = in.readEnum(XContentType.class);
         } else {
-            xContentType = XContentFactory.xContentType(source);
+            xContentType = XContentHelper.xContentType(source);
         }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             version = in.readZLong();

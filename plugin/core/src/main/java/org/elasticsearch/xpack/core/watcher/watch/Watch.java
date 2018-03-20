@@ -143,7 +143,7 @@ public class Watch implements ToXContentObject {
             builder.field(WatchField.TRANSFORM.getPreferredName()).startObject().field(transform.type(), transform, params).endObject();
         }
         if (throttlePeriod != null) {
-            builder.timeValueField(WatchField.THROTTLE_PERIOD.getPreferredName(),
+            builder.humanReadableField(WatchField.THROTTLE_PERIOD.getPreferredName(),
                     WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
         }
         builder.startObject(WatchField.ACTIONS.getPreferredName());

@@ -152,7 +152,7 @@ public class WatchSourceBuilder implements ToXContentObject {
         }
 
         if (defaultThrottlePeriod != null) {
-            builder.timeValueField(WatchField.THROTTLE_PERIOD.getPreferredName(),
+            builder.humanReadableField(WatchField.THROTTLE_PERIOD.getPreferredName(),
                     WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(), defaultThrottlePeriod);
         }
 
@@ -204,7 +204,7 @@ public class WatchSourceBuilder implements ToXContentObject {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (throttlePeriod != null) {
-                builder.timeValueField(ThrottlerField.THROTTLE_PERIOD.getPreferredName(),
+                builder.humanReadableField(ThrottlerField.THROTTLE_PERIOD.getPreferredName(),
                         ThrottlerField.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
             }
             if (condition != null) {

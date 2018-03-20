@@ -173,7 +173,7 @@ public class ActionWrapper implements ToXContentObject {
         builder.startObject();
         TimeValue throttlePeriod = throttler.throttlePeriod();
         if (throttlePeriod != null) {
-            builder.timeValueField(ThrottlerField.THROTTLE_PERIOD.getPreferredName(),
+            builder.humanReadableField(ThrottlerField.THROTTLE_PERIOD.getPreferredName(),
                     ThrottlerField.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
         }
         if (condition != null) {

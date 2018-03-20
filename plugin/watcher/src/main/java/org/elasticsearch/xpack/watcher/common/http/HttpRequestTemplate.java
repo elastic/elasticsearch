@@ -192,11 +192,11 @@ public class HttpRequestTemplate implements ToXContentObject {
             builder.field(HttpRequest.Field.BODY.getPreferredName(), body, params);
         }
         if (connectionTimeout != null) {
-            builder.timeValueField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+            builder.humanReadableField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
                     HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
         }
         if (readTimeout != null) {
-            builder.timeValueField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+            builder.humanReadableField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
                     HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {

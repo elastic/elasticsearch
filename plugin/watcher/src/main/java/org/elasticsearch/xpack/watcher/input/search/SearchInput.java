@@ -96,7 +96,7 @@ public class SearchInput implements Input {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
         if (timeout != null) {
-            builder.timeValueField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
+            builder.humanReadableField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
             builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);

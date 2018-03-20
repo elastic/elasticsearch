@@ -137,7 +137,13 @@ public class License implements ToXContentObject {
         this.subscriptionType = subscriptionType;
         this.feature = feature;
         this.signature = signature;
-        this.expiryDate = expiryDate;
+        // We will validate that only a basic license can have the BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS
+        // in the validate() method.
+        if (expiryDate == -1) {
+            this.expiryDate = LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        } else {
+            this.expiryDate = expiryDate;
+        }
         this.maxNodes = maxNodes;
         this.startDate = startDate;
         if (version == VERSION_START) {
@@ -289,6 +295,8 @@ public class License implements ToXContentObject {
             throw new IllegalStateException("maxNodes has to be set");
         } else if (expiryDate == -1) {
             throw new IllegalStateException("expiryDate has to be set");
+        } else if (expiryDate == LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS && "basic".equals(type) == false) {
+            throw new IllegalStateException("only basic licenses are allowed to have no expiration");
         }
     }
 
@@ -389,7 +397,10 @@ public class License implements ToXContentObject {
         if (version == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
-        builder.dateField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+
+        if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            builder.dateField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+        }
         builder.field(Fields.MAX_NODES, maxNodes);
         builder.field(Fields.ISSUED_TO, issuedTo);
         builder.field(Fields.ISSUER, issuer);

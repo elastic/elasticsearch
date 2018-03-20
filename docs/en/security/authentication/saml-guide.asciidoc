@@ -330,7 +330,7 @@ xpack.security.authc.realms.saml1:
   sp.entity_id:  "https://kibana.example.com/"
   sp.acs: "https://kibana.example.com/api/security/v1/saml"
   attributes.principal: "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-  attribute_patterns.principal: "^([^@]+)@staff.example.com$"
+  attribute_patterns.principal: "^([^@]+)@staff\\.example\\.com$"
 ------------------------------------------------------------
 
 In this case, the user's `principal` is mapped from an email attribute, but a

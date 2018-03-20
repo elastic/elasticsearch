@@ -140,9 +140,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 [float]
 === URL Parameters
 
-In addition to the standard parameters like `pretty`, the Delete By Query API
-also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`
-and `scroll`.
+In addition to the standard parameters like `pretty`, the Delete By Query API also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, `scroll`, and `size`. The `size` parameter can not be more than the `index.max_result_window` index setting which defaults to 10,000.
 
 Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the Delete API's `refresh`
@@ -566,7 +564,7 @@ be larger than others. Expect larger slices to have a more even distribution.
 are distributed proportionally to each sub-request. Combine that with the point
 above about distribution being uneven and you should conclude that the using
 `size` with `slices` might not result in exactly `size` documents being
-`_delete_by_query`ed.
+`_delete_by_query` 'ed.
 * Each sub-requests gets a slightly different snapshot of the source index
 though these are all taken at approximately the same time.
 

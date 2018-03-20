@@ -148,7 +148,9 @@ public class Version implements Comparable<Version> {
     public static final Version V_6_1_3 = new Version(V_6_1_3_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_4_ID = 6010499;
     public static final Version V_6_1_4 = new Version(V_6_1_4_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final Version CURRENT = V_6_1_4;
+    public static final int V_6_1_5_ID = 6010599;
+    public static final Version V_6_1_5 = new Version(V_6_1_5_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
+    public static final Version CURRENT = V_6_1_5;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -161,6 +163,8 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_6_1_5_ID:
+                return V_6_1_5;
             case V_6_1_4_ID:
                 return V_6_1_4;
             case V_6_1_3_ID:

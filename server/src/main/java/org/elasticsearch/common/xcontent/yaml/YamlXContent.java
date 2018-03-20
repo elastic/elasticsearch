@@ -22,9 +22,6 @@ package org.elasticsearch.common.xcontent.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -37,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.Set;
 
 /**
@@ -67,7 +65,7 @@ public class YamlXContent implements XContent {
 
     @Override
     public byte streamSeparator() {
-        throw new ElasticsearchParseException("yaml does not support stream parsing...");
+        throw new UnsupportedOperationException("yaml does not support stream parsing...");
     }
 
     @Override
@@ -78,7 +76,7 @@ public class YamlXContent implements XContent {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new FastStringReader(content)));
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(new StringReader(content)));
     }
 
     @Override
@@ -97,12 +95,6 @@ public class YamlXContent implements XContent {
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length));
-    }
-
-    @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, BytesReference bytes) throws IOException {
-        return createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
     }
 
     @Override

@@ -14,12 +14,15 @@ Single document APIs::
 [[multi-doc]]
 Multi-document APIs::
 * <<java-rest-high-document-bulk>>
+* <<java-rest-high-document-multi-get>>
 
 include::document/index.asciidoc[]
 include::document/get.asciidoc[]
+include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
 include::document/bulk.asciidoc[]
+include::document/multi-get.asciidoc[]
 
 == Search APIs
 
@@ -37,8 +40,10 @@ include::search/scroll.asciidoc[]
 The Java High Level REST Client supports the following Miscellaneous APIs:
 
 * <<java-rest-high-main>>
+* <<java-rest-high-ping>>
 
 include::miscellaneous/main.asciidoc[]
+include::miscellaneous/ping.asciidoc[]
 
 == Indices APIs
 
@@ -53,6 +58,8 @@ Index Management::
 * <<java-rest-high-shrink-index>>
 * <<java-rest-high-split-index>>
 * <<java-rest-high-refresh>>
+* <<java-rest-high-flush>>
+* <<java-rest-high-clear-cache>>
 * <<java-rest-high-rollover-index>>
 
 Mapping Management::
@@ -70,6 +77,8 @@ include::indices/close_index.asciidoc[]
 include::indices/shrink_index.asciidoc[]
 include::indices/split_index.asciidoc[]
 include::indices/refresh.asciidoc[]
+include::indices/flush.asciidoc[]
+include::indices/clear_cache.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]

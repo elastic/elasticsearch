@@ -133,7 +133,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      */
     @Deprecated
     public PercolateQueryBuilder(String field, String documentType, BytesReference document) {
-        this(field, documentType, Collections.singletonList(document), XContentFactory.xContentType(document));
+        this(field, documentType, Collections.singletonList(document), XContentHelper.xContentType(document));
     }
 
     /**
@@ -274,9 +274,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         if (documents.isEmpty() == false) {
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = XContentType.readFrom(in);
+                documentXContentType = in.readEnum(XContentType.class);
             } else {
-                documentXContentType = XContentFactory.xContentType(documents.iterator().next());
+                documentXContentType = XContentHelper.xContentType(documents.iterator().next());
             }
         } else {
             documentXContentType = null;
@@ -331,7 +331,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeOptionalBytesReference(doc);
         }
         if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            documentXContentType.writeTo(out);
+            out.writeEnum(documentXContentType);
         }
     }
 
@@ -416,7 +416,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                                 builder.copyCurrentStructure(parser);
                                 builder.flush();
-                                documents.add(builder.bytes());
+                                documents.add(BytesReference.bytes(builder));
                             }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
@@ -437,7 +437,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                         builder.copyCurrentStructure(parser);
                         builder.flush();
-                        documents.add(builder.bytes());
+                        documents.add(BytesReference.bytes(builder));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + PercolateQueryBuilder.NAME +
@@ -525,7 +525,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return this; // not executed yet
             } else {
                 return new PercolateQueryBuilder(field, documentType, Collections.singletonList(source),
-                    XContentFactory.xContentType(source));
+                    XContentHelper.xContentType(source));
             }
         }
         GetRequest getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);

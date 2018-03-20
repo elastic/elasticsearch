@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -512,7 +513,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         builder.endArray();
-        builder.timeValueField(START_TIME_MILLIS, START_TIME, entry.startTime());
+        builder.humanReadableField(START_TIME_MILLIS, START_TIME, new TimeValue(entry.startTime()));
         builder.field(REPOSITORY_STATE_ID, entry.getRepositoryStateId());
         builder.startArray(SHARDS);
         {

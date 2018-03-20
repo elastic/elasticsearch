@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -76,7 +77,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Sets the value of "flat_settings".
      * Used only by the high-level REST client.
-     * 
+     *
      * @param flatSettings
      *            value of "flat_settings" flag to be set
      * @return this request
@@ -89,7 +90,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     /**
      * Return settings in flat format.
      * Used only by the high-level REST client.
-     * 
+     *
      * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
      */
     public boolean flatSettings() {
@@ -136,7 +137,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            transientSettings(builder.string(), builder.contentType());
+            transientSettings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -175,7 +176,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            persistentSettings(builder.string(), builder.contentType());
+            persistentSettings(Strings.toString(builder), builder.contentType());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

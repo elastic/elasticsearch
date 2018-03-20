@@ -21,7 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -161,7 +161,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
-    
+
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -198,10 +198,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 this::setDefaultAllowPartialSearchResults);
-        
-        
+
+
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
     }
@@ -227,11 +227,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
         this.defaultAllowPartialSearchResults = defaultAllowPartialSearchResults;
     }
-    
+
     public boolean defaultAllowPartialSearchResults() {
         return defaultAllowPartialSearchResults;
-    }    
-    
+    }
+
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,7 +51,7 @@ public class SearchSliceIT extends ESIntegTestCase {
     private static final int NUM_DOCS = 1000;
 
     private int setupIndex(boolean withDocs) throws IOException, ExecutionException, InterruptedException {
-        String mapping = XContentFactory.jsonBuilder().
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject()
                 .startObject("type")
                     .startObject("properties")
@@ -68,7 +69,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject()
-            .endObject().string();
+            .endObject());
         int numberOfShards = randomIntBetween(1, 7);
         assertAcked(client().admin().indices().prepareCreate("test")
             .setSettings(Settings.builder().put("number_of_shards", numberOfShards).put("index.max_slices_per_scroll", 10000))

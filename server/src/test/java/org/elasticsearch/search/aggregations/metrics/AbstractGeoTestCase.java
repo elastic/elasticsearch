@@ -26,6 +26,7 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -185,7 +186,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         long totalHits = response.getHits().getTotalHits();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
+        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));

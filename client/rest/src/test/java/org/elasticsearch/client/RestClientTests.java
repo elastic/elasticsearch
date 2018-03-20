@@ -26,8 +26,11 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -48,50 +51,83 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
-        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
+        final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), listener);
-            listener.get();
+            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of unsupported method");
+                }
 
-            fail("should have failed because of unsupported method");
-        } catch (UnsupportedOperationException exception) {
-            assertEquals("http method not supported: unsupported", exception.getMessage());
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(UnsupportedOperationException.class));
+                    assertEquals("http method not supported: unsupported", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
         }
     }
 
     public void testPerformAsyncWithNullParams() throws Exception {
-        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
+        final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, listener);
-            listener.get();
+            restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of null parameters");
+                }
 
-            fail("should have failed because of null parameters");
-        } catch (NullPointerException exception) {
-            assertEquals("params must not be null", exception.getMessage());
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(NullPointerException.class));
+                    assertEquals("params must not be null", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
         }
     }
 
     public void testPerformAsyncWithNullHeaders() throws Exception {
-        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
+        final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
-            listener.get();
+            ResponseListener listener = new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of null headers");
+                }
 
-            fail("should have failed because of null headers");
-        } catch (NullPointerException exception) {
-            assertEquals("request header must not be null", exception.getMessage());
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(NullPointerException.class));
+                    assertEquals("request header must not be null", exception.getMessage());
+                    latch.countDown();
+                }
+            };
+            restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
+            latch.await();
         }
     }
 
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
-        RestClient.SyncResponseListener listener = new RestClient.SyncResponseListener(10000);
+        final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", "::http:///", listener);
-            listener.get();
+            restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    fail("should have failed because of wrong endpoint");
+                }
 
-            fail("should have failed because of wrong endpoint");
-        } catch (IllegalArgumentException exception) {
-            assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                @Override
+                public void onFailure(Exception exception) {
+                    assertThat(exception, instanceOf(IllegalArgumentException.class));
+                    assertEquals("Expected scheme name at index 0: ::http:///", exception.getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
         }
     }
 

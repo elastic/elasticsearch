@@ -20,6 +20,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,7 +40,8 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().field("lang0#id0", "script0").field("lang1#id0", "script1").endObject();
         XContentParser parser0 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput());
         expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser0));
 
         // failure to load a new namespace script and old namespace script with the same id but different langs
@@ -47,7 +49,8 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         builder.startObject().field("lang0#id0", "script0")
             .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
         XContentParser parser1 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput());
         expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser1));
 
         // failure to load a new namespace script and old namespace script with the same id but different langs with additional scripts
@@ -56,7 +59,8 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
             .startObject("id1").field("lang", "lang0").field("source", "script0").endObject()
             .startObject("id0").field("lang", "lang1").field("source", "script1").endObject().endObject();
         XContentParser parser2 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput());
         expectThrows(IllegalArgumentException.class, () -> ScriptMetaData.fromXContent(parser2));
 
         // okay to load the same script from the new and old namespace if the lang is the same
@@ -64,7 +68,8 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         builder.startObject().field("lang0#id0", "script0")
             .startObject("id0").field("lang", "lang0").field("source", "script1").endObject().endObject();
         XContentParser parser3 = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, builder.bytes().streamInput());
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput());
         ScriptMetaData.fromXContent(parser3);
     }
 
@@ -73,15 +78,15 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("template_field", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
         assertEquals("_source", scriptMetaData.getStoredScript("script").getSource());
@@ -134,7 +139,7 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
                 .field("lang", randomAlphaOfLength(4)).field("source", randomAlphaOfLength(10))
                 .endObject().endObject();
             builder.storeScript(randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(sourceBuilder.bytes(), sourceBuilder.contentType()));
+                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
         }
         return builder.build();
     }

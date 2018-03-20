@@ -338,7 +338,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 builder.field("status", randomFrom(RestStatus.values()).getStatus());
                 builder.endObject();
 
-                try (XContentParser parser = createParser(builder.contentType().xContent(), builder.bytes())) {
+                try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
                     BytesRestResponse.errorFromXContent(parser);
                 }
             }

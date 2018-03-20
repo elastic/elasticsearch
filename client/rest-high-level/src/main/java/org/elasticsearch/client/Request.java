@@ -82,7 +82,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -328,7 +327,7 @@ public final class Request {
                 }
                 metadata.endObject();
 
-                BytesRef metadataSource = metadata.bytes().toBytesRef();
+                BytesRef metadataSource = BytesReference.bytes(metadata).toBytesRef();
                 content.write(metadataSource.bytes, metadataSource.offset, metadataSource.length);
                 content.write(separator);
             }
@@ -343,7 +342,7 @@ public final class Request {
                     LoggingDeprecationHandler.INSTANCE, indexSource, indexXContentType)) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes().toBytesRef();
+                        source = BytesReference.bytes(builder).toBytesRef();
                     }
                 }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
@@ -517,9 +516,7 @@ public final class Request {
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        // TODO maybe indices should be property of RankEvalRequest and not of the spec
-        List<String> indices = rankEvalRequest.getRankEvalSpec().getIndices();
-        String endpoint = endpoint(indices.toArray(new String[indices.size()]), Strings.EMPTY_ARRAY, "_rank_eval");
+        String endpoint = endpoint(rankEvalRequest.getIndices(), Strings.EMPTY_ARRAY, "_rank_eval");
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
     }

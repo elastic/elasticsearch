@@ -58,23 +58,29 @@ public final class IOUtils {
      * @see #close(Closeable...)
      */
     public static void close(final Iterable<? extends Closeable> objects) throws IOException {
-        Throwable th = null;
+        Exception ex = null;
 
         for (final Closeable object : objects) {
             try {
                 if (object != null) {
                     object.close();
                 }
-            } catch (final Throwable t) {
-                addSuppressed(th, t);
-                if (th == null) {
-                    th = t;
+            } catch (final IOException | RuntimeException e) {
+                if (ex == null) {
+                    ex = e;
+                } else {
+                    ex.addSuppressed(e);
                 }
             }
         }
 
-        if (th != null) {
-            throw rethrowAlways(th);
+        if (ex != null) {
+            if (ex instanceof IOException) {
+                throw (IOException) ex;
+            } else {
+                // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
+                throw (RuntimeException) ex;
+            }
         }
     }
 
@@ -101,63 +107,10 @@ public final class IOUtils {
                 if (object != null) {
                     object.close();
                 }
-            } catch (final Throwable t) {
+            } catch (final IOException | RuntimeException e) {
 
             }
         }
-    }
-
-    /**
-     * Adds a {@link Throwable} to the list of suppressed {@link Exception}s of the first {@link Throwable}.
-     *
-     * @param exception  the exception to add a suppression to, if non-null
-     * @param suppressed the exception to suppress
-     */
-    private static void addSuppressed(final Throwable exception, final Throwable suppressed) {
-        if (exception != null && suppressed != null) {
-            exception.addSuppressed(suppressed);
-        }
-    }
-
-    /**
-     * This utility method takes a previously caught (non-null) {@link Throwable} and rethrows either the original argument if it was a
-     * subclass of the {@link IOException} or an {@link RuntimeException} with the cause set to the argument.
-     * <p>
-     * This method <strong>never returns any value</strong>, even though it declares a return value of type {@link Error}. The return
-     * value declaration is very useful to let the compiler know that the code path following the invocation of this method is unreachable.
-     * So in most cases the invocation of this method will be guarded by an {@code if} and used together with a {@code throw} statement, as
-     * in:
-     * <p>
-     * <pre>{@code
-     *   if (t != null) throw IOUtils.rethrowAlways(t)
-     * }
-     * </pre>
-     *
-     * @param th the throwable to rethrow; <strong>must not be null</strong>
-     * @return this method always results in an exception, it never returns any value; see method documentation for details and usage
-     * example
-     * @throws IOException      if the argument was an instance of {@link IOException}
-     * @throws RuntimeException with the {@link RuntimeException#getCause()} set to the argument, if it was not an instance of
-     *                          {@link IOException}
-     */
-    private static Error rethrowAlways(final Throwable th) throws IOException, RuntimeException {
-        if (th == null) {
-            throw new AssertionError("rethrow argument must not be null.");
-        }
-
-        if (th instanceof IOException) {
-            throw (IOException) th;
-        }
-
-        if (th instanceof RuntimeException) {
-            throw (RuntimeException) th;
-        }
-
-        if (th instanceof Error) {
-            throw (Error) th;
-        }
-
-        throw new RuntimeException(th);
     }
 
     /**
@@ -180,7 +133,7 @@ public final class IOUtils {
                 // noinspection EmptyCatchBlock
                 try {
                     Files.delete(name);
-                } catch (final Throwable ignored) {
+                } catch (final IOException ignored) {
 
                 }
             }

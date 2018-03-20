@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
@@ -86,7 +87,7 @@ public class HighlightFieldTests extends ESTestCase {
           "    \"bar\",\n" +
           "    \"baz\"\n" +
           "  ]\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -97,7 +98,7 @@ public class HighlightFieldTests extends ESTestCase {
         assertEquals(
           "{\n" +
           "  \"foo\" : null\n" +
-          "}", builder.string());
+          "}", Strings.toString(builder));
     }
 
     /**

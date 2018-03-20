@@ -126,7 +126,7 @@ to be built as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-init]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-init]
 --------------------------------------------------
 
 The high-level client will internally create the low-level client used to
@@ -139,7 +139,7 @@ method, which will close the internal `RestClient` instance.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[rest-high-level-client-close]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[rest-high-level-client-close]
 --------------------------------------------------
 
 In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance

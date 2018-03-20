@@ -617,7 +617,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
+                        .startObject().field("id", i).endObject());
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
                     if (erroneous) {

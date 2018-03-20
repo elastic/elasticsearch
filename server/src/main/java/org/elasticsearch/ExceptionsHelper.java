@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 
@@ -67,6 +68,8 @@ public final class ExceptionsHelper {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
+            } else if (t instanceof EsRejectedExecutionException) {
+                return RestStatus.TOO_MANY_REQUESTS;
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;

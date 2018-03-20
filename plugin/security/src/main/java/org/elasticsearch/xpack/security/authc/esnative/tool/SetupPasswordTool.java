@@ -10,6 +10,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -48,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 
 import static java.util.Arrays.asList;
 
@@ -64,12 +67,15 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME);
 
-    private final CheckedFunction<Environment, CommandLineHttpClient, Exception> clientFunction;
+    private final BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
+
     private CommandLineHttpClient client;
 
     SetupPasswordTool() {
-        this((environment) -> new CommandLineHttpClient(environment.settings(), environment), (environment) -> {
+        this((environment, settings) -> {
+            return new CommandLineHttpClient(settings, environment);
+        }, (environment) -> {
             KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
             if (keyStoreWrapper == null) {
                 throw new UserException(ExitCodes.CONFIG,
@@ -79,8 +85,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         });
     }
 
-    SetupPasswordTool(CheckedFunction<Environment, CommandLineHttpClient, Exception> clientFunction,
-                      CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SetupPasswordTool(BiFunction<Environment, Settings, CommandLineHttpClient> clientFunction,
+            CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
@@ -223,6 +229,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
         private String elasticUser = ElasticUser.NAME;
         private SecureString elasticUserPassword;
+        private KeyStoreWrapper keyStoreWrapper;
         private URL url;
 
         SetupCommand(String description) {
@@ -230,18 +237,35 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             setParser();
         }
 
-        void setupOptions(OptionSet options, Environment env) throws Exception {
-            client = clientFunction.apply(env);
-            try (KeyStoreWrapper keyStore = keyStoreFunction.apply(env)) {
-                String providedUrl = urlOption.value(options);
-                url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
-                setShouldPrompt(options);
-
-                // TODO: We currently do not support keystore passwords
-                keyStore.decrypt(new char[0]);
-                Settings build = Settings.builder().setSecureSettings(keyStore).build();
-                elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(build);
+        @Override
+        public void close() {
+            if (keyStoreWrapper != null) {
+                keyStoreWrapper.close();
             }
+            if (elasticUserPassword != null) {
+                elasticUserPassword.close();
+            }
+        }
+
+        void setupOptions(OptionSet options, Environment env) throws Exception {
+            keyStoreWrapper = keyStoreFunction.apply(env);
+            // TODO: We currently do not support keystore passwords
+            keyStoreWrapper.decrypt(new char[0]);
+
+            Settings.Builder settingsBuilder = Settings.builder();
+            settingsBuilder.put(env.settings(), true);
+            if (settingsBuilder.getSecureSettings() == null) {
+                settingsBuilder.setSecureSettings(keyStoreWrapper);
+            }
+            Settings settings = settingsBuilder.build();
+            elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
+
+            client = clientFunction.apply(env, settings);
+
+            String providedUrl = urlOption.value(options);
+            url = new URL(providedUrl == null ? client.getDefaultURL() : providedUrl);
+            setShouldPrompt(options);
+
         }
 
         private void setParser() {
@@ -312,7 +336,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             } catch (SSLException e) {
                 terminal.println("");
                 terminal.println("SSL connection to " + route.toString() + " failed: " + e.getMessage());
-                terminal.println("Please check the elasticsearch SSL settings under " + CommandLineHttpClient.HTTP_SSL_SETTING);
+                terminal.println("Please check the elasticsearch SSL settings under " + XPackSettings.HTTP_SSL_PREFIX);
                 terminal.println(Verbosity.VERBOSE, "");
                 terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.println("");
@@ -324,8 +348,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 terminal.println(Verbosity.VERBOSE, "");
                 terminal.println(Verbosity.VERBOSE, ExceptionsHelper.stackTrace(e));
                 terminal.println("");
-                throw new UserException(ExitCodes.CONFIG, "Failed to connect to elasticsearch at " +
-                        route.toString() + ". Is the URL correct and elasticsearch running?", e);
+                throw new UserException(ExitCodes.CONFIG,
+                        "Failed to connect to elasticsearch at " + route.toString() + ". Is the URL correct and elasticsearch running?", e);
             }
         }
 
@@ -333,8 +357,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
         private XPackSecurityFeatureConfig getXPackSecurityConfig(Terminal terminal) throws Exception {
             // Get x-pack security info.
             URL route = createURL(url, "/_xpack", "?categories=features&human=false&pretty");
-            final HttpResponse httpResponse = client.execute("GET", route, elasticUser, elasticUserPassword, () -> null,
-                    is -> responseBuilder(is, terminal));
+            final HttpResponse httpResponse =
+                    client.execute("GET", route, elasticUser, elasticUserPassword, () -> null, is -> responseBuilder(is, terminal));
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
                 terminal.println("");
                 terminal.println("Unexpected response code [" + httpResponse.getHttpStatus() + "] from calling GET " + route.toString());
@@ -453,8 +477,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                     terminal.println("* Check the elasticsearch logs for additional error details.");
                     terminal.println("* Use the change password API manually. ");
                     terminal.println("");
-                    throw new UserException(ExitCodes.TEMP_FAILURE,
-                            "Failed to set password for user [" + user + "].");
+                    throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].");
                 }
             } catch (IOException e) {
                 terminal.println("");
@@ -516,8 +539,12 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             }
             return httpResponseBuilder;
         }
-    }
 
+        private URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
+            return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
+        }
+    }
+ 
     private String getErrorCause(HttpResponse httpResponse) {
         final Object error = httpResponse.getResponseBody().get("error");
         if (error == null) {
@@ -542,11 +569,6 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             return String.valueOf(((Map) error).get("type"));
         }
         return error.toString();
-    }
-
-    private static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
-        URL route = new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
-        return route;
     }
 
     /**

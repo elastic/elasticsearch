@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
-import javax.net.ssl.HttpsURLConnection;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -37,18 +35,17 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 
+import javax.net.ssl.HttpsURLConnection;
+
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * A simple http client for usage in command line tools. This client only uses internal jdk classes and does
  * not rely on an external http libraries.
  */
 public class CommandLineHttpClient {
-
-    public static final String HTTP_SSL_SETTING = setting("http.ssl.");
 
     /**
      * Timeout HTTP(s) reads after 35 seconds.
@@ -83,15 +80,20 @@ public class CommandLineHttpClient {
     public HttpResponse execute(String method, URL url, String user, SecureString password,
             CheckedSupplier<String, Exception> requestBodySupplier,
             CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
-        HttpURLConnection conn;
+        final HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
-            Settings sslSettings = settings.getByPrefix(HTTP_SSL_SETTING);
             final SSLService sslService = new SSLService(settings, env);
             final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                final Settings sslSettings = SSLService.getHttpTransportSSLSettings(settings);
                 // Requires permission java.lang.RuntimePermission "setFactory";
                 httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
+                final boolean isHostnameVerificationEnabled =
+                        sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+                if (isHostnameVerificationEnabled == false) {
+                    httpsConn.setHostnameVerifier((hostname, session) -> true);
+                }
                 return null;
             });
             conn = httpsConn;
@@ -162,4 +164,5 @@ public class CommandLineHttpClient {
             throw new UncheckedIOException("failed to resolve default URL", e);
         }
     }
+
 }

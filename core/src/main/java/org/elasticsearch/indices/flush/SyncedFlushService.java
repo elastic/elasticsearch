@@ -546,8 +546,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
      */
     static final class PreSyncedFlushResponse extends TransportResponse {
         static final int UNKNOWN_NUM_DOCS = -1;
-        public static final int V_6_2_2_ID = 6020299;
-        public static final int V_6_3_0_ID = 6030099;
 
         Engine.CommitId commitId;
         int numDocs;
@@ -563,19 +561,11 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
 
         boolean includeNumDocs(Version version) {
-            if (version.major == Version.V_5_6_8.major) {
-                return version.onOrAfter(Version.V_5_6_8);
-            } else {
-                return version.id >= V_6_2_2_ID;
-            }
+            return version.onOrAfter(Version.V_5_6_8);
         }
 
         boolean includeExistingSyncId(Version version) {
-            if (version.major == Version.V_5_6_9_UNRELEASED.major) {
-                return version.onOrAfter(Version.V_5_6_9_UNRELEASED);
-            } else {
-                return version.id >= V_6_3_0_ID;
-            }
+            return version.onOrAfter(Version.V_5_6_9_UNRELEASED);
         }
 
         @Override

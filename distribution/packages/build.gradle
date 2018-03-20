@@ -96,6 +96,9 @@ Closure commonPackageConfig(String type) {
     postInstall file("${scripts}/postinst")
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
+    if (type == 'rpm') {
+      postTrans file("${scripts}/posttrans")
+    }
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files

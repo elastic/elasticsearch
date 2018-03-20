@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -831,6 +832,9 @@ public abstract class StreamInput extends InputStream {
                     return (T) readStackTrace(new InterruptedException(readOptionalString()), this);
                 case 17:
                     return (T) readStackTrace(new IOException(readOptionalString(), readException()), this);
+                case 18:
+                    final boolean isExecutorShutdown = readBoolean();
+                    return (T) readStackTrace(new EsRejectedExecutionException(readOptionalString(), isExecutorShutdown), this);
                 default:
                     throw new IOException("no such exception for id: " + key);
             }

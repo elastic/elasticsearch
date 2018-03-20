@@ -12,17 +12,13 @@
         }
       },
       "params": {
-        "field_data": {
-          "type" : "boolean",
-          "description" : "Clear field data"
-        },
         "fielddata": {
           "type" : "boolean",
           "description" : "Clear field data"
         },
         "fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to clear when using the `field_data` parameter (default: all)"
+          "description" : "A comma-separated list of fields to clear when using the `fielddata` parameter (default: all)"
         },
         "query": {
           "type" : "boolean",
@@ -49,10 +45,6 @@
         "recycler": {
           "type" : "boolean",
           "description" : "Clear the recycler cache"
-        },
-        "request_cache": {
-          "type" : "boolean",
-          "description" : "Clear request cache"
         },
         "request": {
           "type" : "boolean",

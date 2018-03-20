@@ -227,7 +227,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             sourceAsMap = typeMapTuple.v2();
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
-                source = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();
+                source = BytesReference.bytes(XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap));
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
             }

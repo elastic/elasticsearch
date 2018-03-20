@@ -104,7 +104,6 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1109,8 +1108,7 @@ public class RequestTests extends ESTestCase {
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),
                 new PrecisionAtK());
         String[] indices = randomIndicesNames(0, 5);
-        spec.addIndices(Arrays.asList(indices));
-        RankEvalRequest rankEvalRequest = new RankEvalRequest(spec);
+        RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, indices);
 
         Request request = Request.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");

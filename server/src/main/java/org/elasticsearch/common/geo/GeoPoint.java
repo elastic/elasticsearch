@@ -25,13 +25,17 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
-public final class GeoPoint {
+public final class GeoPoint implements ToXContentFragment {
 
     private double lat;
     private double lon;
@@ -183,5 +187,10 @@ public final class GeoPoint {
 
     public static GeoPoint fromGeohash(long geohashLong) {
         return new GeoPoint().resetFromGeoHash(geohashLong);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.latlon(lat, lon);
     }
 }

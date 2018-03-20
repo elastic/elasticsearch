@@ -85,7 +85,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Override
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec evaluationSpecification = request.getRankEvalSpec();
-        List<String> indices = evaluationSpecification.getIndices();
         EvaluationMetric metric = evaluationSpecification.getMetric();
 
         List<RatedRequest> ratedRequests = evaluationSpecification.getRatedRequests();
@@ -127,7 +126,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             } else {
                 ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
-            msearchRequest.add(new SearchRequest(indices.toArray(new String[indices.size()]), ratedSearchSource));
+            msearchRequest.add(new SearchRequest(request.getIndices(), ratedSearchSource));
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
         client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,

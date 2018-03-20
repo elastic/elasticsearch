@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
@@ -174,7 +175,7 @@ public class XContentHelper {
                 builder.prettyPrint();
             }
             builder.copyCurrentStructure(parser);
-            return builder.string();
+            return Strings.toString(builder);
         }
     }
 
@@ -371,7 +372,7 @@ public class XContentHelper {
 
     /**
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
-     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference)}.
+     * {@link XContentBuilder#rawField(String, InputStream)}.
      * @deprecated use {@link #writeRawField(String, BytesReference, XContentType, XContentBuilder, Params)} to avoid content type
      * auto-detection
      */
@@ -383,13 +384,15 @@ public class XContentHelper {
                 builder.rawField(field, compressedStreamInput);
             }
         } else {
-            builder.rawField(field, source);
+            try (InputStream stream = source.streamInput()) {
+                builder.rawField(field, stream);
+            }
         }
     }
 
     /**
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
-     * {@link XContentBuilder#rawField(String, org.elasticsearch.common.bytes.BytesReference, XContentType)}.
+     * {@link XContentBuilder#rawField(String, InputStream, XContentType)}.
      */
     public static void writeRawField(String field, BytesReference source, XContentType xContentType, XContentBuilder builder,
                                      ToXContent.Params params) throws IOException {
@@ -400,7 +403,9 @@ public class XContentHelper {
                 builder.rawField(field, compressedStreamInput, xContentType);
             }
         } else {
-            builder.rawField(field, source, xContentType);
+            try (InputStream stream = source.streamInput()) {
+                builder.rawField(field, stream, xContentType);
+            }
         }
     }
 
@@ -428,7 +433,7 @@ public class XContentHelper {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 }

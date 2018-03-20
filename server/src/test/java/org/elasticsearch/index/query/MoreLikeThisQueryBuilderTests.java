@@ -33,6 +33,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -327,7 +328,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
-        String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
+        String json = Strings.toString(expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         Item newItem = Item.parse(parser, new Item());
         assertEquals(expectedItem, newItem);

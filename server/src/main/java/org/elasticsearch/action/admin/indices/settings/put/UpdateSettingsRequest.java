@@ -28,9 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +41,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable, ToXContentObject{
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -178,4 +176,13 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         writeSettingsToStream(settings, out);
         out.writeBoolean(preserveExisting);
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
+        settings.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
 }

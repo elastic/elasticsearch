@@ -31,7 +31,7 @@ and <<search-request-highlighting,highlighting>> also become more expensive
 since their cost directly depends on the size of the original document.
 
 It is sometimes useful to reconsider what the unit of information should be.
-For instance, the fact you want to make books searchable doesn't necesarily
+For instance, the fact you want to make books searchable doesn't necessarily
 mean that a document should consist of a whole book. It might be a better idea
 to use chapters or even paragraphs as documents, and then have a property in
 these documents that identifies which book they belong to. This does not only

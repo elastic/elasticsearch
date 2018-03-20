@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -768,6 +770,91 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::flush-notfound
         }
     }
+
+    public void testClearCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::clear-cache-request
+            ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("index1"); // <1>
+            ClearIndicesCacheRequest requestMultiple = new ClearIndicesCacheRequest("index1", "index2"); // <2>
+            ClearIndicesCacheRequest requestAll = new ClearIndicesCacheRequest(); // <3>
+            // end::clear-cache-request
+
+            // tag::clear-cache-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::clear-cache-request-indicesOptions
+
+            // tag::clear-cache-request-query
+            request.queryCache(true); // <1>
+            // end::clear-cache-request-query
+
+            // tag::clear-cache-request-request
+            request.requestCache(true); // <1>
+            // end::clear-cache-request-request
+
+            // tag::clear-cache-request-fielddata
+            request.fieldDataCache(true); // <1>
+            // end::clear-cache-request-fielddata
+
+            // tag::clear-cache-request-fields
+            request.fields("field1", "field2", "field3"); // <1>
+            // end::clear-cache-request-fields
+
+            // tag::clear-cache-execute
+            ClearIndicesCacheResponse clearCacheResponse = client.indices().clearCache(request);
+            // end::clear-cache-execute
+
+            // tag::clear-cache-response
+            int totalShards = clearCacheResponse.getTotalShards(); // <1>
+            int successfulShards = clearCacheResponse.getSuccessfulShards(); // <2>
+            int failedShards = clearCacheResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = clearCacheResponse.getShardFailures(); // <4>
+            // end::clear-cache-response
+
+            // tag::clear-cache-execute-listener
+            ActionListener<ClearIndicesCacheResponse> listener = new ActionListener<ClearIndicesCacheResponse>() {
+                @Override
+                public void onResponse(ClearIndicesCacheResponse clearCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::clear-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-cache-execute-async
+            client.indices().clearCacheAsync(request, listener); // <1>
+            // end::clear-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::clear-cache-notfound
+            try {
+                ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("does_not_exist");
+                client.indices().clearCache(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::clear-cache-notfound
+        }
+    }
+
 
     public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();

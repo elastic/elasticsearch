@@ -898,7 +898,8 @@ Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
 requests a client certificate but the client is not required to present one.
-Defaults to `required`.
+Defaults to `required`. This global setting is not applicable for HTTP, see
+ <<http-tls-ssl-settings>>.
 
 `xpack.ssl.verification_mode`::
 Controls the verification of certificates. Valid values are `none`,

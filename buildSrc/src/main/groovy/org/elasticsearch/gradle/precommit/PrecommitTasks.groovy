@@ -131,7 +131,6 @@ class PrecommitTasks {
         }
 
         Task checkstyleTask = project.tasks.create('checkstyle')
-
         // Apply the checkstyle plugin to create `checkstyleMain` and `checkstyleTest`. It only
         // creates them if there is main or test code to check and it makes `check` depend
         // on them. But we want `precommit` to depend on `checkstyle` which depends on them so
@@ -140,7 +139,7 @@ class PrecommitTasks {
         project.checkstyle {
             config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
             configProperties = [
-                    suppressions: checkstyleSuppressions
+                suppressions: checkstyleSuppressions
             ]
             toolVersion = 7.5
         }

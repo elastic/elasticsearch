@@ -77,13 +77,6 @@ public final class CommitStats implements Streamable, ToXContentFragment {
     }
 
     /**
-     * The synced-flush id of the commit if existed.
-     */
-    public String syncId() {
-        return userData.get(InternalEngine.SYNC_COMMIT_ID);
-    }
-
-    /**
      * Returns the number of documents in the in this commit
      */
     public int getNumDocs() {

@@ -196,6 +196,8 @@ public class RestHighLevelClient implements Closeable {
         this(restClientBuilder, Collections.emptyList());
     }
 
+    // NOCOMMIT revert so we can use the same wrapping pattern here?
+
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
      * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.

@@ -44,6 +44,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -96,18 +97,18 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile HostTuple<Set<Node>> hostTuple;
-    private final ConcurrentMap<Node, DeadHostState> blacklist = new ConcurrentHashMap<>();
+    private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private volatile HostTuple<Set<HttpHost>> hostTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
+               HttpHost[] hosts, HostMetadataResolver metaResolver, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
-        setHosts(hosts);
+        setHosts(Arrays.asList(hosts), metaResolver);
     }
 
     /**
@@ -123,55 +124,66 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * @see HttpHost
      */
     public void setHosts(HttpHost... hosts) {
-        if (hosts == null || hosts.length == 0) {
-            throw new IllegalArgumentException("hosts must not be null nor empty");
+        if (hosts == null) {
+            throw new IllegalArgumentException("hosts must not be null");
         }
-        Node[] nodes = new Node[hosts.length];
-        for (int i = 0; i < hosts.length; i++) {
-            final HttpHost host = hosts[i];
-            nodes[i] = Node.build(host);
-        }
-        setNodes(nodes);
+        setHosts(Arrays.asList(hosts), hostTuple.metaResolver);
     }
 
-    public synchronized void setNodes(Node... nodes) {
-        if (nodes == null || nodes.length == 0) {
-            throw new IllegalArgumentException("nodes must not be null nor empty");
+    /**
+     * Replaces the hosts that the client communicates with and the
+     * {@link HostMetadata} used by any {@link HostSelector}s.
+     * @see HttpHost
+     */
+    public void setHosts(Iterable<HttpHost> hosts, HostMetadataResolver metaResolver) {
+        if (hosts == null) {
+            throw new IllegalArgumentException("hosts must not be null");
         }
-        Set<Node> newNodes = new HashSet<>();
+        if (metaResolver == null) {
+            throw new IllegalArgumentException("metaResolver must not be null");
+        }
+        Set<HttpHost> newHosts = new HashSet<>();
         AuthCache authCache = new BasicAuthCache();
-        for (Node node : nodes) {
-            Objects.requireNonNull(node, "node cannot be null");
-            newNodes.add(node);
-            authCache.put(node.host(), new BasicScheme());
+
+        for (HttpHost host : hosts) {
+            Objects.requireNonNull(host, "host cannot be null");
+            newHosts.add(host);
+            authCache.put(host, new BasicScheme());
         }
-        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(newNodes), authCache);
+        if (newHosts.isEmpty()) {
+            throw new IllegalArgumentException("hosts must not be empty");
+        }
+        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(newHosts), authCache, metaResolver);
         this.blacklist.clear();
     }
 
-    @Override   // NOCOMMIT this shouldn't be public
-    public SyncResponseListener syncResponseListener() {
+    public HostMetadataResolver getHostMetadataResolver() {
+        return hostTuple.metaResolver;
+    }
+
+    @Override
+    final SyncResponseListener syncResponseListener() {
         return new SyncResponseListener(maxRetryTimeoutMillis);
     }
 
     @Override
-    protected void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-            HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-            ResponseListener responseListener, Header[] headers) {
-        // Requests made directly to the client use the noop NodeSelector.
-        NodeSelector nodeSelector = NodeSelector.ANY;
-        performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            responseListener, nodeSelector, headers);
+    public RestClientActions withHostSelector(HostSelector hostSelector) {
+        return new RestClientView(this, hostSelector);
     }
 
     @Override
-    public RestClientActions withNodeSelector(NodeSelector nodeSelector) {
-        return new RestClientView(this, nodeSelector);
+    final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
+            HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+            ResponseListener responseListener, Header[] headers) {
+        // Requests made directly to the client use the noop HostSelector.
+        HostSelector hostSelector = HostSelector.ANY;
+        performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
+            responseListener, hostSelector, headers);
     }
 
     void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, NodeSelector nodeSelector, Header[] headers) {
+                                    ResponseListener responseListener, HostSelector hostSelector, Header[] headers) {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
@@ -204,17 +216,17 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(nodeSelector), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+        performRequestAsync(startTime, nextHost(hostSelector), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
                 failureTrackingResponseListener);
     }
 
-    private void performRequestAsync(final long startTime, final HostTuple<Iterator<Node>> hostTuple, final HttpRequestBase request,
+    private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final Node node = hostTuple.hosts.next();
+        final HttpHost host = hostTuple.hosts.next();
         //we stream the request body if the entity allows for it
-        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(node.host(), request);
+        final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
         final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
             httpAsyncResponseConsumerFactory.createHttpAsyncResponseConsumer();
         final HttpClientContext context = HttpClientContext.create();
@@ -223,21 +235,21 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
             @Override
             public void completed(HttpResponse httpResponse) {
                 try {
-                    RequestLogger.logResponse(logger, request, node.host(), httpResponse);
+                    RequestLogger.logResponse(logger, request, host, httpResponse);
                     int statusCode = httpResponse.getStatusLine().getStatusCode();
-                    Response response = new Response(request.getRequestLine(), node.host(), httpResponse);
+                    Response response = new Response(request.getRequestLine(), host, httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
-                        onResponse(node);
+                        onResponse(host);
                         listener.onSuccess(response);
                     } else {
                         ResponseException responseException = new ResponseException(response);
                         if (isRetryStatus(statusCode)) {
                             //mark host dead and retry against next one
-                            onFailure(node);
+                            onFailure(host);
                             retryIfPossible(responseException);
                         } else {
                             //mark host alive and don't retry, as the error should be a request problem
-                            onResponse(node);
+                            onResponse(host);
                             listener.onDefinitiveFailure(responseException);
                         }
                     }
@@ -249,8 +261,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
             @Override
             public void failed(Exception failure) {
                 try {
-                    RequestLogger.logFailedRequest(logger, request, node.host(), failure);
-                    onFailure(node);
+                    RequestLogger.logFailedRequest(logger, request, host, failure);
+                    onFailure(host);
                     retryIfPossible(failure);
                 } catch(Exception e) {
                     listener.onDefinitiveFailure(e);
@@ -307,18 +319,18 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
      * one dead host gets returned so that it can be retried.
      */
-    private HostTuple<Iterator<Node>> nextHost(NodeSelector nodeSelector) {
-        final HostTuple<Set<Node>> hostTuple = this.hostTuple;
-        Collection<Node> nextHosts = Collections.emptySet();
+    private HostTuple<Iterator<HttpHost>> nextHost(HostSelector hostSelector) {
+        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
+        Collection<HttpHost> nextHosts = Collections.emptySet();
         do {
-            Set<Node> filteredHosts = new HashSet<>(hostTuple.hosts);
-            for (Iterator<Node> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
-                final Node node = hostItr.next();
-                if (false == nodeSelector.select(node)) {
+            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
+            for (Iterator<HttpHost> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
+                final HttpHost host = hostItr.next();
+                if (false == hostSelector.select(host, hostTuple.metaResolver.resolveMetadata(host))) {
                     hostItr.remove();
                 }
             }
-            for (Map.Entry<Node, DeadHostState> entry : blacklist.entrySet()) {
+            for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
                 if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
                     filteredHosts.remove(entry.getKey());
                 }
@@ -328,42 +340,42 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
                  * Last resort: If there are no good host to use, return a single dead one,
                  * the one that's closest to being retried *and* matches the selector.
                  */
-                List<Map.Entry<Node, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
+                List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
                 if (sortedHosts.size() > 0) {
-                    Collections.sort(sortedHosts, new Comparator<Map.Entry<Node, DeadHostState>>() {
+                    Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
                         @Override
-                        public int compare(Map.Entry<Node, DeadHostState> o1, Map.Entry<Node, DeadHostState> o2) {
+                        public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
                             return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
                         }
                     });
-                    Iterator<Map.Entry<Node, DeadHostState>> nodeItr = sortedHosts.iterator();
+                    Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
                     while (nodeItr.hasNext()) {
-                        final Node deadNode = nodeItr.next().getKey();
-                        if (nodeSelector.select(deadNode)) {
-                            logger.trace("resurrecting host [" + deadNode.host() + "]");
-                            nextHosts = Collections.singleton(deadNode);
+                        final HttpHost deadHost = nodeItr.next().getKey();
+                        if (hostSelector.select(deadHost, hostTuple.metaResolver.resolveMetadata(deadHost))) {
+                            logger.trace("resurrecting host [" + deadHost + "]");
+                            nextHosts = Collections.singleton(deadHost);
                             break;
                         }
                     }
                 }
                 // NOCOMMIT we get here if the selector rejects all hosts
             } else {
-                List<Node> rotatedHosts = new ArrayList<>(filteredHosts);
+                List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
                 Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
                 nextHosts = rotatedHosts;
             }
         } while(nextHosts.isEmpty());
-        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache);
+        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache, hostTuple.metaResolver);
     }
 
     /**
      * Called after each successful request call.
      * Receives as an argument the host that was used for the successful request.
      */
-    private void onResponse(Node node) {
-        DeadHostState removedHost = this.blacklist.remove(node);
+    private void onResponse(HttpHost host) {
+        DeadHostState removedHost = this.blacklist.remove(host);
         if (logger.isDebugEnabled() && removedHost != null) {
-            logger.debug("removed host [" + node + "] from blacklist");
+            logger.debug("removed host [" + host + "] from blacklist");
         }
     }
 
@@ -371,19 +383,19 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * Called after each failed attempt.
      * Receives as an argument the host that was used for the failed attempt.
      */
-    private void onFailure(Node node) throws IOException {
+    private void onFailure(HttpHost host) throws IOException {
         while(true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(node, DeadHostState.INITIAL_DEAD_STATE);
+            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, DeadHostState.INITIAL_DEAD_STATE);
             if (previousDeadHostState == null) {
-                logger.debug("added host [" + node + "] to blacklist");
+                logger.debug("added host [" + host + "] to blacklist");
                 break;
             }
-            if (blacklist.replace(node, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
-                logger.debug("updated host [" + node + "] already in blacklist");
+            if (blacklist.replace(host, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+                logger.debug("updated host [" + host + "] already in blacklist");
                 break;
             }
         }
-        failureListener.onFailure(node.host());
+        failureListener.onFailure(host);
     }
 
     @Override
@@ -528,10 +540,12 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     private static class HostTuple<T> {
         final T hosts;
         final AuthCache authCache;
+        final HostMetadataResolver metaResolver;
 
-        HostTuple(final T hosts, final AuthCache authCache) {
+        HostTuple(final T hosts, final AuthCache authCache, final HostMetadataResolver metaResolver) {
             this.hosts = hosts;
             this.authCache = authCache;
+            this.metaResolver = metaResolver;
         }
     }
 }

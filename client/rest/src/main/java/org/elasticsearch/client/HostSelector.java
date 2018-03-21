@@ -19,13 +19,15 @@
 
 package org.elasticsearch.client;
 
-public interface NodeSelector {
+import org.apache.http.HttpHost;
+
+public interface HostSelector {
     /**
      * Selector that matches any node.
      */
-    NodeSelector ANY = new NodeSelector() {
+    HostSelector ANY = new HostSelector() {
         @Override
-        public boolean select(Node node) {
+        public boolean select(HttpHost host, HostMetadata meta) {
             return true;
         }
     };
@@ -34,16 +36,16 @@ public interface NodeSelector {
      * Selector that matches any node that doesn't have the master roles
      * <strong>or</strong> doesn't have any information about roles.
      */
-    NodeSelector NOT_MASTER = new NodeSelector() {
+    HostSelector NOT_MASTER = new HostSelector() {
         @Override
-        public boolean select(Node node) {
-            return node.roles() == null || false == node.roles().master();
+        public boolean select(HttpHost host, HostMetadata meta) {
+            return meta != null && false == meta.roles().master();
         }
     };
 
     /**
-     * Return {@code true} if this node should be used for requests, {@code false}
+     * Return {@code true} if the provided host should be used for requests, {@code false}
      * otherwise.
      */
-    boolean select(Node node);
+    boolean select(HttpHost host, HostMetadata meta);
 }

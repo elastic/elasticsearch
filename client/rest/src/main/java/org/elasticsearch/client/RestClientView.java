@@ -23,41 +23,42 @@ import java.util.Map;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 
 /**
  * Light weight view into a {@link RestClient} that doesn't have any state of its own.
  */
 class RestClientView extends AbstractRestClientActions {
     private final RestClient delegate;
-    private final NodeSelector nodeSelector;
+    private final HostSelector hostSelector;
 
-    protected RestClientView(RestClient delegate, NodeSelector nodeSelector) {
+    protected RestClientView(RestClient delegate, HostSelector hostSelector) {
         this.delegate = delegate;
-        this.nodeSelector = nodeSelector;
+        this.hostSelector = hostSelector;
     }
 
     @Override
-    protected final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-            HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-            ResponseListener responseListener, Header[] headers) {
-        delegate.performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            responseListener, nodeSelector, headers);
-    }
-
-    @Override
-    protected final SyncResponseListener syncResponseListener() {
+    final SyncResponseListener syncResponseListener() {
         return delegate.syncResponseListener();
     }
 
     @Override
-    public final RestClientView withNodeSelector(final NodeSelector nodeSelector) {
-        final NodeSelector inner = this.nodeSelector;
-        NodeSelector combo = new NodeSelector() {
+    public final RestClientView withHostSelector(final HostSelector hostSelector) {
+        final HostSelector inner = this.hostSelector;
+        HostSelector combo = new HostSelector() {
             @Override
-            public boolean select(Node node) {
-                return inner.select(node) && nodeSelector.select(node);
+            public boolean select(HttpHost host, HostMetadata meta) {
+                return inner.select(host, meta) && hostSelector.select(host, meta);
             }
         };
         return new RestClientView(delegate, combo);
+    }
+
+    @Override
+    final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
+            HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+            ResponseListener responseListener, Header[] headers) {
+        delegate.performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
+            responseListener, hostSelector, headers);
     }
 }

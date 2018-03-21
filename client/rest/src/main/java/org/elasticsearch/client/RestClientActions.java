@@ -173,9 +173,9 @@ public interface RestClientActions {
                                     ResponseListener responseListener, Header... headers);
 
     /**
-     * Create a view that only runs requests on selected nodes. This object
+     * Create a client that only runs requests on selected hosts. This client
      * has no state of its own and backs everything to the {@link RestClient}
      * that created it.
      */
-    RestClientActions withNodeSelector(NodeSelector nodeSelector);
+    RestClientActions withHostSelector(HostSelector hostSelector);
 }

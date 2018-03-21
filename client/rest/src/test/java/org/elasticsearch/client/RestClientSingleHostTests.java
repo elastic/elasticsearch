@@ -47,6 +47,7 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -96,6 +97,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private RestClient restClient;
     private Header[] defaultHeaders;
     private HttpHost httpHost;
+    private volatile HostMetadata hostMetadata;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
 
@@ -149,7 +151,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         httpHost = new HttpHost("localhost", 9200);
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
+        HostMetadataResolver metaResolver = new HostMetadataResolver(){
+            @Override
+            public HostMetadata resolveMetadata(HttpHost host) {
+                return hostMetadata;
+            }
+        };
+        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost},
+                metaResolver, null, failureListener);
     }
 
     /**
@@ -196,18 +205,18 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testSetHosts() throws IOException {
+    public void testSetHostsFailures() throws IOException {
         try {
             restClient.setHosts((HttpHost[]) null);
             fail("setHosts should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
+            assertEquals("hosts must not be null", e.getMessage());
         }
         try {
             restClient.setHosts();
             fail("setHosts should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
+            assertEquals("hosts must not be empty", e.getMessage());
         }
         try {
             restClient.setHosts((HttpHost) null);
@@ -220,6 +229,18 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             fail("setHosts should have failed");
         } catch (NullPointerException e) {
             assertEquals("host cannot be null", e.getMessage());
+        }
+        try {
+            restClient.setHosts(null, HostMetadata.EMPTY_RESOLVER);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null", e.getMessage());
+        }
+        try {
+            restClient.setHosts(Arrays.asList(new HttpHost("localhost", 9200)), null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("metaResolver must not be null", e.getMessage());
         }
     }
 

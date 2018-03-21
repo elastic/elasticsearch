@@ -25,6 +25,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,9 +59,13 @@ public class ClientYamlTestExecutionContext {
 
     private final boolean randomizeContentType;
 
-    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
+    private final CheckedRunnable<IOException> setHostMetadata;
+
+    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, CheckedRunnable<IOException> setHostMetadata,
+            boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.randomizeContentType = randomizeContentType;
+        this.setHostMetadata = setHostMetadata;
     }
 
     /**
@@ -68,6 +74,15 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
+        return callApi(apiName, params, bodies, headers, HostSelector.ANY);
+    }
+
+                                        /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
+                                    Map<String, String> headers, HostSelector hostSelector) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
@@ -85,9 +100,13 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
+        if (hostSelector != HostSelector.ANY) {
+            setHostMetadata.run();
+        }
+
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, hostSelector);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -154,8 +173,8 @@ public class ClientYamlTestExecutionContext {
 
     // pkg-private for testing
     ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                   HttpEntity entity, Map<String, String> headers) throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers);
+            HttpEntity entity, Map<String, String> headers, HostSelector hostSelector) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers, hostSelector);
     }
 
     /**

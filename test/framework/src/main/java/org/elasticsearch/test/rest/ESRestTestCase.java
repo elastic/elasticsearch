@@ -32,10 +32,13 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.HostMetadata;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -423,6 +426,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
             builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         }
+
         return builder.build();
     }
 
@@ -531,5 +535,36 @@ public abstract class ESRestTestCase extends ESTestCase {
                 response.getEntity().getContent(), false);
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    /**
+     * Sniff the cluster for host metadata if it hasn't already been sniffed. This isn't the
+     * same thing as using the {@link Sniffer} because:
+     * <ul>
+     * <li>It doesn't replace the hosts that that {@link #client} communicates with
+     * <li>It only runs once
+     * </ul>
+     */
+    protected void sniffHostMetadata(RestClient client) throws IOException {
+        if (HostMetadata.EMPTY_RESOLVER != client.getHostMetadataResolver()) {
+            // Already added a resolver
+            return;
+        }
+        // No resolver, sniff one time and resolve metadata against the results
+        ElasticsearchHostsSniffer.Scheme scheme;
+        switch (getProtocol()) {
+        case "http":
+            scheme = ElasticsearchHostsSniffer.Scheme.HTTP;
+            break;
+        case "https":
+            scheme = ElasticsearchHostsSniffer.Scheme.HTTPS;
+            break;
+        default:
+            throw new UnsupportedOperationException("unknown protocol [" + getProtocol() + "]");
+        }
+        ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(
+            adminClient, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        Map<HttpHost, HostMetadata> meta = sniffer.sniffHosts();
+        client.setHosts(clusterHosts, meta::get);
     }
 }

@@ -37,11 +37,11 @@ import org.apache.http.HttpEntity;
 import org.apache.http.conn.ConnectTimeoutException;
 
 abstract class AbstractRestClientActions implements RestClientActions {
-    protected abstract void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
+    abstract SyncResponseListener syncResponseListener();
+
+    abstract void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
         HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
         ResponseListener responseListener, Header[] headers);
-
-    protected abstract SyncResponseListener syncResponseListener();
 
     /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response

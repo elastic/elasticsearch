@@ -22,14 +22,18 @@ package org.elasticsearch.client.sniff;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.HostMetadata;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -116,7 +120,7 @@ public class Sniffer implements Closeable {
         void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+                    final Map<HttpHost, HostMetadata> sniffedHosts = hostsSniffer.sniffHosts();
                     logger.debug("sniffed hosts: " + sniffedHosts);
                     if (excludeHost != null) {
                         sniffedHosts.remove(excludeHost);
@@ -124,7 +128,13 @@ public class Sniffer implements Closeable {
                     if (sniffedHosts.isEmpty()) {
                         logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
                     } else {
-                        this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+                        HostMetadataResolver resolver = new HostMetadataResolver() {
+                            @Override
+                            public HostMetadata resolveMetadata(HttpHost host) {
+                                return sniffedHosts.get(host);
+                            }
+                        };
+                        this.restClient.setHosts(sniffedHosts.keySet(), resolver);
                     }
                 } catch (Exception e) {
                     logger.error("error while sniffing nodes", e);

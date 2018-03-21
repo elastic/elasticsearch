@@ -19,7 +19,11 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.HostSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -120,6 +124,23 @@ public class DoSection implements ExecutableSection {
                             headers.put(headerName, parser.text());
                         }
                     }
+                } else if ("host_selector".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        String selectorName = null;
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            selectorName = parser.currentName();
+                        } else if (token.isValue()) {
+                            HostSelector original = doSection.getHostSelector();
+                            HostSelector newSelector = buildHostSelector(
+                                parser.getTokenLocation(), selectorName, parser.text());
+                            doSection.setHostSelector(new HostSelector() {
+                                @Override
+                                public boolean select(HttpHost host, HostMetadata meta) {
+                                    return original.select(host, meta) && newSelector.select(host, meta);
+                                }
+                            });
+                        }
+                    }
                 } else if (currentFieldName != null) { // must be part of API call then
                     apiCallSection = new ApiCallSection(currentFieldName);
                     String paramName = null;
@@ -160,16 +181,17 @@ public class DoSection implements ExecutableSection {
         return doSection;
     }
 
-
     private static final Logger logger = Loggers.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;
     private ApiCallSection apiCallSection;
     private List<String> expectedWarningHeaders = emptyList();
+    private HostSelector hostSelector = HostSelector.ANY;
 
     public DoSection(XContentLocation location) {
         this.location = location;
+
     }
 
     public String getCatch() {
@@ -202,6 +224,20 @@ public class DoSection implements ExecutableSection {
      */
     public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
+    }
+
+    /**
+     * Selects the node on which to run this request.
+     */
+    public HostSelector getHostSelector() {
+        return hostSelector;
+    }
+
+    /**
+     * Set the selector that decides which node can run this request.
+     */
+    public void setHostSelector(HostSelector hostSelector) {
+        this.hostSelector = hostSelector;
     }
 
     @Override
@@ -336,5 +372,22 @@ public class DoSection implements ExecutableSection {
                 not(equalTo(404)),
                 not(equalTo(408)),
                 not(equalTo(409)))));
+    }
+
+    private static HostSelector buildHostSelector(XContentLocation location, String name, String value) {
+        switch (name) {
+        case "version":
+            Version[] range = SkipSection.parseVersionRange(value);
+            return new HostSelector() {
+                @Override
+                public boolean select(HttpHost host, HostMetadata meta) {
+                    // NOCOMMIT actually compare the version
+                    Version current = Version.CURRENT;
+                    return current.onOrAfter(range[0]) && current.onOrBefore(range[1]);
+                }
+            };
+        default:
+            throw new IllegalArgumentException("unknown host_selector [" + name + "]");
+        }
     }
 }

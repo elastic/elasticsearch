@@ -28,15 +28,14 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.nio.BytesProducer;
 import org.elasticsearch.nio.BytesWriteOperation;
+import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NewWriteOperation;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.WriteOperation;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 
 
@@ -65,7 +64,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
                     // TODO: Ensure release on failure. I'm not sure it is necessary here as it might be done
                     // TODO: in NioHttpChannel.
                     promise.addListener((f) -> message.release());
-                    byteOps.add(new BytesWriteOperation(channelContext, message.nioBuffers(), new NettyListener(promise)));
+                    byteOps.add(new BytesWriteOperation(message.nioBuffers(), new NettyListener(promise)));
                 } catch (Exception e) {
                     promise.setFailure(e);
                 }
@@ -87,16 +86,18 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
     }
 
     @Override
-    public void writeMessage(WriteOperation writeOperation) throws IOException {
+    public void writeMessage(NewWriteOperation writeOperation) throws IOException {
         writeAndFlush(null, (NettyListener) writeOperation.getListener());
     }
 
     @Override
-    public List<BytesWriteOperation> produceWrites(WriteOperation writeOperation) {
+    public void produceWrites(NewWriteOperation writeOperation) {
         writeAndFlush(writeOperation.getObject(), (NettyListener) writeOperation.getListener());
-        ArrayList<BytesWriteOperation> localByteOps = new ArrayList<>(byteOps);
-        byteOps.clear();
-        return localByteOps;
+    }
+
+    @Override
+    public FlushOperation pollFlushOperation() {
+        return null;
     }
 
     @Override

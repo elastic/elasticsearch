@@ -23,17 +23,16 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 
-public class BytesWriteOperation implements WriteOperation {
+public class BytesWriteOperation extends FlushOperation {
 
-    private final SocketChannelContext channelContext;
     private final BiConsumer<Void, Throwable> listener;
     private final ByteBuffer[] buffers;
     private final int[] offsets;
     private final int length;
     private int internalIndex;
 
-    public BytesWriteOperation(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-        this.channelContext = channelContext;
+    public BytesWriteOperation(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
+        super(buffers, listener);
         this.listener = listener;
         this.buffers = buffers;
         this.offsets = new int[buffers.length];
@@ -51,11 +50,6 @@ public class BytesWriteOperation implements WriteOperation {
         return listener;
     }
 
-    @Override
-    public SocketChannelContext getChannel() {
-        return channelContext;
-    }
-
     public boolean isFullyFlushed() {
         assert length >= internalIndex : "Should never have an index that is greater than the length [length=" + length + ", index="
             + internalIndex + "]";
@@ -68,6 +62,7 @@ public class BytesWriteOperation implements WriteOperation {
             + internalIndex + ", delta=" + delta + "]";
     }
 
+    @Override
     public ByteBuffer[] getBuffersToWrite() {
         final int index = Arrays.binarySearch(offsets, internalIndex);
         int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;

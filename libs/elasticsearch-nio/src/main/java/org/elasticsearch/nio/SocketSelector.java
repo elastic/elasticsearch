@@ -34,7 +34,7 @@ import java.util.function.BiConsumer;
 public class SocketSelector extends ESSelector {
 
     private final ConcurrentLinkedQueue<SocketChannelContext> newChannels = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<NewWriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
     public SocketSelector(SocketEventHandler eventHandler) throws IOException {
@@ -76,7 +76,7 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        WriteOperation op;
+        NewWriteOperation op;
         while ((op = queuedWrites.poll()) != null) {
             executeFailedListener(op.getListener(), new ClosedSelectorException());
         }
@@ -102,7 +102,7 @@ public class SocketSelector extends ESSelector {
      *
      * @param writeOperation to be queued
      */
-    public void queueWrite(WriteOperation writeOperation) {
+    public void queueWrite(NewWriteOperation writeOperation) {
         queuedWrites.offer(writeOperation);
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
@@ -120,7 +120,7 @@ public class SocketSelector extends ESSelector {
      *
      * @param writeOperation to be queued in a channel's buffer
      */
-    public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
+    public void queueWriteInChannelBuffer(NewWriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
         try {
@@ -180,7 +180,7 @@ public class SocketSelector extends ESSelector {
     }
 
     private void handleQueuedWrites() {
-        WriteOperation writeOperation;
+        NewWriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
             if (writeOperation.getChannel().isOpen()) {
                 queueWriteInChannelBuffer(writeOperation);

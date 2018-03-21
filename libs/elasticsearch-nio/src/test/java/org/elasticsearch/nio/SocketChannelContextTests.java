@@ -141,7 +141,7 @@ public class SocketChannelContextTests extends ESTestCase {
         }
 
         @Override
-        public void queueWriteOperation(WriteOperation writeOperation) {
+        public void queueWriteOperation(NewWriteOperation writeOperation) {
 
         }
 

@@ -44,7 +44,7 @@ public class BytesWriteOperationTests extends ESTestCase {
 
     public void testFullyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(buffers, listener);
 
         writeOp.incrementIndex(10);
 
@@ -53,7 +53,7 @@ public class BytesWriteOperationTests extends ESTestCase {
 
     public void testPartiallyFlushedMarker() {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(buffers, listener);
 
         writeOp.incrementIndex(5);
 
@@ -62,7 +62,7 @@ public class BytesWriteOperationTests extends ESTestCase {
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
-        BytesWriteOperation writeOp = new BytesWriteOperation(channelContext, buffers, listener);
+        BytesWriteOperation writeOp = new BytesWriteOperation(buffers, listener);
 
         ArgumentCaptor<ByteBuffer[]> buffersCaptor = ArgumentCaptor.forClass(ByteBuffer[].class);
 

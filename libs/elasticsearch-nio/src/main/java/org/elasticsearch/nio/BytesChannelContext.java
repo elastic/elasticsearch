@@ -30,14 +30,21 @@ import java.util.function.Consumer;
 public class BytesChannelContext extends SocketChannelContext {
 
     private final ReadConsumer readConsumer;
+    private final WriteProducer writeProducer;
     private final InboundChannelBuffer channelBuffer;
     private final LinkedList<BytesWriteOperation> queued = new LinkedList<>();
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
+        this(channel, selector, exceptionHandler, readConsumer, null, channelBuffer);
+    }
+
+    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+                               ReadConsumer readConsumer, WriteProducer writeProducer, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler);
         this.readConsumer = readConsumer;
+        this.writeProducer = writeProducer;
         this.channelBuffer = channelBuffer;
     }
 
@@ -72,7 +79,7 @@ public class BytesChannelContext extends SocketChannelContext {
             return;
         }
 
-        BytesWriteOperation writeOperation = new BytesWriteOperation(this, buffers, listener);
+        NewWriteOperation writeOperation = new NewWriteOperation(this, buffers, listener);
         SocketSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
@@ -83,9 +90,10 @@ public class BytesChannelContext extends SocketChannelContext {
     }
 
     @Override
-    public void queueWriteOperation(WriteOperation writeOperation) {
+    public void queueWriteOperation(NewWriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
-        queued.add((BytesWriteOperation) writeOperation);
+        BytesWriteOperation bytesWriteOperation = null;
+        queued.add(bytesWriteOperation);
     }
 
     @Override

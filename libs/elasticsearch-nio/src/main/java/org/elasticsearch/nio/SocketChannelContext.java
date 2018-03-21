@@ -112,7 +112,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     public abstract void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener);
 
-    public abstract void queueWriteOperation(WriteOperation writeOperation);
+    public abstract void queueWriteOperation(NewWriteOperation writeOperation);
 
     public abstract void flushChannel() throws IOException;
 
@@ -184,8 +184,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
     }
 
-    @FunctionalInterface
     public interface WriteProducer {
-        Iterable<BytesWriteOperation> produceWrites(WriteOperation writeOperation) throws IOException;
+        void produceWrites(NewWriteOperation writeOperation) throws IOException;
+
+        FlushOperation pollFlushOperation();
     }
 }

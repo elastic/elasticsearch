@@ -34,7 +34,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
-import org.elasticsearch.persistent.decider.AssignmentDecider;
 import org.elasticsearch.persistent.decider.AssignmentDecision;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.tasks.Task;
@@ -48,14 +47,14 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
-    private final AssignmentDecider<PersistentTaskParams> decider;
+    private final EnableAssignmentDecider decider;
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         clusterService.addListener(this);
         this.registry = registry;
-        this.decider = new EnableAssignmentDecider<>(settings, clusterService.getClusterSettings());
+        this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
     }
 
     /**
@@ -230,7 +229,7 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
                                                                               final ClusterState currentState) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 
-        AssignmentDecision decision = decider.canAssign(taskName, taskParams);
+        AssignmentDecision decision = decider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
             return new Assignment(null, "persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }

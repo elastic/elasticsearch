@@ -25,20 +25,14 @@ import java.util.Objects;
  * {@link AssignmentDecision} represents the decision made during the process of
  * assigning a persistent task to a node of the cluster.
  *
- * @see AssignmentDecider
+ * @see EnableAssignmentDecider
  */
 public final class AssignmentDecision {
 
-    public static final AssignmentDecision ALWAYS = new AssignmentDecision(Type.YES);
-    public static final AssignmentDecision YES = new AssignmentDecision(Type.YES);
-    public static final AssignmentDecision NO = new AssignmentDecision(Type.NO);
+    public static final AssignmentDecision YES = new AssignmentDecision(Type.YES, "");
 
     private final Type type;
     private final String reason;
-
-    private AssignmentDecision(final Type type) {
-        this(type, "");
-    }
 
     public AssignmentDecision(final Type type, final String reason) {
         this.type = Objects.requireNonNull(type);

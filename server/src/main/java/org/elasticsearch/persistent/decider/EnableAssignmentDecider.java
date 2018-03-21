@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.persistent.decider;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTaskParams;
 
 import java.util.Locale;
 
@@ -30,7 +28,7 @@ import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 
 /**
- * This {@link AssignmentDecider} is used to allow/disallow the persistent tasks
+ * {@link EnableAssignmentDecider} is used to allow/disallow the persistent tasks
  * to be assigned to cluster nodes.
  * <p>
  * Allocation settings can have the following values (non-casesensitive):
@@ -41,7 +39,7 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
  *
  * @see Allocation
  */
-public class EnableAssignmentDecider<Params extends PersistentTaskParams> extends AssignmentDecider<Params> {
+public class EnableAssignmentDecider {
 
     public static final Setting<Allocation> CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING =
         new Setting<>("cluster.persistent_tasks.allocation.enable", Allocation.ALL.toString(), Allocation::fromString, Dynamic, NodeScope);
@@ -49,7 +47,6 @@ public class EnableAssignmentDecider<Params extends PersistentTaskParams> extend
     private volatile Allocation enableAssignment;
 
     public EnableAssignmentDecider(final Settings settings, final ClusterSettings clusterSettings) {
-        super(settings);
         this.enableAssignment = CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING, this::setEnableAssignment);
     }
@@ -58,8 +55,14 @@ public class EnableAssignmentDecider<Params extends PersistentTaskParams> extend
         this.enableAssignment = enableAssignment;
     }
 
-    @Override
-    public AssignmentDecision canAssign(final String taskName, final @Nullable Params taskParams) {
+    /**
+     * Returns a {@link AssignmentDecision} whether the given persistent task can be assigned
+     * to a node of the cluster. The decision depends on the current value of the setting
+     * {@link EnableAssignmentDecider#CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING}.
+     *
+     * @return the {@link AssignmentDecision}
+     */
+    public AssignmentDecision canAssign() {
         if (enableAssignment == Allocation.NONE) {
             return new AssignmentDecision(AssignmentDecision.Type.NO, "no persistent task assignments are allowed due to cluster settings");
         }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -61,7 +62,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()),
                 XContentType.JSON));
 
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.JSON));
+        assertThat(XContentFactory.xContentType(doc.source().toBytesRef().bytes), equalTo(XContentType.JSON));
 
         documentMapper = parser.parse("type", new CompressedXContent(mapping));
         doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.smileBuilder().startObject()
@@ -69,7 +70,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()),
                 XContentType.SMILE));
 
-        assertThat(XContentFactory.xContentType(doc.source()), equalTo(XContentType.SMILE));
+        assertThat(XContentHelper.xContentType(doc.source()), equalTo(XContentType.SMILE));
     }
 
     public void testIncludes() throws Exception {

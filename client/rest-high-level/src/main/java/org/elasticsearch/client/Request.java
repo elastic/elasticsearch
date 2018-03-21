@@ -32,6 +32,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -170,13 +171,10 @@ public final class Request {
 
     static Request closeIndex(CloseIndexRequest closeIndexRequest) {
         String endpoint = endpoint(closeIndexRequest.indices(), "_close");
-
         Params parameters = Params.builder();
-
         parameters.withTimeout(closeIndexRequest.timeout());
         parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
-
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
@@ -218,18 +216,32 @@ public final class Request {
     }
 
     static Request refresh(RefreshRequest refreshRequest) {
-        String endpoint = endpoint(refreshRequest.indices(), "_refresh");
+        String[] indices = refreshRequest.indices() == null ? Strings.EMPTY_ARRAY : refreshRequest.indices();
+        String endpoint = endpoint(indices, "_refresh");
         Params parameters = Params.builder();
         parameters.withIndicesOptions(refreshRequest.indicesOptions());
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
     static Request flush(FlushRequest flushRequest) {
-        String endpoint = endpoint(flushRequest.indices(), "_flush");
+        String[] indices = flushRequest.indices() == null ? Strings.EMPTY_ARRAY : flushRequest.indices();
+        String endpoint = endpoint(indices, "_flush");
         Params parameters = Params.builder();
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest) {
+        String[] indices = clearIndicesCacheRequest.indices() == null ? Strings.EMPTY_ARRAY :clearIndicesCacheRequest.indices();
+        String endpoint = endpoint(indices, "_cache/clear");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(clearIndicesCacheRequest.indicesOptions());
+        parameters.putParam("query", Boolean.toString(clearIndicesCacheRequest.queryCache()));
+        parameters.putParam("fielddata", Boolean.toString(clearIndicesCacheRequest.fieldDataCache()));
+        parameters.putParam("request", Boolean.toString(clearIndicesCacheRequest.requestCache()));
+        parameters.putParam("fields", String.join(",", clearIndicesCacheRequest.fields()));
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
@@ -508,10 +520,13 @@ public final class Request {
         Params params = Params.builder();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
-        if (getAliasesRequest.indices().length == 0 && getAliasesRequest.aliases().length == 0) {
+        if ((getAliasesRequest.indices() == null || getAliasesRequest.indices().length == 0) &&
+                (getAliasesRequest.aliases() == null || getAliasesRequest.aliases().length == 0)) {
             throw new IllegalArgumentException("existsAlias requires at least an alias or an index");
         }
-        String endpoint = endpoint(getAliasesRequest.indices(), "_alias", getAliasesRequest.aliases());
+        String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
+        String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
+        String endpoint = endpoint(indices, "_alias", aliases);
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
@@ -540,8 +555,9 @@ public final class Request {
         params.withTimeout(resizeRequest.timeout());
         params.withMasterTimeout(resizeRequest.masterNodeTimeout());
         params.withWaitForActiveShards(resizeRequest.getTargetIndexRequest().waitForActiveShards());
-        String endpoint = buildEndpoint(resizeRequest.getSourceIndex(), "_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT),
-                resizeRequest.getTargetIndexRequest().index());
+        String endpoint = new EndpointBuilder().addPathPart(resizeRequest.getSourceIndex())
+                .addPathPartAsIs("_" + resizeRequest.getResizeType().name().toLowerCase(Locale.ROOT))
+                .addPathPart(resizeRequest.getTargetIndexRequest().index()).build();
         HttpEntity entity = createEntity(resizeRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPut.METHOD_NAME, endpoint, params.getParams(), entity);
     }
@@ -551,10 +567,8 @@ public final class Request {
         parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
-
-        String endpoint = buildEndpoint("_cluster", "settings");
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
+        return new Request(HttpPut.METHOD_NAME, "/_cluster/settings", parameters.getParams(), entity);
     }
 
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
@@ -565,9 +579,25 @@ public final class Request {
         if (rolloverRequest.isDryRun()) {
             params.putParam("dry_run", Boolean.TRUE.toString());
         }
-        String endpoint = buildEndpoint(rolloverRequest.getAlias(), "_rollover", rolloverRequest.getNewIndexName());
+        String endpoint = new EndpointBuilder().addPathPart(rolloverRequest.getAlias()).addPathPartAsIs("_rollover")
+                .addPathPart(rolloverRequest.getNewIndexName()).build();
         HttpEntity entity = createEntity(rolloverRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
+    }
+
+    static Request indicesExist(GetIndexRequest request) {
+        //this can be called with no indices as argument by transport client, not via REST though
+        if (request.indices() == null || request.indices().length == 0) {
+            throw new IllegalArgumentException("indices are mandatory");
+        }
+        String endpoint = endpoint(request.indices(), "");
+        Params params = Params.builder();
+        params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
+        params.withIndicesOptions(request.indicesOptions());
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -576,53 +606,33 @@ public final class Request {
     }
 
     static String endpoint(String index, String type, String id) {
-        return buildEndpoint(index, type, id);
+        return new EndpointBuilder().addPathPart(index, type, id).build();
     }
 
     static String endpoint(String index, String type, String id, String endpoint) {
-        return buildEndpoint(index, type, id, endpoint);
+        return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
     }
 
     static String endpoint(String[] indices) {
-        return buildEndpoint(String.join(",", indices));
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices).build();
     }
 
     static String endpoint(String[] indices, String endpoint) {
-        return buildEndpoint(String.join(",", indices), endpoint);
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).build();
     }
 
     static String endpoint(String[] indices, String[] types, String endpoint) {
-        return buildEndpoint(String.join(",", indices), String.join(",", types), endpoint);
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addCommaSeparatedPathParts(types)
+                .addPathPartAsIs(endpoint).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
-        return buildEndpoint(String.join(",", indices), endpoint, String.join(",", suffixes));
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
+                .addCommaSeparatedPathParts(suffixes).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {
-        return endpoint(String.join(",", indices), endpoint, type);
-    }
-
-    /**
-     * Utility method to build request's endpoint given its parts as strings
-     */
-    static String buildEndpoint(String... parts) {
-        StringJoiner joiner = new StringJoiner("/", "/", "");
-        for (String part : parts) {
-            if (Strings.hasLength(part)) {
-                try {
-                    //encode each part (e.g. index, type and id) separately before merging them into the path
-                    //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
-                    //paths that start with `-` or contain `:`
-                    URI uri = new URI(null, null, null, -1, "/" + part, null, null);
-                    //manually encode any slash that each part may contain
-                    joiner.add(uri.getRawPath().substring(1).replaceAll("/", "%2F"));
-                } catch (URISyntaxException e) {
-                    throw new IllegalArgumentException("Path part [" + part + "] couldn't be encoded", e);
-                }
-            }
-        }
-        return joiner.toString();
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint).addPathPart(type).build();
     }
 
     /**
@@ -634,17 +644,6 @@ public final class Request {
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
-    }
-
-    static Request indicesExist(GetIndexRequest request) {
-        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
-        Params params = Params.builder();
-        params.withLocal(request.local());
-        params.withHuman(request.humanReadable());
-        params.withIndicesOptions(request.indicesOptions());
-        params.withFlatSettings(request.flatSettings());
-        params.withIncludeDefaults(request.includeDefaults());
-        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**
@@ -851,5 +850,51 @@ public final class Request {
                     + "], previous requests have content-type [" + xContentType + "]");
         }
         return xContentType;
+    }
+
+    /**
+     * Utility class to build request's endpoint given its parts as strings
+     */
+    static class EndpointBuilder {
+
+        private final StringJoiner joiner = new StringJoiner("/", "/", "");
+
+        EndpointBuilder addPathPart(String... parts) {
+            for (String part : parts) {
+                if (Strings.hasLength(part)) {
+                    joiner.add(encodePart(part));
+                }
+            }
+            return this;
+        }
+
+        EndpointBuilder addCommaSeparatedPathParts(String[] parts) {
+            addPathPart(String.join(",", parts));
+            return this;
+        }
+
+        EndpointBuilder addPathPartAsIs(String part) {
+            if (Strings.hasLength(part)) {
+                joiner.add(part);
+            }
+            return this;
+        }
+
+        String build() {
+            return joiner.toString();
+        }
+
+        private static String encodePart(String pathPart) {
+            try {
+                //encode each part (e.g. index, type and id) separately before merging them into the path
+                //we prepend "/" to the path part to make this pate absolute, otherwise there can be issues with
+                //paths that start with `-` or contain `:`
+                URI uri = new URI(null, null, null, -1, "/" + pathPart, null, null);
+                //manually encode any slash that each part may contain
+                return uri.getRawPath().substring(1).replaceAll("/", "%2F");
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Path part [" + pathPart + "] couldn't be encoded", e);
+            }
+        }
     }
 }

@@ -488,7 +488,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params)
                 throws IOException {
-            builder.timeValueField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, maxUptime);
+            builder.humanReadableField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, new TimeValue(maxUptime));
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
                 builder.startObject();

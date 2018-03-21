@@ -18,7 +18,7 @@
 use strict;
 use warnings;
 
-use HTTP::Tiny;
+use HTTP::Tiny 0.070;
 use IO::Socket::SSL 1.52;
 use utf8;
 

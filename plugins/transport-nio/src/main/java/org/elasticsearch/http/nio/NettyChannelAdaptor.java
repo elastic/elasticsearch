@@ -27,11 +27,10 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.nio.BytesProducer;
-import org.elasticsearch.nio.BytesWriteOperation;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NewWriteOperation;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.WriteOperation;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -47,7 +46,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
     SocketChannelContext.WriteProducer {
 
     // TODO: Explore if this can be made more efficient by generating less garbage
-    private final LinkedList<BytesWriteOperation> byteOps = new LinkedList<>();
+    private final LinkedList<FlushOperation> byteOps = new LinkedList<>();
     private final SocketChannelContext channelContext = null;
 
     NettyChannelAdaptor() {
@@ -64,7 +63,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
                     // TODO: Ensure release on failure. I'm not sure it is necessary here as it might be done
                     // TODO: in NioHttpChannel.
                     promise.addListener((f) -> message.release());
-                    byteOps.add(new BytesWriteOperation(message.nioBuffers(), new NettyListener(promise)));
+                    byteOps.add(new FlushOperation(message.nioBuffers(), new NettyListener(promise)));
                 } catch (Exception e) {
                     promise.setFailure(e);
                 }
@@ -86,12 +85,12 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
     }
 
     @Override
-    public void writeMessage(NewWriteOperation writeOperation) throws IOException {
+    public void writeMessage(WriteOperation writeOperation) throws IOException {
         writeAndFlush(null, (NettyListener) writeOperation.getListener());
     }
 
     @Override
-    public void produceWrites(NewWriteOperation writeOperation) {
+    public void produceWrites(WriteOperation writeOperation) {
         writeAndFlush(writeOperation.getObject(), (NettyListener) writeOperation.getListener());
     }
 
@@ -101,7 +100,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
     }
 
     @Override
-    public BytesWriteOperation pollBytes() {
+    public FlushOperation pollBytes() {
         return byteOps.pollFirst();
     }
 

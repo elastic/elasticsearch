@@ -4,8 +4,8 @@ import java.io.IOException;
 
 public interface BytesProducer {
 
-    void writeMessage(NewWriteOperation writeOperation) throws IOException;
+    void writeMessage(WriteOperation writeOperation) throws IOException;
 
-    BytesWriteOperation pollBytes();
+    FlushOperation pollBytes();
 
 }

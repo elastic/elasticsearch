@@ -26,13 +26,13 @@ import java.util.function.BiConsumer;
  * operation is that is has a listener and a reference to its channel. The actual conversion of the write
  * operation implementation to bytes will be performed by the {@link SocketChannelContext}.
  */
-public class NewWriteOperation {
+public class WriteOperation {
 
     private final SocketChannelContext channelContext;
     private final Object writeObject;
     private final BiConsumer<Void, Throwable> listener;
 
-    public NewWriteOperation(SocketChannelContext channelContext, Object writeObject, BiConsumer<Void, Throwable> listener) {
+    public WriteOperation(SocketChannelContext channelContext, Object writeObject, BiConsumer<Void, Throwable> listener) {
         this.channelContext = channelContext;
         this.writeObject = writeObject;
         this.listener = listener;

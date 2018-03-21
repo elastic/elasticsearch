@@ -9,7 +9,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.NewWriteOperation;
+import org.elasticsearch.nio.WriteOperation;
 
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
@@ -72,7 +72,7 @@ public class ActualNettyChannelAdaptor implements AutoCloseable {
         });
     }
 
-    public void write(NewWriteOperation writeOperation) {
+    public void write(WriteOperation writeOperation) {
         ChannelPromise channelPromise = nettyChannel.newPromise();
         channelPromise.addListener(f -> {
             BiConsumer<Void, Throwable> consumer = writeOperation.getListener();

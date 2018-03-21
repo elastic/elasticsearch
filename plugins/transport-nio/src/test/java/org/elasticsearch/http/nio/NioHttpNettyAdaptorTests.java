@@ -18,13 +18,11 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.nio.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.nio.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.http.nio.pipelining.HttpPipelinedResponse;
-import org.elasticsearch.nio.BytesWriteOperation;
+import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -135,7 +133,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
 
         assertTrue(channelAdaptor.decode(buf.retainedDuplicate()).isEmpty());
 
-        BytesWriteOperation message = channelAdaptor.pollBytes();
+        FlushOperation message = channelAdaptor.pollBytes();
 
         assertFalse(((ChannelPromise) message.getListener()).isDone());
 
@@ -152,7 +150,7 @@ public class NioHttpNettyAdaptorTests extends ESTestCase {
         HttpResponse defaultFullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
 
         channelAdaptor.writeOutbound(defaultFullHttpResponse);
-        BytesWriteOperation encodedMessage = channelAdaptor.pollBytes();
+        FlushOperation encodedMessage = channelAdaptor.pollBytes();
 
         HttpResponse response = responseDecoder.decode(Unpooled.wrappedBuffer(encodedMessage.getBuffersToWrite()));
 

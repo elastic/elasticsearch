@@ -177,6 +177,16 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     /**
+     * Initiate background persistence of the job
+     * @param jobTask The job task
+     * @param handler Listener
+     */
+    public void persistJob(JobTask jobTask, Consumer<Exception> handler) {
+        AutodetectCommunicator communicator = getOpenAutodetectCommunicator(jobTask);
+        communicator.persistJob((aVoid, e) -> handler.accept(e));
+    }
+
+    /**
      * Passes data to the native process.
      * This is a blocking call that won't return until all the data has been
      * written to the process.

@@ -119,24 +119,19 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     }
 
     public void testWriteResetBucketsControlMessage() throws IOException {
-        InputStream logStream = mock(InputStream.class);
-        when(logStream.read(new byte[1024])).thenReturn(-1);
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
-        try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", logStream,
-                bos, mock(InputStream.class), mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
-                new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
-            process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
-
-            DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), Optional.empty());
-            process.writeResetBucketsControlMessage(params);
-            process.flushStream();
-
-            String message = new String(bos.toByteArray(), StandardCharsets.UTF_8);
-            assertTrue(message.contains(ControlMsgToProcessWriter.RESET_BUCKETS_MESSAGE_CODE));
-        }
+        DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("86400").build(), Optional.empty());
+        testWriteMessage(p -> p.writeResetBucketsControlMessage(params), ControlMsgToProcessWriter.RESET_BUCKETS_MESSAGE_CODE);
     }
 
     public void testWriteUpdateConfigMessage() throws IOException {
+        testWriteMessage(p -> p.writeUpdateModelPlotMessage(new ModelPlotConfig()), ControlMsgToProcessWriter.UPDATE_MESSAGE_CODE);
+    }
+
+    public void testPersistJob() throws IOException {
+        testWriteMessage(p -> p.persistJob(), ControlMsgToProcessWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
+    }
+
+    public void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {
         InputStream logStream = mock(InputStream.class);
         when(logStream.read(new byte[1024])).thenReturn(-1);
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
@@ -145,11 +140,17 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
+            writeFunction.accept(process);
             process.writeUpdateModelPlotMessage(new ModelPlotConfig());
             process.flushStream();
 
             String message = new String(bos.toByteArray(), StandardCharsets.UTF_8);
-            assertTrue(message.contains(ControlMsgToProcessWriter.UPDATE_MESSAGE_CODE));
+            assertTrue(message.contains(expectedMessageCode));
         }
+    }
+
+    @FunctionalInterface
+    private interface CheckedConsumer<T> {
+        void accept(T t) throws IOException;
     }
 }

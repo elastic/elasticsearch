@@ -39,39 +39,44 @@ public class ControlMsgToProcessWriter {
     public static final int FLUSH_SPACES_LENGTH = 8192;
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String FLUSH_MESSAGE_CODE = "f";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String FORECAST_MESSAGE_CODE = "p";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String INTERIM_MESSAGE_CODE = "i";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     public static final String RESET_BUCKETS_MESSAGE_CODE = "r";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String ADVANCE_TIME_MESSAGE_CODE = "t";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String SKIP_TIME_MESSAGE_CODE = "s";
 
     /**
-     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     public static final String UPDATE_MESSAGE_CODE = "u";
+
+    /**
+     * This must match the code defined in the api::CAnomalyJob C++ class.
+     */
+    public static final String BACKGROUND_PERSIST_MESSAGE_CODE = "w";
 
     /**
      * An number to uniquely identify each flush so that subsequent code can
@@ -231,6 +236,12 @@ public class ControlMsgToProcessWriter {
             new ScheduledEventsWriter(events, bucketSpan, stringBuilder).write();
         }
         writeMessage(stringBuilder.toString());
+    }
+
+    public void writeStartBackgroundPersistMessage() throws IOException {
+        writeMessage(BACKGROUND_PERSIST_MESSAGE_CODE);
+        fillCommandBuffer();
+        lengthEncodedWriter.flush();
     }
 
     /**

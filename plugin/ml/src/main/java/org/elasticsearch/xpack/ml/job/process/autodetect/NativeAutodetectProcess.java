@@ -188,6 +188,12 @@ class NativeAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
+    public void persistJob() throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
+        writer.writeStartBackgroundPersistMessage();
+    }
+
+    @Override
     public void flushStream() throws IOException {
         recordWriter.flush();
     }

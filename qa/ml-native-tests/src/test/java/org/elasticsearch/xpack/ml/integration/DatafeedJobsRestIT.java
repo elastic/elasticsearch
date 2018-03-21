@@ -615,6 +615,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             }
         });
 
+        // Model state should be persisted at the end of lookback
+        // test a model snapshot is present
+        assertBusy(() -> {
+            try {
+                Response getJobResponse = client().performRequest("get",
+                        MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/model_snapshots");
+                String responseAsString = responseEntityToString(getJobResponse);
+                assertThat(responseAsString, containsString("\"count\":1"));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
+
         ResponseException e = expectThrows(ResponseException.class,
                 () -> client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
         response = e.getResponse();

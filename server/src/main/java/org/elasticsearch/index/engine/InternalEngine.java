@@ -187,8 +187,7 @@ public class InternalEngine extends Engine {
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(startingCommit);
                 updateMaxUnsafeAutoIdTimestampFromWriter(writer);
-                historyUUID = loadOrGenerateHistoryUUID(writer);
-                Objects.requireNonNull(historyUUID, "history uuid should not be null");
+                historyUUID = loadHistoryUUID(writer);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -495,7 +494,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadOrGenerateHistoryUUID(final IndexWriter writer) throws IOException {
+    private String loadHistoryUUID(final IndexWriter writer) throws IOException {
         final String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");

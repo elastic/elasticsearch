@@ -38,10 +38,10 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
      * is now 1GB and defined here in the Java code.  Prior to 6.3, a value of <code>null</code> means that
      * the old default value should be used. From 6.3 onwards, the value will always be explicit.
      */
-    static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
+    public static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
     static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
 
-    static final long DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT = 4;
+    public static final long DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT = 4;
 
     /**
      * Serialisation field names

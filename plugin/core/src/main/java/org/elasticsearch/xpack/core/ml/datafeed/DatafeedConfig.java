@@ -55,6 +55,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
+    public static final int DEFAULT_SCROLL_SIZE = 1000;
+
     private static final int SECONDS_IN_MINUTE = 60;
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
     private static final int TWENTY_MINS_SECONDS = 20 * SECONDS_IN_MINUTE;
@@ -427,7 +429,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public static class Builder {
 
-        private static final int DEFAULT_SCROLL_SIZE = 1000;
         private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
         private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
         private static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;

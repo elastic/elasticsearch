@@ -40,6 +40,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -103,7 +105,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
@@ -124,6 +125,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetDatafeedsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetFiltersAction;
 import org.elasticsearch.xpack.ml.action.TransportGetInfluencersAction;
+import org.elasticsearch.xpack.ml.action.TransportMlInfoAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetModelSnapshotsAction;
@@ -172,6 +174,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
@@ -448,6 +451,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
             new RestGetJobsAction(settings, restController),
             new RestGetJobStatsAction(settings, restController),
+            new RestMlInfoAction(settings, restController),
             new RestPutJobAction(settings, restController),
             new RestPostJobUpdateAction(settings, restController),
             new RestDeleteJobAction(settings, restController),
@@ -498,6 +502,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
                 new ActionHandler<>(GetJobsAction.INSTANCE, TransportGetJobsAction.class),
                 new ActionHandler<>(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class),
+                new ActionHandler<>(MlInfoAction.INSTANCE, TransportMlInfoAction.class),
                 new ActionHandler<>(PutJobAction.INSTANCE, TransportPutJobAction.class),
                 new ActionHandler<>(UpdateJobAction.INSTANCE, TransportUpdateJobAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, TransportDeleteJobAction.class),

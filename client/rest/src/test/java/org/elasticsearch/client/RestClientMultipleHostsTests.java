@@ -328,7 +328,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
      * Test that calling {@link RestClient#setHosts(Iterable, HostMetadataResolver)}
      * sets the {@link HostMetadataResolver}.
      */
-    public void testSetHostWithMetadataResolver() throws IOException {
+    public void testSetHostsWithMetadataResolver() throws IOException {
         HostMetadataResolver firstPositionIsClient = new HostMetadataResolver() {
             @Override
             public HostMetadata resolveMetadata(HttpHost host) {
@@ -351,7 +351,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
      * Test that calling {@link RestClient#setHosts(Iterable)} preserves the
      * {@link HostMetadataResolver}.
      */
-    public void testSetHostWithoutMetadataResolver() throws IOException {
+    public void testSetHostsWithoutMetadataResolver() throws IOException {
         HttpHost expected = randomFrom(httpHosts);
         hostMetadata = singletonMap(expected, new HostMetadata("dummy", new HostMetadata.Roles(false, false, false)));
         restClient.setHosts(httpHosts);

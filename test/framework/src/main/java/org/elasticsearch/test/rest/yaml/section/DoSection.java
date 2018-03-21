@@ -88,6 +88,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
+        HostSelector hostSelector = HostSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
@@ -125,20 +126,20 @@ public class DoSection implements ExecutableSection {
                         }
                     }
                 } else if ("host_selector".equals(currentFieldName)) {
+                    String selectorName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        String selectorName = null;
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else if (token.isValue()) {
-                            HostSelector original = doSection.getHostSelector();
-                            HostSelector newSelector = buildHostSelector(
+                            final HostSelector original = hostSelector;
+                            final HostSelector newSelector = buildHostSelector(
                                 parser.getTokenLocation(), selectorName, parser.text());
-                            doSection.setHostSelector(new HostSelector() {
+                            hostSelector = new HostSelector() {
                                 @Override
                                 public boolean select(HttpHost host, HostMetadata meta) {
                                     return original.select(host, meta) && newSelector.select(host, meta);
                                 }
-                            });
+                            };
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -173,6 +174,7 @@ public class DoSection implements ExecutableSection {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
             apiCallSection.addHeaders(headers);
+            apiCallSection.setHostSelector(hostSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
@@ -187,7 +189,6 @@ public class DoSection implements ExecutableSection {
     private String catchParam;
     private ApiCallSection apiCallSection;
     private List<String> expectedWarningHeaders = emptyList();
-    private HostSelector hostSelector = HostSelector.ANY;
 
     public DoSection(XContentLocation location) {
         this.location = location;
@@ -226,20 +227,6 @@ public class DoSection implements ExecutableSection {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 
-    /**
-     * Selects the node on which to run this request.
-     */
-    public HostSelector getHostSelector() {
-        return hostSelector;
-    }
-
-    /**
-     * Set the selector that decides which node can run this request.
-     */
-    public void setHostSelector(HostSelector hostSelector) {
-        this.hostSelector = hostSelector;
-    }
-
     @Override
     public XContentLocation getLocation() {
         return location;
@@ -257,7 +244,7 @@ public class DoSection implements ExecutableSection {
 
         try {
             ClientYamlTestResponse response = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
-                    apiCallSection.getBodies(), apiCallSection.getHeaders());
+                    apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getHostSelector());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
@@ -381,9 +368,8 @@ public class DoSection implements ExecutableSection {
             return new HostSelector() {
                 @Override
                 public boolean select(HttpHost host, HostMetadata meta) {
-                    // NOCOMMIT actually compare the version
-                    Version current = Version.CURRENT;
-                    return current.onOrAfter(range[0]) && current.onOrBefore(range[1]);
+                    Version version = Version.fromString(meta.version());
+                    return version.onOrAfter(range[0]) && version.onOrBefore(range[1]);
                 }
             };
         default:

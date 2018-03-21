@@ -92,10 +92,10 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                         + "runners that do not support the [warnings] section can skip the test at line ["
                         + doSection.getLocation().lineNumber + "]");
             }
-            if (HostSelector.ANY != doSection.getHostSelector()
+            if (HostSelector.ANY != doSection.getApiCallSection().getHostSelector()
                     && false == skipSection.getFeatures().contains("host_selector")) {
-                throw new IllegalArgumentException("Attempted to add a [do] with a [host] section without a corresponding [skip] so "
-                    + "runners that do not support the [host_selector] section can skip the test at line ["
+                throw new IllegalArgumentException("Attempted to add a [do] with a [host_selector] section without a corresponding "
+                    + "[skip] so runners that do not support the [host_selector] section can skip the test at line ["
                     + doSection.getLocation().lineNumber + "]");
             }
     }

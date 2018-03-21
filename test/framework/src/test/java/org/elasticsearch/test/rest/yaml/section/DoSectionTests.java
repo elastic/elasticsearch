@@ -19,11 +19,16 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.HostSelector;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -31,11 +36,16 @@ import java.util.Arrays;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
@@ -496,7 +506,33 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection(), notNullValue());
         assertThat(doSection.getExpectedWarningHeaders(), equalTo(singletonList(
                 "just one entry this time")));
+    }
 
+    public void testHostSelector() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "host_selector:\n" +
+                "    version: 5.2.0-6.0.0\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        HttpHost host = new HttpHost("dummy");
+        HostMetadata.Roles roles = new HostMetadata.Roles(true, true, true);
+        assertNotSame(HostSelector.ANY, doSection.getApiCallSection().getHostSelector());
+        assertTrue(doSection.getApiCallSection().getHostSelector()
+                .select(host, new HostMetadata("5.2.1", roles)));
+        assertFalse(doSection.getApiCallSection().getHostSelector()
+                .select(host, new HostMetadata("6.1.2", roles)));
+        assertFalse(doSection.getApiCallSection().getHostSelector()
+                .select(host, new HostMetadata("1.7.0", roles)));
+        ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
+        ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
+        when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getHostSelector())).thenReturn(mockResponse);
+        doSection.execute(context);
+        verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
+                emptyList(), emptyMap(), doSection.getApiCallSection().getHostSelector());
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

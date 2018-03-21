@@ -77,7 +77,7 @@ public class ClientYamlTestExecutionContext {
         return callApi(apiName, params, bodies, headers, HostSelector.ANY);
     }
 
-                                        /**
+    /**
      * Calls an elasticsearch api with the parameters and request body provided as arguments.
      * Saves the obtained response in the execution context.
      */

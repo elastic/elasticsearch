@@ -90,7 +90,7 @@ public class NioHttpNettyAdaptor {
         ch.pipeline().addLast("close_adaptor", new ChannelOutboundHandlerAdapter() {
             @Override
             public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-                channel.addCloseListener(new NettyActionListener(promise));
+                channel.addCloseListener(new NettyListener(promise));
                 // Should we forward the close() call with a different promise? This is the last item in
                 // the outbound pipeline. So it should not be necessary I think.
             }

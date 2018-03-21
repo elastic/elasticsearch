@@ -36,11 +36,11 @@ import java.util.function.BiConsumer;
  * complete that promise when onResponse or onFailure is called. It delegates the normal promise methods
  * to the underlying promise.
  */
-public class NettyActionListener implements BiConsumer<Void, Throwable>, ChannelPromise {
+public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromise {
 
     private final ChannelPromise promise;
 
-    public NettyActionListener(ChannelPromise promise) {
+    public NettyListener(ChannelPromise promise) {
         this.promise = promise;
     }
 

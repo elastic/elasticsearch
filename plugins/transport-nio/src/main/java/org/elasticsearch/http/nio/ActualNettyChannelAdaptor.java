@@ -8,13 +8,16 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.nio.WriteOperation;
+import org.elasticsearch.nio.FlushOperation;
+import org.elasticsearch.nio.NewWriteOperation;
 
+import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
 public class ActualNettyChannelAdaptor implements AutoCloseable {
 
     private final EmbeddedChannel nettyChannel;
+    private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
 
     public ActualNettyChannelAdaptor(ChannelHandler[] handlers) {
         nettyChannel = new EmbeddedChannel();
@@ -30,16 +33,18 @@ public class ActualNettyChannelAdaptor implements AutoCloseable {
                 ByteBuf message = (ByteBuf) msg;
                 try {
                     promise.addListener((f) -> message.release());
-//                    byteOps.add(new BytesWriteOperation(channelContext, message.nioBuffers(), new NettyActionListener(promise)));
+                    NettyListener listener;
+                    if (promise instanceof NettyListener) {
+                        listener = (NettyListener) promise;
+                    } else {
+                        listener = new NettyListener(promise);
+                    }
+                    flushOperations.add(new FlushOperation(message.nioBuffers(), listener));
                 } catch (Exception e) {
                     promise.setFailure(e);
                 }
             }
         });
-    }
-
-    public void addToPipeline(ChannelHandler handler) {
-//        nettyChannel.pipeline().addBefore("write_captor", handler);
     }
 
     @Override
@@ -67,7 +72,18 @@ public class ActualNettyChannelAdaptor implements AutoCloseable {
         });
     }
 
-    public void write(WriteOperation writeOperation) {
-        nettyChannel.writeAndFlush(writeOperation.getObject(), (NettyActionListener) writeOperation.getListener());
+    public void write(NewWriteOperation writeOperation) {
+        ChannelPromise channelPromise = nettyChannel.newPromise();
+        channelPromise.addListener(f -> {
+            BiConsumer<Void, Throwable> consumer = writeOperation.getListener();
+            if (f.cause() == null) {
+                consumer.accept(null, null);
+            } else {
+                ExceptionsHelper.dieOnError(f.cause());
+                consumer.accept(null, f.cause());
+            }
+        });
+
+        nettyChannel.writeAndFlush(writeOperation.getObject(), new NettyListener(channelPromise));
     }
 }

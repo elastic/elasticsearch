@@ -26,8 +26,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.nio.BytesProducer;
 import org.elasticsearch.nio.BytesWriteOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -67,7 +65,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
                     // TODO: Ensure release on failure. I'm not sure it is necessary here as it might be done
                     // TODO: in NioHttpChannel.
                     promise.addListener((f) -> message.release());
-                    byteOps.add(new BytesWriteOperation(channelContext, message.nioBuffers(), new NettyActionListener(promise)));
+                    byteOps.add(new BytesWriteOperation(channelContext, message.nioBuffers(), new NettyListener(promise)));
                 } catch (Exception e) {
                     promise.setFailure(e);
                 }
@@ -90,12 +88,12 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
 
     @Override
     public void writeMessage(WriteOperation writeOperation) throws IOException {
-        writeAndFlush(null, (NettyActionListener) writeOperation.getListener());
+        writeAndFlush(null, (NettyListener) writeOperation.getListener());
     }
 
     @Override
     public List<BytesWriteOperation> produceWrites(WriteOperation writeOperation) {
-        writeAndFlush(writeOperation.getObject(), (NettyActionListener) writeOperation.getListener());
+        writeAndFlush(writeOperation.getObject(), (NettyListener) writeOperation.getListener());
         ArrayList<BytesWriteOperation> localByteOps = new ArrayList<>(byteOps);
         byteOps.clear();
         return localByteOps;

@@ -184,6 +184,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         final long now = clock.millis();
         if (!LicenseVerifier.verifyLicense(newLicense) || newLicense.issueDate() > now || newLicense.startDate() > now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.INVALID));
+        } else if (newLicense.type().equals("basic")) {
+            listener.onFailure(new IllegalArgumentException("Registering basic licenses is not allowed."));
         } else if (newLicense.expiryDate() < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {

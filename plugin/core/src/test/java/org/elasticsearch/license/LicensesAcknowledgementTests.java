@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
@@ -19,12 +20,12 @@ import static org.mockito.Mockito.verify;
 public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
 
     public void testAcknowledgment() throws Exception {
-
         XPackLicenseState licenseState = new XPackLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licenseState, Settings.EMPTY);
+        setInitialState(TestUtils.generateSignedLicense("gold", timeValueHours(2)), licenseState, Settings.EMPTY);
         licenseService.start();
         // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("basic", TimeValue.timeValueHours(10));
+        long issueDate = System.currentTimeMillis() - TimeValue.timeValueHours(24 * 2).getMillis();
+        License signedLicense = TestUtils.generateSignedLicense("trial", License.VERSION_CURRENT, issueDate, timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
         // ensure acknowledgement message was part of the response
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
@@ -40,10 +41,10 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
 
     public void testRejectUpgradeToProductionWithoutTLS() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licenseState, Settings.EMPTY);
+        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.EMPTY);
         licenseService.start();
         // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(10));
+        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
         // ensure acknowledgement message was part of the response
         IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
@@ -53,11 +54,11 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
 
     public void testUpgradeToProductionWithoutTLSAndSecurityDisabled() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licenseState, Settings.builder()
+        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
                 .put("xpack.security.enabled", false).build());
         licenseService.start();
         // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(10));
+        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
         assertThat(licenseService.getLicense(), not(signedLicense));
@@ -72,12 +73,12 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
 
     public void testUpgradeToProductionWithTLSAndSecurity() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState();
-        setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licenseState, Settings.builder()
+        setInitialState(TestUtils.generateSignedLicense("trial", timeValueHours(2)), licenseState, Settings.builder()
                 .put("xpack.security.enabled", true)
                 .put("xpack.security.transport.ssl.enabled", true).build());
         licenseService.start();
         // try installing a signed license
-        License signedLicense = TestUtils.generateSignedLicense("platinum", TimeValue.timeValueHours(10));
+        License signedLicense = TestUtils.generateSignedLicense("platinum", timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
         assertThat(licenseService.getLicense(), not(signedLicense));

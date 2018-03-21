@@ -41,6 +41,11 @@ public class RestPutLicenseAction extends XPackRestHandler {
         putLicenseRequest.timeout(request.paramAsTime("timeout", putLicenseRequest.timeout()));
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
+        if ("basic".equals(putLicenseRequest.license().type())) {
+            throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
+                    "/_xpack/license/start_basic API to install a basic license that does not expire.");
+        }
+
         return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
                 new RestToXContentListener<>(channel));
     }

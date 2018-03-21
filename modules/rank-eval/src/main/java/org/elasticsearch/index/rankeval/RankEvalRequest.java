@@ -30,6 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -45,6 +46,23 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
     public RankEvalRequest(RankEvalSpec rankingEvaluationSpec, String[] indices) {
         this.rankingEvaluationSpec = Objects.requireNonNull(rankingEvaluationSpec, "ranking evaluation specification must not be null");
         indices(indices);
+    }
+
+    RankEvalRequest(StreamInput in) throws IOException {
+        super.readFrom(in);
+        rankingEvaluationSpec = new RankEvalSpec(in);
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            indices = in.readStringArray();
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+        } else {
+            // readStringArray uses readVInt for size, we used readInt in 6.2
+            int indicesSize = in.readInt();
+            String[] indices = new String[indicesSize];
+            for (int i = 0; i < indicesSize; i++) {
+                indices[i] = in.readString();
+            }
+            // no indices options yet
+        }
     }
 
     RankEvalRequest() {
@@ -106,20 +124,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        rankingEvaluationSpec = new RankEvalSpec(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            indices = in.readStringArray();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            // readStringArray uses readVInt for size, we used readInt in 6.2
-            int indicesSize = in.readInt();
-            String[] indices = new String[indicesSize];
-            for (int i = 0; i < indicesSize; i++) {
-                indices[i] = in.readString();
-            }
-            // no indices options yet
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -137,5 +142,24 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
             }
             // no indices options yet
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        RankEvalRequest that = (RankEvalRequest) o;
+        return Objects.equals(indicesOptions, that.indicesOptions) &&
+                Arrays.equals(indices, that.indices) &&
+                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indicesOptions, Arrays.hashCode(indices), rankingEvaluationSpec);
     }
 }

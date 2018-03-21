@@ -21,33 +21,37 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class RankEvalRequestTests extends ESTestCase {
+public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEvalRequest> {
 
-    @SuppressWarnings("resource")
+    private static RankEvalPlugin rankEvalPlugin = new RankEvalPlugin();
+
+    @AfterClass
+    public static void releasePluginResources() throws IOException {
+        rankEvalPlugin.close();
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+        return new NamedXContentRegistry(rankEvalPlugin.getNamedXContent());
     }
 
-    public void testSerialization() throws IOException {
-        RankEvalRequest original = createTestItem();
-        RankEvalRequest deserialized = copy(original);
-        assertNotSame(deserialized, original);
-        assertEquals(deserialized.getRankEvalSpec(), original.getRankEvalSpec());
-        assertArrayEquals(deserialized.indices(), original.indices());
-        assertEquals(deserialized.indicesOptions(), original.indicesOptions());
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(rankEvalPlugin.getNamedWriteables());
     }
 
-    private static RankEvalRequest createTestItem() throws IOException {
+    @Override
+    protected RankEvalRequest createTestInstance() {
         int numberOfIndices = randomInt(3);
         String[] indices = new String[numberOfIndices];
         for (int i=0; i < numberOfIndices; i++) {
@@ -60,17 +64,20 @@ public class RankEvalRequestTests extends ESTestCase {
         return rankEvalRequest;
     }
 
-    private static RankEvalRequest copy(RankEvalRequest original) throws IOException {
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, PrecisionAtK.NAME, PrecisionAtK::new));
-        namedWriteables.add(
-                new NamedWriteableRegistry.Entry(EvaluationMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetric.class, MeanReciprocalRank.NAME, MeanReciprocalRank::new));
-        return ESTestCase.copyWriteable(original, new NamedWriteableRegistry(namedWriteables), in -> {
-            RankEvalRequest req = new RankEvalRequest();
-            req.readFrom(in);
-            return req;
-        });
+    @Override
+    protected Reader<RankEvalRequest> instanceReader() {
+        return RankEvalRequest::new;
+    }
+
+    @Override
+    protected RankEvalRequest mutateInstance(RankEvalRequest instance) throws IOException {
+        RankEvalRequest mutation = copyInstance(instance);
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> mutation.indices(ArrayUtils.concat(instance.indices(), new String[] { randomAlphaOfLength(10) })));
+        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(instance.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(() -> mutation.setRankEvalSpec(RankEvalSpecTests.mutateTestItem(instance.getRankEvalSpec())));
+        randomFrom(mutators).run();
+        return mutation;
     }
 }

@@ -157,7 +157,7 @@ public class EngineDiskUtilsTests extends EngineTestCase {
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     engine.recoverFromTranslog();
                     assertEquals(2, engine.getTranslog().currentFileGeneration());
-                    assertEquals(0L, TestTranslog.uncommittedOperations(engine.getTranslog()));
+                    assertEquals(0L, engine.getTranslog().stats().getUncommittedOperations());
                 }
             }
 

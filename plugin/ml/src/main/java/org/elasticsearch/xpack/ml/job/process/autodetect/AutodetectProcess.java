@@ -116,6 +116,12 @@ public interface AutodetectProcess extends Closeable {
     void forecastJob(ForecastParams params) throws IOException;
 
     /**
+     * Ask the job to start persisting model state in the background
+     * @throws IOException
+     */
+    void persistJob() throws IOException;
+
+    /**
      * Flush the output data stream
      */
     void flushStream() throws IOException;

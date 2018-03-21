@@ -96,7 +96,11 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void flushStream() throws IOException {
+    public void persistJob() {
+    }
+
+    @Override
+    public void flushStream() {
     }
 
     @Override

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -106,6 +107,9 @@ class DatafeedJob {
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
         run(lookbackStartTimeMs, lookbackEnd, request);
+        if (shouldPersistAfterLookback(isLookbackOnly)) {
+            sendPersistRequest();
+        }
 
         if (isRunning() && !isIsolated) {
             auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_LOOKBACK_COMPLETED));
@@ -309,6 +313,21 @@ class DatafeedJob {
             // yet we do not know how many of those were processed. It is better to
             // advance time in order to avoid importing duplicate data.
             throw new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
+        }
+    }
+
+    private boolean shouldPersistAfterLookback(boolean isLookbackOnly) {
+        return isLookbackOnly == false && isIsolated == false && isRunning();
+    }
+
+    private void sendPersistRequest() {
+        try {
+            LOGGER.trace("[" + jobId + "] Sending persist request");
+            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+                client.execute(PersistJobAction.INSTANCE, new PersistJobAction.Request(jobId));
+            }
+        } catch (Exception e) {
+            LOGGER.debug("[" + jobId + "] error while persisting job", e);
         }
     }
 

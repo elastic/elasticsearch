@@ -264,6 +264,13 @@ public class AutodetectCommunicator implements Closeable {
         }, forecastConsumer);
     }
 
+    public void persistJob(BiConsumer<Void, Exception> handler) {
+        submitOperation(() -> {
+            autodetectProcess.persistJob();
+            return null;
+        }, handler);
+    }
+
     @Nullable
     FlushAcknowledgement waitFlushToCompletion(String flushId) {
         LOGGER.debug("[{}] waiting for flush", job.getId());

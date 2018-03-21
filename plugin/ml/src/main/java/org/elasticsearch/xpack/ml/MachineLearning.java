@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
@@ -135,6 +136,7 @@ import org.elasticsearch.xpack.ml.action.TransportGetRecordsAction;
 import org.elasticsearch.xpack.ml.action.TransportIsolateDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportKillProcessAction;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction;
+import org.elasticsearch.xpack.ml.action.TransportPersistJobAction;
 import org.elasticsearch.xpack.ml.action.TransportPostCalendarEventsAction;
 import org.elasticsearch.xpack.ml.action.TransportPostDataAction;
 import org.elasticsearch.xpack.ml.action.TransportPreviewDatafeedAction;
@@ -549,7 +551,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(DeleteCalendarEventAction.INSTANCE, TransportDeleteCalendarEventAction.class),
                 new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
-                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class)
+                new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
+                new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class)
         );
     }
     @Override

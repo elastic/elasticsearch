@@ -269,6 +269,25 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
+    public void testWriteStartBackgroundPersistMessage() throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        writer.writeStartBackgroundPersistMessage();
+
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("w");
+
+        inOrder.verify(lengthEncodedWriter).writeNumFields(2);
+        inOrder.verify(lengthEncodedWriter).writeField("");
+        StringBuilder spaces = new StringBuilder();
+        IntStream.rangeClosed(1, ControlMsgToProcessWriter.FLUSH_SPACES_LENGTH).forEach(i -> spaces.append(' '));
+        inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
+        inOrder.verify(lengthEncodedWriter).flush();
+
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
     private static List<RuleCondition> createRule(String value) {
         Condition condition = new Condition(Operator.GT, value);
         return Collections.singletonList(RuleCondition.createNumerical(RuleConditionType.NUMERICAL_ACTUAL, null, null, condition));

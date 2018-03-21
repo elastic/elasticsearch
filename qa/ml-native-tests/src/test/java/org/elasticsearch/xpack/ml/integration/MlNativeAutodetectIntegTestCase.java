@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
@@ -433,6 +434,11 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
     protected PostCalendarEventsAction.Response postScheduledEvents(String calendarId, List<ScheduledEvent> events) {
         PostCalendarEventsAction.Request request = new PostCalendarEventsAction.Request(calendarId, events);
         return client().execute(PostCalendarEventsAction.INSTANCE, request).actionGet();
+    }
+
+    protected PersistJobAction.Response persistJob(String jobId) {
+        PersistJobAction.Request request = new PersistJobAction.Request(jobId);
+        return client().execute(PersistJobAction.INSTANCE, request).actionGet();
     }
 
     @Override

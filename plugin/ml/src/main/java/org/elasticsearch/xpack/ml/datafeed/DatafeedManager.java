@@ -166,7 +166,7 @@ public class DatafeedManager extends AbstractComponent {
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 Long next = null;
                 try {
                     next = holder.executeLoopBack(startTime, endTime);
@@ -224,7 +224,7 @@ public class DatafeedManager extends AbstractComponent {
                 }
 
                 @Override
-                protected void doRun() throws Exception {
+                protected void doRun() {
                     long nextDelayInMsSinceEpoch;
                     try {
                         nextDelayInMsSinceEpoch = holder.executeRealTime();

@@ -63,12 +63,12 @@
 
 [[glossary-filter]] filter ::
 
-  A filter is kind of query known as a "non-scoring" query. It does not give a score,
-  it is only concerned about answering the question - "Does this document match?". 
-  The answer is always a simple, binary yes|no. This kind of query is said to be made 
-  in a "filtering" context, hence it is called a filter. Filtering queries/Filters are 
-  simple checks for set inclusion/exclusion. The goal of filtering is to reduce the 
-  number of documents that have to be examined, as it is in the case of 
+  A filter is a query. It is a kind of query which does not give a score, so it is 
+  known as a "non-scoring" query.It is only concerned about answering the question - 
+  "Does this document match?". The answer is always a simple, binary yes or no. This kind of query is said to be made 
+  in a "filtering" context (e.g. Is the created date in the range 2013 - 2014?), hence it is called a filter. Filters are 
+  simple checks for set inclusion or exclusion. The goal of filtering is to reduce the 
+  number of documents that have to be examined, instead of what happens in the case of 
   <<glossary-query,scoring queries>>.
 
 [[glossary-index]] index ::
@@ -117,14 +117,15 @@
 
 [[glossary-query]] query ::
 
-  Query refers to all queries which not only determine if a document matches, 
-  but also calculate how well the document matches. This calculation is refered 
-  to as scoring, hence these queries are also known as "scoring queries". 
+  A query is the basic component of a search. A search can be defined by one or more queries 
+  which can be mixed and matched in endless combinations. The term Query refers to all queries 
+  which not only determine if a document matches, but also calculate how well the document matches. 
+  This calculation is refered to as scoring, hence these queries are also known as "scoring queries". 
   A scoring query calculates how relevant each document is to the query, and assigns 
-  it a relevance _score, which is later used to sort matching documents by relevance. 
+  it a relevance score, which is later used to sort matching documents by relevance. 
   This concept of relevance is well suited to full-text search, where there is seldom a 
-  completely “correct” answer. These queries are more heavier than 
-  <<glossary-filter,filters/non scoring queries>> and their query results are not cacheable. 
+  completely “correct” answer. These queries are takes more resources than 
+  <<glossary-filter,non scoring queries>> and their query results are not cacheable. 
   As a general rule, use query clauses for full-text search or for any condition that should 
   affect the relevance score, and use filters for everything else.
 

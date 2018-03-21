@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -2724,7 +2725,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testACopyFieldWithNestedQuery() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
                     .startObject("foo")
                         .field("type", "nested")
                         .startObject("properties")
@@ -2739,7 +2740,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .field("term_vector", "with_positions_offsets")
                         .field("store", true)
                     .endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
         client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject().startArray("foo")
@@ -2872,7 +2873,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testWithNestedQuery() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("text")
                 .field("type", "text")
                 .field("index_options", "offsets")
@@ -2886,7 +2887,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
             .endObject()
-            .endObject().endObject().endObject().string();
+            .endObject().endObject().endObject());
         prepareCreate("test").addMapping("type", mapping, XContentType.JSON).get();
 
         client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()

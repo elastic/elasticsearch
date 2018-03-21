@@ -55,6 +55,7 @@ import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -74,9 +75,11 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -138,7 +141,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
-        String mapper = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("int_field").field("type", "integer").endObject()
                 .startObject("long_field").field("type", "long").endObject()
@@ -147,13 +150,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("double_field").field("type", "double").endObject()
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
-                .endObject().endObject().endObject().string();
+                .endObject().endObject().endObject());
         documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
-        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
@@ -219,6 +222,16 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 clauses.add(new TermQuery(new Term(field, randomFrom(stringContent.get(field)))));
             }
             return new DisjunctionMaxQuery(clauses, 0.01f);
+        });
+        queryFunctions.add(() -> {
+            Float minScore = randomBoolean() ? null : (float) randomIntBetween(1, 1000);
+            Query innerQuery;
+            if (randomBoolean()) {
+                innerQuery = new TermQuery(new Term(field1, randomFrom(stringContent.get(field1))));
+            } else {
+                innerQuery = new PhraseQuery(field1, randomFrom(stringContent.get(field1)), randomFrom(stringContent.get(field1)));
+            }
+            return new FunctionScoreQuery(innerQuery, minScore, 1f);
         });
 
         List<ParseContext.Document> documents = new ArrayList<>();
@@ -677,6 +690,31 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(0, topDocs.scoreDocs[0].doc);
         assertEquals(1, topDocs.scoreDocs[1].doc);
         assertEquals(4, topDocs.scoreDocs[2].doc);
+    }
+
+    public void testFunctionScoreQuery() throws Exception {
+        List<ParseContext.Document> docs = new ArrayList<>();
+        addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), null, 1f), docs);
+        addQuery(new FunctionScoreQuery(new TermQuery(new Term("field", "value")), 10f, 1f), docs);
+        addQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), null, 1f), docs);
+        addQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), 10F, 1f), docs);
+
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        MemoryIndex memoryIndex = new MemoryIndex();
+        memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+        IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+        PercolateQuery query = (PercolateQuery) fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, Version.CURRENT);
+        TopDocs topDocs = shardSearcher.search(query, 10, new Sort(SortField.FIELD_DOC), true, true);
+        assertEquals(2L, topDocs.totalHits);
+        assertEquals(2, topDocs.scoreDocs.length);
+        assertEquals(0, topDocs.scoreDocs[0].doc);
+        assertEquals(2, topDocs.scoreDocs[1].doc);
     }
 
     public void testPercolateSmallAndLargeDocument() throws Exception {

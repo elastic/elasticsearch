@@ -103,7 +103,8 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
 
     private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes) {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
-        SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext, source == null ? null : source.bytes());
+        SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
+                source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         hitContext.reset(new SearchHit(1, null, null, null), null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();

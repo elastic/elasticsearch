@@ -53,6 +53,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreadsTests;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -727,7 +728,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
         ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
-        ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
+        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of ElasticsearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
@@ -813,7 +814,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
         ids.put(146, org.elasticsearch.tasks.TaskCancelledException.class);
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
-        ids.put(148, org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException.class);
+        ids.put(148, UnknownNamedObjectException.class);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();

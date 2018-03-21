@@ -40,8 +40,9 @@ public class EnableAssignmentDeciderTests extends PersistentTasksDecidersTestCas
         Settings settings = Settings.builder()
             .put(EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey(), allocation.toString())
             .build();
+        updateSettings(settings);
 
-        ClusterState clusterState = reassign(createClusterStateWithTasks(settings, nbNodes, nbTasks));
+        ClusterState clusterState = reassign(createClusterStateWithTasks(nbNodes, nbTasks));
         if (allocation == EnableAssignmentDecider.Allocation.ALL) {
             assertNbAssignedTasks(nbTasks, clusterState);
         } else {

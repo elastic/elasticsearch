@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -87,7 +88,14 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
         return persistentTasksClusterService.reassignTasks(clusterState);
     }
 
-    protected static ClusterState createClusterStateWithTasks(final Settings settings, final int nbNodes, final int nbTasks) {
+    protected void updateSettings(final Settings settings) {
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        Settings.Builder updated = Settings.builder();
+        clusterSettings.updateDynamicSettings(settings, updated, Settings.builder(), getTestClass().getName());
+        clusterSettings.applySettings(updated.build());
+    }
+
+    protected static ClusterState createClusterStateWithTasks(final int nbNodes, final int nbTasks) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < nbNodes; i++) {
             nodes.add(new DiscoveryNode("_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
@@ -100,7 +108,6 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
 
         MetaData metaData = MetaData.builder()
             .putCustom(PersistentTasksCustomMetaData.TYPE, tasks.build())
-            .persistentSettings(settings)
             .build();
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metaData(metaData).build();

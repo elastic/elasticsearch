@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
@@ -42,8 +43,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -70,10 +69,10 @@ import java.util.function.Function;
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
  * <ul>
- *     <li>{@link SimilarityProvider} - New {@link SimilarityProvider} implementations can be registered through
- *     {@link #addSimilarity(String, SimilarityProvider.Factory)} while existing Providers can be referenced through Settings under the
+ *     <li>{@link Similarity} - New {@link Similarity} implementations can be registered through
+ *     {@link #addSimilarity(String, TriFunction)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
- *     {@link BM25SimilarityProvider}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
+ *     {@link BM25Similarity}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, Function)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>
@@ -248,7 +247,12 @@ public final class IndexModule {
 
 
     /**
-     * Registers the given {@link SimilarityProvider} with the given name
+     * Registers the given {@link Similarity} with the given name.
+     * The function takes as parameters:<ul>
+     *   <li>settings for this similarity
+     *   <li>version of Elasticsearch when the index was created
+     *   <li>ScriptService, for script-based similarities
+     * </ul>
      *
      * @param name Name of the SimilarityProvider
      * @param similarity SimilarityProvider to register

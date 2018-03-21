@@ -75,8 +75,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, Client client, TransportService transportService,
             ScriptService scriptService, NamedXContentRegistry namedXContentRegistry) {
-        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                RankEvalRequest::new);
+        super(settings, RankEvalAction.NAME, threadPool, transportService, actionFilters, RankEvalRequest::new,
+                indexNameExpressionResolver);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

@@ -1,5 +1,10 @@
 ---
 "Index synced flush rest test":
+    - skip:
+        # The BWC logic for released 6.0 and 6.1 versions is wrong
+        version: "all"
+        reason:  "AwaitsFix'ing, see elasticsearch #29162"
+
     - do:
        indices.create:
           index: testing

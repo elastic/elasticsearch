@@ -198,7 +198,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
     static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
         builder.startObject();
         builder.field(Fields.DESCRIPTION, tree.toString());
-        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
+        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));
         Collection<Accountable> children = tree.getChildResources();
         if (children.isEmpty() == false) {
             builder.startArray(Fields.CHILDREN);

@@ -50,11 +50,6 @@ PUT /twitter-1,twitter-2/_mapping/_doc <1>
 <1> Note that the indices specified (`twitter-1,twitter-2`) follows <<multi-index,multiple index names>> and wildcard format.
 
 
-NOTE: When updating the `_default_` mapping with the
-<<indices-put-mapping,PUT mapping>> API, the new mapping is not merged with
-the existing mapping.  Instead, the new `_default_` mapping replaces the
-existing one.
-
 [[updating-field-mappings]]
 [float]
 === Updating field mappings

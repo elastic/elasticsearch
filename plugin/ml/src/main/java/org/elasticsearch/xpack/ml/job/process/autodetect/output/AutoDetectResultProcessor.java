@@ -241,22 +241,7 @@ public class AutoDetectResultProcessor {
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {
-            LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
-                    context.jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
-                    modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
-                    modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
-
-            latestModelSizeStats = modelSizeStats;
-            haveNewLatestModelSizeStats = true;
-            persister.persistModelSizeStats(modelSizeStats);
-            // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
-            // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
-            // we'll NEVER consider memory usage to be established during this period
-            if (restoredSnapshot || bucketCount >= JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
-                // We need to make all results written up to and including these stats available for the established memory calculation
-                persister.commitResultWrites(context.jobId);
-                updateEstablishedModelMemoryOnJob(modelSizeStats.getTimestamp(), modelSizeStats);
-            }
+            processModelSizeStats(context, modelSizeStats);
         }
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
@@ -290,6 +275,25 @@ public class AutoDetectResultProcessor {
             // which need to be
             // deleted when the next finalized results come through
             context.deleteInterimRequired = true;
+        }
+    }
+
+    private void processModelSizeStats(Context context, ModelSizeStats modelSizeStats) {
+        LOGGER.trace("[{}] Parsed ModelSizeStats: {} / {} / {} / {} / {} / {}",
+                context.jobId, modelSizeStats.getModelBytes(), modelSizeStats.getTotalByFieldCount(),
+                modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
+                modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
+
+        latestModelSizeStats = modelSizeStats;
+        haveNewLatestModelSizeStats = true;
+        persister.persistModelSizeStats(modelSizeStats);
+        // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
+        // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
+        // we'll NEVER consider memory usage to be established during this period
+        if (restoredSnapshot || bucketCount >= JobProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
+            // We need to make all results written up to and including these stats available for the established memory calculation
+            persister.commitResultWrites(context.jobId);
+            updateEstablishedModelMemoryOnJob(modelSizeStats.getTimestamp(), modelSizeStats);
         }
     }
 

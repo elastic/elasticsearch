@@ -4316,16 +4316,16 @@ public class InternalEngineTests extends EngineTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
         indexSettings.updateIndexMetaData(indexMetaData);
         engine.onSettingsChanged();
-        final int numOps = scaledRandomIntBetween(100, 10_000);
+        final int numOps = 10_000; //scaledRandomIntBetween(100, 10_000);
         for (int i = 0; i < numOps; i++) {
             final long localCheckPoint = engine.getLocalCheckpointTracker().getCheckpoint();
             final long seqno = randomLongBetween(Math.max(0, localCheckPoint), localCheckPoint + 5);
             final ParsedDocument doc = testParsedDocument(Long.toString(seqno), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
-            if (rarely() || engine.getTranslog().shouldRollGeneration()) {
+            if (rarely() && engine.getTranslog().shouldRollGeneration()) {
                 engine.rollTranslogGeneration();
             }
-            if (engine.shouldPeriodicallyFlush()) {
+            if (rarely() || engine.shouldPeriodicallyFlush()) {
                 engine.flush();
                 assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
             }

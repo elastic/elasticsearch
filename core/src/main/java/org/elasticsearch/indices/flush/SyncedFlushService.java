@@ -34,8 +34,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -67,7 +65,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -219,16 +216,9 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
                             if (inflight != 0) {
                                 actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
                             } else {
-                                // 3. now send the sync request to all the shards;
-                                final String sharedSyncId = sharedExistingSyncId(presyncResponses);
-                                if (sharedSyncId != null) {
-                                    assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId)) :
-                                        "Not all shards have the same existing sync id [" + sharedSyncId + "], responses [" + presyncResponses + "]";
-                                    reportSuccessWithExistingSyncId(shardId, sharedSyncId, activeShards, totalShards, presyncResponses, actionListener);
-                                }else {
-                                    String syncId = UUIDs.base64UUID();
-                                    sendSyncRequests(syncId, activeShards, state, presyncResponses, shardId, totalShards, actionListener);
-                                }
+                                // 3. now send the sync request to all the shards
+                                String syncId = UUIDs.base64UUID();
+                                sendSyncRequests(syncId, activeShards, state, presyncResponses, shardId, totalShards, actionListener);
                             }
                         }
 
@@ -252,33 +242,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         } catch (Exception e) {
             actionListener.onFailure(e);
         }
-    }
-
-    private String sharedExistingSyncId(Map<String, PreSyncedFlushResponse> preSyncedFlushResponses) {
-        String existingSyncId = null;
-        for (PreSyncedFlushResponse resp : preSyncedFlushResponses.values()) {
-            if (Strings.isNullOrEmpty(resp.existingSyncId)) {
-                return null;
-            }
-            if (existingSyncId == null) {
-                existingSyncId = resp.existingSyncId;
-            }
-            if (existingSyncId.equals(resp.existingSyncId) == false) {
-                return null;
-            }
-        }
-        return existingSyncId;
-    }
-
-    private void reportSuccessWithExistingSyncId(ShardId shardId, String existingSyncId, List<ShardRouting> shards, int totalShards,
-                                                 Map<String, PreSyncedFlushResponse> preSyncResponses, ActionListener<ShardsSyncedFlushResult> listener) {
-        final Map<ShardRouting, ShardSyncedFlushResponse> results = new HashMap<>();
-        for (final ShardRouting shard : shards) {
-            if (preSyncResponses.containsKey(shard.currentNodeId())) {
-                results.put(shard, new ShardSyncedFlushResponse());
-            }
-        }
-        listener.onResponse(new ShardsSyncedFlushResult(shardId, existingSyncId, totalShards, results));
     }
 
     final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
@@ -475,7 +438,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         final CommitStats commitStats = indexShard.commitStats();
         final Engine.CommitId commitId = commitStats.getRawCommitId();
         logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
-        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs(), commitStats.syncId());
+        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs());
     }
 
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {
@@ -549,36 +512,24 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
         Engine.CommitId commitId;
         int numDocs;
-        @Nullable String existingSyncId = null;
 
         PreSyncedFlushResponse() {
+
         }
 
-        PreSyncedFlushResponse(Engine.CommitId commitId, int numDocs, String existingSyncId) {
+        PreSyncedFlushResponse(Engine.CommitId commitId, int numDocs) {
             this.commitId = commitId;
             this.numDocs = numDocs;
-            this.existingSyncId = existingSyncId;
-        }
-
-        boolean includeNumDocs(Version version) {
-            return version.onOrAfter(Version.V_5_6_8);
-        }
-
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_5_6_9_UNRELEASED);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
-            if (includeNumDocs(in.getVersion())) {
+            if (in.getVersion().onOrAfter(Version.V_5_6_8)) {
                 numDocs = in.readInt();
             } else {
                 numDocs = UNKNOWN_NUM_DOCS;
-            }
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
             }
         }
 
@@ -586,11 +537,8 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
-            if (includeNumDocs(out.getVersion())) {
+            if (out.getVersion().onOrAfter(Version.V_5_6_8)) {
                 out.writeInt(numDocs);
-            }
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
             }
         }
     }

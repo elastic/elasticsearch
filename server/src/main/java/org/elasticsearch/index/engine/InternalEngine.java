@@ -1390,9 +1390,14 @@ public class InternalEngine extends Engine {
             return false;
         }
         /*
-         * We should only flush ony if the shouldFlush condition can become false after flushing. This condition will change if:
-         * 1. The new commit points to the later generation the last commit's.
-         * 2. The local checkpoint equals to max_seqno. This makes the new commit point to the newly rolled translog generation.
+         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be below than
+         * the threshold after a flush. To avoid getting into an endless flushing loop, we only enable the periodically flush condition
+         * if this condition is disabled after a flush. The condition will change if:
+         * 1. The new commit points to the later generation the last commit's
+         * 2. If the local checkpoint equals to max_seqno and translogGenerationOfLastCommit equals to translogGenerationOfNewCommit,
+         * we know that the last generation must contain operations because its size is above the flush threshold and
+         * the flush threshold is guaranteed to be higher than an empty translog by the setting validation.
+         *
          * This method is to maintain translog only, thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */
         final long translogGenerationOfNewCommit =

@@ -161,7 +161,6 @@ setup() {
 
     # The service files are still here
     assert_file_exist "/etc/init.d/elasticsearch"
-    assert_file_exist "/usr/lib/systemd/system/elasticsearch.service"
 }
 
 @test "[DEB] purge package" {

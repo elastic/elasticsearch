@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -203,11 +204,13 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testUpdateDefaultMappingSettings() throws Exception {
         logger.info("Creating index with _default_ mappings");
-        client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
-                JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
+        client().admin().indices().prepareCreate("test")
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build())
+                .addMapping(MapperService.DEFAULT_MAPPING,
+                        JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
                         .field("date_detection", false)
                         .endObject().endObject()
-        ).get();
+                        ).get();
 
         GetMappingsResponse getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         Map<String, Object> defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();

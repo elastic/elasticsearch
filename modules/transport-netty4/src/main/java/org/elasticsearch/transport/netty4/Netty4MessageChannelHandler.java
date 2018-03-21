@@ -51,7 +51,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         if (msg instanceof ByteBuf && transportServiceAdapter != null) {
             // record the number of bytes send on the channel
-            promise.addListener(f -> transportServiceAdapter.addBytesSent(((ByteBuf) msg).readableBytes()));
+            final int bytesSent = ((ByteBuf) msg).readableBytes();
+            promise.addListener(f -> transportServiceAdapter.addBytesSent(bytesSent));
         }
         ctx.write(msg, promise);
     }

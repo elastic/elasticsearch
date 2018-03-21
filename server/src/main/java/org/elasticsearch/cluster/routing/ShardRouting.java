@@ -19,22 +19,29 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -615,26 +622,124 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("state", state())
-            .field("primary", primary())
-            .field("node", currentNodeId())
-            .field("relocating_node", relocatingNodeId())
-            .field("shard", id())
-            .field("index", getIndexName());
+            .field(Fields.STATE, state())
+            .field(Fields.PRIMARY, primary())
+            .field(Fields.NODE, currentNodeId())
+            .field(Fields.RELOCATING_NODE, relocatingNodeId())
+            .field(Fields.SHARD, id())
+            .field(Fields.INDEX, getIndexName());
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            builder.field("expected_shard_size_in_bytes", expectedShardSize);
+            builder.field(Fields.EXPECTED_SHARD_SIZE_IN_BYTES, expectedShardSize);
         }
         if (recoverySource != null) {
-            builder.field("recovery_source", recoverySource);
+            builder.field(Fields.RECOVERY_SOURCE, recoverySource);
         }
         if (allocationId != null) {
-            builder.field("allocation_id");
+            builder.field(Fields.ALLOCATION_ID);
             allocationId.toXContent(builder, params);
         }
         if (unassignedInfo != null) {
             unassignedInfo.toXContent(builder, params);
         }
         return builder.endObject();
+    }
+
+
+    public static ShardRouting fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentLocation startingLocation = parser.getTokenLocation();
+        ShardRoutingState state = null;
+        Boolean isPrimary = null;
+        String nodeId = null;
+        String relocatingNodeid = null;
+        Integer shardId = null;
+        String indexName = null;
+        long expectedShardSizeInBytes = -1;
+        RecoverySource recoverySource = null;
+        AllocationId allocationId = null;
+        UnassignedInfo unassignedInfo = null;
+        for (Token t = parser.nextToken(); t != Token.END_OBJECT; t = parser.nextToken()) {
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            String fieldName = parser.currentName();
+            Token currentToken = parser.nextToken(); // Move to value of the field
+            switch (fieldName) {
+                case Fields.STATE:
+                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    state = ShardRoutingState.valueOf(parser.text());
+                    break;
+                case Fields.PRIMARY:
+                    ensureExpectedToken(currentToken, Token.VALUE_BOOLEAN, parser::getTokenLocation);
+                    isPrimary = parser.booleanValue();
+                    break;
+                case Fields.NODE:
+                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    nodeId = parser.text();
+                    break;
+                case Fields.RELOCATING_NODE:
+                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    relocatingNodeid = parser.text();
+                    break;
+                case Fields.SHARD:
+                    ensureExpectedToken(currentToken, Token.VALUE_NUMBER, parser::getTokenLocation);
+                    shardId = parser.intValue();
+                    break;
+                case Fields.INDEX:
+                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    indexName = parser.text();
+                    break;
+                case Fields.EXPECTED_SHARD_SIZE_IN_BYTES:
+                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    expectedShardSizeInBytes = parser.longValue();
+                    break;
+                case Fields.RECOVERY_SOURCE:
+                    recoverySource = RecoverySource.fromXContent(parser);
+                    break;
+                case Fields.ALLOCATION_ID:
+                    allocationId = AllocationId.fromXContent(parser);
+                    break;
+                case Fields.UNASSIGNED_INFO:
+                    unassignedInfo = UnassignedInfo.fromXContent(parser);
+                    break;
+                default:
+                    parser.skipChildren(); // Else skip the whole tree
+                    break;
+
+            }
+        }
+        if (state != null &&
+            isPrimary != null &&
+            nodeId != null &&
+            relocatingNodeid != null &&
+            shardId != null &&
+            indexName != null) {
+            return
+                new ShardRouting(
+                    new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId),
+                    nodeId,
+                    relocatingNodeid,
+                    isPrimary,
+                    state,
+                    recoverySource,
+                    unassignedInfo,
+                    allocationId,
+                    expectedShardSizeInBytes
+                );
+        } else {
+            throw new ParsingException(startingLocation, "Unable to construct ShardRouting information from JSON");
+        }
+    }
+
+    static final class Fields {
+        static final String STATE = "state";
+        static final String PRIMARY = "primary";
+        static final String NODE = "node";
+        static final String RELOCATING_NODE = "relocating_node";
+        static final String SHARD = "shard";
+        static final String INDEX = "index";
+        static final String EXPECTED_SHARD_SIZE_IN_BYTES = "expected_shard_size_in_bytes";
+        static final String RECOVERY_SOURCE = "recovery_source";
+        static final String ALLOCATION_ID = "allocation_id";
+        static final String UNASSIGNED_INFO = "unassigned_info";
     }
 
     /**

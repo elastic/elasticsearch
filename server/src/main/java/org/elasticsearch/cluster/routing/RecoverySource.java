@@ -20,16 +20,23 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
 import java.util.Objects;
+import org.elasticsearch.snapshots.SnapshotId;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Represents the recovery source of a shard. Available recovery types are:
@@ -47,6 +54,88 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         builder.field("type", getType());
         addAdditionalFields(builder, params);
         return builder.endObject();
+    }
+
+    public static RecoverySource fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentLocation startingPosition = parser.getTokenLocation();
+        Type type = null;
+        RecoverySource recoverySource = null;
+        // The following fields should ideally be handled by the child classes but the structure of the
+        // JSON prohibits this for now.
+        Version version = null;
+        String index = null;
+        String snapshotRepository = null;
+        SnapshotId snapshotId = null;
+        for (Token t = parser.nextToken(); t != Token.END_OBJECT; t = parser.nextToken()) {
+            ensureExpectedToken(Token.FIELD_NAME, t, parser::getTokenLocation);
+            String fieldName = parser.currentName();
+            t = parser.nextToken();
+            if (t.isValue()) {
+                switch (fieldName) {
+                    case "type":
+                        String typeString = parser.text();
+                        type = Type.valueOf(parser.text());
+                        switch (type) {
+                            case EMPTY_STORE:
+                                recoverySource = StoreRecoverySource.EMPTY_STORE_INSTANCE;
+                                break;
+                            case EXISTING_STORE:
+                                recoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
+                                break;
+                            case PEER:
+                                recoverySource = PeerRecoverySource.INSTANCE;
+                                break;
+                            case SNAPSHOT:
+                                // We don't do anything. Will construct it from other stuff later
+                                break;
+                            case LOCAL_SHARDS:
+                                recoverySource = LocalShardsRecoverySource.INSTANCE;
+                                break;
+                            default: throw new ParsingException(parser.getTokenLocation(),
+                                "unknown recovery type: " + typeString);
+                        }
+                        break;
+                    case "repository":
+                        snapshotRepository = parser.text();
+                        break;
+                    case "snapshot":
+                        String snapshotName = parser.text();
+                        /**
+                         * We use the name for Id and Name using the old format here since xContent has
+                         * old format. See {@link org.elasticsearch.snapshots.SnapshotId#fromXContent}
+                         */
+                        snapshotId = new SnapshotId(snapshotName, snapshotName);
+                        break;
+                    case "version":
+                        version = Version.fromString(parser.text());
+                        break;
+                    case "index":
+                        index = parser.text();
+                        break;
+                    default:
+                }
+            } else { // Else skip the tree
+                parser.skipChildren();
+            }
+        }
+        // We only check if necessary information is present. Extra stuff is ignored.
+        if (type != null) {
+            if (recoverySource != null) {
+                return recoverySource;
+            } else if (
+                type == Type.SNAPSHOT &&
+                version != null &&
+                index != null &&
+                snapshotRepository != null &&
+                snapshotId != null) {
+                return new SnapshotRecoverySource(new Snapshot(snapshotRepository, snapshotId), version, index);
+            } else {
+                throw new ParsingException(startingPosition, "Unable to recover RecoverySource from JSON");
+            }
+        } else {
+            throw new ParsingException(startingPosition, "Unable to find type for RecoverySource from JSON");
+        }
     }
 
     /**

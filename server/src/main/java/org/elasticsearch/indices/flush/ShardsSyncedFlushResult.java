@@ -41,8 +41,11 @@ public class ShardsSyncedFlushResult implements Streamable {
     private ShardId shardId;
     // some shards may be unassigned, so we need this as state
     private int totalShards;
+    // we will use lazy initialization for this if not getting from XContent
+    private int successfulShards;
 
     private ShardsSyncedFlushResult() {
+        this.successfulShards = -1;
     }
 
     public ShardId getShardId() {
@@ -58,6 +61,7 @@ public class ShardsSyncedFlushResult implements Streamable {
         this.shardResponses = emptyMap();
         this.shardId = shardId;
         this.totalShards = totalShards;
+        this.successfulShards = -1;
     }
 
     /**
@@ -69,6 +73,32 @@ public class ShardsSyncedFlushResult implements Streamable {
         this.syncId = syncId;
         this.totalShards = totalShards;
         this.shardId = shardId;
+        this.successfulShards = -1;
+    }
+
+    /**
+     * XContent constructor: Partial failure
+     */
+    public ShardsSyncedFlushResult(ShardId shardId, int totalShards, int successfulShards, String failureReason) {
+        this.syncId = null;
+        this.failureReason = failureReason;
+        this.shardResponses = emptyMap();
+        this.shardId = shardId;
+        this.totalShards = totalShards;
+        this.successfulShards = successfulShards;
+    }
+
+    /**
+     * XContent constructor: Partial failure with shardResponses
+     */
+    public ShardsSyncedFlushResult(ShardId shardId, String syncId, int totalShards, int successfulShards,
+        Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses) {
+        this.failureReason = null;
+        this.shardResponses = unmodifiableMap(new HashMap<>(shardResponses));
+        this.syncId = syncId;
+        this.totalShards = totalShards;
+        this.shardId = shardId;
+        this.successfulShards = successfulShards;
     }
 
     /**
@@ -101,13 +131,16 @@ public class ShardsSyncedFlushResult implements Streamable {
      * @return total number of successful shards
      */
     public int successfulShards() {
-        int i = 0;
-        for (SyncedFlushService.ShardSyncedFlushResponse result : shardResponses.values()) {
-            if (result.success()) {
-                i++;
+        if (this.successfulShards < 0) {
+            int i = 0;
+            for (SyncedFlushService.ShardSyncedFlushResponse result : shardResponses.values()) {
+                if (result.success()) {
+                    i++;
+                }
             }
+            this.successfulShards = i;
         }
-        return i;
+        return this.successfulShards;
     }
 
     /**

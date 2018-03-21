@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -230,6 +231,14 @@ public final class Request {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request syncedFlush(SyncedFlushRequest syncedFlushRequest) {
+        String endpoint = endpoint(syncedFlushRequest.indices(), "_flush", "synced");
+        Params parameters = Params.builder();
+        // This request takes no other parameters other than the indices.
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 

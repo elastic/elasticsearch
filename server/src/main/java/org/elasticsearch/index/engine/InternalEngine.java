@@ -276,10 +276,11 @@ public class InternalEngine extends Engine {
             // steal it by calling incRef on the "stolen" reader
             internalSearcherManager.maybeRefreshBlocking();
             IndexSearcher acquire = internalSearcherManager.acquire();
-            final IndexReader previousReader = referenceToRefresh.getIndexReader();
-            assert previousReader instanceof ElasticsearchDirectoryReader:
-                "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
             try {
+                final IndexReader previousReader = referenceToRefresh.getIndexReader();
+                assert previousReader instanceof ElasticsearchDirectoryReader:
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+
                 final IndexReader newReader = acquire.getIndexReader();
                 if (newReader == previousReader) {
                     // nothing has changed - both ref managers share the same instance so we can use reference equality

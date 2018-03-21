@@ -61,6 +61,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -342,32 +343,29 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = shard.getEngine().getTranslog();
-        assertEquals(2, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
+        assertEquals(2, TestTranslog.uncommittedOperations(translog));
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        assertEquals(0, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
+        assertEquals(0, TestTranslog.uncommittedOperations(translog));
         translog.sync();
-        long size = Math.max(translog.sizeInBytesByMinGen(translog.uncommittedGeneration()), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
+        long size = Math.max(TestTranslog.uncommittedSizeInBytes(translog), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
         logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
-            translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
-            translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
+            TestTranslog.uncommittedSizeInBytes(translog), TestTranslog.uncommittedOperations(translog), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
-            translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
-            translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
+            TestTranslog.uncommittedSizeInBytes(translog), TestTranslog.uncommittedOperations(translog), translog.getGeneration());
         assertBusy(() -> { // this is async
             logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
-                translog.sizeInBytesByMinGen(translog.uncommittedGeneration()),
-                translog.totalOperationsByMinGen(translog.uncommittedGeneration()), translog.getGeneration());
+                TestTranslog.uncommittedSizeInBytes(translog), TestTranslog.uncommittedOperations(translog), translog.getGeneration());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        assertEquals(0, translog.totalOperationsByMinGen(translog.uncommittedGeneration()));
+        assertEquals(0, TestTranslog.uncommittedOperations(translog));
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {

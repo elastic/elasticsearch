@@ -122,4 +122,18 @@ public class TestTranslog {
             return Long.parseLong(recoveringCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
         }
     }
+
+    /**
+     * Returns the number of operations in the translog files since the last commit.
+     */
+    public static int uncommittedOperations(Translog translog) {
+        return translog.totalOperationsByMinGen(translog.getDeletionPolicy().getTranslogGenerationOfLastCommit());
+    }
+
+    /**
+     * Returns the size in bytes of the translog files since the last commit.
+     */
+    public static long uncommittedSizeInBytes(Translog translog) {
+        return translog.sizeInBytesByMinGen(translog.getDeletionPolicy().getTranslogGenerationOfLastCommit());
+    }
 }

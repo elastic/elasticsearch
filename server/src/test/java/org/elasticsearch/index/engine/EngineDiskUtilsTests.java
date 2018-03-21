@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -156,7 +157,7 @@ public class EngineDiskUtilsTests extends EngineTestCase {
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     engine.recoverFromTranslog();
                     assertEquals(2, engine.getTranslog().currentFileGeneration());
-                    assertEquals(0L, engine.getTranslog().totalOperationsByMinGen(engine.getTranslog().uncommittedGeneration()));
+                    assertEquals(0L, TestTranslog.uncommittedOperations(engine.getTranslog()));
                 }
             }
 

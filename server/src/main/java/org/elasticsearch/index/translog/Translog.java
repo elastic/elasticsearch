@@ -356,14 +356,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
-    /**
-     * Returns the translog generation of the last index commit.
-     */
-    public long uncommittedGeneration() {
-        return deletionPolicy.getTranslogGenerationOfLastCommit();
-    }
-
     /**
      * Returns the number of operations in the translog files
      */
@@ -741,7 +733,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            final long uncommittedGen = uncommittedGeneration();
+            final long uncommittedGen = deletionPolicy.getTranslogGenerationOfLastCommit();
             return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen), sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
         }
     }

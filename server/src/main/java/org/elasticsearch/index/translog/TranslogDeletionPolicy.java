@@ -211,7 +211,6 @@ public class TranslogDeletionPolicy {
 
     /**
      * Returns a translog generation that will be used to calculate the number of uncommitted operations since the last index commit.
-     * See {@link Translog#uncommittedGeneration()})
      */
     public synchronized long getTranslogGenerationOfLastCommit() {
         return translogGenerationOfLastCommit;

@@ -94,6 +94,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(100, ByteSizeUnit.MB);
 
+    public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
+
     static {
         PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
         PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
@@ -688,7 +690,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
-        private Long modelSnapshotRetentionDays = 1L;
+        private Long modelSnapshotRetentionDays = DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS;
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;

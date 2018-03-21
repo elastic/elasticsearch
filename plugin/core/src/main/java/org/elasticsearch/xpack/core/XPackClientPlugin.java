@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
+import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -207,6 +208,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // ML
                 GetJobsAction.INSTANCE,
                 GetJobsStatsAction.INSTANCE,
+                MlInfoAction.INSTANCE,
                 PutJobAction.INSTANCE,
                 UpdateJobAction.INSTANCE,
                 DeleteJobAction.INSTANCE,

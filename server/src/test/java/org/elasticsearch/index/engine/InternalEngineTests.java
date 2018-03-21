@@ -4130,13 +4130,16 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testShouldPeriodicallyFlush() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
+        // A new engine may have more than one empty translog files - the test should account this extra.
+        final long extraTranslogSizeInNewEngine = engine.getTranslog().uncommittedSizeInBytes() - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
             engine.index(indexForDoc(doc));
         }
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
-        long flushThreshold = RandomNumbers.randomLongBetween(random(), 100, engine.getTranslog().uncommittedSizeInBytes());
+        long flushThreshold = RandomNumbers.randomLongBetween(random(), 100,
+            engine.getTranslog().uncommittedSizeInBytes() - extraTranslogSizeInNewEngine);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder().put(indexSettings.getSettings())

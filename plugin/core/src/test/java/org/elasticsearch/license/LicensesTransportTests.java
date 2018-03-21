@@ -122,6 +122,21 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
         assertThat(getLicenseResponse.license(), not(tamperedLicense));
     }
 
+    public void testPutBasicLicenseIsInvalid() throws Exception {
+        License signedLicense = generateSignedLicense("basic", License.VERSION_CURRENT, -1, TimeValue.timeValueMinutes(2));
+
+        PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);
+        builder.setLicense(signedLicense);
+
+        // try to put license (should be invalid)
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, builder::get);
+        assertEquals(iae.getMessage(), "Registering basic licenses is not allowed.");
+
+        // try to get invalid license
+        GetLicenseResponse getLicenseResponse = new GetLicenseRequestBuilder(client().admin().cluster(), GetLicenseAction.INSTANCE).get();
+        assertThat(getLicenseResponse.license(), not(signedLicense));
+    }
+
     public void testPutExpiredLicense() throws Exception {
         License expiredLicense = generateExpiredNonBasicLicense();
         PutLicenseRequestBuilder builder = new PutLicenseRequestBuilder(client().admin().cluster(), PutLicenseAction.INSTANCE);

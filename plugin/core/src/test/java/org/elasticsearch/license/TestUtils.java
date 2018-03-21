@@ -243,13 +243,17 @@ public class TestUtils {
         return generateSignedLicense(type, randomIntBetween(License.VERSION_START, License.VERSION_CURRENT), issueDate, expiryDuration);
     }
 
+    /**
+     * This method which chooses the license type randomly if the type is null. However, it will not randomly
+     * choose trial or basic types as those types can only be self-generated.
+     */
     public static License generateSignedLicense(String type, int version, long issueDate, TimeValue expiryDuration) throws Exception {
         long issue = (issueDate != -1L) ? issueDate : System.currentTimeMillis() - TimeValue.timeValueHours(2).getMillis();
         final String licenseType;
         if (version < License.VERSION_NO_FEATURE_TYPE) {
             licenseType = randomFrom("subscription", "internal", "development");
         } else {
-            licenseType = (type != null) ? type : randomFrom( "silver", "dev", "gold", "platinum");
+            licenseType = (type != null) ? type : randomFrom("silver", "dev", "gold", "platinum");
         }
         final License.Builder builder = License.builder()
                 .uid(UUID.randomUUID().toString())

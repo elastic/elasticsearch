@@ -124,10 +124,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
-        String general = LoggerMessageFormat.format(null, "\n" +
-                "#\n" +
-                "# License [{}] on [{}]. If you have a new license, please update it.\n" +
-                "# Otherwise, please reach out to your support contact.\n" +
+        String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
+                "# If you have a new license, please update it. Otherwise, please reach out to\n" +
+                "# your support contact.\n" +
                 "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);

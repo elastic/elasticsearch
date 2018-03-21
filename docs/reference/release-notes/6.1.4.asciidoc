@@ -1,0 +1,31 @@
+[[release-notes-6.1.4]]
+== 6.1.4 Release Notes
+
+Also see <<breaking-changes-6.1>>.
+
+[[enhancement-6.1.4]]
+[float]
+=== Enhancements
+
+Core::
+* Fix classes that can exit {pull}27518[#27518]
+
+[[bug-6.1.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* StringTerms.Bucket.getKeyAsNumber detection type {pull}28118[#28118] (issue: {issue}28012[#28012])
+
+Core::
+* Remove special handling for _all in nodes info {pull}28971[#28971] (issue: {issue}28797[#28797])
+
+Engine::
+* Avoid class cast exception from index writer {pull}28989[#28989]
+* Maybe die before failing engine {pull}28973[#28973] (issues: {issue}27265[#27265], {issue}28967[#28967])
+
+Scripting::
+* Painless: Fix For Loop NullPointerException {pull}28506[#28506] (issue: {issue}28501[#28501])
+
+
+

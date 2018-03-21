@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -123,7 +122,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         } else {
             final String id = in.readString();
             final BytesReference config = in.readBytesReference();
-            return new PipelineConfiguration(id, config, XContentFactory.xContentType(config));
+            return new PipelineConfiguration(id, config, XContentHelper.xContentType(config));
         }
     }
 

@@ -41,7 +41,6 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
     public RestClearIndicesCacheAction(Settings settings, RestController controller) {
@@ -69,7 +68,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
@@ -104,5 +103,4 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         public static final ParseField FIELDDATA = new ParseField("fielddata", "field_data");
         public static final ParseField FIELDS = new ParseField("fields");
     }
-
 }

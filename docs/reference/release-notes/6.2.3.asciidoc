@@ -1,0 +1,48 @@
+[[release-notes-6.2.3]]
+== 6.2.3 Release Notes
+
+Also see <<breaking-changes-6.2>>.
+
+[[enhancement-6.2.3]]
+[float]
+=== Enhancements
+
+Highlighting::
+* Limit analyzed text for highlighting (improvements) {pull}28808[#28808] (issues: {issue}16764[#16764], {issue}27934[#27934])
+
+Recovery::
+* Require translogUUID when reading global checkpoint {pull}28587[#28587] (issue: {issue}28435[#28435])
+
+[[bug-6.2.3]]
+[float]
+=== Bug fixes
+
+Core::
+* Remove special handling for _all in nodes info {pull}28971[#28971] (issue: {issue}28797[#28797])
+
+Engine::
+* Avoid class cast exception from index writer {pull}28989[#28989]
+* Maybe die before failing engine {pull}28973[#28973] (issues: {issue}27265[#27265], {issue}28967[#28967])
+* Never block on key in `LiveVersionMap#pruneTombstones` {pull}28736[#28736] (issue: {issue}28714[#28714])
+
+Ingest::
+* Continue registering pipelines after one pipeline parse failure. {pull}28752[#28752] (issue: {issue}28269[#28269])
+
+Java High Level REST Client::
+* REST high-level client: encode path parts {pull}28663[#28663] (issue: {issue}28625[#28625])
+
+Packaging::
+* Delay path expansion on Windows {pull}28753[#28753] (issues: {issue}27675[#27675], {issue}28748[#28748])
+
+Percolator::
+* Fix percolator query analysis for function_score query {pull}28854[#28854]
+* Improved percolator's random candidate query duel test {pull}28840[#28840]
+
+Snapshot/Restore::
+* Fix NPE when using deprecated Azure settings {pull}28769[#28769] (issues: {issue}23518[#23518], {issue}28299[#28299])
+
+Stats::
+* Fix AdaptiveSelectionStats serialization bug {pull}28718[#28718] (issue: {issue}28713[#28713])
+
+
+

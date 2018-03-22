@@ -430,6 +430,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
+            if (oldClusterVersion.major == 5 && randomBoolean()) {
+                {
+                    // test that mapping.single_type is correctly propagated on the shrinked index,
+                    // if not, search will fail.
+                    mappingsAndSettings.startObject("settings");
+                    mappingsAndSettings.startObject("mapping");
+                    mappingsAndSettings.field("single_type", true);
+                    mappingsAndSettings.endObject();
+                    mappingsAndSettings.endObject();
+                }
+            }
             {
                 mappingsAndSettings.startObject("mappings");
                 mappingsAndSettings.startObject("doc");

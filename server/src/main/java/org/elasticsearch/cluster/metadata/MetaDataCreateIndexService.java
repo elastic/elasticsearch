@@ -695,9 +695,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.") || s.equals("index.mapping.single_type");
         indexSettingsBuilder
-            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
+            // now copy all similarity / analysis / sort / single_type settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())

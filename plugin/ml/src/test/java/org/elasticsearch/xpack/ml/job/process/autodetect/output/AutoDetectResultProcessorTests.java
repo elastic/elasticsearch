@@ -11,11 +11,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 import org.mockito.InOrder;
 
@@ -62,6 +66,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     private static final String JOB_ID = "_id";
 
     private Client client;
+    private Auditor auditor;
     private Renormalizer renormalizer;
     private JobResultsPersister persister;
     private JobProvider jobProvider;
@@ -71,6 +76,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         client = mock(Client.class);
+        auditor = mock(Auditor.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -78,7 +84,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         persister = mock(JobResultsPersister.class);
         jobProvider = mock(JobProvider.class);
         flushListener = mock(FlushListener.class);
-        processorUnderTest = new AutoDetectResultProcessor(client, JOB_ID, renormalizer, persister, jobProvider,
+        processorUnderTest = new AutoDetectResultProcessor(client, auditor, JOB_ID, renormalizer, persister, jobProvider,
                 new ModelSizeStats.Builder(JOB_ID).build(), false, flushListener);
     }
 
@@ -276,8 +282,44 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(persister, times(1)).persistModelSizeStats(modelSizeStats);
         verifyNoMoreInteractions(persister);
         // No interactions with the jobProvider confirms that the established memory calculation did not run
-        verifyNoMoreInteractions(jobProvider);
+        verifyNoMoreInteractions(jobProvider, auditor);
         assertEquals(modelSizeStats, processorUnderTest.modelSizeStats());
+    }
+
+    public void testProcessResult_modelSizeStatsWithMemoryStatusChanges() {
+        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
+
+        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, bulkBuilder);
+        context.deleteInterimRequired = false;
+        AutodetectResult result = mock(AutodetectResult.class);
+
+        // First one with soft_limit
+        ModelSizeStats modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.SOFT_LIMIT).build();
+        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        processorUnderTest.processResult(context, result);
+
+        // Another with soft_limit
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.SOFT_LIMIT).build();
+        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        processorUnderTest.processResult(context, result);
+
+        // Now with hard_limit
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID)
+                .setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT)
+                .setModelBytes(new ByteSizeValue(512, ByteSizeUnit.MB).getBytes())
+                .build();
+        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        processorUnderTest.processResult(context, result);
+
+        // And another with hard_limit
+        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT).build();
+        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        processorUnderTest.processResult(context, result);
+
+        // We should have only fired to notifications: one for soft_limit and one for hard_limit
+        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
+        verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb"));
+        verifyNoMoreInteractions(auditor);
     }
 
     public void testProcessResult_modelSizeStatsAfterManyBuckets() {

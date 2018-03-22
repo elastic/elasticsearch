@@ -208,7 +208,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testTopHitsMaxResultWindow() throws Exception {
-        int maxResultWindow = randomIntBetween(5, 10);
+        int maxResultWindow = randomIntBetween(10, 20);
         IndexSettings indexSettings = new IndexSettings(
             IndexMetaData.builder("_index")
                 .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -224,8 +224,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             IndexSearcher searcher = new IndexSearcher(reader);
             MultiBucketConsumerService.MultiBucketConsumer consumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
             // from + size > maxResultWindow
-            int from = randomInt(10);
-            int size = maxResultWindow - from + randomIntBetween(1, 10);
+            int from = randomIntBetween(1, 5);
+            int size = maxResultWindow - from + 20;
             String name = randomAlphaOfLength(10);
             IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> createAggregatorFactory(
@@ -240,8 +240,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                 "] index level setting.", ex.getMessage());
 
             // from + size <= maxResultWindow
-            int from2 = randomIntBetween(1, maxResultWindow - 5);
-            int size2 = randomIntBetween(1, maxResultWindow - from);
+            int from2 = randomIntBetween(1, 5);
+            int size2 = maxResultWindow - from2 - 1;
             String name2 = randomAlphaOfLength(10);
             AggregatorFactory factory = createAggregatorFactory(
                 new TopHitsAggregationBuilder(name2).from(from2).size(size2),

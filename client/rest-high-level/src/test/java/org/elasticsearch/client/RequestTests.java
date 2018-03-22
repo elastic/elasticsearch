@@ -40,6 +40,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -615,6 +616,43 @@ public class RequestTests extends ESTestCase {
             endpoint.add(String.join(",", indices));
         }
         endpoint.add("_flush");
+        assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getEntity(), nullValue());
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+    }
+
+    public void testForceMerge() {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        ForceMergeRequest forceMergeRequest;
+        if (randomBoolean()) {
+            forceMergeRequest = new ForceMergeRequest(indices);
+        } else {
+            forceMergeRequest = new ForceMergeRequest();
+            forceMergeRequest.indices(indices);
+        }
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(forceMergeRequest::indicesOptions, forceMergeRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            forceMergeRequest.maxNumSegments(randomInt());
+        }
+        expectedParams.put("max_num_segments", Integer.toString(forceMergeRequest.maxNumSegments()));
+        if (randomBoolean()) {
+            forceMergeRequest.onlyExpungeDeletes(randomBoolean());
+        }
+        expectedParams.put("only_expunge_deletes", Boolean.toString(forceMergeRequest.onlyExpungeDeletes()));
+        if (randomBoolean()) {
+            forceMergeRequest.flush(randomBoolean());
+        }
+        expectedParams.put("flush", Boolean.toString(forceMergeRequest.flush()));
+
+        Request request = Request.forceMerge(forceMergeRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_forcemerge");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());

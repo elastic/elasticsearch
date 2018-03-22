@@ -13,7 +13,11 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -28,7 +32,7 @@ import java.util.StringTokenizer;
  * decorator class to have a useful toString() method for an IpFilterRule
  * as this is needed for audit logging
  */
-public class SecurityIpFilterRule implements IpFilterRule {
+public class SecurityIpFilterRule implements IpFilterRule, ToXContentFragment {
 
     public static final SecurityIpFilterRule ACCEPT_ALL = new SecurityIpFilterRule(true, "accept_all") {
         @Override
@@ -213,5 +217,10 @@ public class SecurityIpFilterRule implements IpFilterRule {
     @Override
     public IpFilterRuleType ruleType() {
         return ipFilterRule.ruleType();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 }

@@ -6,10 +6,14 @@
 package org.elasticsearch.xpack.core.scheduler;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
+import java.io.IOException;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -196,7 +200,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * @author Contributions from Mads Henderson
  * @author Refactoring from CronTrigger to CronExpression by Aaron Craven
  */
-public class Cron {
+public class Cron implements ToXContentFragment {
     protected static final TimeZone UTC = DateTimeZone.UTC.toTimeZone();
     protected static final DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss");
 
@@ -1494,6 +1498,11 @@ public class Cron {
                 throw new IllegalArgumentException("Illegal month number: "
                         + monthNum);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 
     private static class ValueSet {

@@ -82,7 +82,7 @@ public class SearchTransform implements Transform {
             builder.humanReadableField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
-            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
+            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone.toString());
         }
         builder.endObject();
         return builder;

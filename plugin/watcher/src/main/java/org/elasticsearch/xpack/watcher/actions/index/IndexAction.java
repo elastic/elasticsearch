@@ -113,7 +113,7 @@ public class IndexAction implements Action {
             builder.humanReadableField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
-            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
+            builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone.toString());
         }
         if (refreshPolicy!= null) {
             builder.field(Field.REFRESH.getPreferredName(), refreshPolicy.getValue());

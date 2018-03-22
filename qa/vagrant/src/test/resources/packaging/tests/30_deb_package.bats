@@ -49,6 +49,11 @@ setup() {
     dpkg -I elasticsearch-oss-$(cat version).deb | grep "Depends:.*bash.*"
 }
 
+@test "[DEB] package conflicts" {
+    dpkg -I elasticsearch-oss-$(cat version).deb | grep "^ Conflicts: elasticsearch$"
+    dpkg -I elasticsearch-$(cat version).deb | grep "^ Conflicts: elasticsearch-oss$"
+}
+
 ##################################
 # Install DEB package
 ##################################

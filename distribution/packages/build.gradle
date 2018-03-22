@@ -199,6 +199,9 @@ Closure commonPackageConfig(String type, boolean oss) {
     copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
     copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 0750)
     copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+
+    // the oss package conflicts with the default distribution and vice versa
+    conflicts('elasticsearch' + (oss ? '' : '-oss'))
   }
 }
 

@@ -6,8 +6,8 @@
     has been changed to `true`.
 
 *   The `query_string` options `use_dismax`, `split_on_whitespace`,
-    `all_fields` and `lowercase_expanded_terms` deprecated in 6.x
-    have been removed.
+    `all_fields`, `locale`, `auto_generate_phrase_query` and
+    `lowercase_expanded_terms` deprecated in 6.x have been removed.
 
 ==== Adaptive replica selection enabled by default
 

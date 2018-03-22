@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: "all"
+      reason: "AwaitsFix'ing, see x-pack-elasticsearch #4197"
   - do:
       xpack.license.post:
         body: >
@@ -33,7 +36,6 @@ setup:
 
 ---
 "Upgrade test - should fail as index is already up to date":
-
   - do:
       catch: /illegal_state_exception/
       xpack.migration.upgrade: { index: test1 }

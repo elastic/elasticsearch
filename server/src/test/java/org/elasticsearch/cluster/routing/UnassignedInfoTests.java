@@ -33,10 +33,16 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -78,11 +84,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     }
 
     public void testSerialization() throws Exception {
-        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
-        UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
-                               System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+        UnassignedInfo meta = createRandom();
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -93,6 +95,41 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
+    }
+
+    public void testXContentSerialization() throws Exception {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        UnassignedInfo original = createRandom();
+        assertNotNull(original);
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        builder.startObject();
+        original.toXContent(builder, ToXContent.EMPTY_PARAMS);
+         builder.endObject();
+        XContentParser parser = builder
+            .generator()
+            .contentType()
+            .xContent()
+            .createParser(
+                xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput()
+            );
+        parser.nextToken(); // move to the outer object
+        parser.nextToken(); // move to the field name
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.currentToken());
+        parser.nextToken(); // move to inner object object and now start parsing
+        UnassignedInfo deserialized = UnassignedInfo.fromXContent(parser);
+        assertThat(deserialized.getReason(), equalTo(original.getReason()));
+        assertThat(deserialized.getUnassignedTimeInMillis(), equalTo(original.getUnassignedTimeInMillis()));
+        assertThat(deserialized.getMessage(), equalTo(original.getMessage()));
+        assertThat(deserialized.getDetails(), equalTo(original.getDetails()));
+        assertThat(deserialized.getNumFailedAllocations(), equalTo(original.getNumFailedAllocations()));
+    }
+
+    private UnassignedInfo createRandom() {
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
+        return reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
+                System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
+            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
     }
 
     public void testIndexCreated() {

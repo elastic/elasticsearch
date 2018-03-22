@@ -71,8 +71,9 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
      * by either this class or tests. Visible for testing.
      */
-    ShardRouting(ShardId shardId, String currentNodeId,
-                 String relocatingNodeId, boolean primary, ShardRoutingState state, RecoverySource recoverySource,
+    ShardRouting(ShardId shardId, @Nullable String currentNodeId,
+                 @Nullable String relocatingNodeId, boolean primary,
+                 @Nullable ShardRoutingState state, RecoverySource recoverySource,
                  UnassignedInfo unassignedInfo, AllocationId allocationId, long expectedShardSize) {
         this.shardId = shardId;
         this.currentNodeId = currentNodeId;
@@ -659,36 +660,48 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         AllocationId allocationId = null;
         UnassignedInfo unassignedInfo = null;
         for (Token t = parser.nextToken(); t != Token.END_OBJECT; t = parser.nextToken()) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
             String fieldName = parser.currentName();
             Token currentToken = parser.nextToken(); // Move to value of the field
             switch (fieldName) {
                 case Fields.STATE:
-                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
-                    state = ShardRoutingState.valueOf(parser.text());
+                    if (currentToken == Token.VALUE_STRING) {
+                        state = ShardRoutingState.valueOf(parser.text());
+                    } else {
+                        // If it was not a string it must be null
+                        ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
+                    }
                     break;
                 case Fields.PRIMARY:
-                    ensureExpectedToken(currentToken, Token.VALUE_BOOLEAN, parser::getTokenLocation);
+                    ensureExpectedToken(Token.VALUE_BOOLEAN, currentToken, parser::getTokenLocation);
                     isPrimary = parser.booleanValue();
                     break;
                 case Fields.NODE:
-                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
-                    nodeId = parser.text();
+                    if (currentToken == Token.VALUE_STRING) {
+                        nodeId = parser.text();
+                    } else {
+                        // If it was not a string it must be null
+                        ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
+                    }
                     break;
                 case Fields.RELOCATING_NODE:
-                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
-                    relocatingNodeid = parser.text();
+                    if (currentToken == Token.VALUE_STRING) {
+                        relocatingNodeid = parser.text();
+                    } else {
+                        // If it was not a string it must be null
+                        ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
+                    }
                     break;
                 case Fields.SHARD:
-                    ensureExpectedToken(currentToken, Token.VALUE_NUMBER, parser::getTokenLocation);
+                    ensureExpectedToken(Token.VALUE_NUMBER, currentToken, parser::getTokenLocation);
                     shardId = parser.intValue();
                     break;
                 case Fields.INDEX:
-                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    ensureExpectedToken(Token.VALUE_STRING, currentToken, parser::getTokenLocation);
                     indexName = parser.text();
                     break;
                 case Fields.EXPECTED_SHARD_SIZE_IN_BYTES:
-                    ensureExpectedToken(currentToken, Token.VALUE_STRING, parser::getTokenLocation);
+                    ensureExpectedToken(Token.VALUE_STRING, currentToken, parser::getTokenLocation);
                     expectedShardSizeInBytes = parser.longValue();
                     break;
                 case Fields.RECOVERY_SOURCE:
@@ -708,8 +721,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         }
         if (state != null &&
             isPrimary != null &&
-            nodeId != null &&
-            relocatingNodeid != null &&
             shardId != null &&
             indexName != null) {
             return

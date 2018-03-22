@@ -235,7 +235,8 @@ public final class Request {
     }
 
     static Request syncedFlush(SyncedFlushRequest syncedFlushRequest) {
-        String endpoint = endpoint(syncedFlushRequest.indices(), "_flush", "synced");
+        String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
+        String endpoint = endpoint(indices, "_flush", "synced");
         Params parameters = Params.builder();
         // This request takes no other parameters other than the indices.
         parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());

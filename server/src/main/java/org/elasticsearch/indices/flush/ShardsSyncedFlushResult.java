@@ -77,7 +77,7 @@ public class ShardsSyncedFlushResult implements Streamable {
     }
 
     /**
-     * XContent constructor: Partial failure
+     * failure constructor for XContent deserialization
      */
     public ShardsSyncedFlushResult(ShardId shardId, int totalShards, int successfulShards, String failureReason) {
         this.syncId = null;
@@ -89,7 +89,7 @@ public class ShardsSyncedFlushResult implements Streamable {
     }
 
     /**
-     * XContent constructor: Partial failure with shardResponses
+     * success contructor for XContent deserialization
      */
     public ShardsSyncedFlushResult(ShardId shardId, String syncId, int totalShards, int successfulShards,
         Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses) {

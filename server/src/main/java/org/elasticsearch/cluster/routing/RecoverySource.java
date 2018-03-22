@@ -57,7 +57,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     }
 
     public static RecoverySource fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         XContentLocation startingPosition = parser.getTokenLocation();
         Type type = null;
         RecoverySource recoverySource = null;
@@ -67,6 +67,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         String index = null;
         String snapshotRepository = null;
         SnapshotId snapshotId = null;
+        String snapshotUUID = null;
+        String snapshotName = null;
         for (Token t = parser.nextToken(); t != Token.END_OBJECT; t = parser.nextToken()) {
             ensureExpectedToken(Token.FIELD_NAME, t, parser::getTokenLocation);
             String fieldName = parser.currentName();
@@ -74,6 +76,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             if (t.isValue()) {
                 switch (fieldName) {
                     case "type":
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
                         String typeString = parser.text();
                         type = Type.valueOf(parser.text());
                         switch (type) {
@@ -97,20 +100,23 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                         }
                         break;
                     case "repository":
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
                         snapshotRepository = parser.text();
                         break;
                     case "snapshot":
-                        String snapshotName = parser.text();
-                        /**
-                         * We use the name for Id and Name using the old format here since xContent has
-                         * old format. See {@link org.elasticsearch.snapshots.SnapshotId#fromXContent}
-                         */
-                        snapshotId = new SnapshotId(snapshotName, snapshotName);
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                        snapshotName = parser.text();
+                        break;
+                    case "snapshot_uuid":
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                        snapshotUUID = parser.text();
                         break;
                     case "version":
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
                         version = Version.fromString(parser.text());
                         break;
                     case "index":
+                        ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
                         index = parser.text();
                         break;
                     default:
@@ -128,7 +134,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 version != null &&
                 index != null &&
                 snapshotRepository != null &&
-                snapshotId != null) {
+                snapshotName != null) {
+                snapshotId = new SnapshotId(snapshotName, snapshotUUID != null ? snapshotUUID : snapshotName);
                 return new SnapshotRecoverySource(new Snapshot(snapshotRepository, snapshotId), version, index);
             } else {
                 throw new ParsingException(startingPosition, "Unable to recover RecoverySource from JSON");
@@ -287,6 +294,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("repository", snapshot.getRepository())
+                .field("snapshot_uuid", snapshot.getSnapshotId().getUUID())
                 .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
                 .field("index", index);

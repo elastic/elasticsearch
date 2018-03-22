@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -55,6 +54,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+
+    private static final String MSG_DELIMITER = ",";
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -354,7 +355,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (message == null) {
             return null;
         }
-        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.detailedMessage(failure));
+        return message + (failure == null ? "" : MSG_DELIMITER + " failure " + ExceptionsHelper.detailedMessage(failure));
     }
 
     /**
@@ -457,9 +458,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         XContentLocation startingLocation = parser.getTokenLocation();
         Reason reason = null;
-        // The message and exception always remains null as constructing an exception from 'details'
-        // is too much work
         String message = null;
+        // The exception always remains null as constructing an exception from 'details'
+        // is too much work
         Exception failure = null;
         int failedAllocations = 0;
         // See UnassignedInfo(StreamInput in) constructor for details on why we reset the time here
@@ -475,7 +476,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             switch (fieldName) {
                 case Fields.REASON:
                     ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
-                    reason = Reason.valueOf(parser.text());
+                    reason = Reason.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     break;
                 case Fields.AT:
                     ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
@@ -491,12 +492,16 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
                     delayed = parser.booleanValue();
                     break;
                 case Fields.DETAILS:
-                    // For now we ignore this and set it null
-                    ensureExpectedToken(Token.VALUE_BOOLEAN, t, parser::getTokenLocation);
+                    ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                    // We ignore the exception but take the message out
+                    // This only works if the message itself did not contain the delimiter
+                    // The length of the resulting array from split can never be smaller than 1
+                    // The pattern MSG_DELIMITER is applied limit-1 times which serves our purpose
+                    message = parser.text().split(MSG_DELIMITER, 2)[0];
                     break;
                 case Fields.ALLOCATION_STATUS:
                     ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
-                    allocationStatus = AllocationStatus.valueOf(parser.text());
+                    allocationStatus = AllocationStatus.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     break;
                 default:
                     parser.skipChildren(); // else skip the whole tree with this fieldname
@@ -508,7 +513,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
             delayed != null &&
             allocationStatus != null
             ) {
-            return new UnassignedInfo(reason, null, null, failedAllocations, unassignedTimeNanos,
+            return new UnassignedInfo(reason, message, null, failedAllocations, unassignedTimeNanos,
                 unassignedTimeMillis, delayed, allocationStatus);
         } else {
             throw new ParsingException(startingLocation, "Unable to construct UnassignedInfo from JSON");

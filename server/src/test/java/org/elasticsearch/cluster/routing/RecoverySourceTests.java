@@ -19,7 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,6 +42,25 @@ public class RecoverySourceTests extends ESTestCase {
         RecoverySource serializedRecoverySource = RecoverySource.readFrom(out.bytes().streamInput());
         assertEquals(recoverySource.getType(), serializedRecoverySource.getType());
         assertEquals(recoverySource, serializedRecoverySource);
+    }
+
+    public void testXContentSerialization() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        RecoverySource original = TestShardRouting.randomRecoverySource();
+        assertNotNull(original);
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        original.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = builder
+            .generator()
+            .contentType()
+            .xContent()
+            .createParser(
+                xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput()
+            );
+        parser.nextToken(); // Move it to the first token
+        RecoverySource deserealized = RecoverySource.fromXContent(parser);
+        assertEquals(original.getType(), deserealized.getType());
+        assertEquals(original, deserealized);
     }
 
     public void testRecoverySourceTypeOrder() {

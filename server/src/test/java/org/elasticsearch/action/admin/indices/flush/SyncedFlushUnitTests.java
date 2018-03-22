@@ -19,23 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse.ShardCounts;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,14 +35,7 @@ import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SyncedFlushUnitTests extends ESTestCase {
-
-    private static class TestPlan {
-        public SyncedFlushResponse.ShardCounts totalCounts;
-        public Map<String, SyncedFlushResponse.ShardCounts> countsPerIndex = new HashMap<>();
-        public ObjectIntMap<String> expectedFailuresPerIndex = new ObjectIntHashMap<>();
-        public SyncedFlushResponse result;
-    }
+public class SyncedFlushUnitTests extends AbstractSyncedFlushTest {
 
     public void testIndicesSyncedFlushResult() throws IOException {
         final TestPlan testPlan = createTestPlan();
@@ -130,58 +115,6 @@ public class SyncedFlushUnitTests extends ESTestCase {
         assertThat(name + " has unexpected total count", (Integer) header.get("total"), equalTo(expectedCounts.total));
         assertThat(name + " has unexpected successful count", (Integer) header.get("successful"), equalTo(expectedCounts.successful));
         assertThat(name + " has unexpected failed count", (Integer) header.get("failed"), equalTo(expectedCounts.failed));
-    }
-
-    protected TestPlan createTestPlan() {
-        final TestPlan testPlan = new TestPlan();
-        final Map<String, List<ShardsSyncedFlushResult>> indicesResults = new HashMap<>();
-        final int indexCount = randomIntBetween(1, 10);
-        int totalShards = 0;
-        int totalSuccesful = 0;
-        int totalFailed = 0;
-        for (int i = 0; i < indexCount; i++) {
-            final String index = "index_" + i;
-            int shards = randomIntBetween(1, 4);
-            int replicas = randomIntBetween(0, 2);
-            int successful = 0;
-            int failed = 0;
-            int failures = 0;
-            List<ShardsSyncedFlushResult> shardsResults = new ArrayList<>();
-            for (int shard = 0; shard < shards; shard++) {
-                final ShardId shardId = new ShardId(index, "_na_", shard);
-                if (randomInt(5) < 2) {
-                    // total shard failure
-                    failed += replicas + 1;
-                    failures++;
-                    shardsResults.add(new ShardsSyncedFlushResult(shardId, replicas + 1, "simulated total failure"));
-                } else {
-                    Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
-                    for (int copy = 0; copy < replicas + 1; copy++) {
-                        final ShardRouting shardRouting = TestShardRouting.newShardRouting(index, shard, "node_" + shardId + "_" + copy, null,
-                            copy == 0, ShardRoutingState.STARTED);
-                        if (randomInt(5) < 2) {
-                            // shard copy failure
-                            failed++;
-                            failures++;
-                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse("copy failure " + shardId));
-                        } else {
-                            successful++;
-                            shardResponses.put(shardRouting, new SyncedFlushService.ShardSyncedFlushResponse());
-                        }
-                    }
-                    shardsResults.add(new ShardsSyncedFlushResult(shardId, "_sync_id_" + shard, replicas + 1, shardResponses));
-                }
-            }
-            indicesResults.put(index, shardsResults);
-            testPlan.countsPerIndex.put(index, new SyncedFlushResponse.ShardCounts(shards * (replicas + 1), successful, failed));
-            testPlan.expectedFailuresPerIndex.put(index, failures);
-            totalFailed += failed;
-            totalShards += shards * (replicas + 1);
-            totalSuccesful += successful;
-        }
-        testPlan.result = new SyncedFlushResponse(indicesResults);
-        testPlan.totalCounts = new SyncedFlushResponse.ShardCounts(totalShards, totalSuccesful, totalFailed);
-        return testPlan;
     }
 
 }

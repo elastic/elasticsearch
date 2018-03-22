@@ -265,7 +265,8 @@ public final class IndicesClient {
 
     /** Initiate a synced flush manually using the synced flush API
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html"> Synced flush API on elastic.co</a>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     *     Synced flush API on elastic.co</a>
      */
     public SyncedFlushResponse syncedFlush(SyncedFlushRequest syncedFlushRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, Request::syncedFlush,
@@ -275,7 +276,8 @@ public final class IndicesClient {
     /**
      * Asynchronously initiate a synced flush manually using the synced flush API
      * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html"> Synced flush API on elastic.co</a>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     *     Synced flush API on elastic.co</a>
      */
     public void syncedFlushAsync(SyncedFlushRequest syncedFlushRequest, ActionListener<SyncedFlushResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, Request::syncedFlush,

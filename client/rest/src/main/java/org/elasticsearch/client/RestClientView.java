@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import java.io.IOException;
 import java.util.Map;
 
 import org.apache.http.Header;
@@ -57,7 +58,7 @@ class RestClientView extends AbstractRestClientActions {
     @Override
     final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
             HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-            ResponseListener responseListener, Header[] headers) {
+            ResponseListener responseListener, Header[] headers) throws IOException {
         delegate.performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
             responseListener, hostSelector, headers);
     }

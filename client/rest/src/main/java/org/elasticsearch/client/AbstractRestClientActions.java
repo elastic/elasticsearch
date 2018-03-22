@@ -41,7 +41,7 @@ abstract class AbstractRestClientActions implements RestClientActions {
 
     abstract void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
         HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-        ResponseListener responseListener, Header[] headers);
+        ResponseListener responseListener, Header[] headers) throws IOException;
 
     /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response

@@ -53,6 +53,11 @@ final class DeadHostState {
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
     }
 
+    DeadHostState(int failedAttempts, long deadUntilNanos) {
+        this.failedAttempts = failedAttempts;
+        this.deadUntilNanos = deadUntilNanos;
+    }
+
     /**
      * Returns the timestamp (nanos) till the host is supposed to stay dead without being retried.
      * After that the host should be retried.

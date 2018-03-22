@@ -87,8 +87,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
 public class RestClient extends AbstractRestClientActions implements Closeable {
-
     private static final Log logger = LogFactory.getLog(RestClient.class);
+
+    /**
+     * The maximum number of attempts that {@link #nextHost(HostSelector)} makes
+     * before giving up and failing the request.
+     */
+    private static final int MAX_NEXT_HOSTS_ATTEMPTS = 10;
 
     private final CloseableHttpAsyncClient client;
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
@@ -174,7 +179,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     @Override
     final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
             HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-            ResponseListener responseListener, Header[] headers) {
+            ResponseListener responseListener, Header[] headers) throws IOException {
         // Requests made directly to the client use the noop HostSelector.
         HostSelector hostSelector = HostSelector.ANY;
         performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
@@ -182,8 +187,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, HostSelector hostSelector, Header[] headers) {
+                HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                ResponseListener responseListener, HostSelector hostSelector, Header[] headers) throws IOException {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
@@ -312,60 +317,133 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     /**
-     * Returns an {@link Iterable} of hosts to be used for a request call.
-     * Ideally, the first host is retrieved from the iterable and used successfully for the request.
-     * Otherwise, after each failure the next host has to be retrieved from the iterator so that the request can be retried until
-     * there are no more hosts available to retry against. The maximum total of attempts is equal to the number of hosts in the iterable.
-     * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
-     * one dead host gets returned so that it can be retried.
+     * Returns a non-empty {@link Iterator} of hosts to be used for a request
+     * that match the {@link HostSelector}.
+     * <p>
+     * If there are no living hosts that match the {@link HostSelector}
+     * this will return the dead host that matches the {@link HostSelector}
+     * that is closest to being revived.
+     * <p>
+     * If no living and no dead hosts match the selector we retry a few
+     * times to handle concurrent modifications of the list of dead hosts.
+     * We never block the thread or {@link Thread#sleep} or anything like
+     * that. If the retries fail this throws a {@link IOException}.
+     * @throws IOException if no hosts are available
      */
-    private HostTuple<Iterator<HttpHost>> nextHost(HostSelector hostSelector) {
-        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
-        Collection<HttpHost> nextHosts = Collections.emptySet();
+    private HostTuple<Iterator<HttpHost>> nextHost(HostSelector hostSelector) throws IOException {
+        int attempts = 0;
+        NextHostsResult result;
+        /*
+         * Try to fetch the hosts to which we can send the request. It is possible that
+         * this returns an empty collection because of concurrent modification to the
+         * blacklist.
+         */
         do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
-            for (Iterator<HttpHost> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
-                final HttpHost host = hostItr.next();
-                if (false == hostSelector.select(host, hostTuple.metaResolver.resolveMetadata(host))) {
-                    hostItr.remove();
+            final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
+            result = nextHostsOneTime(hostTuple, blacklist, lastHostIndex, System.nanoTime(), hostSelector);
+            if (result.hosts == null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("No hosts avialable. Will retry. Failure is " + result.describeFailure());
                 }
-            }
-            for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-                if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
-                    filteredHosts.remove(entry.getKey());
-                }
-            }
-            if (filteredHosts.isEmpty()) {
-                /*
-                 * Last resort: If there are no good host to use, return a single dead one,
-                 * the one that's closest to being retried *and* matches the selector.
-                 */
-                List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
-                if (sortedHosts.size() > 0) {
-                    Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
-                        @Override
-                        public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                            return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
-                        }
-                    });
-                    Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
-                    while (nodeItr.hasNext()) {
-                        final HttpHost deadHost = nodeItr.next().getKey();
-                        if (hostSelector.select(deadHost, hostTuple.metaResolver.resolveMetadata(deadHost))) {
-                            logger.trace("resurrecting host [" + deadHost + "]");
-                            nextHosts = Collections.singleton(deadHost);
-                            break;
-                        }
-                    }
-                }
-                // NOCOMMIT we get here if the selector rejects all hosts
             } else {
-                List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-                Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
-                nextHosts = rotatedHosts;
+                // Success!
+                return new HostTuple<>(result.hosts.iterator(), hostTuple.authCache, hostTuple.metaResolver);
             }
-        } while(nextHosts.isEmpty());
-        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache, hostTuple.metaResolver);
+            attempts++;
+        } while (attempts < MAX_NEXT_HOSTS_ATTEMPTS);
+        throw new IOException("No hosts available for request. Last failure was " + result.describeFailure());
+    }
+
+    static class NextHostsResult {
+        /**
+         * Number of hosts filtered from the list because they are
+         * dead.
+         */
+        int blacklisted = 0;
+        /**
+         * Number of hosts filtered from the list because the.
+         * {@link HostSelector} didn't approve of them.
+         */
+        int selectorRejected = 0;
+        /**
+         * Number of hosts that could not be revived because the
+         * {@link HostSelector} didn't approve of them.
+         */
+        int selectorBlockedRevival = 0;
+        /**
+         * {@code null} if we failed to find any hosts, a list of
+         * hosts to use if we found any.
+         */
+        Collection<HttpHost> hosts = null;
+
+        public String describeFailure() {
+            assert hosts == null : "describeFailure shouldn't be called with successful request";
+            return "[blacklisted=" + blacklisted
+                + ", selectorRejected=" + selectorRejected
+                + ", selectorBlockedRevival=" + selectorBlockedRevival + "]]";
+        }
+    }
+    static NextHostsResult nextHostsOneTime(HostTuple<Set<HttpHost>> hostTuple,
+            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastHostIndex,
+            long now, HostSelector hostSelector) {
+        NextHostsResult result = new NextHostsResult();
+        Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
+        for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
+            if (now - entry.getValue().getDeadUntilNanos() < 0) {
+                filteredHosts.remove(entry.getKey());
+                result.blacklisted++;
+            }
+        }
+        for (Iterator<HttpHost> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
+            final HttpHost host = hostItr.next();
+            if (false == hostSelector.select(host, hostTuple.metaResolver.resolveMetadata(host))) {
+                hostItr.remove();
+                result.selectorRejected++;
+            }
+        }
+        if (false == filteredHosts.isEmpty()) {
+            /*
+             * Normal case: we have at least one non-dead host that the hostSelector
+             * is fine with. Rotate the list so repeated requests with the same blacklist
+             * and the same selector round robin. If you use a different HostSelector
+             * or a host goes dark then the round robin won't be perfect but that should
+             * be fine.
+             */
+            List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
+            int i = lastHostIndex.getAndIncrement();
+            Collections.rotate(rotatedHosts, i);
+            result.hosts = rotatedHosts;
+            return result;
+        }
+        /*
+         * Last resort: If there are no good hosts to use, return a single dead one,
+         * the one that's closest to being retried *and* matches the selector.
+         */
+        List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
+        if (sortedHosts.isEmpty()) {
+            // There are no dead hosts to revive. Return a failed result and we'll retry.
+            return result;
+        }
+        Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
+            @Override
+            public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
+                return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
+            }
+        });
+        Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
+        while (nodeItr.hasNext()) {
+            final HttpHost deadHost = nodeItr.next().getKey();
+            if (hostSelector.select(deadHost, hostTuple.metaResolver.resolveMetadata(deadHost))) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("resurrecting host [" + deadHost + "]");
+                }
+                result.hosts = Collections.singleton(deadHost);
+                return result;
+            } else {
+                result.selectorBlockedRevival++;
+            }
+        }
+        return result;
     }
 
     /**
@@ -537,7 +615,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
      * safe, volatile way.
      */
-    private static class HostTuple<T> {
+    static class HostTuple<T> {
         final T hosts;
         final AuthCache authCache;
         final HostMetadataResolver metaResolver;

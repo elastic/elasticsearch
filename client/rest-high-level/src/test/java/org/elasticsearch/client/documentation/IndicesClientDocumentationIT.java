@@ -37,6 +37,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -771,6 +773,79 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    public void testForceMergeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index", Settings.EMPTY);
+        }
+
+        {
+            // tag::force-merge-request
+            ForceMergeRequest request = new ForceMergeRequest("index1"); // <1>
+            ForceMergeRequest requestMultiple = new ForceMergeRequest("index1", "index2"); // <2>
+            ForceMergeRequest requestAll = new ForceMergeRequest(); // <3>
+            // end::force-merge-request
+
+            // tag::force-merge-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::force-merge-request-indicesOptions
+
+            // tag::force-merge-request-segments-num
+            request.maxNumSegments(1); // <1>
+            // end::force-merge-request-segments-num
+
+            // tag::force-merge-request-only-expunge-deletes
+            request.onlyExpungeDeletes(true); // <1>
+            // end::force-merge-request-only-expunge-deletes
+
+            // tag::force-merge-request-flush
+            request.flush(true); // <1>
+            // end::force-merge-request-flush
+
+            // tag::force-merge-execute
+            ForceMergeResponse forceMergeResponse = client.indices().forceMerge(request);
+            // end::force-merge-execute
+
+            // tag::force-merge-response
+            int totalShards = forceMergeResponse.getTotalShards(); // <1>
+            int successfulShards = forceMergeResponse.getSuccessfulShards(); // <2>
+            int failedShards = forceMergeResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures(); // <4>
+            // end::force-merge-response
+
+            // tag::force-merge-execute-listener
+            ActionListener<ForceMergeResponse> listener = new ActionListener<ForceMergeResponse>() {
+                @Override
+                public void onResponse(ForceMergeResponse forceMergeResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::force-merge-execute-listener
+
+            // tag::force-merge-execute-async
+            client.indices().forceMergeAsync(request, listener); // <1>
+            // end::force-merge-execute-async
+        }
+        {
+            // tag::force-merge-notfound
+            try {
+                ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
+                client.indices().forceMerge(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::force-merge-notfound
+        }
+    }
+
     public void testClearCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -854,7 +929,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::clear-cache-notfound
         }
     }
-
 
     public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();

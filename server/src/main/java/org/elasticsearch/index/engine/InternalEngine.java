@@ -1390,13 +1390,16 @@ public class InternalEngine extends Engine {
             return false;
         }
         /*
-         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be below than
-         * the threshold after a flush. To avoid getting into an endless flushing loop, we only enable the periodically flush condition
-         * if this condition is disabled after a flush. The condition will change if:
-         * 1. The new commit points to the later generation the last commit's
-         * 2. If the local checkpoint equals to max_seqno and translogGenerationOfLastCommit equals to translogGenerationOfNewCommit,
+         * We flush to reduce the size of uncommitted translog but strictly speaking the uncommitted size won't always be below
+         * the threshold after a flush. An endless loop may occur when the uncommitted size is close to the flush threshold,
+         * the current generation is also close to the generation threshold, and an index is faster and rolls a new generation.
+         *
+         * Avoid getting into an endless loop of flushing, we only enable the periodically flush condition if this condition is disabled
+         * after a flush. The condition will change if the new commit points to the later generation the last commit's.
+         * Or if the local checkpoint equals to max_seqno and translogGenerationOfLastCommit equals to translogGenerationOfNewCommit,
          * we know that the last generation must contain operations because its size is above the flush threshold and
          * the flush threshold is guaranteed to be higher than an empty translog by the setting validation.
+         * This guarantees that the new commit will point to the newly rolled generation.
          *
          * This method is to maintain translog only, thus the IndexWriter#hasUncommittedChanges condition is not considered.
          */

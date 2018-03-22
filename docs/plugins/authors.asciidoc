@@ -91,7 +91,7 @@ Read more in {ref}/integration-tests.html#changing-node-configuration[Changing N
 === Java Security permissions
 
 Some plugins may need additional security permissions. A plugin can include
-the optional `plugin-security.policy` file containing `grant` statements for
+the optional `x-pack-extension-security.policy` file containing `grant` statements for
 additional permissions. Any additional permissions will be displayed to the user
 with a large warning, and they will have to confirm them when installing the
 plugin interactively. So if possible, it is best to avoid requesting any

@@ -181,9 +181,9 @@ import static java.util.stream.Collectors.toList;
  */
 public class RestHighLevelClient implements Closeable {
 
-    private final RestClientActions client;
+    private final RestClient client;
     private final NamedXContentRegistry registry;
-    private final CheckedConsumer<RestClientActions, IOException> doClose;
+    private final CheckedConsumer<RestClient, IOException> doClose;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
@@ -196,14 +196,12 @@ public class RestHighLevelClient implements Closeable {
         this(restClientBuilder, Collections.emptyList());
     }
 
-    // NOCOMMIT revert so we can use the same wrapping pattern here?
-
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
      * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
      */
     protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this(restClientBuilder.build(), (RestClientActions c) -> ((RestClient) c).close(), namedXContentEntries);
+        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
     }
 
     /**
@@ -213,7 +211,7 @@ public class RestHighLevelClient implements Closeable {
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(RestClientActions restClient, CheckedConsumer<RestClientActions, IOException> doClose,
+    protected RestHighLevelClient(RestClient restClient, CheckedConsumer<RestClient, IOException> doClose,
                                   List<NamedXContentRegistry.Entry> namedXContentEntries) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");

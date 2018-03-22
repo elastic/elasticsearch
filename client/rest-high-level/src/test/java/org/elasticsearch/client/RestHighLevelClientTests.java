@@ -113,26 +113,22 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static final ProtocolVersion HTTP_PROTOCOL = new ProtocolVersion("http", 1, 1);
     private static final RequestLine REQUEST_LINE = new BasicRequestLine(HttpGet.METHOD_NAME, "/", HTTP_PROTOCOL);
 
-    private RestClientActions restClient;
-    private CheckedConsumer<RestClientActions, IOException> doClose;
+    private RestClient restClient;
     private RestHighLevelClient restHighLevelClient;
 
     @Before
     public void initClient() {
-        restClient = mock(RestClientActions.class);
-        @SuppressWarnings("unchecked")
-        CheckedConsumer<RestClientActions, IOException> doClose = mock(CheckedConsumer.class);
-        this.doClose = doClose;
-        restHighLevelClient = new RestHighLevelClient(restClient, doClose, Collections.emptyList());
+        restClient = mock(RestClient.class);
+        restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
     }
 
     public void testCloseIsIdempotent() throws IOException {
         restHighLevelClient.close();
-        verify(doClose, times(1)).accept(restClient);
+        verify(restClient, times(1)).close();
         restHighLevelClient.close();
-        verify(doClose, times(2)).accept(restClient);
+        verify(restClient, times(2)).close();
         restHighLevelClient.close();
-        verify(doClose, times(3)).accept(restClient);
+        verify(restClient, times(3)).close();
     }
 
     public void testPingSuccessful() throws IOException {

@@ -176,6 +176,20 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         return new RestClientView(this, hostSelector);
     }
 
+    // TODO this exists entirely to so we don't have to change much in the high level rest client tests. We'll remove in a followup.
+    @Override
+    public Response performRequest(String method, String endpoint, Map<String, String> params,
+                                         HttpEntity entity, Header... headers) throws IOException {
+        return super.performRequest(method, endpoint, params, entity, headers);
+    }
+
+    // TODO this exists entirely to so we don't have to change much in the high level rest client tests. We'll remove in a followup.
+    @Override
+    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
+                                          HttpEntity entity, ResponseListener responseListener, Header... headers) {
+        super.performRequestAsync(method, endpoint, params, entity, responseListener, headers);
+    }
+
     @Override
     final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
             HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,

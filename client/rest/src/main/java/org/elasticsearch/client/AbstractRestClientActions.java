@@ -95,8 +95,8 @@ abstract class AbstractRestClientActions implements RestClientActions {
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
      */
-    @Override
-    public final Response performRequest(String method, String endpoint, Map<String, String> params,
+    @Override // TODO this method is not final so the tests for the High Level REST Client don't have to change. We'll fix this soon.
+    public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
         return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
     }
@@ -184,8 +184,8 @@ abstract class AbstractRestClientActions implements RestClientActions {
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
      */
-    @Override
-    public final void performRequestAsync(String method, String endpoint, Map<String, String> params,
+    @Override  // TODO this method is not final so the tests for the High Level REST Client don't have to change. We'll fix this soon.
+    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
         performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
     }

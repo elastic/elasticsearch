@@ -76,7 +76,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     @Before
     public void initClients() throws IOException {
         if (restHighLevelClient == null) {
-            final RestClientActions restClient = mock(RestClientActions.class);
+            final RestClient restClient = mock(RestClient.class);
             restHighLevelClient = new CustomRestClient(restClient);
 
             doAnswer(mock -> mockPerformRequest((Header) mock.getArguments()[4]))
@@ -172,8 +172,8 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      */
     static class CustomRestClient extends RestHighLevelClient {
 
-        private CustomRestClient(RestClientActions restClient) {
-            super(restClient, c -> {}, Collections.emptyList());
+        private CustomRestClient(RestClient restClient) {
+            super(restClient, RestClient::close, Collections.emptyList());
         }
 
         MainResponse custom(MainRequest mainRequest, Header... headers) throws IOException {

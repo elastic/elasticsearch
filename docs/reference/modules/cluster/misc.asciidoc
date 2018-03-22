@@ -82,3 +82,4 @@ Enable or disable allocation for persistent tasks:
 This setting does not affect the persistent tasks that are already being executed.
 Only newly created persistent tasks, or tasks that must be reassigned (after a node
 left the cluster, for example), are impacted by this setting.
+--

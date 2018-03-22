@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.watcher.notification.email;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -417,7 +419,7 @@ public class Email implements ToXContentObject {
         }
     }
 
-    public static class Address extends javax.mail.internet.InternetAddress {
+    public static class Address extends javax.mail.internet.InternetAddress implements ToXContentFragment {
 
         public static final ParseField ADDRESS_NAME_FIELD = new ParseField("name");
         public static final ParseField ADDRESS_EMAIL_FIELD = new ParseField("email");
@@ -481,6 +483,11 @@ public class Email implements ToXContentObject {
             } catch (AddressException ae) {
                 throw new IllegalArgumentException("[" + value + "] is not a valid RFC822 email address", ae);
             }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.value(toString());
         }
     }
 

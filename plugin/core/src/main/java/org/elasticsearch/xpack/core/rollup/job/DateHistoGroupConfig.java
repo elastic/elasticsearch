@@ -107,7 +107,7 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
         if (delay != null) {
             builder.field(DELAY.getPreferredName(), delay.toString());
         }
-        builder.field(TIME_ZONE.getPreferredName(), timeZone);
+        builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
 
         return builder;
     }

@@ -259,6 +259,11 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+
+      if (version.before('6.1.0') || version.onOrAfter('6.3.0')) {
+        systemProperty 'tests.rest.blacklist', '/30_ml_jobs_crud/Test model memory limit is updated'
+      }
+
       // only need to kill the mixed cluster tests node here because we explicitly told it to not stop nodes upon completion
       finalizedBy "${baseName}#mixedClusterTestCluster#stop"
     }

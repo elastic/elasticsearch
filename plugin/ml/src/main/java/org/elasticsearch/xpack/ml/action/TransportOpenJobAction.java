@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskStatus;
@@ -427,13 +428,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             };
 
             // Step 4. Start job task
-            ActionListener<PutJobAction.Response> establishedMemoryUpdateListener = ActionListener.wrap(
+            ActionListener<PutJobAction.Response> jobUpateListener = ActionListener.wrap(
                     response -> persistentTasksService.startPersistentTask(MlMetadata.jobTaskId(jobParams.getJobId()),
                             OpenJobAction.TASK_NAME, jobParams, finalListener),
                     listener::onFailure
             );
 
             // Step 3. Update established model memory for pre-6.1 jobs that haven't had it set
+            // and increase the model memory limit for 6.1 - 6.3 jobs
             ActionListener<Boolean> missingMappingsListener = ActionListener.wrap(
                     response -> {
                         MlMetadata mlMetadata = clusterService.state().getMetaData().custom(MLMetadataField.TYPE);
@@ -443,6 +445,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             Long jobEstablishedModelMemory = job.getEstablishedModelMemory();
                             if ((jobVersion == null || jobVersion.before(Version.V_6_1_0))
                                     && (jobEstablishedModelMemory == null || jobEstablishedModelMemory == 0)) {
+                                // Set the established memory usage for pre 6.1 jobs
                                 jobProvider.getEstablishedMemoryUsage(job.getId(), null, null, establishedModelMemory -> {
                                     if (establishedModelMemory != null && establishedModelMemory > 0) {
                                         JobUpdate update = new JobUpdate.Builder(job.getId())
@@ -450,16 +453,35 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                         UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
 
                                         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                                                establishedMemoryUpdateListener);
+                                                jobUpateListener);
                                     } else {
-                                        establishedMemoryUpdateListener.onResponse(null);
+                                        jobUpateListener.onResponse(null);
                                     }
                                 }, listener::onFailure);
-                            } else {
-                                establishedMemoryUpdateListener.onResponse(null);
+                            } else if (jobVersion != null &&
+                                    (jobVersion.onOrAfter(Version.V_6_1_0) && jobVersion.before(Version.V_6_3_0))) {
+                                // Increase model memory limit if < 512MB
+                                if (job.getAnalysisLimits() != null && job.getAnalysisLimits().getModelMemoryLimit() != null &&
+                                        job.getAnalysisLimits().getModelMemoryLimit() < 512L) {
+
+                                    long updatedModelMemoryLimit = (long) (job.getAnalysisLimits().getModelMemoryLimit() * 1.3);
+                                    AnalysisLimits limits = new AnalysisLimits(updatedModelMemoryLimit,
+                                            job.getAnalysisLimits().getCategorizationExamplesLimit());
+
+                                    JobUpdate update = new JobUpdate.Builder(job.getId()).setJobVersion(Version.CURRENT)
+                                            .setAnalysisLimits(limits).build();
+                                    UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(job.getId(), update);
+                                    executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                            jobUpateListener);
+                                } else {
+                                    jobUpateListener.onResponse(null);
+                                }
+                            }
+                            else {
+                                jobUpateListener.onResponse(null);
                             }
                         } else {
-                            establishedMemoryUpdateListener.onResponse(null);
+                            jobUpateListener.onResponse(null);
                         }
                     }, listener::onFailure
             );

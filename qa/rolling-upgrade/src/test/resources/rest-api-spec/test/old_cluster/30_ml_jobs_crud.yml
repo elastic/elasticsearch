@@ -207,3 +207,21 @@
             "data_description" : {}
           }
   - match: { job_id: "old-cluster-function-shortcut-expansion" }
+
+---
+"Test update model memory limit":
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job-with-model-mem-limit
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit" : 100
+            },
+            "data_description" : {}
+          }
+  - match: { job_id: "old-cluster-job-with-model-mem-limit" }

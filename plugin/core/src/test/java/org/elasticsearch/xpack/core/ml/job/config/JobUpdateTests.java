@@ -93,6 +93,9 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setEstablishedModelMemory(randomNonNegativeLong());
         }
+        if (randomBoolean()) {
+            update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
+        }
 
         return update.build();
     }
@@ -137,6 +140,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setCategorizationFilters(categorizationFilters);
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
+        updateBuilder.setJobVersion(Version.V_6_1_0);
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
@@ -164,6 +168,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCategorizationFilters(), updatedJob.getAnalysisConfig().getCategorizationFilters());
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
+        assertEquals(update.getJobVersion(), updatedJob.getJobVersion());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
             assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getDescription(),

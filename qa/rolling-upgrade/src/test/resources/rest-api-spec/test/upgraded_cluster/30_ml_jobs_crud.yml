@@ -127,3 +127,18 @@ setup:
         job_id: old-cluster-function-shortcut-expansion
   - match: { count: 1 }
   - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }
+
+---
+"Test model memory limit is updated":
+# Jobs created in 6.1.x and 6.2.x underestimated the necessary model memory
+# limit, check the limit has been updated.
+# Opening the job updates the limit
+  - do:
+      xpack.ml.open_job:
+        job_id: old-cluster-job-with-model-mem-limit
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: old-cluster-job-with-model-mem-limit
+  - match: { count: 1 }
+  - match: { jobs.0.analysis_limits.model_memory_limit: 130mb }

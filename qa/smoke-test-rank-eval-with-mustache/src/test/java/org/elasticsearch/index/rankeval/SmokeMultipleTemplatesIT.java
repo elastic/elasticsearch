@@ -102,7 +102,7 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().setIndices("test")).actionGet();
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices("test")).actionGet();
         assertEquals(0.9, response.getEvaluationResult(), Double.MIN_VALUE);
     }
 

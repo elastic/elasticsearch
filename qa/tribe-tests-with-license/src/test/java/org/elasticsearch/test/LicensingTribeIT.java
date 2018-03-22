@@ -12,7 +12,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseResponse;
 import org.elasticsearch.license.License;
-import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesStatus;
 import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.license.PutLicenseResponse;
@@ -81,8 +80,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
             }
         }
     }
-
-
+    
     @Override
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder();
@@ -105,8 +103,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
         }
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4200")
+    
     public void testLicensePropagateToTribeNode() throws Exception {
         assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         // test that auto-generated basic license propagates to tribe
@@ -116,22 +113,9 @@ public class LicensingTribeIT extends ESIntegTestCase {
             assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.BASIC));
         });
 
-        // test that signed license put in one cluster propagates to tribe
-        LicensingClient cluster1Client = new LicensingClient(client());
-        PutLicenseResponse licenseResponse = cluster1Client
-                .preparePutLicense(License.fromSource(new BytesArray(BASIC_LICENSE.getBytes(StandardCharsets.UTF_8)), XContentType.JSON))
-                .setAcknowledge(true).get();
-        assertThat(licenseResponse.isAcknowledged(), equalTo(true));
-        assertThat(licenseResponse.status(), equalTo(LicensesStatus.VALID));
-        assertBusy(() -> {
-            GetLicenseResponse getLicenseResponse = new LicensingClient(tribeNode.client()).prepareGetLicense().get();
-            assertNotNull(getLicenseResponse.license());
-            assertThat(getLicenseResponse.license().operationMode(), equalTo(License.OperationMode.BASIC));
-        });
-
         // test that signed license with higher operation mode takes precedence
         LicensingClient cluster2Client = new LicensingClient(cluster2.client());
-        licenseResponse = cluster2Client
+        PutLicenseResponse licenseResponse = cluster2Client
                 .preparePutLicense(License.fromSource(new BytesArray(PLATINUM_LICENSE.getBytes(StandardCharsets.UTF_8)), XContentType.JSON))
                 .setAcknowledge(true).get();
         assertThat(licenseResponse.isAcknowledged(), equalTo(true));
@@ -169,17 +153,4 @@ public class LicensingTribeIT extends ESIntegTestCase {
             "8NyDfxKGztlUt/IIOzHPzxs0f8Bv4OJeK48vjovWaDc1Vmo4n1SGyyL0JcEbOWC6A3U3mBsWn7wLUe+hW9+akVAYOO5TIcm60ub7k" +
             "H/LIZNOhvGglSVDbl3p8EBkNMy0CV7urQ0wdG1nLCnvf8/BiT15lC5nLrM9Dt5w3pzciPlASzw4iksW/CzvYy5tjOoWKEnxi2EZOB" +
             "9dKyT4mTdvyBOrTHLdgr4lmHd3qYAEgcTCaQ\",\"start_date_in_millis\":-1}}";
-
-    private static final String BASIC_LICENSE = "{\"license\":{\"uid\":\"1\",\"type\":\"basic\"," +
-            "\"issue_date_in_millis\":1411948800000,\"expiry_date_in_millis\":1914278399999,\"max_nodes\":1," +
-            "\"issued_to\":\"issuedTo\",\"issuer\":\"issuer\",\"signature\":\"AAA" + "AAwAAAA2is2oANL3mZGS883l9AAAB" +
-            "mC9ZN0hjZDBGYnVyRXpCOW5Bb3FjZDAxOWpSbTVoMVZwUzRxVk1PSmkxakxZdW5IMlhlTHNoN1N2MXMvRFk4d3JTZEx3R3RRZ0pzU3" +
-            "lobWJKZnQvSEFva0ppTHBkWkprZWZSQi9iNmRQNkw1SlpLN0lDalZCS095MXRGN1lIZlpYcVVTTnFrcTE2dzhJZmZrdFQrN3JQeGwx" +
-            "b0U0MXZ0dDJHSERiZTVLOHNzSDByWnpoZEphZHBEZjUrTVBxRENNSXNsWWJjZllaODdzVmEzUjNiWktNWGM5TUhQV2plaUo4Q1JOUm" +
-            "l4MXNuL0pSOEhQaVB2azhmUk9QVzhFeTFoM1Q0RnJXSG53MWk2K055c28zSmRnVkF1b2JSQkFLV2VXUmVHNDZ2R3o2VE1qbVNQS2lx" +
-            "OHN5bUErZlNIWkZSVmZIWEtaSU9wTTJENDVvT1NCYklacUYyK2FwRW9xa0t6dldMbmMzSGtQc3FWOTgzZ3ZUcXMvQkt2RUZwMFJnZz" +
-            "lvL2d2bDRWUzh6UG5pdENGWFRreXNKNkE9PQAAAQCjL9HJnHrHVRq39yO5OFrOS0fY+mf+KqLh8i+RK4s9Hepdi/VQ3SHTEonEUCCB" +
-            "1iFO35eykW3t+poCMji9VGkslQyJ+uWKzUqn0lmioy8ukpjETcmKH8TSWTqcC7HNZ0NKc1XMTxwkIi/chQTsPUz+h3gfCHZRQwGnRz" +
-            "JPmPjCJf4293hsMFUlsFQU3tYKDH+kULMdNx1Cg+3PhbUCNrUyQJMb5p4XDrwOaanZUM6HdifS1Y/qjxLXC/B1wHGFEpvrEPFyBuSe" +
-            "GnJ9uxkrBSv28iG0qsyHrFhHQXIMVFlQKCPaMKikfuZyRhxzE5ntTcGJMn84llCaIyX/kmzqoZHQ\",\"start_date_in_millis\":-1}}\n";
 }

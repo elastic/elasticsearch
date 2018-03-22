@@ -223,7 +223,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Returns the low-level client that the current high-level client instance is using to perform requests
      */
-    public final RestClientActions getLowLevelClient() {
+    public final RestClient getLowLevelClient() {
         return client;
     }
 

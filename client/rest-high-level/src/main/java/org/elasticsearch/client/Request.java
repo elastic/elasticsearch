@@ -531,7 +531,7 @@ public final class Request {
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        String endpoint = endpoint(rankEvalRequest.getIndices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
     }

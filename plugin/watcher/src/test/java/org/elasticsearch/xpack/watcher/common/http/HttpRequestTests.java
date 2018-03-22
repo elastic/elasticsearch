@@ -6,12 +6,14 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuthFactory;
@@ -23,6 +25,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 public class HttpRequestTests extends ESTestCase {
@@ -140,6 +143,20 @@ public class HttpRequestTests extends ESTestCase {
         }
     }
 
+    public void testXContentRemovesAuthorization() throws Exception {
+        HttpRequest request = HttpRequest.builder("localhost", 443).setHeader("Authorization", "Bearer Foo").build();
+        try (XContentBuilder builder = jsonBuilder()) {
+            WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
+            request.toXContent(builder, params);
+            assertThat(Strings.toString(builder), containsString("Bearer Foo"));
+        }
+        try (XContentBuilder builder = jsonBuilder()) {
+            request.toXContent(builder, WatcherParams.HIDE_SECRETS);
+            assertThat(Strings.toString(builder), not(containsString("Bearer Foo")));
+            assertThat(Strings.toString(builder), containsString(WatcherXContentParser.REDACTED_PASSWORD));
+        }
+    }
+
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequest.Builder builder) throws Exception {
         XContentBuilder urlContentBuilder = jsonBuilder().startObject().field("url", url).endObject();
         XContentParser urlContentParser = createParser(urlContentBuilder);
@@ -148,7 +165,8 @@ public class HttpRequestTests extends ESTestCase {
         HttpRequest.Parser parser = new HttpRequest.Parser(mock(HttpAuthRegistry.class));
         HttpRequest urlParsedRequest = parser.parse(urlContentParser);
 
-        XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
+        XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), params);
         XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
         HttpRequest parsedRequest = parser.parse(xContentParser);

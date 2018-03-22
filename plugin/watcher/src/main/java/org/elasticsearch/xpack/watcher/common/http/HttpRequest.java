@@ -12,21 +12,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.watcher.common.http.auth.HttpAuthRegistry;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -136,7 +143,7 @@ public class HttpRequest implements ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params toXContentParams) throws IOException {
         builder.startObject();
         builder.field(Field.HOST.getPreferredName(), host);
         builder.field(Field.PORT.getPreferredName(), port);
@@ -145,15 +152,21 @@ public class HttpRequest implements ToXContentObject {
         if (path != null) {
             builder.field(Field.PATH.getPreferredName(), path);
         }
-        if (!this.params.isEmpty()) {
+        if (this.params.isEmpty() == false) {
             builder.field(Field.PARAMS.getPreferredName(), this.params);
         }
-        if (!headers.isEmpty()) {
-            builder.field(Field.HEADERS.getPreferredName(), headers);
+        if (headers.isEmpty() == false) {
+            if (WatcherParams.hideSecrets(toXContentParams) && headers.containsKey("Authorization")) {
+                Map<String, String> sanitizedHeaders = new HashMap<>(headers);
+                sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
+                builder.field(Field.HEADERS.getPreferredName(), sanitizedHeaders);
+            } else {
+                builder.field(Field.HEADERS.getPreferredName(), headers);
+            }
         }
         if (auth != null) {
             builder.startObject(Field.AUTH.getPreferredName())
-                        .field(auth.type(), auth, params)
+                        .field(auth.type(), auth, toXContentParams)
                     .endObject();
         }
         if (body != null) {
@@ -168,7 +181,7 @@ public class HttpRequest implements ToXContentObject {
                     HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {
-            proxy.toXContent(builder, params);
+            proxy.toXContent(builder, toXContentParams);
         }
         return builder.endObject();
     }
@@ -438,8 +451,8 @@ public class HttpRequest implements ToXContentObject {
         }
 
         public HttpRequest build() {
-            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params), unmodifiableMap(headers),
-                    auth, body, connectionTimeout, readTimeout, proxy);
+            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params),
+                    unmodifiableMap(headers), auth, body, connectionTimeout, readTimeout, proxy);
             params = null;
             headers = null;
             return request;
@@ -488,5 +501,26 @@ public class HttpRequest implements ToXContentObject {
         ParseField READ_TIMEOUT_HUMAN = new ParseField("read_timeout");
         ParseField PROXY = new ParseField("proxy");
         ParseField URL = new ParseField("url");
+    }
+
+    /**
+     * Write a request via toXContent, but filter certain parts of it - this is needed to not expose secrets
+     *
+     * @param request        The HttpRequest object to serialize
+     * @param xContent       The xContent from the parent outputstream builder
+     * @param params         The ToXContentParams from the parent write
+     * @param excludeField   The field to exclude
+     * @return               A bytearrayinputstream that contains the serialized request
+     * @throws IOException
+     */
+    public static InputStream filterToXContent(HttpRequest request, XContent xContent, ToXContent.Params params,
+                                               String excludeField) throws IOException {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             XContentBuilder filteredBuilder = new XContentBuilder(xContent, bos,
+                     Collections.emptySet(), Collections.singleton(excludeField))) {
+            request.toXContent(filteredBuilder, params);
+            filteredBuilder.flush();
+            return new ByteArrayInputStream(bos.toByteArray());
+        }
     }
 }

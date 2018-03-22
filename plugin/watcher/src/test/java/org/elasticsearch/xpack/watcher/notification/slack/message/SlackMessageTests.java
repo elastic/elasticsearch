@@ -5,13 +5,22 @@
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.slack.SentMessages;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 
 import java.io.IOException;
@@ -25,8 +34,10 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SlackMessageTests extends ESTestCase {
 
@@ -555,6 +566,38 @@ public class SlackMessageTests extends ESTestCase {
                         assertThat(attachment.markdownSupportedFields, arrayContainingInAnyOrder(templateMarkdownSupportFields));
                     }
                 }
+            }
+        }
+    }
+
+    // the url path contains sensitive information, which should not be exposed
+    public void testUrlPathIsFiltered() throws Exception {
+        HttpResponse response = new HttpResponse(500);
+        String path = randomAlphaOfLength(20);
+        HttpRequest request = HttpRequest.builder("localhost", 1234).path(path).build();
+        SlackMessage slackMessage = new SlackMessage("from", new String[] {"to"}, "icon", "text", null);
+        SentMessages sentMessages = new SentMessages("foo",
+                Arrays.asList(SentMessages.SentMessage.responded("recipient", slackMessage, request, response)));
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
+            sentMessages.toXContent(builder, params);
+            assertThat(Strings.toString(builder), containsString(path));
+
+            try (XContentParser parser = builder.contentType().xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Strings.toString(builder))) {
+                parser.map();
+            }
+        }
+        try (XContentBuilder builder = jsonBuilder()) {
+            sentMessages.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), not(containsString(path)));
+
+            try (XContentParser parser = builder.contentType().xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Strings.toString(builder))) {
+                parser.map();
             }
         }
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 
@@ -179,9 +180,13 @@ public interface RestClientActions {
                                     ResponseListener responseListener, Header... headers);
 
     /**
-     * Create a client that only runs requests on selected hosts. This client
-     * has no state of its own and backs everything to the {@link RestClient}
-     * that created it.
+     * Create a "stateless view" of this client that only runs requests on
+     * selected hosts. The result of this method is "stateless" it backs all
+     * of its requests to the {@link RestClient} that created it so there is
+     * no need to manage this view with try-with-resources and it does not
+     * extend {@link Closeable}. Closing the {@linkplain RestClient} that
+     * created the view disposes of the underlying connection, making the
+     * view useless.
      */
     RestClientActions withHostSelector(HostSelector hostSelector);
 }

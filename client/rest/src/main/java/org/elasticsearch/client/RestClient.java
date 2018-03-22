@@ -125,7 +125,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     /**
-     * Replaces the hosts that the client communicates with.
+     * Replaces the hosts that the client communicates with without
+     * changing any {@link HostMetadata}.
      * @see HttpHost
      */
     public void setHosts(HttpHost... hosts) {
@@ -162,6 +163,9 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         this.blacklist.clear();
     }
 
+    /**
+     * Get the metadata resolver associated with this client.
+     */
     public HostMetadataResolver getHostMetadataResolver() {
         return hostTuple.metaResolver;
     }

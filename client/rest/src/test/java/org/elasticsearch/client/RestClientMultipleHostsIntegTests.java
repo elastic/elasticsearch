@@ -25,6 +25,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHost;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -41,8 +42,11 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
@@ -53,12 +57,14 @@ import static org.junit.Assert.assertTrue;
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     private static HttpServer[] httpServers;
-    private static RestClient restClient;
+    private static HttpHost[] httpHosts;
+    private static String pathPrefixWithoutLeadingSlash;
     private static String pathPrefix;
+
+    private RestClient restClient;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
-        String pathPrefixWithoutLeadingSlash;
         if (randomBoolean()) {
             pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiOfLengthBetween(1, 5);
             pathPrefix = "/" + pathPrefixWithoutLeadingSlash;
@@ -67,12 +73,17 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
         int numHttpServers = randomIntBetween(2, 4);
         httpServers = new HttpServer[numHttpServers];
-        HttpHost[] httpHosts = new HttpHost[numHttpServers];
+        httpHosts = new HttpHost[numHttpServers];
         for (int i = 0; i < numHttpServers; i++) {
             HttpServer httpServer = createHttpServer();
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
+        httpServers[0].createContext(pathPrefix + "/firstOnly", new ResponseHandler(200));
+    }
+
+    @Before
+    public void buildRestClient() throws Exception {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
@@ -107,18 +118,20 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    @After
+    public void stopRestClient() throws IOException {
+        restClient.close();
+    }
+
     @AfterClass
     public static void stopHttpServers() throws IOException {
-        restClient.close();
-        restClient = null;
         for (HttpServer httpServer : httpServers) {
             httpServer.stop(0);
         }
         httpServers = null;
     }
 
-    @Before
-    public void stopRandomHost() {
+    private void stopRandomHost() {
         //verify that shutting down some hosts doesn't matter as long as one working host is left behind
         if (httpServers.length > 1 && randomBoolean()) {
             List<HttpServer> updatedHttpServers = new ArrayList<>(httpServers.length - 1);
@@ -136,6 +149,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     }
 
     public void testSyncRequests() throws IOException {
+        stopRandomHost();
         int numRequests = randomIntBetween(5, 20);
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
@@ -154,6 +168,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     }
 
     public void testAsyncRequests() throws Exception {
+        stopRandomHost();
         int numRequests = randomIntBetween(5, 20);
         final CountDownLatch latch = new CountDownLatch(numRequests);
         final List<TestResponse> responses = new CopyOnWriteArrayList<>();
@@ -187,6 +202,33 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * Test host selector against a real server <strong>and</strong>
+     * test what happens after calling
+     */
+    public void testWithHostSelector() throws IOException {
+        /*
+         * note that this *doesn't* stopRandomHost(); because it might stop
+         * the first host which we use for testing the selector.
+         */
+        HostSelector firstPositionOnly = new HostSelector() {
+            @Override
+            public boolean select(HttpHost host, HostMetadata meta) {
+                return httpHosts[0] == host;
+            }
+        };
+        RestClientActions withHostSelector = restClient.withHostSelector(firstPositionOnly);
+        Response response = withHostSelector.performRequest("GET", "/firstOnly");
+        assertEquals(httpHosts[0], response.getHost());
+        restClient.close();
+        try {
+            withHostSelector.performRequest("GET", "/firstOnly");
+            fail("expected a failure");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("status: STOPPED"));
+        }
+    }
+
     private static class TestResponse {
         private final String method;
         private final int statusCode;
@@ -204,6 +246,9 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             }
             if (response instanceof ResponseException) {
                 return ((ResponseException) response).getResponse();
+            }
+            if (response instanceof Exception) {
+                throw new AssertionError("unexpected response " + response.getClass(), (Exception) response);
             }
             throw new AssertionError("unexpected response " + response.getClass());
         }

@@ -27,7 +27,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 
 /**
- * Stateless view into a {@link RestClient} some fixed parameters.
+ * Stateless view into a {@link RestClient} with customized parameters.
  */
 class RestClientView extends AbstractRestClientActions {
     /**

@@ -76,7 +76,11 @@ public final class RestClientBuilder {
         this.hosts = hosts;
     }
 
-    public RestClientBuilder setHostMetadata(HostMetadataResolver metaResolver) {
+    /**
+     * Set the {@link HostMetadataResolver} used when {@link HostSelector}s
+     * chose hosts.
+     */
+    public RestClientBuilder setHostMetadataResolver(HostMetadataResolver metaResolver) {
         this.metaResolver = metaResolver;
         return this;
     }

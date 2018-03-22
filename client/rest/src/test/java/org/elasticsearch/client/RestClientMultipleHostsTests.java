@@ -347,6 +347,19 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         assertEquals(httpHosts[0], response.getHost());
     }
 
+    public void testWithHostSelector() throws IOException {
+        HostSelector firstPositionOnly = new HostSelector() {
+            @Override
+            public boolean select(HttpHost host, HostMetadata meta) {
+                return httpHosts[0] == host;
+            }
+        };
+        RestClientActions withHostSelector = restClient.withHostSelector(firstPositionOnly);
+        Response response = withHostSelector.performRequest("GET", "/200");
+        assertEquals(httpHosts[0], response.getHost());
+        restClient.close();
+    }
+
     /**
      * Test that calling {@link RestClient#setHosts(Iterable)} preserves the
      * {@link HostMetadataResolver}.

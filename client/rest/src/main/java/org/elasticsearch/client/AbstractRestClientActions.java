@@ -21,6 +21,7 @@
 package org.elasticsearch.client;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.Map;
@@ -167,6 +168,11 @@ abstract class AbstractRestClientActions implements RestClientActions {
                  */
                 if (exception instanceof ResponseException) {
                     throw new ResponseException((ResponseException) exception);
+                }
+                if (exception instanceof ConnectException) {
+                    ConnectException e = new ConnectException(exception.getMessage());
+                    e.initCause(exception);
+                    throw e;
                 }
                 if (exception instanceof ConnectTimeoutException) {
                     ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());

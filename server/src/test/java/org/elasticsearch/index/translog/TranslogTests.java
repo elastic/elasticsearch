@@ -460,10 +460,10 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
                 operationsInLastGen = 0;
             }
-            assertThat(translog.uncommittedOperations(), equalTo(uncommittedOps));
+            assertThat(translog.stats().getUncommittedOperations(), equalTo(uncommittedOps));
             if (frequently()) {
                 markCurrentGenAsCommitted(translog);
-                assertThat(translog.uncommittedOperations(), equalTo(operationsInLastGen));
+                assertThat(translog.stats().getUncommittedOperations(), equalTo(operationsInLastGen));
                 uncommittedOps = operationsInLastGen;
             }
         }
@@ -2455,7 +2455,7 @@ public class TranslogTests extends ESTestCase {
         long minGenForRecovery = randomLongBetween(generation, generation + rolls);
         commit(translog, minGenForRecovery, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-        assertThat(translog.uncommittedOperations(), equalTo(0));
+        assertThat(translog.stats().getUncommittedOperations(), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
                 assertFileIsPresent(translog, generation + i);

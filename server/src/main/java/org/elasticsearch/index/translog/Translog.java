@@ -106,6 +106,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static final String TRANSLOG_FILE_SUFFIX = ".tlog";
     public static final String CHECKPOINT_SUFFIX = ".ckp";
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
+    public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogWriter.getHeaderLength(UUIDs.randomBase64UUID());
 
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
 
@@ -372,26 +373,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
-    /**
-     * Returns the number of operations in the translog files that aren't committed to lucene.
-     */
-    public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
-    /**
-     * Returns the size in bytes of the translog files that aren't committed to lucene.
-     */
-    public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
     /**
      * Returns the number of operations in the translog files
      */
     public int totalOperations() {
-        return totalOperations(-1);
+        return totalOperationsByMinGen(-1);
     }
 
     /**
@@ -402,9 +388,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Returns the number of operations in the translog files at least the given generation
      */
-    private int totalOperations(long minGeneration) {
+    public int totalOperationsByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
@@ -425,25 +411,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the size in bytes of the translog files above the given generation
+     * Returns the size in bytes of the translog files at least the given generation
      */
-    private long sizeInBytesByMinGen(long minGeneration) {
+    public long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                     .filter(r -> r.getGeneration() >= minGeneration)
                     .mapToLong(BaseTranslogReader::sizeInBytes)
                     .sum();
-        }
-    }
-
-    /**
-     * Returns the size in bytes of the translog files with ops above the given seqNo
-     */
-    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
         }
     }
 
@@ -751,7 +727,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes());
+            final long uncommittedGen = deletionPolicy.getTranslogGenerationOfLastCommit();
+            return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen), sizeInBytesByMinGen(uncommittedGen));
         }
     }
 
@@ -1508,7 +1485,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return the minimum generation for the sequence number
      */
     public TranslogGeneration getMinGenerationForSeqNo(final long seqNo) {
-        try (ReleasableLock ignored = writeLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             /*
              * When flushing, the engine will ask the translog for the minimum generation that could contain any sequence number after the
              * local checkpoint. Immediately after flushing, there will be no such generation, so this minimum generation in this case will

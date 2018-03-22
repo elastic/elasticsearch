@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -265,7 +265,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
-        return this.doc(doc, generateRandomId, XContentFactory.xContentType(doc));
+        return this.doc(doc, generateRandomId, XContentHelper.xContentType(doc));
     }
 
     /**
@@ -518,7 +518,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 xContentType = in.readEnum(XContentType.class);
             } else {
-                xContentType = XContentFactory.xContentType(doc);
+                xContentType = XContentHelper.xContentType(doc);
             }
         }
         routing = in.readOptionalString();

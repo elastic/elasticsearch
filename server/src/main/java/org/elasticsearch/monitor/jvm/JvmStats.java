@@ -190,7 +190,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
         builder.field(Fields.TIMESTAMP, timestamp);
-        builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
+        builder.humanReadableField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, new TimeValue(uptime));
 
         builder.startObject(Fields.MEM);
 
@@ -229,7 +229,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         for (GarbageCollector collector : gc) {
             builder.startObject(collector.getName());
             builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
-            builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
+            builder.humanReadableField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, new TimeValue(collector.collectionTime));
             builder.endObject();
         }
         builder.endObject();

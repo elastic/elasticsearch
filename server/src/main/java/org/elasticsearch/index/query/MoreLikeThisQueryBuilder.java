@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -224,7 +225,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                     xContentType = in.readEnum(XContentType.class);
                 } else {
-                    xContentType = XContentFactory.xContentType(doc);
+                    xContentType = XContentHelper.xContentType(doc);
                 }
             } else {
                 id = in.readString();

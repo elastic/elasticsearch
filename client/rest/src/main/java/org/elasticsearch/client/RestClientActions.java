@@ -24,7 +24,13 @@ import java.util.Map;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
+/**
+ * Actions that can be taken on a {@link RestClient} or the stateless views
+ * returned by {@link RestClientActions#withHostSelector withHostSelector}.
+ */
 public interface RestClientActions {
     /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response

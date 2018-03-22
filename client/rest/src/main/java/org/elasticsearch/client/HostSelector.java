@@ -21,6 +21,10 @@ package org.elasticsearch.client;
 
 import org.apache.http.HttpHost;
 
+/**
+ * Selects hosts that can receive requests. Use with
+ * {@link RestClientActions#withHostSelector withHostSelector}.
+ */
 public interface HostSelector {
     /**
      * Selector that matches any node.
@@ -38,8 +42,9 @@ public interface HostSelector {
     };
 
     /**
-     * Selector that matches any node that doesn't have the master roles
-     * <strong>or</strong> doesn't have any information about roles.
+     * Selector that matches any node that has metadata and doesn't
+     * have the {@code master} role. These nodes cannot become a "master"
+     * node for the Elasticsearch cluster.
      */
     HostSelector NOT_MASTER = new HostSelector() {
         @Override
@@ -54,8 +59,12 @@ public interface HostSelector {
     };
 
     /**
-     * Return {@code true} if the provided host should be used for requests, {@code false}
-     * otherwise.
+     * Return {@code true} if the provided host should be used for requests,
+     * {@code false} otherwise.
+     * @param host the host being checked
+     * @param meta metadata about the host being checked or {@code null} if
+     *      the {@linkplain RestClient} doesn't have any metadata about the
+     *      host.
      */
     boolean select(HttpHost host, HostMetadata meta);
 }

@@ -23,27 +23,40 @@ import java.util.Objects;
 
 import org.apache.http.HttpHost;
 
+/**
+ * Metadata about an {@link HttpHost} running Elasticsearch.
+ */
 public class HostMetadata {
+    /**
+     * Look up metadata about the provided host. Implementers should not
+     * make network calls, instead, they should look up previously fetched
+     * data. See Elasticsearch's Sniffer for an example implementation.
+     */
+    public interface HostMetadataResolver {
+        /**
+         * @return {@link HostMetadata} about the provided host if we have any
+         * metadata, {@code null} otherwise
+         */
+        HostMetadata resolveMetadata(HttpHost host);
+    }
+    /**
+     * Resolves metadata for all hosts to {@code null}, meaning "I have
+     * no metadata for this host".
+     */
     public static final HostMetadataResolver EMPTY_RESOLVER = new HostMetadataResolver() {
         @Override
         public HostMetadata resolveMetadata(HttpHost host) {
             return null;
         }
     };
-    /**
-     * Look up metadata about the provided host. Implementers should not make network
-     * calls, instead, they should look up previously fetched data. See Elasticsearch's
-     * Sniffer for an example implementation.
-     */
-    public interface HostMetadataResolver {
-        /**
-         * @return {@link HostMetadat} about the provided host if we have any
-         * metadata, {@code null} otherwise
-         */
-        HostMetadata resolveMetadata(HttpHost host);
-    }
 
+    /**
+     * Version of Elasticsearch that the host is running.
+     */
     private final String version;
+    /**
+     * Roles that the Elasticsearch process on the host has.
+     */
     private final Roles roles;
 
     public HostMetadata(String version, Roles roles) {
@@ -59,7 +72,7 @@ public class HostMetadata {
     }
 
     /**
-     * Roles the node is implementing.
+     * Roles implemented by the Elasticsearch process.
      */
     public Roles roles() {
         return roles;
@@ -85,6 +98,9 @@ public class HostMetadata {
         return Objects.hash(version, roles);
     }
 
+    /**
+     * Role information about and Elasticsearch process.
+     */
     public static final class Roles {
         private final boolean master;
         private final boolean data;

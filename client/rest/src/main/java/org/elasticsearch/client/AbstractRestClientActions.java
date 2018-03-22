@@ -36,6 +36,10 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.conn.ConnectTimeoutException;
 
+/**
+ * Abstract implementation of {@link RestClientActions} shared by
+ * {@link RestClient} and {@link RestClientView}.
+ */
 abstract class AbstractRestClientActions implements RestClientActions {
     abstract SyncResponseListener syncResponseListener();
 
@@ -43,92 +47,22 @@ abstract class AbstractRestClientActions implements RestClientActions {
         HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
         ResponseListener responseListener, Header[] headers) throws IOException;
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
-     * and request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
     @Override
     public final Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
     @Override
     public final Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         return performRequest(method, endpoint, params, (HttpEntity)null, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
     @Override // TODO this method is not final so the tests for the High Level REST Client don't have to change. We'll fix this soon.
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
         return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Blocks until the request is completed and returns
-     * its response or fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
-     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
-     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * This method works by performing an asynchronous call and waiting
-     * for the result. If the asynchronous call throws an exception we wrap
-     * it and rethrow it so that the stack trace attached to the exception
-     * contains the call site. While we attempt to preserve the original
-     * exception this isn't always possible and likely haven't covered all of
-     * the cases. You can get the original exception from
-     * {@link Exception#getCause()}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
     @Override
     public final Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
@@ -139,75 +73,22 @@ abstract class AbstractRestClientActions implements RestClientActions {
         return listener.get();
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
     public final void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
         performRequestAsync(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
     @Override
     public final void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     ResponseListener responseListener, Header... headers) {
         performRequestAsync(method, endpoint, params, null, responseListener, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, ResponseListener,
-     * Header...)} which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
     @Override  // TODO this method is not final so the tests for the High Level REST Client don't have to change. We'll fix this soon.
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
         performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. The request is executed asynchronously
-     * and the provided {@link ResponseListener} gets notified upon request completion or failure.
-     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
-     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
-     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
     @Override
     public final void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,

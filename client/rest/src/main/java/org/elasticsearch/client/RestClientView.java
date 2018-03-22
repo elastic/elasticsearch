@@ -27,13 +27,19 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 
 /**
- * Light weight view into a {@link RestClient} that doesn't have any state of its own.
+ * Stateless view into a {@link RestClient} some fixed parameters.
  */
 class RestClientView extends AbstractRestClientActions {
+    /**
+     * {@linkplain RestClient} to which to delegate all requests.
+     */
     private final RestClient delegate;
+    /**
+     * Selects which hosts are valid destinations requests.
+     */
     private final HostSelector hostSelector;
 
-    protected RestClientView(RestClient delegate, HostSelector hostSelector) {
+    RestClientView(RestClient delegate, HostSelector hostSelector) {
         this.delegate = delegate;
         this.hostSelector = hostSelector;
     }

@@ -38,6 +38,10 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
 
     @Override
     public void intercept(IndicesAliasesRequest request, Authentication authentication, Role userPermissions, String action) {
+        if (licenseState.isSecurityEnabled() == false) {
+            return;
+        }
+
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {

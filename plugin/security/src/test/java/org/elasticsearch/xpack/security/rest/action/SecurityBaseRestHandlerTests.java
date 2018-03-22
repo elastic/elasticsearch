@@ -27,7 +27,8 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final boolean securityEnabled = randomBoolean();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(securityEnabled);
+        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(securityEnabled);
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(Settings.EMPTY, licenseState) {
 
             @Override
@@ -52,7 +53,8 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         verifyZeroInteractions(licenseState);
         handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-        verify(licenseState).isAuthAllowed();
+        verify(licenseState).isSecurityAvailable();
+        verify(licenseState).isSecurityEnabled();
         if (securityEnabled) {
             assertTrue(consumerCalled.get());
             assertEquals(0, fakeRestChannel.responses().get());

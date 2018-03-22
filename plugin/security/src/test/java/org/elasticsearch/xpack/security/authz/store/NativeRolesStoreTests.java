@@ -86,7 +86,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
         RoleDescriptor role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "role1",
-            new BytesArray(roleString), logger, new XPackLicenseState());
+            new BytesArray(roleString), logger, new XPackLicenseState(Settings.EMPTY));
         assertNotNull(role);
         assertNotNull(role.getIndicesPrivileges());
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];

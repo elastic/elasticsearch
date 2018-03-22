@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
@@ -24,15 +25,15 @@ public abstract class SamlBaseRestHandler extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected String checkLicensedFeature(RestRequest request) {
-        String feature = super.checkLicensedFeature(request);
-        if (feature != null) {
-            return feature;
+    protected Exception checkFeatureAvailable(RestRequest request) {
+        Exception failedFeature = super.checkFeatureAvailable(request);
+        if (failedFeature != null) {
+            return failedFeature;
         } else if (Realms.isRealmTypeAvailable(licenseState.allowedRealmType(), SAML_REALM_TYPE)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", SAML_REALM_TYPE);
-            return SAML_REALM_TYPE;
+            return LicenseUtils.newComplianceException(SAML_REALM_TYPE);
         }
     }
 }

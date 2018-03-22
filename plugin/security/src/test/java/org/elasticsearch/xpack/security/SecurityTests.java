@@ -91,9 +91,12 @@ public class SecurityTests extends ESTestCase {
         if (security != null) {
             throw new IllegalStateException("Security object already exists (" + security + ")");
         }
-        Settings settings = Settings.builder().put(testSettings).put("path.home", createTempDir()).build();
+        Settings settings = Settings.builder()
+                .put("xpack.security.enabled", true)
+                .put(testSettings)
+                .put("path.home", createTempDir()).build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        licenseState = new TestUtils.UpdatableLicenseState();
+        licenseState = new TestUtils.UpdatableLicenseState(settings);
         SSLService sslService = new SSLService(settings, env);
         security = new Security(settings, null, Arrays.asList(extensions)) {
             @Override

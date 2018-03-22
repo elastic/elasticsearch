@@ -34,7 +34,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor<Request extends I
 
     @Override
     public void intercept(Request request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

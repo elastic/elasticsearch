@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
@@ -44,23 +45,38 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      */
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RestChannelConsumer consumer = innerPrepareRequest(request, client);
-        final String failedFeature = checkLicensedFeature(request);
+        final Exception failedFeature = checkFeatureAvailable(request);
         if (failedFeature == null) {
             return consumer;
         } else {
-            return channel -> channel.sendResponse(new BytesRestResponse(channel, LicenseUtils.newComplianceException(failedFeature)));
+            return channel -> channel.sendResponse(new BytesRestResponse(channel, failedFeature));
         }
     }
 
     /**
-     * Check whether the given request is allowed within the current license state, and return the name of any unlicensed feature.
-     * By default this returns {@link org.elasticsearch.xpack.core.XPackField#SECURITY} if the license state does not
-     * {@link XPackLicenseState#isAuthAllowed() allow authentication and authorization}.
-     * Sub-classes can override this method if they have additional licensing requirements.
-     * @return {@code null} if all required features are licensed, otherwise the name of the most significant unlicensed feature.
+     * Check whether the given request is allowed within the current license state and setup,
+     * and return the name of any unlicensed feature.
+     * By default this returns an exception is security is not available by the current license or
+     * security is not enabled.
+     * Sub-classes can override this method if they have additional requirements.
+     *
+     * @return {@code null} if all required features are available, otherwise an exception to be
+     * sent to the requestor
      */
-    protected String checkLicensedFeature(RestRequest request) {
-        return licenseState.isAuthAllowed() ? null : XPackField.SECURITY;
+    protected Exception checkFeatureAvailable(RestRequest request) {
+        if (licenseState.isSecurityAvailable() == false) {
+            return LicenseUtils.newComplianceException(XPackField.SECURITY);
+        } else if (licenseState.isSecurityEnabled() == false) {
+            if (licenseState.isTrialLicense()) {
+                return new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+                        "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
+                        "and restart the node.");
+            } else {
+                return new IllegalStateException("Security is not enabled but a security rest handler is registered");
+            }
+        } else {
+            return null;
+        }
     }
 
 

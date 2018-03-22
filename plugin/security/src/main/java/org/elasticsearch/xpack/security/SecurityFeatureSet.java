@@ -36,7 +36,6 @@ import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 public class SecurityFeatureSet implements XPackFeatureSet {
 
     private final Settings settings;
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
     @Nullable
     private final Realms realms;
@@ -52,7 +51,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                               @Nullable Realms realms, @Nullable CompositeRolesStore rolesStore,
                               @Nullable NativeRoleMappingStore roleMappingStore,
                               @Nullable IPFilter ipFilter) {
-        this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.realms = realms;
         this.rolesStore = rolesStore;
@@ -73,12 +71,12 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAuthAllowed();
+        return licenseState != null && licenseState.isSecurityAvailable();
     }
 
     @Override
     public boolean enabled() {
-        return enabled;
+        return licenseState != null && licenseState.isSecurityEnabled();
     }
 
     @Override

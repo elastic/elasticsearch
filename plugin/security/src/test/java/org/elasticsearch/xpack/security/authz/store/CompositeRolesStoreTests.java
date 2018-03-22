@@ -23,6 +23,7 @@ import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -58,6 +59,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
+
+    private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder()
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
+            .build();
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -191,8 +196,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
 
         final CompositeRolesStore compositeRolesStore =
-                new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                                        Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState());
+                new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                        Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                        new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
         verify(fileRolesStore).addListener(any(Runnable.class)); // adds a listener in ctor
 
         final String roleName = randomAlphaOfLengthBetween(1, 10);
@@ -268,9 +274,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }));
 
         final CompositeRolesStore compositeRolesStore =
-        new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                                Arrays.asList(inMemoryProvider1, inMemoryProvider2), new ThreadContext(Settings.EMPTY),
-                                new XPackLicenseState());
+                new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                                Arrays.asList(inMemoryProvider1, inMemoryProvider2), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                                new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -364,9 +370,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             (roles, listener) -> listener.onFailure(new Exception("fake failure"));
 
         final CompositeRolesStore compositeRolesStore =
-            new CompositeRolesStore(Settings.EMPTY, fileRolesStore, nativeRolesStore, reservedRolesStore,
-                                    Arrays.asList(inMemoryProvider1, failingProvider), new ThreadContext(Settings.EMPTY),
-                                    new XPackLicenseState());
+            new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, fileRolesStore, nativeRolesStore, reservedRolesStore,
+                                    Arrays.asList(inMemoryProvider1, failingProvider), new ThreadContext(SECURITY_ENABLED_SETTINGS),
+                                    new XPackLicenseState(SECURITY_ENABLED_SETTINGS));
 
         final Set<String> roleNames = Sets.newHashSet("roleA", "roleB", "unknown");
         PlainActionFuture<Role> future = new PlainActionFuture<>();
@@ -402,7 +408,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             return descriptors;
         });
 
-        UpdatableLicenseState xPackLicenseState = new UpdatableLicenseState();
+        UpdatableLicenseState xPackLicenseState = new UpdatableLicenseState(SECURITY_ENABLED_SETTINGS);
         // these licenses don't allow custom role providers
         xPackLicenseState.update(randomFrom(OperationMode.BASIC, OperationMode.GOLD, OperationMode.STANDARD), true);
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
@@ -450,7 +456,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
                 Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
-                Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState()) {
+                Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();
@@ -493,9 +499,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testCacheClearOnIndexOutOfDateChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
-        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(
-                Settings.EMPTY, mock(FileRolesStore.class), mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
-                Collections.emptyList(), new ThreadContext(Settings.EMPTY), new XPackLicenseState()) {
+        CompositeRolesStore compositeRolesStore = new CompositeRolesStore(SECURITY_ENABLED_SETTINGS, mock(FileRolesStore.class),
+                mock(NativeRolesStore.class), mock(ReservedRolesStore.class),
+                Collections.emptyList(), new ThreadContext(SECURITY_ENABLED_SETTINGS), new XPackLicenseState(SECURITY_ENABLED_SETTINGS)) {
             @Override
             public void invalidateAll() {
                 numInvalidation.incrementAndGet();

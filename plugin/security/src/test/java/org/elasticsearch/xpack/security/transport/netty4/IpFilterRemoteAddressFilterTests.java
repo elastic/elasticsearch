@@ -15,9 +15,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
@@ -59,6 +57,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
                 IPFilter.PROFILE_FILTER_DENY_SETTING)));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isIpFilteringAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         AuditTrailService auditTrailService = new AuditTrailService(settings, Collections.emptyList(), licenseState);
         IPFilter ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());

@@ -45,7 +45,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final boolean securityEnabled;
 
     private final SecurityContext securityContext;
 
@@ -58,8 +57,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
-        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.securityContext = securityEnabled ? new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
+                new SecurityContext(settings, threadPool.getThreadContext()) : null;
     }
 
     @Override
@@ -77,7 +76,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (securityEnabled) {
+        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                     r -> handlePrivsResponse(username, request, r, listener),

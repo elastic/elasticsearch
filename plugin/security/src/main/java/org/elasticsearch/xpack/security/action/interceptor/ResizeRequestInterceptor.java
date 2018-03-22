@@ -39,6 +39,10 @@ public final class ResizeRequestInterceptor extends AbstractComponent implements
 
     @Override
     public void intercept(ResizeRequest request, Authentication authentication, Role userPermissions, String action) {
+        if (licenseState.isSecurityEnabled() == false) {
+            return;
+        }
+
         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(request.getSourceIndex());

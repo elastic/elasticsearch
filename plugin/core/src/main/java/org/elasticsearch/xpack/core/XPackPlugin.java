@@ -111,7 +111,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         Environment env = transportClientMode ? null : new Environment(settings, configPath);
 
         setSslService(new SSLService(settings, env));
-        setLicenseState(new XPackLicenseState());
+        setLicenseState(new XPackLicenseState(settings));
 
         this.licensing = new Licensing(settings);
     }

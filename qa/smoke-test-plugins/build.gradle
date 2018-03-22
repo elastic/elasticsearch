@@ -22,7 +22,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTestCluster {
   plugin xpackProject('plugin').path
-
+  setting 'xpack.security.enabled', 'true'
   setupCommand 'setupDummyUser',
                'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   waitCondition = { node, ant ->

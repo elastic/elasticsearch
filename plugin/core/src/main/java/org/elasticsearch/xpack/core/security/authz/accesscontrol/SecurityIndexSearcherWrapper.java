@@ -108,7 +108,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected DirectoryReader wrap(DirectoryReader reader) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
 
@@ -162,7 +162,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return searcher;
         }
 

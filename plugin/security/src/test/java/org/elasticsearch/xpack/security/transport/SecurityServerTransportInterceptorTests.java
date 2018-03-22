@@ -65,6 +65,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         xPackLicenseState = mock(XPackLicenseState.class);
         when(xPackLicenseState.isAuthAllowed()).thenReturn(true);
+        when(xPackLicenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     public void testSendAsyncUnlicensed() {
@@ -86,6 +87,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         sender.sendRequest(null, null, null, null, null);
         assertTrue(calledWrappedSender.get());
         verify(xPackLicenseState).isAuthAllowed();
+        verify(xPackLicenseState).isSecurityEnabled();
         verifyNoMoreInteractions(xPackLicenseState);
         verifyZeroInteractions(securityContext);
     }
@@ -119,6 +121,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
+        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -155,6 +158,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals(SystemUser.INSTANCE, sendingUser.get());
         assertEquals(user, securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
+        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext).executeAsUser(any(User.class), any(Consumer.class), eq(Version.CURRENT));
         verifyNoMoreInteractions(xPackLicenseState);
     }
@@ -184,6 +188,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertEquals("there should always be a user when sending a message for action [indices:foo]", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
+        verify(xPackLicenseState).isSecurityEnabled();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class), any(Version.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }

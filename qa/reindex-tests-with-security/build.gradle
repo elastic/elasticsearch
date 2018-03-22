@@ -12,6 +12,7 @@ integTestCluster {
   plugin xpackProject('plugin').path
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'

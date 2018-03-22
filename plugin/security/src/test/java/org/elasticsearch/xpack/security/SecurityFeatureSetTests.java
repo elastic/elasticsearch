@@ -55,46 +55,42 @@ public class SecurityFeatureSetTests extends ESTestCase {
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
     }
 
-    public void testAvailable() throws Exception {
+    public void testAvailable() {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
-        boolean available = randomBoolean();
-        when(licenseState.isAuthAllowed()).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        assertThat(featureSet.available(), is(true));
+
+        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        assertThat(featureSet.available(), is(false));
     }
 
-    public void testEnabledSetting() throws Exception {
-        boolean enabled = randomBoolean();
-        Settings settings = Settings.builder()
-                .put(this.settings)
-                .put("xpack.security.enabled", enabled)
-                .build();
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter);
-        assertThat(featureSet.enabled(), is(enabled));
-    }
-
-    public void testEnabledDefault() throws Exception {
+    public void testEnabled() {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
+
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        featureSet = new SecurityFeatureSet(settings, licenseState, realms,
+                rolesStore, roleMappingStore, ipFilter);
+        assertThat(featureSet.enabled(), is(false));
     }
 
     public void testUsage() throws Exception {
-
-        boolean authcAuthzAvailable = randomBoolean();
-        when(licenseState.isAuthAllowed()).thenReturn(authcAuthzAvailable);
+        final boolean authcAuthzAvailable = randomBoolean();
+        when(licenseState.isSecurityAvailable()).thenReturn(authcAuthzAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
         boolean enabled = randomBoolean();
-        settings.put("xpack.security.enabled", enabled);
+        when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         final boolean httpSSLEnabled = randomBoolean();
         settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);

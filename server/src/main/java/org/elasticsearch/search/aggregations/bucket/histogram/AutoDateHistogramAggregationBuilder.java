@@ -120,7 +120,7 @@ public class AutoDateHistogramAggregationBuilder
         roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY), 1, 3, 12);
         roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 1, 7);
         roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 1, 10, 20, 50, 100);
+        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 1, 5, 10, 20, 50, 100);
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 

@@ -614,6 +614,99 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testInterval3Hour() throws IOException {
+        testSearchCase(new MatchAllDocsQuery(),
+                Arrays.asList(
+                        "2017-02-01T09:02:00.000Z",
+                        "2017-02-01T09:35:00.000Z",
+                        "2017-02-01T10:15:00.000Z",
+                        "2017-02-01T13:06:00.000Z",
+                        "2017-02-01T14:04:00.000Z",
+                        "2017-02-01T14:05:00.000Z",
+                        "2017-02-01T15:59:00.000Z",
+                        "2017-02-01T16:06:00.000Z",
+                        "2017-02-01T16:48:00.000Z",
+                        "2017-02-01T16:59:00.000Z"
+                ),
+                aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(10, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2017-02-01T09:02:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2017-02-01T09:35:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2017-02-01T10:15:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(3);
+                    assertEquals("2017-02-01T13:06:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(4);
+                    assertEquals("2017-02-01T14:04:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(5);
+                    assertEquals("2017-02-01T14:05:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(6);
+                    assertEquals("2017-02-01T15:59:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(7);
+                    assertEquals("2017-02-01T16:06:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(8);
+                    assertEquals("2017-02-01T16:48:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+
+                    bucket = buckets.get(9);
+                    assertEquals("2017-02-01T16:59:00.000Z", bucket.getKeyAsString());
+                    assertEquals(1, bucket.getDocCount());
+                }
+        );
+        testSearchAndReduceCase(new MatchAllDocsQuery(),
+                Arrays.asList(
+                        "2017-02-01T09:02:00.000Z",
+                        "2017-02-01T09:35:00.000Z",
+                        "2017-02-01T10:15:00.000Z",
+                        "2017-02-01T13:06:00.000Z",
+                        "2017-02-01T14:04:00.000Z",
+                        "2017-02-01T14:05:00.000Z",
+                        "2017-02-01T15:59:00.000Z",
+                        "2017-02-01T16:06:00.000Z",
+                        "2017-02-01T16:48:00.000Z",
+                        "2017-02-01T16:59:00.000Z"
+                ),
+                aggregation -> aggregation.setNumBuckets(6).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(3, buckets.size());
+
+                    Histogram.Bucket bucket = buckets.get(0);
+                    assertEquals("2017-02-01T09:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+
+                    bucket = buckets.get(1);
+                    assertEquals("2017-02-01T12:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(3, bucket.getDocCount());
+
+                    bucket = buckets.get(2);
+                    assertEquals("2017-02-01T15:00:00.000Z", bucket.getKeyAsString());
+                    assertEquals(4, bucket.getDocCount());
+                }
+        );
+    }
+
     public void testIntervalMinute() throws IOException {
         testSearchCase(new MatchAllDocsQuery(),
                 Arrays.asList(

@@ -4,7 +4,7 @@
 A multi-bucket aggregation similar to the <<search-aggregations-bucket-datehistogram-aggregation>> except 
 instead of providing an interval to use as the width of each bucket, a target number of buckets is provided
 indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve
-that target.  
+that target. The number of buckets returned will always be less than or equal to this target number.
 
 Requesting a target of 10 buckets.
 
@@ -85,6 +85,24 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+=== Intervals
+
+The interval of the returned buckets is selected based on the data collected by the 
+aggregation so that the number of buckets returned is less than or equal to the number 
+requested. The possible intervals returned are:
+
+[horizontal]
+seconds::      In multiples of 1, 5, 10 and 30
+minutes::      In multiples of 1, 5, 10 and 30
+hours::        In multiples of 1, 3 and 12
+days::         In multiples of 1, and 7
+months::       In multiples of 1, and 3
+years::        In multiples of 1, 5, 10, 20, 50 and 100
+
+In the worst case, where the number of daily buckets are too many for the requested 
+number of buckets, the number of buckets returned will be 1/7th of the number of 
+buckets requested.
 
 ==== Time Zone
 

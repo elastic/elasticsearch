@@ -19,10 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -30,11 +27,13 @@ import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
@@ -49,7 +48,7 @@ import java.util.Set;
 /**
  * A utility to build XContent (ie json).
  */
-public final class XContentBuilder implements Releasable, Flushable {
+public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -91,7 +90,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
-        writers.put(BytesRef.class, (b, v) -> b.binaryValue((BytesRef) v));
         writers.put(Date.class, (b, v) -> b.value((Date) v));
         writers.put(Double.class, (b, v) -> b.value((Double) v));
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
@@ -105,12 +103,12 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
+        writers.put(Locale.class, (b, v) -> b.value(v.toString()));
+        writers.put(Class.class, (b, v) -> b.value(v.toString()));
+        writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
 
 
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
-        // These will be moved to a different class at a later time to decouple them from XContentBuilder
-        humanReadableTransformer.put(TimeValue.class, v -> ((TimeValue) v).millis());
-        humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
 
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
@@ -613,48 +611,24 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     /**
-     * Writes the binary content of the given {@link BytesRef}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(String name, BytesRef value) throws IOException {
-        return field(name).binaryValue(value);
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
+     * Writes the binary content of the given byte array as UTF-8 bytes.
      *
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
-    public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
-        return field(name).utf8Value(value);
+    public XContentBuilder utf8Field(String name, byte[] bytes, int offset, int length) throws IOException {
+        return field(name).utf8Value(bytes, offset, length);
     }
 
     /**
-     * Writes the binary content of the given {@link BytesRef}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder binaryValue(BytesRef value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        value(value.bytes, value.offset, value.length);
-        return this;
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
+     * Writes the binary content of the given byte array as UTF-8 bytes.
      *
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
-    public XContentBuilder utf8Value(BytesRef value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        generator.writeUTF8String(value.bytes, value.offset, value.length);
+    public XContentBuilder utf8Value(byte[] bytes, int offset, int length) throws IOException {
+        generator.writeUTF8String(bytes, offset, length);
         return this;
     }
+
 
     ////////////////////////////////////////////////////////////////////////////
     // Date
@@ -793,10 +767,11 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((ReadableInstant) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
-        } else {
-            // This is a "value" object (like enum, DistanceUnit, etc) just toString() it
-            // (yes, it can be misleading when toString a Java class, but really, jackson should be used in that case)
+        } else if (value instanceof Enum<?>) {
+            // Write out the Enum toString
             value(Objects.toString(value));
+        } else {
+            throw new IllegalArgumentException("cannot write xcontent for unknown value of type " + value.getClass());
         }
     }
 

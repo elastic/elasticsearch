@@ -17,7 +17,7 @@ send set up {watcher} and send notifications via <<email-notification-settings, 
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher} on the node.
 
-`xpack.watcher.encrypt_sensitive_data` (<<secure-settings,Secure>>)::
+`xpack.watcher.encrypt_sensitive_data`::
 Set to `true` to encrypt sensitive data. If this setting is enabled, you
 must also specify the `xpack.watcher.encryption_key` setting. For more
 information, see

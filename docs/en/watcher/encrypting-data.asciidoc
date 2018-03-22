@@ -19,17 +19,13 @@ every node in the cluster.
 --
 
 . Set the
-{ref}/notification-settings.html[`xpack.watcher.encrypt_sensitive_data` setting]
-in the {ref}/secure-settings.html[{es} keystore] on each node in the cluster.
+{ref}/notification-settings.html[`xpack.watcher.encrypt_sensitive_data` setting]:
 +
 --
 
-For example, run the following commands to create and update the keystore:
-
 [source,sh]
 ----------------------------------------------------------------
-bin/elasticsearch-keystore create
-bin/elasticsearch-keystore add xpack.watcher.encrypt_sensitive_data true
+xpack.watcher.encrypt_sensitive_data: true
 ----------------------------------------------------------------
 --
 

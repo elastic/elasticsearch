@@ -8,7 +8,7 @@ Cluster information can be retrieved using the `info()` method:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[main-execute]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[main-execute]
 --------------------------------------------------
 
 [[java-rest-high-main-response]]
@@ -18,7 +18,7 @@ The returned `MainResponse` provides various kinds of information about the clus
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MainDocumentationIT.java[main-response]
+include-tagged::{doc-tests}/MiscellaneousDocumentationIT.java[main-response]
 --------------------------------------------------
 <1> Retrieve the name of the cluster as a `ClusterName`
 <2> Retrieve the unique identifier of the cluster

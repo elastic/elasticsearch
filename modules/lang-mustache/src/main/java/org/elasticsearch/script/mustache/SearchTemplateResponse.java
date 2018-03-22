@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public class SearchTemplateResponse  extends ActionResponse implements StatusToXContentObject {
 
@@ -83,7 +84,9 @@ public class SearchTemplateResponse  extends ActionResponse implements StatusToX
         } else {
             builder.startObject();
             //we can assume the template is always json as we convert it before compiling it
-            builder.rawField("template_output", source, XContentType.JSON);
+            try (InputStream stream = source.streamInput()) {
+                builder.rawField("template_output", stream, XContentType.JSON);
+            }
             builder.endObject();
         }
         return builder;

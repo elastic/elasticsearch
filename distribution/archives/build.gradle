@@ -21,6 +21,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 
@@ -125,19 +126,39 @@ subprojects {
   artifacts {
     'default' buildDist
   }
+
+  // sanity checks if a archives can be extracted
+  File extractionDir = new File(buildDir, 'extracted')
+  task testExtraction(type: LoggedExec) {
+    dependsOn buildDist
+    doFirst {
+      project.delete(extractionDir)
+      extractionDir.mkdirs()
+    }
+  }
+  if (project.name.contains('zip')) {
+    testExtraction {
+      onlyIf { new File('/bin/unzip').exists() || new File('/usr/bin/unzip').exists() || new File('/usr/local/bin/unzip').exists() }
+      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', extractionDir
+    }
+  } else { // tar
+    testExtraction {
+      onlyIf { new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
+      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', extractionDir
+    }
+  }
+  check.dependsOn testExtraction
 }
 
 /*****************************************************************************
  *                            Rest test config                               *
  *****************************************************************************/
-subprojects {
+configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
 
-  if (project.name == 'integ-test-zip') {
-    integTest {
-      includePackaged true
-    }
+  integTest {
+    includePackaged true
   }
 
   integTestCluster {

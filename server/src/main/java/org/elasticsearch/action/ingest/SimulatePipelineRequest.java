@@ -25,8 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -56,7 +55,7 @@ public class SimulatePipelineRequest extends ActionRequest {
      */
     @Deprecated
     public SimulatePipelineRequest(BytesReference source) {
-        this(source, XContentFactory.xContentType(source));
+        this(source, XContentHelper.xContentType(source));
     }
 
     /**
@@ -76,9 +75,9 @@ public class SimulatePipelineRequest extends ActionRequest {
         verbose = in.readBoolean();
         source = in.readBytesReference();
         if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType = XContentType.readFrom(in);
+            xContentType = in.readEnum(XContentType.class);
         } else {
-            xContentType = XContentFactory.xContentType(source);
+            xContentType = XContentHelper.xContentType(source);
         }
     }
 
@@ -123,7 +122,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
         if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            xContentType.writeTo(out);
+            out.writeEnum(xContentType);
         }
     }
 

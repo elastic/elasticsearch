@@ -42,8 +42,8 @@ import java.util.Objects;
  */
 public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
-    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
-            Version esVersion) throws IOException {
+    public ClientYamlDocsTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts, Version esVersion)
+            throws IOException {
         super(restSpec, restClient, hosts, esVersion);
     }
 

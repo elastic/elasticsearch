@@ -426,7 +426,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
             builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         }
-
         return builder.build();
     }
 

@@ -197,7 +197,6 @@ public class DoSection implements ExecutableSection {
 
     public DoSection(XContentLocation location) {
         this.location = location;
-
     }
 
     public String getCatch() {

@@ -98,7 +98,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                     + "[skip] so runners that do not support the [host_selector] section can skip the test at line ["
                     + doSection.getLocation().lineNumber + "]");
             }
-    }
+        }
         this.executableSections.add(executableSection);
     }
 

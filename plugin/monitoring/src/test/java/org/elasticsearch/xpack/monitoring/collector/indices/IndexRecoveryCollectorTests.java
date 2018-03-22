@@ -123,7 +123,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
             recoveryStates.put("_index_" + i, singletonList(recoveryState));
         }
         final RecoveryResponse recoveryResponse =
-                new RecoveryResponse(randomInt(), randomInt(), randomInt(), randomBoolean(), recoveryStates, emptyList());
+                new RecoveryResponse(randomInt(), randomInt(), randomInt(), recoveryStates, emptyList());
 
         final RecoveryRequestBuilder recoveryRequestBuilder =
                 spy(new RecoveryRequestBuilder(mock(ElasticsearchClient.class), RecoveryAction.INSTANCE));

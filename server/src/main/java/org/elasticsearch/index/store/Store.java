@@ -1464,7 +1464,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void createEmpty() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(true, directory)) {
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.CREATE, directory)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
             map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
@@ -1478,14 +1478,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
 
     /**
-     * Marks an existing lucene index and marks it with a new history uuid. This should be called on
-     * a lucene index point at an empty fresh translog.
+     * Marks an existing lucene index with a new history uuid.
      * This is used to make sure no existing shard will recovery from this index using ops based recovery.
      */
-    public void bootstrapNewHistoryFromLuceneIndex()
+    public void bootstrapNewHistory()
         throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(false, directory)) {
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory)) {
             final Map<String, String> userData = getUserData(writer);
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
             final Map<String, String> map = new HashMap<>();
@@ -1498,16 +1497,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Force bakes the given translog generation as recovery information in the lucene index.
+     * Force bakes the given translog generation as recovery information in the lucene index. This is
+     * used when recovering from a snapshot or peer file based recovery where a new empty translog is
+     * created and the existing lucene index needs should be changed to use it.
      */
     public void associateIndexWithNewTranslog(final String translogUUID)
         throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(false, directory)) {
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory)) {
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
-
             final Map<String, String> map = new HashMap<>();
             map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
             map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
@@ -1523,7 +1523,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public void ensureIndexHasHistoryUUID() throws IOException {
         metadataLock.writeLock().lock();
-        try (IndexWriter writer = newIndexWriter(false, directory)) {
+        try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory)) {
             final Map<String, String> userData = getUserData(writer);
             if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
                 updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
@@ -1546,14 +1546,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return userData;
     }
 
-    private IndexWriter newIndexWriter(final boolean create, final Directory dir) throws IOException {
+    private IndexWriter newIndexWriter(IndexWriterConfig.OpenMode openMode, final Directory dir) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(null)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
+            .setOpenMode(openMode);
         return new IndexWriter(dir, iwc);
     }
 

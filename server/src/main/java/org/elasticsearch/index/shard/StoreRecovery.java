@@ -390,7 +390,7 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                store.bootstrapNewHistoryFromLuceneIndex();
+                store.bootstrapNewHistory();
                 final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
                 final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
                 final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId);
@@ -453,7 +453,7 @@ final class StoreRecovery {
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             final Store store = indexShard.store();
-            store.bootstrapNewHistoryFromLuceneIndex();
+            store.bootstrapNewHistory();
             final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
             final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
             final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId);

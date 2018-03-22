@@ -1118,7 +1118,7 @@ public class StoreTests extends ESTestCase {
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             final String oldHistoryUUID = segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY);
 
-            store.bootstrapNewHistoryFromLuceneIndex();
+            store.bootstrapNewHistory();
 
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));

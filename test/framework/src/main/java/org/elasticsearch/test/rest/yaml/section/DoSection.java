@@ -139,6 +139,11 @@ public class DoSection implements ExecutableSection {
                                 public boolean select(HttpHost host, HostMetadata meta) {
                                     return original.select(host, meta) && newSelector.select(host, meta);
                                 }
+
+                                @Override
+                                public String toString() {
+                                    return original + " AND " + newSelector;
+                                }
                             };
                         }
                     }
@@ -368,8 +373,16 @@ public class DoSection implements ExecutableSection {
             return new HostSelector() {
                 @Override
                 public boolean select(HttpHost host, HostMetadata meta) {
+                    if (meta == null) {
+                        throw new IllegalStateException("expected HostMetadata to be loaded!");
+                    }
                     Version version = Version.fromString(meta.version());
                     return version.onOrAfter(range[0]) && version.onOrBefore(range[1]);
+                }
+
+                @Override
+                public String toString() {
+                    return "version between [" + range[0] + "] and [" + range[1] + "]";
                 }
             };
         default:

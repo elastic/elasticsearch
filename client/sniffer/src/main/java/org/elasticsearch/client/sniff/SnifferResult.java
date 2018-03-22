@@ -22,16 +22,40 @@ package org.elasticsearch.client.sniff;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.HostMetadata;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Responsible for sniffing the http hosts.
+ * Result of sniffing hosts.
  */
-public interface HostsSniffer {
+public final class SnifferResult {
     /**
-     * Returns a {@link Map} from sniffed {@link HttpHost} to metadata
-     * sniffed about the host.
+     * List of all nodes in the cluster.
      */
-    SnifferResult sniffHosts() throws IOException;
+    private final List<HttpHost> hosts;
+    /**
+     * Map from each address that each node is listening on to metadata about
+     * the node.
+     */
+    private final Map<HttpHost, HostMetadata> hostMetadata;
+
+    public SnifferResult(List<HttpHost> hosts, Map<HttpHost, HostMetadata> hostMetadata) {
+        this.hosts = hosts;
+        this.hostMetadata = hostMetadata;
+    }
+
+    /**
+     * List of all nodes in the cluster.
+     */
+    public List<HttpHost> hosts() {
+        return hosts;
+    }
+
+    /**
+     * Map from each address that each node is listening on to metadata about
+     * the node.
+     */
+    public Map<HttpHost, HostMetadata> hostMetadata() {
+        return hostMetadata;
+    }
 }

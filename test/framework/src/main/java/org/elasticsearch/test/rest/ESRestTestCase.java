@@ -564,7 +564,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(
             adminClient, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
-        Map<HttpHost, HostMetadata> meta = sniffer.sniffHosts();
+        Map<HttpHost, HostMetadata> meta = sniffer.sniffHosts().hostMetadata();
         client.setHosts(clusterHosts, meta::get);
     }
 }

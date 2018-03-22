@@ -30,6 +30,11 @@ public interface HostSelector {
         public boolean select(HttpHost host, HostMetadata meta) {
             return true;
         }
+
+        @Override
+        public String toString() {
+            return "ANY";
+        }
     };
 
     /**
@@ -40,6 +45,11 @@ public interface HostSelector {
         @Override
         public boolean select(HttpHost host, HostMetadata meta) {
             return meta != null && false == meta.roles().master();
+        }
+
+        @Override
+        public String toString() {
+            return "NOT_MASTER";
         }
     };
 

@@ -120,21 +120,22 @@ public class Sniffer implements Closeable {
         void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    final Map<HttpHost, HostMetadata> sniffedHosts = hostsSniffer.sniffHosts();
+                    final SnifferResult sniffedHosts = hostsSniffer.sniffHosts();
                     logger.debug("sniffed hosts: " + sniffedHosts);
                     if (excludeHost != null) {
-                        sniffedHosts.remove(excludeHost);
+                        sniffedHosts.hosts().remove(excludeHost);
+                        sniffedHosts.hostMetadata().remove(excludeHost);
                     }
-                    if (sniffedHosts.isEmpty()) {
+                    if (sniffedHosts.hosts().isEmpty()) {
                         logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
                     } else {
                         HostMetadataResolver resolver = new HostMetadataResolver() {
                             @Override
                             public HostMetadata resolveMetadata(HttpHost host) {
-                                return sniffedHosts.get(host);
+                                return sniffedHosts.hostMetadata().get(host);
                             }
                         };
-                        this.restClient.setHosts(sniffedHosts.keySet(), resolver);
+                        this.restClient.setHosts(sniffedHosts.hosts(), resolver);
                     }
                 } catch (Exception e) {
                     logger.error("error while sniffing nodes", e);

@@ -34,8 +34,10 @@ import org.elasticsearch.client.HostMetadata.Roles;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -91,18 +93,19 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
      * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
      */
     @Override
-    public Map<HttpHost, HostMetadata> sniffHosts() throws IOException {
+    public SnifferResult sniffHosts() throws IOException {
         Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
         return readHosts(response.getEntity());
     }
 
-    private Map<HttpHost, HostMetadata> readHosts(HttpEntity entity) throws IOException {
+    private SnifferResult readHosts(HttpEntity entity) throws IOException {
         try (InputStream inputStream = entity.getContent()) {
             JsonParser parser = jsonFactory.createParser(inputStream);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("expected data to start with an object");
             }
-            Map<HttpHost, HostMetadata> hosts = new HashMap<>();
+            List<HttpHost> hosts = new ArrayList<>();
+            Map<HttpHost, HostMetadata> hostMetadata = new HashMap<>();
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                     if ("nodes".equals(parser.getCurrentName())) {
@@ -110,20 +113,22 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
                             String nodeId = parser.getCurrentName();
-                            readHost(nodeId, parser, scheme, hosts);
+                            readHost(nodeId, parser, scheme, hosts, hostMetadata);
                         }
                     } else {
                         parser.skipChildren();
                     }
                 }
             }
-            return hosts;
+            return new SnifferResult(hosts, hostMetadata);
         }
     }
 
-    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, Map<HttpHost, HostMetadata> hosts) throws IOException {
+    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<HttpHost> hosts,
+            Map<HttpHost, HostMetadata> hostMetadata) throws IOException {
         // NOCOMMIT test me against 2.x and 5.x
-        HttpHost httpHost = null;
+        HttpHost publishedHost = null;
+        List<HttpHost> boundHosts = new ArrayList<>();
         String fieldName = null;
         String version = null;
         boolean sawRoles = false;
@@ -137,9 +142,16 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                 if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
                         if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
-                            URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                            httpHost = new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
-                                    boundAddressAsURI.getScheme());
+                            URI publishAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
+                            publishedHost = new HttpHost(publishAddressAsURI.getHost(), publishAddressAsURI.getPort(),
+                                    publishAddressAsURI.getScheme());
+                        } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
+                            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                                URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
+                                boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
+                                        boundAddressAsURI.getScheme()));
+                            }
+                            // NOCOMMIT test me
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
                         }
@@ -175,12 +187,16 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
             }
         }
         //http section is not present if http is not enabled on the node, ignore such nodes
-        if (httpHost == null) {
+        if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
         } else {
             logger.trace("adding node [" + nodeId + "]");
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
-            hosts.put(httpHost, new HostMetadata(version, new Roles(master, data, ingest)));
+            hosts.add(publishedHost);
+            HostMetadata meta = new HostMetadata(version, new Roles(master, data, ingest));
+            for (HttpHost bound: boundHosts) {
+                hostMetadata.put(bound, meta);
+            }
         }
     }
 

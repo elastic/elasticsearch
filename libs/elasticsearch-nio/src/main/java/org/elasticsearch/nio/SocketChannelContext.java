@@ -188,5 +188,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         void produceWrites(WriteOperation writeOperation);
 
         FlushOperation pollFlushOperation();
+
+        default void close() {
+
+        }
     }
 }

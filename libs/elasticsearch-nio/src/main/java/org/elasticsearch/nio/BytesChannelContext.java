@@ -32,8 +32,8 @@ public class BytesChannelContext extends SocketChannelContext {
     private final ReadConsumer readConsumer;
     private final WriteProducer writeProducer;
     private final InboundChannelBuffer channelBuffer;
-    private final LinkedList<FlushOperation> queued = new LinkedList<>();
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private FlushOperation currentFlushOperation;
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
@@ -93,27 +93,29 @@ public class BytesChannelContext extends SocketChannelContext {
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
         writeProducer.produceWrites(writeOperation);
-        FlushOperation bytesWriteOperation;
-        while ((bytesWriteOperation = writeProducer.pollFlushOperation()) != null) {
-            queued.add(bytesWriteOperation);
+        if (currentFlushOperation == null) {
+            currentFlushOperation = writeProducer.pollFlushOperation();
         }
     }
 
     @Override
     public void flushChannel() throws IOException {
         getSelector().assertOnSelectorThread();
-        int ops = queued.size();
-        if (ops == 1) {
-            singleFlush(queued.pop());
-        } else if (ops > 1) {
-            multiFlush();
+        boolean lastOpCompleted = true;
+        while (lastOpCompleted && currentFlushOperation != null) {
+            if (singleFlush(currentFlushOperation)) {
+                lastOpCompleted = true;
+                currentFlushOperation = writeProducer.pollFlushOperation();
+            } else {
+                lastOpCompleted = false;
+            }
         }
     }
 
     @Override
     public boolean hasQueuedWriteOps() {
         getSelector().assertOnSelectorThread();
-        return queued.isEmpty() == false;
+        return currentFlushOperation != null;
     }
 
     @Override
@@ -141,17 +143,22 @@ public class BytesChannelContext extends SocketChannelContext {
             // Set to true in order to reject new writes before queuing with selector
             isClosing.set(true);
             channelBuffer.close();
-            for (FlushOperation op : queued) {
-                getSelector().executeFailedListener(op.getListener(), new ClosedChannelException());
+            if (currentFlushOperation != null) {
+                getSelector().executeFailedListener(currentFlushOperation.getListener(), new ClosedChannelException());
+                currentFlushOperation = null;
             }
-            queued.clear();
+            writeProducer.close();
+
             if (channelCloseException != null) {
                 throw channelCloseException;
             }
         }
     }
 
-    private void singleFlush(FlushOperation headOp) throws IOException {
+    /**
+     * Returns a boolean indicating if the operation was fully flushed.
+     */
+    private boolean singleFlush(FlushOperation headOp) throws IOException {
         try {
             int written = flushToChannel(headOp.getBuffersToWrite());
             headOp.incrementIndex(written);
@@ -160,19 +167,10 @@ public class BytesChannelContext extends SocketChannelContext {
             throw e;
         }
 
-        if (headOp.isFullyFlushed()) {
+        boolean fullyFlushed = headOp.isFullyFlushed();
+        if (fullyFlushed) {
             getSelector().executeListener(headOp.getListener(), null);
-        } else {
-            queued.push(headOp);
         }
-    }
-
-    private void multiFlush() throws IOException {
-        boolean lastOpCompleted = true;
-        while (lastOpCompleted && queued.isEmpty() == false) {
-            FlushOperation op = queued.pop();
-            singleFlush(op);
-            lastOpCompleted = op.isFullyFlushed();
-        }
+        return fullyFlushed;
     }
 }

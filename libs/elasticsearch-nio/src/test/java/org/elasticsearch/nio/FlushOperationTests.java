@@ -29,17 +29,14 @@ import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.mock;
 
-public class BytesWriteOperationTests extends ESTestCase {
+public class FlushOperationTests extends ESTestCase {
 
-    private SocketChannelContext channelContext;
     private BiConsumer<Void, Throwable> listener;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setFields() {
-        channelContext = mock(SocketChannelContext.class);
         listener = mock(BiConsumer.class);
-
     }
 
     public void testFullyFlushedMarker() {

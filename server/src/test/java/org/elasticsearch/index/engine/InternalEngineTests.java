@@ -722,14 +722,13 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
                 @Override
                 public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-                    assertThat(getTranslog().uncommittedOperations(), equalTo(docs));
+                    assertThat(getTranslog().stats().getUncommittedOperations(), equalTo(docs));
                     final CommitId commitId = super.flush(force, waitIfOngoing);
                     flushed.set(true);
                     return commitId;
                 }
             };
-
-            assertThat(recoveringEngine.getTranslog().uncommittedOperations(), equalTo(docs));
+            assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(docs));
             recoveringEngine.recoverFromTranslog();
             assertTrue(flushed.get());
         } finally {
@@ -2883,7 +2882,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
                     assertEquals(2, engine.getTranslog().currentFileGeneration());
-                    assertEquals(0L, engine.getTranslog().uncommittedOperations());
+                    assertEquals(0L, engine.getTranslog().stats().getUncommittedOperations());
                 }
             }
 
@@ -3839,7 +3838,7 @@ public class InternalEngineTests extends EngineTestCase {
                             System.nanoTime(),
                             reason));
             assertThat(noOpEngine.getLocalCheckpointTracker().getCheckpoint(), equalTo((long) (maxSeqNo + 1)));
-            assertThat(noOpEngine.getTranslog().uncommittedOperations(), equalTo(1 + gapsFilled));
+            assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(1 + gapsFilled));
             // skip to the op that we added to the translog
             Translog.Operation op;
             Translog.Operation last = null;
@@ -4040,7 +4039,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(checkpointOnReplica, replicaEngine.getLocalCheckpointTracker().getCheckpoint());
             recoveringEngine = new InternalEngine(copy(
                 replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
-            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().uncommittedOperations());
+            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().stats().getUncommittedOperations());
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.getLocalCheckpointTracker().getCheckpoint());
@@ -4075,7 +4074,7 @@ public class InternalEngineTests extends EngineTestCase {
             recoveringEngine = new InternalEngine(
                 copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG, globalCheckpoint::get));
             if (flushed) {
-                assertEquals(0, recoveringEngine.getTranslog().uncommittedOperations());
+                assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
             }
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
@@ -4505,7 +4504,8 @@ public class InternalEngineTests extends EngineTestCase {
     public void testShouldPeriodicallyFlush() throws Exception {
         assertThat("Empty engine does not need flushing", engine.shouldPeriodicallyFlush(), equalTo(false));
         // A new engine may have more than one empty translog files - the test should account this extra.
-        final long extraTranslogSizeInNewEngine = engine.getTranslog().uncommittedSizeInBytes() - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
+        final Translog translog = engine.getTranslog();
+        final long extraTranslogSizeInNewEngine = engine.getTranslog().stats().getUncommittedSizeInBytes() - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;
         int numDocs = between(10, 100);
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
@@ -4513,17 +4513,17 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
         long flushThreshold = RandomNumbers.randomLongBetween(random(), 100,
-            engine.getTranslog().uncommittedSizeInBytes() - extraTranslogSizeInNewEngine);
+            engine.getTranslog().stats().getUncommittedSizeInBytes()- extraTranslogSizeInNewEngine);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
         indexSettings.updateIndexMetaData(indexMetaData);
         engine.onSettingsChanged();
-        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
+        assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
         engine.flush();
-        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
+        assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
         // Stale operations skipped by Lucene but added to translog - still able to flush
         for (int id = 0; id < numDocs; id++) {
             final ParsedDocument doc = testParsedDocument(Integer.toString(id), null, testDocumentWithTextField(), SOURCE, null);
@@ -4531,13 +4531,53 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(result.isCreated(), equalTo(false));
         }
         SegmentInfos lastCommitInfo = engine.getLastCommittedSegmentInfos();
-        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(numDocs));
+        assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(numDocs));
         assertThat(engine.shouldPeriodicallyFlush(), equalTo(true));
         engine.flush(false, false);
         assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
-        assertThat(engine.getTranslog().uncommittedOperations(), equalTo(0));
+        assertThat(engine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
+        // If the new index commit still points to the same translog generation as the current index commit,
+        // we should not enable the periodically flush condition; otherwise we can get into an infinite loop of flushes.
+        engine.getLocalCheckpointTracker().generateSeqNo(); // create a gap here
+        for (int id = 0; id < numDocs; id++) {
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+            final ParsedDocument doc = testParsedDocument("new" + id, null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(replicaIndexForDoc(doc, 2L, engine.getLocalCheckpointTracker().generateSeqNo(), false));
+            if (engine.shouldPeriodicallyFlush()) {
+                engine.flush();
+                assertThat(engine.getLastCommittedSegmentInfos(), not(sameInstance(lastCommitInfo)));
+                assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            }
+        }
     }
 
+    public void testStressShouldPeriodicallyFlush() throws Exception {
+        final long flushThreshold = randomLongBetween(100, 5000);
+        final long generationThreshold = randomLongBetween(1000, 5000);
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), generationThreshold + "b")
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), flushThreshold + "b")).build();
+        indexSettings.updateIndexMetaData(indexMetaData);
+        engine.onSettingsChanged();
+        final int numOps = scaledRandomIntBetween(100, 10_000);
+        for (int i = 0; i < numOps; i++) {
+            final long localCheckPoint = engine.getLocalCheckpointTracker().getCheckpoint();
+            final long seqno = randomLongBetween(Math.max(0, localCheckPoint), localCheckPoint + 5);
+            final ParsedDocument doc = testParsedDocument(Long.toString(seqno), null, testDocumentWithTextField(), SOURCE, null);
+            engine.index(replicaIndexForDoc(doc, 1L, seqno, false));
+            if (rarely() && engine.getTranslog().shouldRollGeneration()) {
+                engine.rollTranslogGeneration();
+            }
+            if (rarely() || engine.shouldPeriodicallyFlush()) {
+                engine.flush();
+                assertThat(engine.shouldPeriodicallyFlush(), equalTo(false));
+            }
+        }
+    }
 
     public void testStressUpdateSameDocWhileGettingIt() throws IOException, InterruptedException {
         final int iters = randomIntBetween(1, 15);

@@ -10,11 +10,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.notification.slack.message.SlackMessage;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -113,8 +115,17 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
             builder.field(STATUS.getPreferredName(), isSuccess() ? "success" : "failure");
             if (isSuccess() == false) {
                 if (request != null) {
-                    builder.field(REQUEST.getPreferredName());
-                    request.toXContent(builder, params);
+                    if (WatcherParams.hideSecrets(params)) {
+                        // this writes out the request to the byte array output stream with the correct excludes
+                        // for slack
+                        try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType().xContent(),
+                                params, "path")) {
+                            builder.rawField(REQUEST.getPreferredName(), is, builder.contentType());
+                        }
+                    } else {
+                        builder.field(REQUEST.getPreferredName());
+                        request.toXContent(builder, params);
+                    }
                 }
                 if (response != null) {
                     builder.field(RESPONSE.getPreferredName());

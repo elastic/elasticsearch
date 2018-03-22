@@ -14,9 +14,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -79,10 +80,21 @@ public class SentEvent implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(XField.EVENT.getPreferredName(), event, params);
-        if (!successful()) {
+        if (successful() == false) {
             builder.field(XField.REASON.getPreferredName(), failureReason);
             if (request != null) {
-                builder.field(XField.REQUEST.getPreferredName(), request, params);
+                // this excludes the whole body, even though we should only exclude a small field inside of the body
+                // as this makes debugging pagerduty services much harder, this should be changed to only filter for
+                // body.service_key - however the body is currently just a string, making filtering much harder
+                if (WatcherParams.hideSecrets(params)) {
+                    try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType().xContent(),
+                            params, "body")) {
+                        builder.rawField(XField.REQUEST.getPreferredName(), is, builder.contentType());
+                    }
+                } else {
+                    builder.field(XField.REQUEST.getPreferredName());
+                    request.toXContent(builder, params);
+                }
             }
             if (response != null) {
                 builder.field(XField.RESPONSE.getPreferredName(), response, params);

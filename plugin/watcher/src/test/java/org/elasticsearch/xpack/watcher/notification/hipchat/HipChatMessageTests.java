@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.watcher.notification.hipchat;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
+import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 
 import java.util.ArrayList;
@@ -21,7 +27,9 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class HipChatMessageTests extends ESTestCase {
@@ -267,7 +275,41 @@ public class HipChatMessageTests extends ESTestCase {
         HipChatMessage.Template parsed = HipChatMessage.Template.parse(parser);
 
         assertThat(parsed, equalTo(template));
+    }
 
+    public void testAuthTokenParamIsFiltered() throws Exception {
+        HttpResponse response = new HttpResponse(500);
+        String token = randomAlphaOfLength(20);
+        HttpRequest request = HttpRequest.builder("localhost", 1234).setParam("auth_token", token).build();
+
+        // String body, String[] rooms, String[] users, String from, Format format, Color color, Boolean notify
+        HipChatMessage hipChatMessage = new HipChatMessage("body", new String[]{"room"}, null, "from",
+                HipChatMessage.Format.TEXT, HipChatMessage.Color.RED, false);
+        SentMessages.SentMessage sentMessage = SentMessages.SentMessage.responded("targetName", SentMessages.SentMessage.TargetType.ROOM,
+                hipChatMessage, request, response);
+
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            WatcherParams params = WatcherParams.builder().hideSecrets(false).build();
+            sentMessage.toXContent(builder, params);
+            assertThat(Strings.toString(builder), containsString(token));
+
+            try (XContentParser parser = builder.contentType().xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Strings.toString(builder))) {
+                parser.map();
+            }
+        }
+        try (XContentBuilder builder = jsonBuilder()) {
+            sentMessage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), not(containsString(token)));
+
+            try (XContentParser parser = builder.contentType().xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            Strings.toString(builder))) {
+                parser.map();
+            }
+        }
     }
 
     static <E extends Enum> E randomFromWithExcludes(E[] values, E... exclude) {

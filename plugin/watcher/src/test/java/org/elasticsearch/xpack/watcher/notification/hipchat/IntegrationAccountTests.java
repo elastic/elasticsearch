@@ -9,6 +9,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
@@ -16,9 +18,12 @@ import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -113,12 +118,13 @@ public class IntegrationAccountTests extends ESTestCase {
     }
 
     public void testSend() throws Exception {
+        String token = randomAlphaOfLength(10);
         HttpClient httpClient = mock(HttpClient.class);
         String room = "Room with Spaces";
         IntegrationAccount account = new IntegrationAccount("_name", Settings.builder()
                 .put("host", "_host")
                 .put("port", "443")
-                .put("auth_token", "_token")
+                .put("auth_token", token)
                 .put("room", room)
                 .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
@@ -133,7 +139,7 @@ public class IntegrationAccountTests extends ESTestCase {
                 // url encoded already
                 .path("/v2/room/Room+with+Spaces/notification")
                 .setHeader("Content-Type", "application/json")
-                .setHeader("Authorization", "Bearer _token")
+                .setHeader("Authorization", "Bearer " + token)
                 .body(Strings.toString((builder, params) -> {
                     builder.field("message", message.body);
                     if (message.format != null) {
@@ -153,8 +159,12 @@ public class IntegrationAccountTests extends ESTestCase {
         when(res.status()).thenReturn(200);
         when(httpClient.execute(req)).thenReturn(res);
 
-        account.send(message, null);
-
+        SentMessages sentMessages = account.send(message, null);
         verify(httpClient).execute(req);
+        assertThat(sentMessages.asList(), hasSize(1));
+        try (XContentBuilder builder = jsonBuilder()) {
+            sentMessages.asList().get(0).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            assertThat(Strings.toString(builder), not(containsString(token)));
+        }
     }
 }

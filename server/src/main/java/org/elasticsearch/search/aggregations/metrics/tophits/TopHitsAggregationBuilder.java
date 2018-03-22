@@ -33,7 +33,6 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -258,7 +257,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             throw new IllegalArgumentException("[sort] must not be null: [" + name + "]");
         }
         if (sorts == null) {
-                sorts = new ArrayList<>();
+            sorts = new ArrayList<>();
         }
         sorts.add(sort);
         return this;
@@ -274,9 +273,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (this.sorts == null) {
             this.sorts = new ArrayList<>();
         }
-        for (SortBuilder<?> sort : sorts) {
-            this.sorts.add(sort);
-        }
+        this.sorts.addAll(sorts);
         return this;
     }
 
@@ -558,13 +555,23 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     protected TopHitsAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subfactoriesBuilder)
             throws IOException {
-        long innerResultWindow = from() + size();
-        int maxInnerResultWindow = context.mapperService().getIndexSettings().getMaxInnerResultWindow();
+        final long innerResultWindow = from() + size();
+        final IndexSettings indexSettings = context.mapperService().getIndexSettings();
+        final int maxInnerResultWindow = indexSettings.getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +
                     "than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
                     "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
+                    "] index level setting."
+            );
+        }
+        final int maxResultWindow = indexSettings.getMaxResultWindow();
+        if (innerResultWindow > maxResultWindow) {
+             throw new IllegalArgumentException(
+                "Top hits result window is too large, the top hits aggregator [" + name + "]'s from + size must be less " +
+                    "than or equal to: [" + maxResultWindow + "] but was [" + innerResultWindow +
+                    "]. This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() +
                     "] index level setting."
             );
         }

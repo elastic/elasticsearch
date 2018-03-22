@@ -20,7 +20,6 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
 
 import java.io.IOException;
 import java.util.Map;

@@ -106,6 +106,7 @@ public class LicensingTribeIT extends ESIntegTestCase {
         return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4200")
     public void testLicensePropagateToTribeNode() throws Exception {
         assumeTrue("License is only valid when tested against snapshot/test keys", Build.CURRENT.isSnapshot());
         // test that auto-generated basic license propagates to tribe

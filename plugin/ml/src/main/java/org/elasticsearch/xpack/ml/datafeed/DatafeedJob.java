@@ -287,8 +287,14 @@ class DatafeedJob {
     }
 
     private long nextRealtimeTimestamp() {
-        long epochMs = currentTimeSupplier.get() + frequencyMs;
-        return toIntervalStartEpochMs(epochMs) + queryDelayMs + NEXT_TASK_DELAY_MS;
+        // We find the timestamp of the start of the next frequency interval.
+        // The goal is to minimize any lag. To do so,
+        // we offset the time by the query delay modulo frequency.
+        // For example, if frequency is 60s and query delay 90s,
+        // we run 30s past the minute. If frequency is 1s and query delay 10s,
+        // we don't add anything and we'll run every second.
+        long next = currentTimeSupplier.get() + frequencyMs;
+        return toIntervalStartEpochMs(next) + queryDelayMs % frequencyMs + NEXT_TASK_DELAY_MS;
     }
 
     private long toIntervalStartEpochMs(long epochMs) {

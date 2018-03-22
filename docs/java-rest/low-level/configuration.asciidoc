@@ -88,8 +88,8 @@ For any other required configuration needed, the Apache HttpAsyncClient docs
 should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .
 
 NOTE: If your application runs under the security manager you might be subject
-to the JVM default policy of caching positive hostname resolutions indefinitely,
-and caching negative hostname resolutions for ten seconds.  If the resolved
+to the JVM default policies of caching positive hostname resolutions
+indefinitely and negative hostname resolutions for ten seconds.  If the resolved
 addresses of the hosts to which you are connecting the client to vary with time
 then you might want to modify the default JVM behavior. These can be modified by
 adding

@@ -20,9 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -45,8 +43,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A utility to build XContent (ie json).
@@ -87,6 +85,7 @@ public final class XContentBuilder implements Releasable, Flushable {
     public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     private static final Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
@@ -98,7 +97,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
         writers.put(float[].class, (b, v) -> b.values((float[]) v));
-        writers.put(GeoPoint.class, (b, v) -> b.value((GeoPoint) v));
         writers.put(Integer.class, (b, v) -> b.value((Integer) v));
         writers.put(int[].class, (b, v) -> b.values((int[]) v));
         writers.put(Long.class, (b, v) -> b.value((Long) v));
@@ -107,14 +105,42 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
-        writers.put(Text.class, (b, v) -> b.value((Text) v));
+
+
+        Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
+        // These will be moved to a different class at a later time to decouple them from XContentBuilder
+        humanReadableTransformer.put(TimeValue.class, v -> ((TimeValue) v).millis());
+        humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
+
+        // Load pluggable extensions
+        for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
+            Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
+            Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
+
+            addlWriters.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent writer for class " + key));
+            addlTransformers.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent transformer for human readable class " + key));
+
+            writers.putAll(addlWriters);
+            humanReadableTransformer.putAll(addlTransformers);
+        }
 
         WRITERS = Collections.unmodifiableMap(writers);
+        HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
     }
 
     @FunctionalInterface
-    private interface Writer {
+    public interface Writer {
         void write(XContentBuilder builder, Object value) throws IOException;
+    }
+
+    /**
+     * Interface for transforming complex objects into their "raw" equivalents for human-readable fields
+     */
+    @FunctionalInterface
+    public interface HumanReadableTransformer {
+        Object rawValue(Object value) throws IOException;
     }
 
     /**
@@ -631,26 +657,6 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Text
-    //////////////////////////////////
-
-    public XContentBuilder field(String name, Text value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder value(Text value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        } else if (value.hasString()) {
-            return value(value.string());
-        } else {
-            // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
-            // request to jackson to support InputStream as well?
-            return utf8Value(value.bytes().toBytesRef());
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
     // Date
     //////////////////////////////////
 
@@ -714,19 +720,8 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // GeoPoint & LatLon
+    // LatLon
     //////////////////////////////////
-
-    public XContentBuilder field(String name, GeoPoint value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder value(GeoPoint value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return latlon(value.getLat(), value.getLon());
-    }
 
     public XContentBuilder latlon(String name, double lat, double lon) throws IOException {
         return field(name).latlon(lat, lon);
@@ -891,33 +886,30 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Misc.
+    // Human readable fields
+    //
+    // These are fields that have a "raw" value and a "human readable" value,
+    // such as time values or byte sizes. The human readable variant is only
+    // used if the humanReadable flag has been set
     //////////////////////////////////
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, TimeValue timeValue) throws IOException {
+    public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
         if (humanReadable) {
-            field(readableFieldName, timeValue.toString());
+            field(readableFieldName, Objects.toString(value));
         }
-        field(rawFieldName, timeValue.millis());
+        HumanReadableTransformer transformer = HUMAN_READABLE_TRANSFORMERS.get(value.getClass());
+        if (transformer != null) {
+            Object rawValue = transformer.rawValue(value);
+            field(rawFieldName, rawValue);
+        } else {
+            throw new IllegalArgumentException("no raw transformer found for class " + value.getClass());
+        }
         return this;
     }
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime).toString());
-        }
-        field(rawFieldName, rawTime);
-        return this;
-    }
-
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
-            IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime, timeUnit).toString());
-        }
-        field(rawFieldName, rawTime);
-        return this;
-    }
+    ////////////////////////////////////////////////////////////////////////////
+    // Misc.
+    //////////////////////////////////
 
 
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
@@ -925,14 +917,6 @@ public final class XContentBuilder implements Releasable, Flushable {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }
         field(rawFieldName, percentage);
-        return this;
-    }
-
-    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, byteSizeValue.toString());
-        }
-        field(rawFieldName, byteSizeValue.getBytes());
         return this;
     }
 

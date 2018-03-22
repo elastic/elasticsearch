@@ -28,6 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -431,9 +433,36 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             String nonExistentIndex = "non_existent_index";
             assertFalse(indexExists(nonExistentIndex));
-            FlushRequest refreshRequest = new FlushRequest(nonExistentIndex);
+            FlushRequest flushRequest = new FlushRequest(nonExistentIndex);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> execute(refreshRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync));
+                    () -> execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+    public void testClearCache() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            ClearIndicesCacheRequest clearCacheRequest = new ClearIndicesCacheRequest(index);
+            ClearIndicesCacheResponse clearCacheResponse =
+                    execute(clearCacheRequest, highLevelClient().indices()::clearCache, highLevelClient().indices()::clearCacheAsync);
+            assertThat(clearCacheResponse.getTotalShards(), equalTo(1));
+            assertThat(clearCacheResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
+            assertThat(clearCacheResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            ClearIndicesCacheRequest clearCacheRequest = new ClearIndicesCacheRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(clearCacheRequest, highLevelClient().indices()::clearCache,
+                            highLevelClient().indices()::clearCacheAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }

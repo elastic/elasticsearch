@@ -48,6 +48,11 @@ setup() {
     rpm -qpR elasticsearch-oss-$(cat version).rpm | grep '/bin/bash'
 }
 
+@test "[RPM] package conflicts" {
+    rpm -qp --conflicts elasticsearch-oss-$(cat version).rpm | grep "^elasticsearch\s*$"
+    rpm -qp --conflicts elasticsearch-$(cat version).rpm | grep "^elasticsearch-oss\s*$"
+}
+
 ##################################
 # Install RPM package
 ##################################

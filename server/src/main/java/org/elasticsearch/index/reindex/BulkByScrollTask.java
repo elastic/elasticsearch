@@ -387,12 +387,12 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.field("search", searchRetries);
             }
             builder.endObject();
-            builder.timeValueField("throttled_millis", "throttled", throttled);
+            builder.humanReadableField("throttled_millis", "throttled", throttled);
             builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? -1 : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
-            builder.timeValueField("throttled_until_millis", "throttled_until", throttledUntil);
+            builder.humanReadableField("throttled_until_millis", "throttled_until", throttledUntil);
             if (false == sliceStatuses.isEmpty()) {
                 builder.startArray("slices");
                 for (StatusOrException slice : sliceStatuses) {

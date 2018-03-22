@@ -26,7 +26,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -86,7 +86,7 @@ public class RestGetSourceAction extends BaseRestHandler {
                         } else {
                             final BytesReference source = response.getSourceInternal();
                             try (InputStream stream = source.streamInput()) {
-                                builder.rawValue(stream, XContentFactory.xContentType(source));
+                                builder.rawValue(stream, XContentHelper.xContentType(source));
                             }
                             return new BytesRestResponse(OK, builder);
                         }

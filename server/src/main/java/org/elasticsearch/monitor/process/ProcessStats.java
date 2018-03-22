@@ -108,7 +108,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.percent);
-            builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
+            builder.humanReadableField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, new TimeValue(cpu.total));
             builder.endObject();
         }
         if (mem != null) {

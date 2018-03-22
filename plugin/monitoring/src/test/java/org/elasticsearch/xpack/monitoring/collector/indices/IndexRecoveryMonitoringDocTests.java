@@ -108,7 +108,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         final Throwable reason = new NodeDisconnectedException(discoveryNodeZero, "");
         shardFailures.add(new IndicesShardStoresResponse.Failure("_failed_node_id", "_failed_index", 1, reason));
 
-        final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, true, shardRecoveryStates, shardFailures);
+        final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, shardRecoveryStates, shardFailures);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final IndexRecoveryMonitoringDoc document =
                 new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, recoveryResponse);

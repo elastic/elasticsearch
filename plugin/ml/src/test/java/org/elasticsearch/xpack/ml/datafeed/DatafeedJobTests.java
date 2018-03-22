@@ -198,7 +198,7 @@ public class DatafeedJobTests extends ESTestCase {
         long queryDelayMs = 1000;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1);
         long next = datafeedJob.runRealtime();
-        assertEquals(currentTime + frequencyMs + queryDelayMs + 100, next);
+        assertEquals(currentTime + frequencyMs + 100, next);
 
         verify(dataExtractorFactory).newExtractor(1000L + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);

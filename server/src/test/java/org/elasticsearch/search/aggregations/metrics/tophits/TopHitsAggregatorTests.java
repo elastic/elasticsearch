@@ -39,6 +39,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
@@ -47,7 +51,9 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -55,6 +61,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testTopLevel() throws Exception {
@@ -77,7 +84,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     public void testNoResults() throws Exception {
         TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
-        SearchHits searchHits = ((TopHits) result).getHits();
+        SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits());
     }
 
@@ -100,7 +107,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         Terms terms = (Terms) result;
 
         // The "a" bucket
-        TopHits hits = (TopHits) terms.getBucketByKey("a").getAggregations().get("top");
+        TopHits hits = terms.getBucketByKey("a").getAggregations().get("top");
         SearchHits searchHits = (hits).getHits();
         assertEquals(2L, searchHits.getTotalHits());
         assertEquals("2", searchHits.getAt(0).getId());
@@ -198,5 +205,51 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(3, result.getHits().totalHits);
         reader.close();
         directory.close();
+    }
+
+    public void testTopHitsMaxResultWindow() throws Exception {
+        int maxResultWindow = randomIntBetween(5, 10);
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetaData.builder("_index")
+                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.builder().put("index.max_result_window", maxResultWindow).build()
+        );
+        try (Directory directory = newDirectory();
+             IndexWriter w = new IndexWriter(directory, newIndexWriterConfig());
+             IndexReader reader = DirectoryReader.open(w)) {
+            IndexSearcher searcher = new IndexSearcher(reader);
+            MultiBucketConsumerService.MultiBucketConsumer consumer = new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
+            // from + size > maxResultWindow
+            int from = randomInt(10);
+            int size = maxResultWindow - from + randomIntBetween(1, 10);
+            String name = randomAlphaOfLength(10);
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> createAggregatorFactory(
+                    new TopHitsAggregationBuilder(name).from(from).size(size),
+                    searcher,
+                    indexSettings,
+                    consumer));
+            assertEquals("Top hits result window is too large, the top hits aggregator [" +
+                name + "]'s from + size must be less " +
+                "than or equal to: [" + maxResultWindow + "] but was [" + (from + size) +
+                "]. This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() +
+                "] index level setting.", ex.getMessage());
+
+            // from + size <= maxResultWindow
+            int from2 = randomIntBetween(1, maxResultWindow - 5);
+            int size2 = randomIntBetween(1, maxResultWindow - from);
+            String name2 = randomAlphaOfLength(10);
+            AggregatorFactory factory = createAggregatorFactory(
+                new TopHitsAggregationBuilder(name2).from(from2).size(size2),
+                searcher,
+                indexSettings,
+                consumer);
+            assertTrue(factory instanceof TopHitsAggregatorFactory);
+            assertEquals(name2, factory.name());
+        }
     }
 }

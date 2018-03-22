@@ -1,5 +1,5 @@
 [[breaking_70_api_changes]]
-=== Breaking changes in 7.0
+=== Breaking API changes in 7.0
 
 ==== Camel case and underscore parameters deprecated in 6.x have been removed
 A  number of duplicate parameters deprecated in 6.x have been removed from

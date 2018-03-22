@@ -228,7 +228,6 @@ public interface XContentParser extends Closeable {
      * Reads a plain binary value that was written via one of the following methods:
      *
      * <ul>
-     *     <li>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</li>
      *     <li>{@link XContentBuilder#field(String, byte[], int, int)}}</li>
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>
@@ -236,8 +235,7 @@ public interface XContentParser extends Closeable {
      * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
-     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, byte[], int, int)}</li>
      * </ul>
      *
      * these methods write UTF-8 encoded strings and must be read through:

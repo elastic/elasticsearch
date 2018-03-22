@@ -42,10 +42,6 @@
           "type" : "list",
           "description" : "A comma-separated list of index name to limit the operation"
         },
-        "recycler": {
-          "type" : "boolean",
-          "description" : "Clear the recycler cache"
-        },
         "request": {
           "type" : "boolean",
           "description" : "Clear request cache"

@@ -26,6 +26,7 @@ import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.client.sniff.HostsSniffer;
 import org.elasticsearch.client.sniff.SniffOnFailureListener;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.client.sniff.SnifferResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -121,7 +122,7 @@ public class SnifferDocumentation {
                     .build();
             HostsSniffer hostsSniffer = new HostsSniffer() {
                 @Override
-                public Map<HttpHost, HostMetadata> sniffHosts() throws IOException {
+                public SnifferResult sniffHosts() throws IOException {
                     return null; // <1>
                 }
             };

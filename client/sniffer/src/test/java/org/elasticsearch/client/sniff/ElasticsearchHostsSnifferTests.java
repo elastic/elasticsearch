@@ -119,11 +119,11 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
             ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(restClient, sniffRequestTimeout, scheme);
             try {
-                Map<HttpHost, HostMetadata> sniffedHosts = sniffer.sniffHosts();
+                SnifferResult result = sniffer.sniffHosts();
                 if (sniffResponse.isFailure) {
                     fail("sniffNodes should have failed");
                 }
-                assertEquals(sniffResponse.hosts, sniffedHosts);
+                assertEquals(sniffResponse.result, result);
             } catch(ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
@@ -178,7 +178,8 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
 
     private static SniffResponse buildSniffResponse(ElasticsearchHostsSniffer.Scheme scheme) throws IOException {
         int numNodes = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
-        Map<HttpHost, HostMetadata> hosts = new HashMap<>(numNodes);
+        List<HttpHost> hosts = new ArrayList<>(numNodes);
+        Map<HttpHost, HostMetadata> hostMetadata = new HashMap<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();
         StringWriter writer = new StringWriter();
         JsonGenerator generator = jsonFactory.createGenerator(writer);
@@ -212,15 +213,20 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             }
             boolean isHttpEnabled = rarely() == false;
             if (isHttpEnabled) {
-                hosts.put(httpHost, metadata);
+                hosts.add(httpHost);
+                hostMetadata.put(httpHost, metadata);
                 generator.writeObjectFieldStart("http");
-                if (getRandom().nextBoolean()) {
-                    generator.writeArrayFieldStart("bound_address");
-                    generator.writeString("[fe80::1]:" + port);
-                    generator.writeString("[::1]:" + port);
-                    generator.writeString("127.0.0.1:" + port);
-                    generator.writeEndArray();
+                generator.writeArrayFieldStart("bound_address");
+                generator.writeString(httpHost.toHostString());
+                if (randomBoolean()) {
+                    int extras = between(1, 5);
+                    for (int e = 0; e < extras; e++) {
+                        HttpHost extraHost = new HttpHost(httpHost.getHostName() + e, port, scheme.toString());
+                        hostMetadata.put(extraHost, metadata);
+                        generator.writeString(extraHost.toHostString());
+                    }
                 }
+                generator.writeEndArray();
                 if (getRandom().nextBoolean()) {
                     generator.writeObjectFieldStart("bogus_object");
                     generator.writeEndObject();
@@ -270,18 +276,18 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         generator.writeEndObject();
         generator.writeEndObject();
         generator.close();
-        return SniffResponse.buildResponse(writer.toString(), hosts);
+        return SniffResponse.buildResponse(writer.toString(), new SnifferResult(hosts, hostMetadata));
     }
 
     private static class SniffResponse {
         private final String nodesInfoBody;
         private final int nodesInfoResponseCode;
-        private final Map<HttpHost, HostMetadata> hosts;
+        private final SnifferResult result;
         private final boolean isFailure;
 
-        SniffResponse(String nodesInfoBody, Map<HttpHost, HostMetadata> hosts, boolean isFailure) {
+        SniffResponse(String nodesInfoBody, SnifferResult result, boolean isFailure) {
             this.nodesInfoBody = nodesInfoBody;
-            this.hosts = hosts;
+            this.result = result;
             this.isFailure = isFailure;
             if (isFailure) {
                 this.nodesInfoResponseCode = randomErrorResponseCode();
@@ -291,11 +297,11 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
         }
 
         static SniffResponse buildFailure() {
-            return new SniffResponse("", Collections.<HttpHost, HostMetadata>emptyMap(), true);
+            return new SniffResponse("", null, true);
         }
 
-        static SniffResponse buildResponse(String nodesInfoBody, Map<HttpHost, HostMetadata> hosts) {
-            return new SniffResponse(nodesInfoBody, hosts, false);
+        static SniffResponse buildResponse(String nodesInfoBody, SnifferResult result) {
+            return new SniffResponse(nodesInfoBody, result, false);
         }
     }
 

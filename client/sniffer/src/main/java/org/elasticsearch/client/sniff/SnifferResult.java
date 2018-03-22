@@ -24,6 +24,7 @@ import org.elasticsearch.client.HostMetadata;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Result of sniffing hosts.
@@ -40,8 +41,8 @@ public final class SnifferResult {
     private final Map<HttpHost, HostMetadata> hostMetadata;
 
     public SnifferResult(List<HttpHost> hosts, Map<HttpHost, HostMetadata> hostMetadata) {
-        this.hosts = hosts;
-        this.hostMetadata = hostMetadata;
+        this.hosts = Objects.requireNonNull(hosts, "hosts is required");
+        this.hostMetadata = Objects.requireNonNull(hostMetadata, "hostMetadata is required");
     }
 
     /**
@@ -57,5 +58,20 @@ public final class SnifferResult {
      */
     public Map<HttpHost, HostMetadata> hostMetadata() {
         return hostMetadata;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        SnifferResult other = (SnifferResult) obj;
+        return hosts.equals(other.hosts)
+            && hostMetadata.equals(other.hostMetadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(hosts, hostMetadata);
     }
 }

@@ -126,7 +126,6 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
     private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<HttpHost> hosts,
             Map<HttpHost, HostMetadata> hostMetadata) throws IOException {
-        // NOCOMMIT test me against 2.x and 5.x
         HttpHost publishedHost = null;
         List<HttpHost> boundHosts = new ArrayList<>();
         String fieldName = null;
@@ -151,7 +150,6 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                                 boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
                                         boundAddressAsURI.getScheme()));
                             }
-                            // NOCOMMIT test me
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
                         }

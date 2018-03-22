@@ -31,8 +31,10 @@ import java.util.Map;
  */
 class MockHostsSniffer implements HostsSniffer {
     @Override
-    public Map<HttpHost, HostMetadata> sniffHosts() throws IOException {
-        return Collections.singletonMap(new HttpHost("localhost", 9200),
-            new HostMetadata("mock version", new HostMetadata.Roles(false, false, false)));
+    public SnifferResult sniffHosts() throws IOException {
+        HttpHost host = new HttpHost("localhost", 9200);
+        return new SnifferResult(Collections.singletonList(host),
+            Collections.singletonMap(new HttpHost("localhost", 9200),
+                new HostMetadata("mock version", new HostMetadata.Roles(false, false, false))));
     }
 }

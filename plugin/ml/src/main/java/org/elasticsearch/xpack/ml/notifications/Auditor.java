@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,23 +30,23 @@ public class Auditor {
     private static final Logger LOGGER = Loggers.getLogger(Auditor.class);
 
     private final Client client;
-    private final ClusterService clusterService;
+    private final String nodeName;
 
-    public Auditor(Client client, ClusterService clusterService) {
+    public Auditor(Client client, String nodeName) {
         this.client = Objects.requireNonNull(client);
-        this.clusterService = clusterService;
+        this.nodeName = Objects.requireNonNull(nodeName);
     }
 
     public void info(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newInfo(jobId, message, clusterService.localNode().getName()));
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newInfo(jobId, message, nodeName));
     }
 
     public void warning(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newWarning(jobId, message, clusterService.localNode().getName()));
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newWarning(jobId, message, nodeName));
     }
 
     public void error(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message, clusterService.localNode().getName()));
+        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message, nodeName));
     }
 
     private void indexDoc(String type, ToXContent toXContent) {

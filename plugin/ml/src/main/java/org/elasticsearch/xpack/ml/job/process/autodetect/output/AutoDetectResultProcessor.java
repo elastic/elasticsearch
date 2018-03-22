@@ -12,10 +12,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -32,6 +35,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
+import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.time.Duration;
 import java.util.Date;
@@ -68,6 +72,7 @@ public class AutoDetectResultProcessor {
     private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
 
     private final Client client;
+    private final Auditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
@@ -88,15 +93,16 @@ public class AutoDetectResultProcessor {
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;
 
-    public AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+    public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
                                      JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
-        this(client, jobId, renormalizer, persister, jobProvider, latestModelSizeStats, restoredSnapshot, new FlushListener());
+        this(client, auditor, jobId, renormalizer, persister, jobProvider, latestModelSizeStats, restoredSnapshot, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
                               JobProvider jobProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
                               FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
+        this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
@@ -284,9 +290,11 @@ public class AutoDetectResultProcessor {
                 modelSizeStats.getTotalOverFieldCount(), modelSizeStats.getTotalPartitionFieldCount(),
                 modelSizeStats.getBucketAllocationFailuresCount(), modelSizeStats.getMemoryStatus());
 
+        persister.persistModelSizeStats(modelSizeStats);
+        notifyModelMemoryStatusChange(context, modelSizeStats);
         latestModelSizeStats = modelSizeStats;
         haveNewLatestModelSizeStats = true;
-        persister.persistModelSizeStats(modelSizeStats);
+
         // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
         // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
         // we'll NEVER consider memory usage to be established during this period
@@ -294,6 +302,18 @@ public class AutoDetectResultProcessor {
             // We need to make all results written up to and including these stats available for the established memory calculation
             persister.commitResultWrites(context.jobId);
             updateEstablishedModelMemoryOnJob(modelSizeStats.getTimestamp(), modelSizeStats);
+        }
+    }
+
+    private void notifyModelMemoryStatusChange(Context context, ModelSizeStats modelSizeStats) {
+        ModelSizeStats.MemoryStatus memoryStatus = modelSizeStats.getMemoryStatus();
+        if (memoryStatus != latestModelSizeStats.getMemoryStatus()) {
+            if (memoryStatus == ModelSizeStats.MemoryStatus.SOFT_LIMIT) {
+                auditor.warning(context.jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
+            } else if (memoryStatus == ModelSizeStats.MemoryStatus.HARD_LIMIT) {
+                auditor.error(context.jobId, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT,
+                        new ByteSizeValue(modelSizeStats.getModelBytes(), ByteSizeUnit.BYTES).toString()));
+            }
         }
     }
 

@@ -51,7 +51,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     }
 
     private void deleteExpiredData(ActionListener<DeleteExpiredDataAction.Response> listener) {
-        Auditor auditor = new Auditor(client, clusterService);
+        Auditor auditor = new Auditor(client, clusterService.nodeName());
         List<MlDataRemover> dataRemovers = Arrays.asList(
                 new ExpiredResultsRemover(client, clusterService, auditor),
                 new ExpiredForecastsRemover(client),

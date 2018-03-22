@@ -39,4 +39,4 @@ endif::[]
 Shared attribute values are pulled from elastic/docs
 ///////
 
-include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+include::{asciidoc-dir}/../../shared/attributes62.asciidoc[]

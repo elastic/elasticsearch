@@ -30,7 +30,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -85,13 +84,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         PrecisionAtK metric = new PrecisionAtK(1, false, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(),
                 RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request())
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices("test"))
                 .actionGet();
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
         // second is 1/6, divided by 2 to get the average
@@ -132,10 +130,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // test that a different window size k affects the result
         metric = new PrecisionAtK(1, false, 3);
         task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // if we look only at top 3 documente, the expected P@3 for the first query is
@@ -165,10 +161,9 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         DiscountedCumulativeGain metric = new DiscountedCumulativeGain(false, null, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
+                new RankEvalRequest(task, new String[] { "test" }));
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), 10E-14);
@@ -176,10 +171,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // test that a different window size k affects the result
         metric = new DiscountedCumulativeGain(false, null, 3);
         task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(12.39278926071437, response.getEvaluationResult(), 10E-14);
@@ -196,10 +189,9 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         MeanReciprocalRank metric = new MeanReciprocalRank(1, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
+                new RankEvalRequest(task, new String[] { "test" }));
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // the expected reciprocal rank for the amsterdam_query is 1/5
@@ -211,10 +203,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         // test that a different window size k affects the result
         metric = new MeanReciprocalRank(1, 3);
         task = new RankEvalSpec(specifications, metric);
-        task.addIndices(Collections.singletonList("test"));
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
-        builder.setRankEvalSpec(task);
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // limiting to top 3 results, the amsterdam_query has no relevant document in it
@@ -229,8 +219,6 @@ public class RankEvalRequestIT extends ESIntegTestCase {
      * field) will produce an error in the response
      */
     public void testBadQuery() {
-        List<String> indices = Arrays.asList(new String[] { "test" });
-
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
@@ -245,9 +233,9 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
-        task.addIndices(indices);
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
+                new RankEvalRequest(task, new String[] { "test" }));
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();

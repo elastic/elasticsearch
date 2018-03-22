@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -154,7 +155,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             Map<String, String> nodeAttributes = node.getAttributes();
             String enabled = nodeAttributes.get(MachineLearning.ML_ENABLED_NODE_ATTR);
             if (Boolean.valueOf(enabled) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node isn't a ml node.";
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
+                        + "], because this node isn't a ml node.";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -164,15 +166,15 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             Job job = mlMetadata.getJobs().get(jobId);
             Set<String> compatibleJobTypes = Job.getCompatibleJobTypes(node.getVersion());
             if (compatibleJobTypes.contains(job.getJobType()) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node does not support jobs of type ["
-                        + job.getJobType() + "]";
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) +
+                        "], because this node does not support jobs of type [" + job.getJobType() + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
             }
 
             if (nodeSupportsJobVersion(node.getVersion()) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
                         + "], because this node does not support jobs of version [" + job.getJobVersion() + "]";
                 logger.trace(reason);
                 reasons.add(reason);
@@ -180,8 +182,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
 
             if (nodeSupportsModelSnapshotVersion(node, job) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because the job's model snapshot requires " +
-                        "a node of version [" + job.getModelSnapshotMinVersion() + "] or higher";
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node)
+                        + "], because the job's model snapshot requires a node of version ["
+                        + job.getModelSnapshotMinVersion() + "] or higher";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -210,7 +213,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 }
             }
             if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because node exceeds [" + numberOfAllocatingJobs +
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
+                        + "], because node exceeds [" + numberOfAllocatingJobs +
                         "] the maximum number of jobs [" + maxConcurrentJobAllocations + "] in opening state";
                 logger.trace(reason);
                 reasons.add(reason);
@@ -224,7 +228,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 try {
                     maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
                 } catch (NumberFormatException e) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + node + "], because " +
+                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
                             MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
                     logger.trace(reason);
                     reasons.add(reason);
@@ -233,9 +237,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }
             long availableCount = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (availableCount == 0) {
-                String reason = "Not opening job [" + jobId + "] on node [" + node + "], because this node is full. " +
-                        "Number of opened jobs [" + numberOfAssignedJobs + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() +
-                        " [" + maxNumberOfOpenJobs + "]";
+                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
+                        + "], because this node is full. Number of opened jobs [" + numberOfAssignedJobs
+                        + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -253,7 +257,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 try {
                     machineMemory = Long.parseLong(machineMemoryStr);
                 } catch (NumberFormatException e) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + node + "], because " +
+                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
                             MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long";
                     logger.trace(reason);
                     reasons.add(reason);
@@ -267,7 +271,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     long estimatedMemoryFootprint = job.estimateMemoryFootprint();
                     long availableMemory = maxMlMemory - assignedJobMemory;
                     if (estimatedMemoryFootprint > availableMemory) {
-                        String reason = "Not opening job [" + jobId + "] on node [" + node +
+                        String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) +
                                 "], because this node has insufficient available memory. Available memory for ML [" + maxMlMemory +
                                 "], memory required by existing jobs [" + assignedJobMemory +
                                 "], estimated memory required for this job [" + estimatedMemoryFootprint + "]";
@@ -285,7 +289,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     // the cluster, fall back to simply allocating by job count
                     allocateByMemory = false;
                     logger.debug("Falling back to allocating job [{}] by job counts because machine memory was not available for node [{}]",
-                            jobId, node);
+                            jobId, nodeNameAndMlAttributes(node));
                 }
             }
         }
@@ -298,6 +302,33 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
             return new PersistentTasksCustomMetaData.Assignment(null, explanation);
         }
+    }
+
+    static String nodeNameOrId(DiscoveryNode node) {
+        String nodeNameOrID = node.getName();
+        if (Strings.isNullOrEmpty(nodeNameOrID)) {
+            nodeNameOrID = node.getId();
+        }
+        return nodeNameOrID;
+    }
+
+    static String nodeNameAndVersion(DiscoveryNode node) {
+        String nodeNameOrID = nodeNameOrId(node);
+        StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');
+        builder.append('{').append("version=").append(node.getVersion()).append('}');
+        return builder.toString();
+    }
+
+    static String nodeNameAndMlAttributes(DiscoveryNode node) {
+        String nodeNameOrID = nodeNameOrId(node);
+
+        StringBuilder builder = new StringBuilder("{").append(nodeNameOrID).append('}');
+        for (Map.Entry<String, String> entry : node.getAttributes().entrySet()) {
+            if (entry.getKey().startsWith("ml.") || entry.getKey().equals("node.ml")) {
+                builder.append('{').append(entry).append('}');
+            }
+        }
+        return builder.toString();
     }
 
     static String[] indicesOfInterest(ClusterState clusterState, String job) {

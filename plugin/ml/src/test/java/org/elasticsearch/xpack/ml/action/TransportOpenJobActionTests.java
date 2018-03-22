@@ -54,6 +54,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
@@ -494,6 +496,33 @@ public class TransportOpenJobActionTests extends ESTestCase {
         ClusterState cs = getClusterStateWithMappingsWithMetaData(versionMix);
         String[] indices = new String[] { "version_54", "version_null", "version_bogus", "version_bogus2" };
         assertArrayEquals(indices, TransportOpenJobAction.mappingRequiresUpdate(cs, indices, Version.CURRENT, logger));
+    }
+
+    public void testNodeNameAndVersion() {
+        TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put("unrelated", "attribute");
+        DiscoveryNode node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
+        assertEquals("{_node_name1}{version=" + node.getVersion() + "}", TransportOpenJobAction.nodeNameAndVersion(node));
+    }
+
+    public void testNodeNameAndMlAttributes() {
+        TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
+        SortedMap<String, String> attributes = new TreeMap<>();
+        attributes.put("unrelated", "attribute");
+        DiscoveryNode node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
+        assertEquals("{_node_name1}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+
+        attributes.put("ml.machine_memory", "5");
+        node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
+        assertEquals("{_node_name1}{ml.machine_memory=5}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+
+        node = new DiscoveryNode(null, "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
+        assertEquals("{_node_id1}{ml.machine_memory=5}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+
+        attributes.put("node.ml", "true");
+        node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
+        assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {

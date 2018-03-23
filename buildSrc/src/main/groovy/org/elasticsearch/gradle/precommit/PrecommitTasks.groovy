@@ -22,6 +22,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.quality.Checkstyle
 
 /**
  * Validation tasks which should be run before committing. These run before tests.
@@ -142,7 +143,7 @@ class PrecommitTasks {
             ]
             toolVersion = 7.5
         }
-        for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
+        for (String taskName : ['checkstyleMain', 'checkstyleJava9', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)
             if (task != null) {
                 project.tasks['check'].dependsOn.remove(task)
@@ -154,6 +155,11 @@ class PrecommitTasks {
                 }
             }
         }
+
+        project.tasks.withType(Checkstyle) {
+            dependsOn(copyCheckstyleConf)
+        }
+
         return checkstyleTask
     }
 

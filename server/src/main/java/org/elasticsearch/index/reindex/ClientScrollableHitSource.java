@@ -37,7 +37,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -234,7 +234,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
         @Override
         public XContentType getXContentType() {
-            return XContentFactory.xContentType(source);
+            return XContentHelper.xContentType(source);
         }
         @Override
         public long getVersion() {

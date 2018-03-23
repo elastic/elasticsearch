@@ -373,8 +373,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
 
         if (defaultMapper != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)
-                    && reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
+                        "]: defaults mappings are not useful anymore now that indices can have at most one type.");
+            } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
                 DEPRECATION_LOGGER.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                         "cannot have more than one type");
             }

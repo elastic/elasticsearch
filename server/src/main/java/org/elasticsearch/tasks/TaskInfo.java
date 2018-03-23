@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -196,7 +197,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field("description", description);
         }
         builder.dateField("start_time_in_millis", "start_time", startTime);
-        builder.timeValueField("running_time_in_nanos", "running_time", runningTimeNanos, TimeUnit.NANOSECONDS);
+        if (builder.humanReadable()) {
+            builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
         if (parentTaskId.isSet()) {
             builder.field("parent_task_id", parentTaskId.toString());

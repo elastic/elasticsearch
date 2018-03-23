@@ -23,10 +23,8 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -36,14 +34,13 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
+
     public RestClearIndicesCacheAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
@@ -69,7 +66,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
+                response.toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
@@ -82,27 +79,10 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
-
-        for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (Fields.QUERY.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
-                clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
-            } else if (Fields.REQUEST.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
-                clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
-            } else if (Fields.FIELDDATA.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
-                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
-            } else  if (Fields.FIELDS.match(entry.getKey(), LoggingDeprecationHandler.INSTANCE)) {
-                clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
-            }
-        }
-
+        clearIndicesCacheRequest.queryCache(request.paramAsBoolean("query", clearIndicesCacheRequest.queryCache()));
+        clearIndicesCacheRequest.requestCache(request.paramAsBoolean("request", clearIndicesCacheRequest.requestCache()));
+        clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
+        clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
         return clearIndicesCacheRequest;
     }
-
-    public static class Fields {
-        public static final ParseField QUERY = new ParseField("query");
-        public static final ParseField REQUEST = new ParseField("request");
-        public static final ParseField FIELDDATA = new ParseField("fielddata");
-        public static final ParseField FIELDS = new ParseField("fields");
-    }
-
 }

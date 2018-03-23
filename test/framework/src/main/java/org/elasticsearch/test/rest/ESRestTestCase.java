@@ -39,6 +39,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
+import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;

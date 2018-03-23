@@ -134,7 +134,6 @@ information, including the updated property values. For example:
         "detector_description": "Sum of total",
         "function": "sum",
         "field_name": "total",
-        "rules": [],
         "detector_index": 0
       }
     ],

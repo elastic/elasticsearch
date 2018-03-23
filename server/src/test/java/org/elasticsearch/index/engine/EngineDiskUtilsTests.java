@@ -96,7 +96,7 @@ public class EngineDiskUtilsTests extends EngineTestCase {
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
             config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED);
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, config.getPrimaryTermSupplier());
         engine = new InternalEngine(newConfig);
         engine.recoverFromTranslog();
         assertVisibleCount(engine, numDocs, false);
@@ -198,7 +198,7 @@ public class EngineDiskUtilsTests extends EngineTestCase {
             new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(), config.getTranslogConfig(), TimeValue.timeValueMinutes(5),
             config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED);
+            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> 0L);
         engine = new InternalEngine(newConfig);
         engine.recoverFromTranslog();
         assertVisibleCount(engine, 0, false);

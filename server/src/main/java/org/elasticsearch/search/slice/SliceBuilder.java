@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -66,7 +65,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     /** Name of field to slice against (_uid by default) */
-    private String field = UidFieldMapper.NAME;
+    private String field = IdFieldMapper.NAME;
     /** The id of the slice */
     private int id = -1;
     /** Max number of slices */
@@ -75,7 +74,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private SliceBuilder() {}
 
     public SliceBuilder(int id, int max) {
-        this(UidFieldMapper.NAME, id, max);
+        this(IdFieldMapper.NAME, id, max);
     }
 
     /**
@@ -197,11 +196,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if (UidFieldMapper.NAME.equals(field)) {
-            if (context.getIndexSettings().isSingleType()) {
-                // on new indices, the _id acts as a _uid
-                field = IdFieldMapper.NAME;
-            }
+        if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

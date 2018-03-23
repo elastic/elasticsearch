@@ -78,13 +78,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     private final CompressedXContent source;
 
     private Routing routing;
-    private boolean hasParentField;
 
     public MappingMetaData(DocumentMapper docMapper) {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routing = new Routing(docMapper.routingFieldMapper().required());
-        this.hasParentField = docMapper.parentFieldMapper().active();
     }
 
     public MappingMetaData(CompressedXContent mapping) throws IOException {
@@ -128,11 +126,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         } else {
             this.routing = Routing.EMPTY;
         }
-        if (withoutType.containsKey("_parent")) {
-            this.hasParentField = true;
-        } else {
-            this.hasParentField = false;
-        }
     }
 
     void updateDefaultMapping(MappingMetaData defaultMapping) {
@@ -147,10 +140,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public CompressedXContent source() {
         return this.source;
-    }
-
-    public boolean hasParentField() {
-        return hasParentField;
     }
 
     /**
@@ -189,7 +178,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             out.writeOptionalString("now"); // 5.x default
             out.writeOptionalBoolean(null);
         }
-        out.writeBoolean(hasParentField());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(false); // hasParentField
+        }
     }
 
     @Override
@@ -229,7 +220,9 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
-        hasParentField = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readBoolean(); // hasParentField
+        }
     }
 
     public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {

@@ -40,8 +40,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -158,9 +158,9 @@ public class SliceBuilderTests extends ESTestCase {
                     return null;
                 }
             };
-            fieldType.setName(UidFieldMapper.NAME);
+            fieldType.setName(IdFieldMapper.NAME);
             fieldType.setHasDocValues(false);
-            when(context.fieldMapper(UidFieldMapper.NAME)).thenReturn(fieldType);
+            when(context.fieldMapper(IdFieldMapper.NAME)).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
             Settings settings = Settings.builder()
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -225,7 +225,7 @@ public class SliceBuilderTests extends ESTestCase {
             Map<Integer, AtomicInteger> numSliceMap = new HashMap<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (q instanceof TermsSliceQuery || q instanceof MatchAllDocsQuery) {
                         AtomicInteger count = numSliceMap.get(j);
@@ -254,7 +254,7 @@ public class SliceBuilderTests extends ESTestCase {
             List<Integer> targetShards = new ArrayList<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (q instanceof MatchNoDocsQuery == false) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
@@ -270,7 +270,7 @@ public class SliceBuilderTests extends ESTestCase {
             numSlices = numShards;
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));

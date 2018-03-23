@@ -103,9 +103,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
         ))), MapperService.MergeReason.MAPPING_UPDATE);
-        if (mapperService.getIndexSettings().isSingleType() == false) {
-            PercolateQueryBuilderTests.docType = docType;
-        }
     }
 
     @Override

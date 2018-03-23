@@ -1106,10 +1106,6 @@ public abstract class Engine implements Closeable {
             return this.doc.routing();
         }
 
-        public String parent() {
-            return this.doc.parent();
-        }
-
         public List<Document> docs() {
             return this.doc.docs();
         }

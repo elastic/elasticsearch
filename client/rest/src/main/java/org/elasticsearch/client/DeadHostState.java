@@ -26,19 +26,23 @@ import java.util.concurrent.TimeUnit;
  * when the host should be retried (based on number of previous failed attempts).
  * Class is immutable, a new copy of it should be created each time the state has to be changed.
  */
-final class DeadHostState {
+final class DeadHostState implements Comparable<DeadHostState> {
 
     private static final long MIN_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(1);
     private static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);
 
-    static final DeadHostState INITIAL_DEAD_STATE = new DeadHostState();
-
     private final int failedAttempts;
     private final long deadUntilNanos;
+    private final TimeSupplier timeSupplier;
 
-    private DeadHostState() {
+    DeadHostState() {
+        this(TimeSupplier.DEFAULT);
+    }
+
+    DeadHostState(TimeSupplier timeSupplier) {
         this.failedAttempts = 1;
-        this.deadUntilNanos = System.nanoTime() + MIN_CONNECTION_TIMEOUT_NANOS;
+        this.deadUntilNanos = timeSupplier.getNanoTime() + MIN_CONNECTION_TIMEOUT_NANOS;
+        this.timeSupplier = timeSupplier;
     }
 
     /**
@@ -47,10 +51,19 @@ final class DeadHostState {
      * that failed many consecutive times).
      */
     DeadHostState(DeadHostState previousDeadHostState) {
+        this(previousDeadHostState, TimeSupplier.DEFAULT);
+    }
+
+    DeadHostState(DeadHostState previousDeadHostState, TimeSupplier timeSupplier) {
         long timeoutNanos = (long)Math.min(MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
                 MAX_CONNECTION_TIMEOUT_NANOS);
-        this.deadUntilNanos = System.nanoTime() + timeoutNanos;
+        this.deadUntilNanos = timeSupplier.getNanoTime() + timeoutNanos;
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
+        this.timeSupplier = timeSupplier;
+    }
+
+    boolean shallBeRetried() {
+        return timeSupplier.getNanoTime() - deadUntilNanos > 0;
     }
 
     /**
@@ -61,11 +74,28 @@ final class DeadHostState {
         return deadUntilNanos;
     }
 
+    int getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    @Override
+    public int compareTo(DeadHostState other) {
+        return Long.compare(deadUntilNanos, other.deadUntilNanos);
+    }
+
     @Override
     public String toString() {
         return "DeadHostState{" +
                 "failedAttempts=" + failedAttempts +
                 ", deadUntilNanos=" + deadUntilNanos +
                 '}';
+    }
+
+    static class TimeSupplier {
+        private static final TimeSupplier DEFAULT = new TimeSupplier();
+
+        long getNanoTime() {
+            return System.nanoTime();
+        }
     }
 }

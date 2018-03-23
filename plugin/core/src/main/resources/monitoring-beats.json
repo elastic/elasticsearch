@@ -41,20 +41,48 @@
                   "properties": {
                     "cpu": {
                       "properties": {
-                        "total": {
+                        "system": {
                           "properties": {
-                            "norm": {
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
                               "properties": {
-                                "pct": {
-                                  "type": "double"
+                                "ms": {
+                                  "type": "long"
                                 }
                               }
-                            },
-                            "pct": {
-                              "type": "double"
-                            },
+                            }
+                          }
+                        },
+                        "total": {
+                          "properties": {
                             "value": {
-                              "type": "double"
+                              "type": "long"
+                            },
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "user": {
+                          "properties": {
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
                             }
                           }
                         }
@@ -209,27 +237,6 @@
                 },
                 "system": {
                   "properties": {
-                    "cpu": {
-                      "properties": {
-                        "cores": {
-                          "type": "long"
-                        },
-                        "total": {
-                          "properties": {
-                            "norm": {
-                              "properties": {
-                                "pct": {
-                                  "type": "double"
-                                }
-                              }
-                            },
-                            "pct": {
-                              "type": "double"
-                            }
-                          }
-                        }
-                      }
-                    },
                     "load": {
                       "properties": {
                         "1": {

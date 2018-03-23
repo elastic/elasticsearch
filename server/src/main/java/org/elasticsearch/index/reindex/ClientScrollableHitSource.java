@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -106,7 +105,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
                 onCompletion.run();
             }
         });
@@ -155,12 +154,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                     if (retries.hasNext()) {
                         retryCount += 1;
                         TimeValue delay = retries.next();
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                        logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
                         threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
                     } else {
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                        logger.warn(() -> new ParameterizedMessage(
                                 "giving up on search because we retried [{}] times without success", retryCount), e);
                         fail.accept(e);
                     }

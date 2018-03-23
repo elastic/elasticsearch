@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -270,13 +269,9 @@ public class MasterFaultDetection extends FaultDetection {
                                     }
 
                                     int retryCount = ++MasterFaultDetection.this.retryCount;
-                                    logger.trace(
-                                        (Supplier<?>) () -> new ParameterizedMessage(
+                                    logger.trace(() -> new ParameterizedMessage(
                                             "[master] failed to ping [{}], retry [{}] out of [{}]",
-                                            masterNode,
-                                            retryCount,
-                                            pingRetryCount),
-                                        exp);
+                                            masterNode, retryCount, pingRetryCount), exp);
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout",
                                             masterNode, pingRetryCount, pingRetryTimeout);

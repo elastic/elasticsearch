@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -262,7 +261,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
+                    logger.warn(() -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
                 }
             }
         }

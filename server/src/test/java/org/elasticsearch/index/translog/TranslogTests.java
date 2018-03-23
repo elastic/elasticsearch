@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -920,7 +919,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
                     errors.add(e);
                 }
             }, threadName);
@@ -935,7 +934,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
                     errors.add(e);
                     try {
                         closeRetentionLock();

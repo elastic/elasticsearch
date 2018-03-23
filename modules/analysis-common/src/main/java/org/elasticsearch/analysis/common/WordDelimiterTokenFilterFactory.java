@@ -52,8 +52,6 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE;
 
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(WordDelimiterTokenFilterFactory.class));
 
     private final byte[] charTypeTable;
     private final int flags;
@@ -62,7 +60,9 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env,
             String name, Settings settings) {
         super(indexSettings, name, settings);
-
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            throw new IllegalArgumentException("[word_delimiter] was removed after 6.3.0, please use [word_delimiter_graph] instead");
+        }
         // Sample Format for the type table:
         // $ => DIGIT
         // % => DIGIT
@@ -98,9 +98,6 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
-            DEPRECATION_LOGGER.deprecated("[word_delimiter] has been deprecated in favour of [word_delimiter_graph]");
-        }
     }
 
     @Override

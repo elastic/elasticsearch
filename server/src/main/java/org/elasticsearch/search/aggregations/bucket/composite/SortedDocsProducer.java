@@ -60,7 +60,7 @@ abstract class SortedDocsProducer {
             // we need to add the matching document in the builder
             // so we build a bulk adder from the approximate cost of the iterator
             // and rebuild the adder during the collection if needed
-            int remainingBits = (int) iterator.cost();
+            int remainingBits = (int) Math.min(iterator.cost(), Integer.MAX_VALUE);
             DocIdSetBuilder.BulkAdder adder = builder == null ? null : builder.grow(remainingBits);
 
             @Override

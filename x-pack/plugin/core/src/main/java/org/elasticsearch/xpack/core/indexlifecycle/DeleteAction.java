@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -19,8 +19,12 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.LongSupplier;
 
 /**
  * A {@link LifecycleAction} which deletes the index.
@@ -63,18 +67,11 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        client.admin().indices().delete(new DeleteIndexRequest(index.getName()), new ActionListener<DeleteIndexResponse>() {
-            @Override
-            public void onResponse(DeleteIndexResponse deleteIndexResponse) {
-                listener.onSuccess(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        String indexName = index.getName();
+        return Collections.singletonList(new ClientStep<DeleteIndexRequestBuilder, DeleteIndexResponse>( "delete",
+            NAME, phase, indexName, client.admin().indices().prepareDelete(indexName),
+            clusterState -> clusterState.metaData().hasIndex(indexName), response -> true));
     }
 
     @Override

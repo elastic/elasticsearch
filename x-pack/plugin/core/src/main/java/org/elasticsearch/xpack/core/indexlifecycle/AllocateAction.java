@@ -6,13 +6,11 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -30,14 +28,15 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 public class AllocateAction implements LifecycleAction {
 
@@ -145,78 +144,62 @@ public class AllocateAction implements LifecycleAction {
         }).forEach(e -> newSettingsBuilder.put(settingPrefix + e.getKey(), e.getValue()));
     }
 
-    void execute(Index index, BiConsumer<Settings, Listener> settingsUpdater, ClusterState clusterState, ClusterSettings clusterSettings,
-            Listener listener) {
-        // We only want to make progress if all shards are active so check that
-        // first
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
-            logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active", NAME,
-                    index.getName());
-            listener.onSuccess(false);
-            return;
-        }
-        IndexMetaData idxMeta = clusterState.metaData().index(index);
-        if (idxMeta == null) {
-            listener.onFailure(
-                    new IndexNotFoundException("Index not found when executing " + NAME + " lifecycle action.", index.getName()));
-            return;
-        }
-        Settings existingSettings = idxMeta.getSettings();
-        Settings.Builder newSettings = Settings.builder();
-        addMissingAttrs(include, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        addMissingAttrs(exclude, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        addMissingAttrs(require, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        Settings newAllocationIncludes = newSettings.build();
-        if (newAllocationIncludes.isEmpty()) {
+    public static ConditionalWaitStep getAllocationCheck(AllocationDeciders allocationDeciders, String phase, String index) {
+        return new ConditionalWaitStep("wait_allocation", NAME,
+            phase, index, (clusterState) -> {
+            // We only want to make progress if all shards are active so check that first
+            if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index) == false) {
+                logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active", NAME,
+                    index);
+                return false;
+            }
+
             // All the allocation attributes are already set so just need to
             // check if the allocation has happened
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState.getRoutingNodes(), clusterState, null,
-                    System.nanoTime());
+                System.nanoTime());
             int allocationPendingShards = 0;
-            List<ShardRouting> allShards = clusterState.getRoutingTable().allShards(index.getName());
+            List<ShardRouting> allShards = clusterState.getRoutingTable().allShards(index);
             for (ShardRouting shardRouting : allShards) {
                 assert shardRouting.active() : "Shard not active, found " + shardRouting.state() + "for shard with id: "
-                        + shardRouting.shardId();
+                    + shardRouting.shardId();
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = allocationDeciders.canRemain(shardRouting,
-                        clusterState.getRoutingNodes().node(currentNodeId), allocation).type() == Decision.Type.YES;
+                    clusterState.getRoutingNodes().node(currentNodeId), allocation).type() == Decision.Type.YES;
                 if (canRemainOnCurrentNode == false) {
                     allocationPendingShards++;
                 }
             }
             if (allocationPendingShards > 0) {
                 logger.debug("[{}] lifecycle action for index [{}] waiting for [{}] shards "
-                        + "to be allocated to nodes matching the given filters", NAME, index.getName(), allocationPendingShards);
-                listener.onSuccess(false);
+                    + "to be allocated to nodes matching the given filters", NAME, index, allocationPendingShards);
+                return false;
             } else {
-                logger.debug("[{}] lifecycle action for index [{}] complete", NAME, index.getName());
-                listener.onSuccess(true);
+                logger.debug("[{}] lifecycle action for index [{}] complete", NAME, index);
+                return true;
             }
-        } else {
-            // We have some allocation attributes to set
-            settingsUpdater.accept(newAllocationIncludes, listener);
-        }
+        });
     }
 
     @Override
-    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        ClusterState clusterState = clusterService.state();
-        BiConsumer<Settings, Listener> settingsUpdater = (s, l) -> {
+    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
+            "update_allocation", NAME, phase, index.getName(), (clusterState) -> {
+            IndexMetaData idxMeta = clusterState.metaData().index(index);
+            if (idxMeta == null) {
+                return clusterState;
+            }
+            Settings existingSettings = idxMeta.getSettings();
+            Settings.Builder newSettings = Settings.builder();
+            addMissingAttrs(include, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
+            addMissingAttrs(exclude, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
+            addMissingAttrs(require, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey(), existingSettings, newSettings);
+            return ClusterState.builder(clusterState)
+                .metaData(MetaData.builder(clusterState.metaData())
+                    .updateSettings(newSettings.build(), index.getName())).build();
+        });
 
-            client.admin().indices().updateSettings(new UpdateSettingsRequest(s, index.getName()),
-                    new ActionListener<UpdateSettingsResponse>() {
-                        @Override
-                        public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
-                            l.onSuccess(false);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            l.onFailure(e);
-                        }
-                    });
-        };
-        execute(index, settingsUpdater, clusterState, clusterService.getClusterSettings(), listener);
+        return Arrays.asList(updateAllocationSettings, getAllocationCheck(allocationDeciders, phase, index.getName()));
     }
 
     @Override

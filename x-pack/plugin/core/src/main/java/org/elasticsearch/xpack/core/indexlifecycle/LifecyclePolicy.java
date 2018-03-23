@@ -6,26 +6,33 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleContext.Listener;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -78,7 +85,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
         this.name = name;
         this.phases = phases;
-        this.type.validate(phases.values());
+        // TODO(talevy): return validation
+        //this.type.validate(phases.values());
     }
 
     /**
@@ -136,48 +144,49 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return builder;
     }
 
-    /**
-     * Checks the current state and executes the appropriate {@link Phase}.
-     * 
-     * @param context
-     *            the {@link IndexLifecycleContext} to use to execute the
-     *            {@link LifecyclePolicy}.
-     */
-    public void execute(IndexLifecycleContext context) {
-        String currentPhaseName = context.getPhase();
-        boolean currentPhaseActionsComplete = context.getAction().equals(Phase.PHASE_COMPLETED);
-        String indexName = context.getLifecycleTarget();
-        Phase currentPhase = phases.get(currentPhaseName);
-        if (Strings.isNullOrEmpty(currentPhaseName) || currentPhaseActionsComplete) {
-            Phase nextPhase = type.nextPhase(phases, currentPhase);
-            // We only want to execute the phase if the conditions for executing are met (e.g. the index is old enough)
-            if (nextPhase != null && context.canExecute(nextPhase)) {
-                String nextPhaseName = nextPhase.getName();
-                // Set the phase on the context to this phase so we know where we are next time we execute
-                context.setPhase(nextPhaseName, new Listener() {
-
-                    @Override
-                    public void onSuccess() {
-                        logger.info("Successfully initialised phase [" + nextPhaseName + "] for index [" + indexName + "]");
-                        // We might as well execute the phase now rather than waiting for execute to be called again
-                        nextPhase.execute(context, type.getActionProvider(context, nextPhase));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error("Failed to initialised phase [" + nextPhaseName + "] for index [" + indexName + "]", e);
-                    }
-                });
-            }
-        } else {
-            // If we have already seen this index and the action is not PHASE_COMPLETED then we just need to execute the current phase again
-            if (currentPhase == null) {
-                throw new IllegalStateException("Current phase [" + currentPhaseName + "] not found in lifecycle ["
-                    + getName() + "] for index [" + indexName + "]");
+    public StepResult execute(List<Step> steps, ClusterState currentState, IndexMetaData indexMetaData, Client client, LongSupplier nowSupplier) {
+        StepResult lastStepResult = null;
+        ClusterState updatedState = currentState;
+        for (int i = getNextStepIdx(steps, indexMetaData); i < steps.size(); i++) {
+            lastStepResult = steps.get(i).execute(updatedState);
+            if (lastStepResult.isComplete() && lastStepResult.indexSurvived()) {
+                if (i < steps.size() - 1) {
+                    Step nextStep = steps.get(i + 1);
+                    long now = nowSupplier.getAsLong();
+                    // fetch details about next step to run and update the cluster state with this information
+                    Settings newLifecyclePhaseSettings = Settings.builder()
+                        .put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
+                        .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
+                        .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction())
+                        .put(LifecycleSettings.LIFECYCLE_STEP_TIME, now)
+                        .put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
+                        .build();
+                    updatedState = ClusterState.builder(lastStepResult.getClusterState())
+                        .metaData(MetaData.builder(lastStepResult.getClusterState().metaData())
+                            .updateSettings(newLifecyclePhaseSettings)).build();
+                    lastStepResult = new StepResult(lastStepResult, updatedState);
+                }
             } else {
-                currentPhase.execute(context, type.getActionProvider(context, currentPhase));
+                break;
             }
         }
+
+        return lastStepResult;
+    }
+
+    private int getNextStepIdx(List<Step> steps, IndexMetaData indexMetaData) {
+        String step = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_STEP);
+        if (step == null) {
+            return 0;
+        }
+        for (int i = 0; i < steps.size(); i++) {
+            if (steps.get(i).getName().equals(step)) {
+                return i;
+            }
+        }
+
+        return steps.size();
     }
 
     @Override

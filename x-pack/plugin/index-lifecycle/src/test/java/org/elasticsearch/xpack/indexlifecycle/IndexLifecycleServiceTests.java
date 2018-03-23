@@ -278,7 +278,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTriggeredWithMatchingPolicy() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        MockAction mockAction = new MockAction();
+        MockAction mockAction = new MockAction(Collections.emptyList());
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
                 Collections.singletonMap(phase.getName(), phase));
@@ -352,7 +352,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testTriggeredWithDateSettingAlreadyPresent() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        MockAction mockAction = new MockAction();
+        MockAction mockAction = new MockAction(Collections.emptyList());
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
             Collections.singletonMap(phase.getName(), phase));
@@ -409,7 +409,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
      */
     public void testTriggeredUnknownPolicyNameSet() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        MockAction mockAction = new MockAction();
+        MockAction mockAction = new MockAction(Collections.emptyList());
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
                 Collections.singletonMap(phase.getName(), phase));
@@ -453,7 +453,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
      */
     public void testTriggeredNoPolicyNameSet() {
         String policyName = randomAlphaOfLengthBetween(1, 20);
-        MockAction mockAction = new MockAction();
+        MockAction mockAction = new MockAction(Collections.emptyList());
         Phase phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName,
                 Collections.singletonMap(phase.getName(), phase));

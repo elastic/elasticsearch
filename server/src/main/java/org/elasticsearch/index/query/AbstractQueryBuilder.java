@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -316,11 +317,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         QueryBuilder result;
         try {
             result = parser.namedObject(QueryBuilder.class, queryName, null);
-        } catch (UnknownNamedObjectException e) {
+        } catch (XContentParseException e) {
             // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
             // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
             throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
-                    "no [query] registered for [" + e.getName() + "]");
+                    "no [query] registered for [" + queryName + "]");
         }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {

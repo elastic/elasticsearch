@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -220,8 +221,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("Unknown RescorerBuilder [bad_rescorer_name]", e.getMessage());
+            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
         }
 
         rescoreElement = "{\n" +

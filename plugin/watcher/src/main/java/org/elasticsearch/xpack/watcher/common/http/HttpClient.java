@@ -241,8 +241,9 @@ public class HttpClient extends AbstractComponent {
         try {
             List<NameValuePair> qparams = new ArrayList<>(request.params.size());
             request.params.forEach((k, v) -> qparams.add(new BasicNameValuePair(k, v)));
+            String format = URLEncodedUtils.format(qparams, "UTF-8");
             URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
-                    URLEncodedUtils.format(qparams, "UTF-8"), null);
+                    Strings.isNullOrEmpty(format) ? null : format, null);
 
             return uri;
         } catch (URISyntaxException e) {

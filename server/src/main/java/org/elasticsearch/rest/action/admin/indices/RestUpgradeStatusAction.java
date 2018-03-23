@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -32,25 +31,25 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestUpgradeAction extends BaseRestHandler {
-    public RestUpgradeAction(Settings settings, RestController controller) {
+public class RestUpgradeStatusAction extends BaseRestHandler {
+
+    public RestUpgradeStatusAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, "/_upgrade", this);
-        controller.registerHandler(POST, "/{index}/_upgrade", this);
-    }
-
-    @Override
-    public String getName() {
-        return "upgrade_action";
+        controller.registerHandler(GET, "/_upgrade", this);
+        controller.registerHandler(GET, "/{index}/_upgrade", this);
     }
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        UpgradeRequest upgradeReq = new UpgradeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        upgradeReq.indicesOptions(IndicesOptions.fromRequest(request, upgradeReq.indicesOptions()));
-        upgradeReq.upgradeOnlyAncientSegments(request.paramAsBoolean("only_ancient_segments", false));
-        return channel -> client.admin().indices().upgrade(upgradeReq, new RestToXContentListener<>(channel));
+        UpgradeStatusRequest statusRequest = new UpgradeStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        statusRequest.indicesOptions(IndicesOptions.fromRequest(request, statusRequest.indicesOptions()));
+        return channel -> client.admin().indices().upgradeStatus(statusRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public String getName() {
+        return "upgrade_status_action";
     }
 }

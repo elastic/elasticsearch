@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -426,6 +427,29 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
+    }
+
+    public void testGetSettings() throws IOException {
+        String[] indices = randomIndicesNames(1, 5);
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indices);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        /* HELP
+        setRandomMasterTimeout(getSettingsRequest, expectedParams);
+        I definitely have some questions here.  Enabling this causes the master timeout
+        parameter *not* to come through on the actual request, but I can't figure out
+        why.  Further, I'm not entirely sure I need it.
+        */
+        setRandomIndicesOptions(getSettingsRequest::indicesOptions, getSettingsRequest::indicesOptions, expectedParams);
+
+        setRandomLocal(getSettingsRequest, expectedParams);
+
+        Request request = Request.getSettings(getSettingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_settings");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeleteIndexEmptyIndices() {

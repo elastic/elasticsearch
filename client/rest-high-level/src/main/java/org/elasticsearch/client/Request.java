@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -591,6 +592,18 @@ public final class Request {
                 .addPathPart(rolloverRequest.getNewIndexName()).build();
         HttpEntity entity = createEntity(rolloverRequest, REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpPost.METHOD_NAME, endpoint, params.getParams(), entity);
+    }
+
+    static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+        Params params = Params.builder();
+        params.withIndicesOptions(getSettingsRequest.indicesOptions());
+        params.withLocal(getSettingsRequest.local());
+
+        if (getSettingsRequest.indices().length == 0) {
+            throw new IllegalArgumentException("getSettings requires at least one index");
+        }
+        String endpoint = endpoint(getSettingsRequest.indices(), "_settings", getSettingsRequest.names());
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     static Request indicesExist(GetIndexRequest request) {

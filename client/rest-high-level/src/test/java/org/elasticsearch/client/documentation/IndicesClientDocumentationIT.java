@@ -50,6 +50,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -58,7 +60,6 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -775,6 +776,76 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             // end::flush-notfound
         }
+    }
+
+    public void testGetSettings() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::get-settings-request
+        GetSettingsRequest request = new GetSettingsRequest().indices("index");
+        // tag::get-settings-request
+
+        // tag::get-settings-request-names
+        request.names("index.number_of_shards"); // <1>
+        // end::get-settings-request-names
+
+        // tag::get-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::get-settings-request-masterTimeout
+
+        // tag::get-settings-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-settings-request-indicesOptions
+
+
+        // tag::get-settings-execute
+        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
+        // end::get-settings-execute
+
+        // tag::get-settings-response
+        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards"); // <1>
+        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index"); // <2>
+        int numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
+        // end::get-settings-response
+
+        assertEquals("3", numberOfShardsString);
+        assertEquals(3, numberOfShards);
+
+        // tag::get-settings-execute-listener
+        ActionListener<GetSettingsResponse> listener =
+            new ActionListener<GetSettingsResponse>() {
+                @Override
+                public void onResponse(GetSettingsResponse GetSettingsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-settings-execute-async
+        client.indices().getSettingsAsync(request, listener); // <1>
+        // end::get-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+
+
+
     }
 
     public void testForceMergeIndex() throws Exception {

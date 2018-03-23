@@ -23,6 +23,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
+apply plugin: 'osgi'
 
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7

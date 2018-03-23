@@ -121,7 +121,6 @@ When the job is created, you receive the following results:
         "detector_description": "Sum of total",
         "function": "sum",
         "field_name": "total",
-        "rules": [],
         "detector_index": 0
       }
     ],

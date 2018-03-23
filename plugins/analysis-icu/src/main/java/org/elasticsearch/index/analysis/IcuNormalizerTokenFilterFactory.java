@@ -24,6 +24,9 @@ import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -37,14 +40,15 @@ import org.elasticsearch.index.IndexSettings;
  *
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
-
+    private final static DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(IcuNormalizerTokenFilterFactory.class));
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         String method = settings.get("name", "nfkc_cf");
         Normalizer2 normalizer = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
-        this.normalizer = wrapWithUnicodeSetFilter(normalizer, settings);
+        this.normalizer = wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
     }
 
     @Override
@@ -57,8 +61,17 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return this;
     }
 
-    static Normalizer2 wrapWithUnicodeSetFilter(final Normalizer2 normalizer, Settings settings) {
+    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
+                                                final Normalizer2 normalizer,
+                                                final Settings settings) {
         String unicodeSetFilter = settings.get("unicodeSetFilter");
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (unicodeSetFilter != null) {
+                DEPRECATION_LOGGER.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
+            } else {
+                unicodeSetFilter = settings.get("unicode_set_filter");
+            }
+        }
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
 

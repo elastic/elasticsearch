@@ -105,7 +105,7 @@ The following parameters are accepted by `geo_point` fields:
     If `true`, malformed geo-points are ignored. If `false` (default),
     malformed geo-points throw an exception and reject the whole document.
 
-<<ignore_z_value,`ignore_z_value`>>::
+`ignore_z_value`::
 
     If `true` (default) three dimension points will be accepted (stored in source)
     but only latitude and longitude values will be indexed; the third dimension is

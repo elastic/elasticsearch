@@ -475,14 +475,18 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void configureJavadoc(Project project) {
-        project.tasks.withType(Javadoc) {
-            executable = new File(project.compilerJavaHome, 'bin/javadoc')
+        // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        final List<File> classes = new ArrayList<>()
+        project.tasks.withType(JavaCompile) { javaCompile ->
+            classes.add(javaCompile.destinationDir)
+        }
+        project.tasks.withType(Javadoc) { javadoc ->
+            javadoc.executable = new File(project.compilerJavaHome, 'bin/javadoc')
+            javadoc.classpath = javadoc.getClasspath().filter { f ->
+                return classes.contains(f) == false
+            }
         }
         configureJavadocJar(project)
-        if (project.compilerJavaVersion == JavaVersion.VERSION_1_10) {
-            project.tasks.withType(Javadoc) { it.enabled = false }
-            project.tasks.getByName('javadocJar').each { it.enabled = false }
-        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -83,25 +84,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .execute().actionGet();
         });
         assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [" + type + "] is too long; limit is length 255 but was [256]"));
-    }
-
-    public void testTypes() throws Exception {
-        IndexService indexService1 = createIndex("index1", Settings.builder().put("index.version.created", Version.V_5_6_0) // multi types
-            .build());
-        MapperService mapperService = indexService1.mapperService();
-        assertEquals(Collections.emptySet(), mapperService.types());
-
-        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(Collections.singleton("type1"), mapperService.types());
-
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(Collections.singleton("type1"), mapperService.types());
-
-        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
     }
 
     public void testTypeValidation() {
@@ -325,9 +307,19 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
-    public void testDefaultMappingIsDeprecated() throws IOException {
+    public void testDefaultMappingIsRejectedOn7() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
+        assertEquals("The [default] mapping cannot be updated on index [test]: defaults mappings are not useful anymore now that indices " +
+                "can have at most one type.", e.getMessage());
+    }
+
+    public void testDefaultMappingIsDeprecatedOn6() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
+        MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                 "cannot have more than one type");

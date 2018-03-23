@@ -118,7 +118,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.toString());
         }
     }
 

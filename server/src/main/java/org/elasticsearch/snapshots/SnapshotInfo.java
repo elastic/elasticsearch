@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -392,7 +393,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (verbose || endTime != 0) {
             builder.field(END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
             builder.field(END_TIME_IN_MILLIS, endTime);
-            builder.timeValueField(DURATION_IN_MILLIS, DURATION, endTime - startTime);
+            builder.humanReadableField(DURATION_IN_MILLIS, DURATION, new TimeValue(endTime - startTime));
         }
         if (verbose || !shardFailures.isEmpty()) {
             builder.startArray(FAILURES);

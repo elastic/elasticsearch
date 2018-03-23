@@ -31,9 +31,11 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-search>>
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
+* <<java-rest-high-multi-search>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
+include::search/multi-search.asciidoc[]
 
 == Miscellaneous APIs
 

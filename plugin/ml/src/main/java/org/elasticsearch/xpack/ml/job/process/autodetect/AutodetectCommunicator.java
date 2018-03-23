@@ -345,7 +345,8 @@ public class AutodetectCommunicator implements Closeable {
             @Override
             public void onFailure(Exception e) {
                 if (processKilled) {
-                    handler.accept(null, null);
+                    handler.accept(null, ExceptionsHelper.conflictStatusException(
+                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
                 } else {
                     LOGGER.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
                     handler.accept(null, e);
@@ -355,7 +356,8 @@ public class AutodetectCommunicator implements Closeable {
             @Override
             protected void doRun() throws Exception {
                 if (processKilled) {
-                    handler.accept(null, null);
+                    handler.accept(null, ExceptionsHelper.conflictStatusException(
+                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
                 } else {
                     checkProcessIsAlive();
                     handler.accept(operation.get(), null);

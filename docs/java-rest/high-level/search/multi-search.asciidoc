@@ -16,13 +16,13 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-request-basi
 --------------------------------------------------
 <1> Create an empty `MultiSearchRequest`.
 <2> Create an empty `SearchRequest` and populate it just like you
-would dfor a regular <<java-rest-high-search,`search`>>.
+would for a regular <<java-rest-high-search,`search`>>.
 <3> Add the `SearchRequest` to the `MultiSearchRequest`.
 <4> Build a second `SearchRequest` and add it to the `MultiSearchRequest`.
 
 ===== Optional arguments
 
-The `SearchRequests` inside of `MultiSearchRequest` support all of
+The `SearchRequest`s inside of `MultiSearchRequest` support all of
 <<java-rest-high-search-request-optional,`search`>>'s optional arguments.
 For example:
 

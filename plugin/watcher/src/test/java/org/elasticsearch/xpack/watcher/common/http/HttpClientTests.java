@@ -595,4 +595,15 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
         assertThat(webServer.requests().get(0).getBody(), is(body));
     }
+
+    public void testThatUrlDoesNotContainQuestionMarkAtTheEnd() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
+                        .path("foo")
+                        .build();
+        httpClient.execute(request);
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getRawPath(), is("/foo"));
+    }
 }

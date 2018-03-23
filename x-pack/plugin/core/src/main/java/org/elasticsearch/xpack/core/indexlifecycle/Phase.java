@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,13 +19,17 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleContext.Listener;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.ObjectParserUtils.convertListToMapValues;
 
@@ -131,126 +136,12 @@ public class Phase implements ToXContentObject, Writeable {
         return actions;
     }
 
-    /**
-     * Checks the current state and executes the appropriate
-     * {@link LifecycleAction}.
-     * 
-     * @param context
-     *            the {@link IndexLifecycleContext} to use to execute the
-     *            {@link Phase}.
-     * @param nextActionProvider
-     *            the next action provider
-     */
-    protected void execute(IndexLifecycleContext context, LifecyclePolicy.NextActionProvider nextActionProvider) {
-        String currentActionName = context.getAction();
-        String indexName = context.getLifecycleTarget();
-        if (Strings.isNullOrEmpty(currentActionName)) {
-            // This is is the first time this phase has been called so get the first action and execute it.
-            String firstActionName;
-            LifecycleAction firstAction;
-            if (actions.isEmpty()) {
-                // There are no actions in this phase so use the PHASE_COMPLETE action name.
-                firstAction = null;
-                firstActionName = PHASE_COMPLETED;
-            } else {
-                firstAction = nextActionProvider.next(null);
-                firstActionName = firstAction.getWriteableName();
-            }
-            // Set the action on the context to this first action so we know where we are next time we execute
-            context.setAction(firstActionName, new Listener() {
-
-                @Override
-                public void onSuccess() {
-                    logger.info("Successfully initialised action [" + firstActionName + "] for index [" + indexName + "]");
-                    // Now execute the action unless its PHASE_COMPLETED
-                    if (firstActionName.equals(PHASE_COMPLETED) == false) {
-                        executeAction(context, indexName, firstAction, nextActionProvider);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // Something went wrong so log the error and hopefully it will succeed next time execute
-                    // is called. NORELEASE can we do better here?
-                    logger.error("Failed to initialised action [" + firstActionName + "] for index [" + indexName + "]", e);
-                }
-            });
-        } else if (currentActionName.equals(PHASE_COMPLETED) == false) {
-            // We have an action name and its not PHASE COMPLETED so we need to execute the action
-            // First find the action in the actions map.
-            if (actions.containsKey(currentActionName) == false) {
-                throw new IllegalStateException("Current action [" + currentActionName + "] not found in phase ["
-                        + getName() + "] for index [" + indexName + "]");
-            }
-            LifecycleAction currentAction = actions.get(currentActionName);
-            // then execute the action
-            executeAction(context, indexName, currentAction, nextActionProvider);
-        }
-    }
-
-    private void executeAction(IndexLifecycleContext context, String indexName, LifecycleAction action,
-                               LifecyclePolicy.NextActionProvider nextActionProvider) {
-        String actionName = action.getWriteableName();
-        context.executeAction(action, new LifecycleAction.Listener() {
-
-            @Override
-            public void onSuccess(boolean completed) {
-                if (completed) {
-                    // Since we completed the current action move to the next
-                    // action if the index survives this action
-                    if (action.indexSurvives()) {
-                        logger.info("Action [" + actionName + "] for index [" + indexName + "] complete, moving to next action");
-                        moveToNextAction(context, indexName, action, nextActionProvider);
-                    } else {
-                        logger.info("Action [" + actionName + "] for index [" + indexName + "] complete");
-                    }
-                } else {
-                    logger.info("Action [" + actionName + "] for index [" + indexName + "] executed sucessfully but is not yet complete");
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.info("Action [" + actionName + "] for index [" + indexName + "] failed", e);
-            }
-        });
-    }
-
-    private void moveToNextAction(IndexLifecycleContext context, String indexName, LifecycleAction currentAction,
-                              LifecyclePolicy.NextActionProvider nextActionProvider) {
-        LifecycleAction nextAction = nextActionProvider.next(currentAction);
-        if (nextAction != null) {
-            context.setAction(nextAction.getWriteableName(), new Listener() {
-
-                @Override
-                public void onSuccess() {
-                    logger.info("Successfully initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
-                            + "] for index [" + indexName + "]");
-                    // We might as well execute the new action now rather than waiting for execute to be called again
-                    execute(context, nextActionProvider);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to initialised action [" + nextAction.getWriteableName() + "] in phase [" + getName()
-                            + "] for index [" + indexName + "]", e);
-                }
-            });
-        } else {
-            // There is no next action so set the action to PHASE_COMPLETED
-            context.setAction(Phase.PHASE_COMPLETED, new Listener() {
-
-                @Override
-                public void onSuccess() {
-                    logger.info("Successfully completed phase [" + getName() + "] for index [" + indexName + "]");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to complete phase [" + getName() + "] for index [" + indexName + "]", e);
-                }
-            });
-        }
+    public List<Step> toSteps(Index index, long indexLifecycleCreationDate, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        // TODO(talevy) phase needs to know indexLifecycleStartTime
+        PhaseAfterStep phaseAfterStep = new PhaseAfterStep(threadPool, indexLifecycleCreationDate, nowSupplier, after,
+            "phase_start", index.getName(), getName(), null);
+        return Stream.concat(Stream.of(phaseAfterStep), actions.values().stream()
+            .flatMap(a -> a.toSteps(name, index, client, threadPool, nowSupplier).stream())).collect(Collectors.toList());
     }
 
     @Override

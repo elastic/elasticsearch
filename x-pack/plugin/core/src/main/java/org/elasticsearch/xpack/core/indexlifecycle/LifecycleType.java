@@ -47,14 +47,4 @@ public interface LifecycleType extends NamedWriteable {
      * @return the {@link LifecyclePolicy} type.
      */
     String getType();
-
-    /**
-     * @param context
-     *            the index lifecycle context for this phase at the time of
-     *            execution
-     * @param phase
-     *            the current phase for which to provide an action provider
-     * @return the action provider
-     */
-    LifecyclePolicy.NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase);
 }

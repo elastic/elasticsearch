@@ -10,7 +10,9 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -21,9 +23,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -77,28 +83,14 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     @Override
-    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        IndexMetaData idxMeta = clusterService.state().metaData().getIndexSafe(index);
-        int currentNumberReplicas = idxMeta.getNumberOfReplicas();
-        if (currentNumberReplicas == numberOfReplicas) {
-            boolean isAllocationCompleted = ActiveShardCount.ALL.enoughShardsActive(clusterService.state(), index.getName());
-            listener.onSuccess(isAllocationCompleted);
-        } else {
-            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index.getName())
-                    .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas));
-            client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<UpdateSettingsResponse>() {
-
-                @Override
-                public void onResponse(UpdateSettingsResponse response) {
-                    listener.onSuccess(false);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        }
+    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
+            "update_replica_count", NAME, phase, index.getName(), (currentState) ->
+            ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+                .updateNumberOfReplicas(numberOfReplicas, index.getName())).build());
+        ConditionalWaitStep isReplicatedCheck = new ConditionalWaitStep("wait_replicas_allocated", NAME,
+            phase, index.getName(), (currentState) -> ActiveShardCount.ALL.enoughShardsActive(currentState, index.getName()) );
+        return Arrays.asList(updateAllocationSettings, isReplicatedCheck);
     }
 
     public int getNumberOfReplicas() {

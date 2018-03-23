@@ -16,10 +16,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 public class MockAction implements LifecycleAction {
     public static final ParseField COMPLETED_FIELD = new ParseField("completed");
@@ -29,9 +33,10 @@ public class MockAction implements LifecycleAction {
     private final AtomicLong executedCount;
     private Exception exceptionToThrow = null;
     private boolean completeOnExecute = false;
+    private final List<Step> steps;
 
     private static final ConstructingObjectParser<MockAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new MockAction((Boolean) a[0], (Long) a[1]));
+            a -> new MockAction(null, (Boolean) a[0], (Long) a[1]));
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), COMPLETED_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXECUTED_COUNT_FIELD);
@@ -41,11 +46,12 @@ public class MockAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public MockAction() {
-        this(null, 0);
+    public MockAction(List<Step> steps) {
+        this(steps, null, 0);
     }
 
-    MockAction(Boolean completed, long executedCount) {
+    MockAction(List<Step> steps, Boolean completed, long executedCount) {
+        this.steps = steps;
         if (completed != null) {
             this.completed.set(completed);
         }
@@ -53,6 +59,12 @@ public class MockAction implements LifecycleAction {
     }
 
     public MockAction(StreamInput in) throws IOException {
+        int numSteps = in.readVInt();
+        this.steps = new ArrayList<>();
+        for (int i = 0; i < numSteps; i++) {
+            // TODO(talevy): make Steps implement NamedWriteable
+            steps.add(null);
+        }
         Boolean executed = in.readOptionalBoolean();
         if (executed != null) {
             this.completed.set(executed);
@@ -74,6 +86,11 @@ public class MockAction implements LifecycleAction {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        return steps;
     }
 
     public void setCompleteOnExecute(boolean completeOnExecute) {
@@ -103,19 +120,6 @@ public class MockAction implements LifecycleAction {
     }
 
     @Override
-    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        executedCount.incrementAndGet();
-        if (exceptionToThrow == null) {
-            if (completeOnExecute) {
-                completed.set(true);
-            }
-            listener.onSuccess(completeOnExecute);
-        } else {
-            listener.onFailure(exceptionToThrow);
-        }
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(completed.get(), executedCount.get());
     }
@@ -137,5 +141,4 @@ public class MockAction implements LifecycleAction {
     public String toString() {
         return Strings.toString(this);
     }
-
 }

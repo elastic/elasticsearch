@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -24,9 +23,13 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.LongSupplier;
 
 /**
  * A {@link LifecycleAction} which deletes the index.
@@ -150,32 +153,38 @@ public class RolloverAction implements LifecycleAction {
     }
 
     @Override
-    public void execute(Index index, Client client, ClusterService clusterService, Listener listener) {
-        if (clusterService.state().getMetaData().index(index.getName()).getAliases().containsKey(alias)) {
-            RolloverRequest rolloverRequest = new RolloverRequest(alias, null);
-            if (maxAge != null) {
-                rolloverRequest.addMaxIndexAgeCondition(maxAge);
-            }
-            if (maxSize != null) {
-                rolloverRequest.addMaxIndexSizeCondition(maxSize);
-            }
-            if (maxDocs != null) {
-                rolloverRequest.addMaxIndexDocsCondition(maxDocs);
-            }
-            client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<RolloverResponse>() {
-                @Override
-                public void onResponse(RolloverResponse rolloverResponse) {
-                    listener.onSuccess(rolloverResponse.isRolledOver());
-                }
+    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+        return Collections.emptyList();
+//        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover", index.getName(), phase, action, (clusterState) -> {
+//            // TODO(talevy): actually, needs to RolloverRequest with dryrun to get the appropriate data; clusterState is not enough...
+//            // can potentially reduce down to original problem with RolloverRequest...1minute...RolloverRequest...1minute... probably ok?
+//            if (clusterService.state().getMetaData().index(index.getName()).getAliases().containsKey(alias)) {
+//                RolloverRequest rolloverRequest = new RolloverRequest(alias, null);
+//                if (maxAge != null) {
+//                    rolloverRequest.addMaxIndexAgeCondition(maxAge);
+//                }
+//                if (maxSize != null) {
+//                    rolloverRequest.addMaxIndexSizeCondition(maxSize);
+//                }
+//                if (maxDocs != null) {
+//                    rolloverRequest.addMaxIndexDocsCondition(maxDocs);
+//                }
+//                client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<RolloverResponse>() {
+//                    @Override
+//                    public void onResponse(RolloverResponse rolloverResponse) {
+//                        return rolloverResponse.isRolledOver();
+//                    }
+//
+//                    @Override
+//                    public void onFailure(Exception e) {
+//                        listener.onFailure(e);
+//                    }
+//                });
+//            } else {
+//                listener.onSuccess(true);
+//            }
+//        });
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } else {
-            listener.onSuccess(true);
-        }
     }
 
     @Override

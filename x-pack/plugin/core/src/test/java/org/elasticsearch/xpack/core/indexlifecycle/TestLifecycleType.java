@@ -36,10 +36,10 @@ public class TestLifecycleType implements LifecycleType {
         return TYPE;
     }
 
-    @Override
-    public NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
-        return a -> Optional.ofNullable(phase.getActions().entrySet().iterator().next()).map(Map.Entry::getValue).orElse(null);
-    }
+//    @Override
+//    public NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
+//        return a -> Optional.ofNullable(phase.getActions().entrySet().iterator().next()).map(Map.Entry::getValue).orElse(null);
+//    }
 
     @Override
     public Phase getFirstPhase(Map<String, Phase> phases) {

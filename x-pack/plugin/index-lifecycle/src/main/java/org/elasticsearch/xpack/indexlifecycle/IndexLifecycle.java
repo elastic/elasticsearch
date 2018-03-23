@@ -105,7 +105,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING,
             LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_ACTION_SETTING);
+            LifecycleSettings.LIFECYCLE_ACTION_SETTING,
+            LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING,
+            LifecycleSettings.LIFECYCLE_STEP_SETTING);
     }
 
     @Override

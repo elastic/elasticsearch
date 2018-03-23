@@ -27,6 +27,7 @@ import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.util.PatternSet
 import org.gradle.api.tasks.util.PatternFilterable
+import org.apache.tools.ant.taskdefs.condition.Os
 
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
@@ -67,17 +68,19 @@ public class FilePermissionsTask extends DefaultTask {
 
     @TaskAction
     void checkInvalidPermissions() {
-        List<String> failures = new ArrayList<>()
-        for (File f : files()) {
-            PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class)
-            Set<PosixFilePermission> permissions = fileAttributeView.readAttributes().permissions()
-            if (permissions.contains(OTHERS_EXECUTE) || permissions.contains(OWNER_EXECUTE) ||
-                permissions.contains(GROUP_EXECUTE)) {
-                failures.add("Source file is executable: " + f)
+        if (Os.isFamily(Os.FAMILY_WINDOWS) == false) {
+            List<String> failures = new ArrayList<>()
+            for (File f : files()) {
+                PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class)
+                Set<PosixFilePermission> permissions = fileAttributeView.readAttributes().permissions()
+                if (permissions.contains(OTHERS_EXECUTE) || permissions.contains(OWNER_EXECUTE) ||
+                    permissions.contains(GROUP_EXECUTE)) {
+                    failures.add("Source file is executable: " + f)
+                }
             }
-        }
-        if (failures.isEmpty() == false) {
-            throw new GradleException('Found invalid file permissions:\n' + failures.join('\n'))
+            if (failures.isEmpty() == false) {
+                throw new GradleException('Found invalid file permissions:\n' + failures.join('\n'))
+            }
         }
         outputMarker.setText('done', 'UTF-8')
     }

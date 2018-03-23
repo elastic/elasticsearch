@@ -21,10 +21,9 @@ package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -35,7 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;
@@ -215,6 +214,10 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
         if (pluginId == null) {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
+        }
+
+        if ("x-pack".equals(pluginId)) {
+            handleInstallXPack(buildFlavor());
         }
 
         Path pluginZip = download(terminal, pluginId, env.tmpFile());

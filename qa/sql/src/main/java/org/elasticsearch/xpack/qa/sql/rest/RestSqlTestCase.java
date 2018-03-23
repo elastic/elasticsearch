@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.qa.sql.rest;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
@@ -489,17 +493,96 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertEquals(0, getNumberOfSearchContexts("test"));
     }
 
+    // CSV/TSV tests
+    
+    private static String toJson(String value) {
+        return "\"" + new String(JsonStringEncoder.getInstance().quoteAsString(value)) + "\"";
+    }
+
+    public void testDefaultQueryInCSV() throws IOException {
+        index("{\"name\":" + toJson("first") + ", \"number\" : 1 }",
+              "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
+              "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }");
+
+        String expected =
+                "name,number\r\n" +
+                "first,1\r\n" +
+                "second\t,2\r\n" +
+                "\"\"\"third,\"\"\",3\r\n";
+        
+        String query = "SELECT * FROM test ORDER BY number";
+        Tuple<String, String> response = runSqlAsText(query, "text/csv");
+        assertEquals(expected, response.v1());
+        
+        response = runSqlAsTextFormat(query, "csv");
+        assertEquals(expected, response.v1());
+    }
+
+    public void testQueryWithoutHeaderInCSV() throws IOException {
+        index("{\"name\":" + toJson("first") + ", \"number\" : 1 }",
+              "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
+              "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }");
+
+        String expected =
+                "first,1\r\n" +
+                "second\t,2\r\n" +
+                "\"\"\"third,\"\"\",3\r\n";
+        
+        String query = "SELECT * FROM test ORDER BY number";
+        Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
+        assertEquals(expected, response.v1());
+    }
+
+    public void testQueryInTSV() throws IOException {
+        index("{\"name\":" + toJson("first") + ", \"number\" : 1 }",
+              "{\"name\":" + toJson("second\t") + ", \"number\": 2 }",
+              "{\"name\":" + toJson("\"third,\"") + ", \"number\": 3 }");
+
+        String expected =
+                "name\tnumber\n" +
+                "first\t1\n" +
+                "second\\t\t2\n" +
+                "\"third,\"\t3\n";
+        
+        String query = "SELECT * FROM test ORDER BY number";
+        Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
+        assertEquals(expected, response.v1());
+        response = runSqlAsTextFormat(query, "tsv");
+        assertEquals(expected, response.v1());
+    }
+
     private Tuple<String, String> runSqlAsText(String sql) throws IOException {
         return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
     }
 
-    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql) throws IOException {
-        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql);
+    private Tuple<String, String> runSqlAsText(String sql, String acceptHeader) throws IOException {
+        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON),
+                new BasicHeader("Accept", acceptHeader));
+    }
+
+    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql, Header... headers) throws IOException {
+        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql, headers);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
         );
     }
+
+    private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
+        StringEntity entity = new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON);
+        
+        Map<String, String> params = new HashMap<>();
+        params.put("error_trace", "true");
+        params.put("format", format);
+                
+        Response response = client().performRequest("POST", "/_xpack/sql", params, entity);
+        return new Tuple<>(
+                Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
+                response.getHeader("Cursor")
+        );
+
+    }
+
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {
@@ -542,5 +625,4 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     public static String randomMode() {
         return randomFrom("", "jdbc", "plain");
     }
-
 }

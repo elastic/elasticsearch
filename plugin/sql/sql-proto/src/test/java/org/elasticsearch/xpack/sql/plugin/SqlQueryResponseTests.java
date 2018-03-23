@@ -37,7 +37,7 @@ public class SqlQueryResponseTests extends AbstractStreamableXContentTestCase<Sq
         return createRandomInstance(randomStringCursor());
     }
 
-    private static SqlQueryResponse createRandomInstance(String cursor) {
+    public static SqlQueryResponse createRandomInstance(String cursor) {
         int columnCount = between(1, 10);
 
         List<ColumnInfo> columns = null;

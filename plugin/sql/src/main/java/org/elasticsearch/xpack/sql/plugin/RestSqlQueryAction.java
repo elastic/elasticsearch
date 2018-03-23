@@ -55,36 +55,30 @@ public class RestSqlQueryAction extends BaseRestHandler {
                         }
                     });
         }
-        // The client accepts plain text
+
+        // The client accepts a text format
+        TextFormat text = TextFormat.fromMediaTypeOrFormat(request);
         long startNanos = System.nanoTime();
 
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                final String data;
-                final CliFormatter formatter;
-                if (sqlRequest.cursor().equals("") == false) {
-                    formatter = ((CliFormatterCursor) Cursor.decodeFromString(sqlRequest.cursor())).getCliFormatter();
-                    data = formatter.formatWithoutHeader(response);
-                } else {
-                    formatter = new CliFormatter(response);
-                    data = formatter.formatWithHeader(response);
-                }
+                Cursor cursor = Cursor.decodeFromString(sqlRequest.cursor());
+                final String data = text.format(cursor, request, response);
 
-                return buildTextResponse(CliFormatterCursor.wrap(Cursor.decodeFromString(response.cursor()), formatter),
-                        System.nanoTime() - startNanos, data);
+                RestResponse restResponse = new BytesRestResponse(RestStatus.OK, text.contentType(request),
+                        data.getBytes(StandardCharsets.UTF_8));
+
+                Cursor responseCursor = text.wrapCursor(cursor, response);
+
+                if (responseCursor != Cursor.EMPTY) {
+                    restResponse.addHeader("Cursor", Cursor.encodeToString(Version.CURRENT, responseCursor));
+                }
+                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
+
+                return restResponse;
             }
         });
-    }
-
-    private RestResponse buildTextResponse(Cursor responseCursor, long tookNanos, String data) {
-        RestResponse restResponse = new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE,
-                data.getBytes(StandardCharsets.UTF_8));
-        if (responseCursor != Cursor.EMPTY) {
-            restResponse.addHeader("Cursor", Cursor.encodeToString(Version.CURRENT, responseCursor));
-        }
-        restResponse.addHeader("Took-nanos", Long.toString(tookNanos));
-        return restResponse;
     }
 
     @Override
@@ -92,4 +86,3 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return "xpack_sql_action";
     }
 }
-

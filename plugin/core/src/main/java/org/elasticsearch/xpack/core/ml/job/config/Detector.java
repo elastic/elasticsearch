@@ -292,7 +292,9 @@ public class Detector implements ToXContentObject, Writeable {
         if (excludeFrequent != null) {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
-        builder.field(RULES_FIELD.getPreferredName(), rules);
+        if (rules.isEmpty() == false) {
+            builder.field(RULES_FIELD.getPreferredName(), rules);
+        }
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
                 // no point writing this to cluster state, as the indexes will get reassigned on reload anyway

@@ -99,7 +99,14 @@
 
 ---
 "word_delimiter":
+    - skip:
+        version: " - 6.2.99"
+        reason: word_delimiter was deprecated in 6.3.0
+        features: "warnings"
+
     - do:
+        warnings: 
+          - "[word_delimiter] has been deprecated in favour of [word_delimiter_graph]"
         indices.analyze:
           body:
             text:      the qu1ck brown fox
@@ -114,6 +121,8 @@
     - match:  { tokens.5.token: fox }
 
     - do:
+        warnings: 
+          - "[word_delimiter] has been deprecated in favour of [word_delimiter_graph]"
         indices.analyze:
           body:
             text:      the qu1ck brown fox

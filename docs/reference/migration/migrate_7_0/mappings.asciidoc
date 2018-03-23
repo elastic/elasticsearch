@@ -5,6 +5,12 @@
 
 The `_all` field deprecated in 6 have now been removed.
 
+==== The `_default_` mapping is no longer allowed
+
+The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed
+in 7.0. Trying to configure a `_default_` mapping on 7.x indices will result in
+an error.
+
 ==== `index_options` for numeric fields has been removed
 
 The `index_options` field for numeric  fields has been deprecated in 6 and has now been removed.

@@ -185,8 +185,7 @@ public class TaskResultsService extends AbstractComponent {
             Streams.copy(is, out);
             return out.toString(StandardCharsets.UTF_8.name());
         } catch (Exception e) {
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.error(() -> new ParameterizedMessage(
                     "failed to create tasks results index template [{}]", TASK_RESULT_INDEX_MAPPING_FILE), e);
             throw new IllegalStateException("failed to create tasks results index template [" + TASK_RESULT_INDEX_MAPPING_FILE + "]", e);
         }

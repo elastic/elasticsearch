@@ -35,6 +35,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URISyntaxException;
+import javax.net.ssl.SSLHandshakeException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -206,6 +207,23 @@ public class SyncResponseListenerTests extends RestClientTestCase {
             assertSame(closedException, e.getCause());
             // We copy the message
             assertEquals(closedException.getMessage(), e.getMessage());
+            // And we do all that so the thrown exception has our method in the stacktrace
+            assertExceptionStackContainsCallingMethod(e);
+        }
+    }
+
+    public void testSSLHandshakeExceptionIsWrapped() throws Exception {
+        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SSLHandshakeException exception = new SSLHandshakeException(randomAsciiAlphanumOfLength(5));
+        syncResponseListener.onFailure(exception);
+        try {
+            syncResponseListener.get();
+            fail("get should have failed");
+        } catch (SSLHandshakeException e) {
+            // We preserve the original exception in the cause
+            assertSame(exception, e.getCause());
+            // We copy the message
+            assertEquals(exception.getMessage(), e.getMessage());
             // And we do all that so the thrown exception has our method in the stacktrace
             assertExceptionStackContainsCallingMethod(e);
         }

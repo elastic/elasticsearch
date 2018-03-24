@@ -145,7 +145,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
     }
 
-
     public Collection<PersistentTask<?>> tasks() {
         return this.tasks.values();
     }
@@ -163,12 +162,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 .filter(p -> taskName.equals(p.getTaskName()))
                 .filter(predicate)
                 .collect(Collectors.toList());
-    }
-
-    public boolean tasksExist(String taskName, Predicate<PersistentTask<?>> predicate) {
-        return this.tasks().stream()
-                .filter(p -> taskName.equals(p.getTaskName()))
-                .anyMatch(predicate);
     }
 
     @Override
@@ -278,7 +271,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         private final Assignment assignment;
         @Nullable
         private final Long allocationIdOnLastStatusUpdate;
-
 
         public PersistentTask(String id, String taskName, P params, long allocationId, Assignment assignment) {
             this(id, allocationId, taskName, params, null, assignment, null);
@@ -393,13 +385,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
         public boolean isAssigned() {
             return assignment.isAssigned();
-        }
-
-        /**
-         * Returns true if the tasks is not stopped and unassigned or assigned to a non-existing node.
-         */
-        public boolean needsReassignment(DiscoveryNodes nodes) {
-            return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
         }
 
         @Nullable
@@ -522,16 +507,14 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         return readDiffFrom(MetaData.Custom.class, TYPE, in);
     }
 
-    public long getLastAllocationId() {
-        return lastAllocationId;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("last_allocation_id", lastAllocationId);
         builder.startArray("tasks");
-        for (PersistentTask<?> entry : tasks.values()) {
-            entry.toXContent(builder, params);
+        {
+            for (PersistentTask<?> entry : tasks.values()) {
+                entry.toXContent(builder, params);
+            }
         }
         builder.endArray();
         return builder;

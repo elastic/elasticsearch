@@ -316,7 +316,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public void onNewClusterState(final String source, final java.util.function.Supplier<ClusterState> clusterStateSupplier,
+    public void onNewClusterState(final String source, final Supplier<ClusterState> clusterStateSupplier,
                                   final ClusterStateTaskListener listener) {
         Function<ClusterState, ClusterState> applyFunction = currentState -> {
             ClusterState nextState = clusterStateSupplier.get();
@@ -401,7 +401,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage(
+                logger.trace(() -> new ParameterizedMessage(
                         "failed to execute cluster state applier in [{}], state:\nversion [{}], source [{}]\n{}{}{}",
                         executionTime,
                         previousClusterState.version(),
@@ -439,8 +439,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 final long version = newClusterState.version();
                 final String stateUUID = newClusterState.stateUUID();
                 final String fullState = newClusterState.toString();
-                logger.warn(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                         "failed to apply updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
                         executionTime,
                         version,

@@ -54,7 +54,7 @@ public class XContentFactoryTests extends ESTestCase {
         builder.field("field1", "value1");
         builder.endObject();
 
-        assertThat(XContentFactory.xContentType(BytesReference.bytes(builder)), equalTo(type));
+        assertThat(XContentHelper.xContentType(BytesReference.bytes(builder)), equalTo(type));
         assertThat(XContentFactory.xContentType(BytesReference.bytes(builder).streamInput()), equalTo(type));
 
         // CBOR is binary, cannot use String

@@ -1405,7 +1405,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     static void verifyChecksum(BufferedChecksumStreamInput in) throws IOException {
         // This absolutely must come first, or else reading the checksum becomes part of the checksum
         long expectedChecksum = in.getChecksum();
-        long readChecksum = in.readInt() & 0xFFFF_FFFFL;
+        long readChecksum = Integer.toUnsignedLong(in.readInt());
         if (readChecksum != expectedChecksum) {
             throw new TranslogCorruptedException("translog stream is corrupted, expected: 0x" +
                 Long.toHexString(expectedChecksum) + ", got: 0x" + Long.toHexString(readChecksum));

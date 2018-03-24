@@ -24,6 +24,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -345,6 +346,11 @@ public class GeoUtils {
         return parseGeoPoint(parser, new GeoPoint());
     }
 
+
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
+        return parseGeoPoint(parser, point, false);
+    }
+
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}. A geopoint has one of the following forms:
      *
@@ -359,7 +365,8 @@ public class GeoUtils {
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
      */
-    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
+    public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point, final boolean ignoreZValue)
+            throws IOException, ElasticsearchParseException {
         double lat = Double.NaN;
         double lon = Double.NaN;
         String geohash = null;
@@ -438,7 +445,7 @@ public class GeoUtils {
                     } else if(element == 2) {
                         lat = parser.doubleValue();
                     } else {
-                        throw new ElasticsearchParseException("only two values allowed");
+                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
                     }
                 } else {
                     throw new ElasticsearchParseException("numeric value expected");
@@ -446,22 +453,9 @@ public class GeoUtils {
             }
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
-            String data = parser.text();
-            return parseGeoPoint(data, point);
+            return point.resetFromString(parser.text(), ignoreZValue);
         } else {
             throw new ElasticsearchParseException("geo_point expected");
-        }
-    }
-
-    /** parse a {@link GeoPoint} from a String */
-    public static GeoPoint parseGeoPoint(String data, GeoPoint point) {
-        int comma = data.indexOf(',');
-        if(comma > 0) {
-            double lat = Double.parseDouble(data.substring(0, comma).trim());
-            double lon = Double.parseDouble(data.substring(comma + 1).trim());
-            return point.reset(lat, lon);
-        } else {
-            return point.resetFromGeoHash(data);
         }
     }
 

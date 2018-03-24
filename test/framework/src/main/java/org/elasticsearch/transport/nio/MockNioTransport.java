@@ -165,7 +165,7 @@ public class MockNioTransport extends TcpTransport {
             SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
-                nioReadConsumer, new InboundChannelBuffer(pageSupplier));
+                nioReadConsumer, null, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
         }

@@ -22,7 +22,6 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.util.LinkedList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -34,11 +33,6 @@ public class BytesChannelContext extends SocketChannelContext {
     private final InboundChannelBuffer channelBuffer;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
     private FlushOperation currentFlushOperation;
-
-    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, readConsumer, null, channelBuffer);
-    }
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, WriteProducer writeProducer, InboundChannelBuffer channelBuffer) {
@@ -103,11 +97,16 @@ public class BytesChannelContext extends SocketChannelContext {
         getSelector().assertOnSelectorThread();
         boolean lastOpCompleted = true;
         while (lastOpCompleted && currentFlushOperation != null) {
-            if (singleFlush(currentFlushOperation)) {
-                lastOpCompleted = true;
+            try {
+                if (singleFlush(currentFlushOperation)) {
+                    lastOpCompleted = true;
+                    currentFlushOperation = writeProducer.pollFlushOperation();
+                } else {
+                    lastOpCompleted = false;
+                }
+            } catch (IOException e) {
                 currentFlushOperation = writeProducer.pollFlushOperation();
-            } else {
-                lastOpCompleted = false;
+                throw e;
             }
         }
     }

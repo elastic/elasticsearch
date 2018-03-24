@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A based request for master based operation.
@@ -76,4 +77,22 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         super.readFrom(in);
         masterNodeTimeout = new TimeValue(in);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        MasterNodeRequest<Request> that = (MasterNodeRequest<Request>) o;
+        return Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(masterNodeTimeout);
+    }
+
 }

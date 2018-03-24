@@ -132,7 +132,7 @@ provided as an argument
 [[java-rest-high-indices-put-settings-response]]
 ==== Update Indices Settings Response
 
-The returned `UpdateSettings` allows to retrieve information about the
+The returned `UpdateSettingsResponse` allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]

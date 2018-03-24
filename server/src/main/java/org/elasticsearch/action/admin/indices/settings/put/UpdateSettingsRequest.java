@@ -35,8 +35,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
@@ -228,6 +230,26 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             settings.putAll(bodySettings);
         }
         return this.settings(settings);
+    }
+
+    @Override
+    public String toString() {
+        return "indices : " + Arrays.toString(indices) + ",\n" + Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            UpdateSettingsRequest that = (UpdateSettingsRequest) o;
+            // do not include the indices as they are not part of the serialized request
+            return Objects.equals(settings, that.settings);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), settings);
     }
 
 }

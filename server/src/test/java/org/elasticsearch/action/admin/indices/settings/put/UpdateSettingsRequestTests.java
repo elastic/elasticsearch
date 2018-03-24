@@ -19,69 +19,86 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.function.Predicate;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+public class UpdateSettingsRequestTests extends AbstractStreamableXContentTestCase<UpdateSettingsRequest> {
 
-public class UpdateSettingsRequestTests extends ESTestCase {
-
-    public void testFromXContent() throws IOException {
-        doFromXContentTestWithSettingsField(false);
+    @Override
+    protected UpdateSettingsRequest doParseInstance(XContentParser parser) throws IOException {
+        return new UpdateSettingsRequest().fromXContent(parser);
     }
 
-    public void testFromXContentWithSettingsField() throws IOException {
-        doFromXContentTestWithSettingsField(true);
+    @Override
+    protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
+        return new UpdateSettingsRequest(mutateSettings(request.settings()), request.indices());
     }
 
-    private void doFromXContentTestWithSettingsField(boolean addSettingsField) throws IOException {
-        final UpdateSettingsRequest request = createTestItem();
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // do not insert any fields into the request body, as every inserted field will be interpreted as a new setting
+        return p -> true;
+    }
 
-        BytesReference bytesRef;
-        if (addSettingsField) {
-            UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(request.settings()) {
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.startObject();
-                    builder.startObject("settings");
-                    this.settings().toXContent(builder, params);
-                    builder.endObject();
-                    builder.endObject();
-                    return builder;
-                }
-            };
-            bytesRef = toShuffledXContent(requestWithEnclosingSettings, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        } else {
-            bytesRef = toShuffledXContent(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+    @Override
+    protected UpdateSettingsRequest createTestInstance() {
+        return randomBoolean()
+                ? new UpdateSettingsRequest(randomSettings(0, 2))
+                : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
+    }
+
+    @Override
+    protected UpdateSettingsRequest createBlankInstance() {
+        return new UpdateSettingsRequest();
+    }
+
+    private static Settings mutateSettings(Settings settings) {
+        if (settings.isEmpty()) {
+            return randomSettings(1, 5);
         }
-
-        XContentParser parser = createParser(xContentType.xContent(), bytesRef);
-        UpdateSettingsRequest parsedRequest = new UpdateSettingsRequest().fromXContent(parser);
-
-        assertNull(parser.nextToken());
-        assertThat(parsedRequest.settings(), equalTo(request.settings()));
+        Set<String> allKeys = settings.keySet();
+        List<String> keysToBeModified = randomSubsetOf(randomIntBetween(1, allKeys.size()), allKeys);
+        Builder builder = Settings.builder();
+        for (String key : allKeys) {
+            String value = settings.get(key);
+            if (keysToBeModified.contains(key)) {
+                value += randomAlphaOfLengthBetween(2, 5);
+            }
+            builder.put(key, value);
+        }
+        return builder.build();
     }
 
-    private static UpdateSettingsRequest createTestItem() {
-        return new UpdateSettingsRequest().settings(randomSettings(0, 2));
-    }
-
-    public static Settings randomSettings(int min, int max) {
+    private static Settings randomSettings(int min, int max) {
         int num = randomIntBetween(min, max);
         Builder builder = Settings.builder();
         for (int i = 0; i < num; i++) {
-            builder.put(randomAlphaOfLength(5), randomAlphaOfLengthBetween(2, 10));
+            int keyDepth = randomIntBetween(1, 5);
+            StringJoiner keyJoiner = new StringJoiner(".", "", "");
+            for (int d = 0; d < keyDepth; d++) {
+                keyJoiner.add(randomAlphaOfLengthBetween(3, 5));
+            }
+            builder.put(keyJoiner.toString(), randomAlphaOfLengthBetween(2, 5));
         }
         return builder.build();
+    }
+
+    private static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {
+        int numIndices = randomIntBetween(minIndicesNum, maxIndicesNum);
+        String[] indices = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        }
+        return indices;
     }
 
 }

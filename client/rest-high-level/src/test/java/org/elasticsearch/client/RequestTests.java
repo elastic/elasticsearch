@@ -1327,7 +1327,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndexPutSettings() throws IOException {
-        String[] indices = randomIndicesNames(0, 2);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         Map<String, String> expectedParams = new HashMap<>();
         setRandomFlatSettings(updateSettingsRequest::flatSettings, expectedParams);
@@ -1343,9 +1343,8 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.indexPutSettings(updateSettingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
         }
         endpoint.add("_settings");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));

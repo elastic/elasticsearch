@@ -42,8 +42,8 @@ import java.util.Queue;
  * This class adapts a netty channel for our usage. In particular, it captures writes at the end of the
  * pipeline and places them in a queue that can be accessed by our code.
  */
-class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, SocketChannelContext.ReadConsumer,
-    SocketChannelContext.WriteProducer {
+class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, SocketChannelContext.ReadConsumer {
+//    SocketChannelContext.WriteProducer {
 
     // TODO: Explore if this can be made more efficient by generating less garbage
     private final LinkedList<FlushOperation> byteOps = new LinkedList<>();
@@ -89,12 +89,12 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
         writeAndFlush(null, (NettyListener) writeOperation.getListener());
     }
 
-    @Override
+//    @Override
     public void produceWrites(WriteOperation writeOperation) {
         writeAndFlush(writeOperation.getObject(), (NettyListener) writeOperation.getListener());
     }
 
-    @Override
+//    @Override
     public FlushOperation pollFlushOperation() {
         return null;
     }

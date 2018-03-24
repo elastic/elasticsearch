@@ -44,6 +44,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -240,6 +242,45 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testGetIndexSetting() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::get-index-settings-request
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest("index"); // <1>
+        // end::get-index-settings-request
+
+        // tag::get-index-settings-execute-listener
+        ActionListener<GetSettingsResponse> listener =
+            new ActionListener<GetSettingsResponse>() {
+
+                @Override
+                public void onResponse(GetSettingsResponse updateSettingsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-index-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-index-settings-execute-async
+        client.indices().getSettingsResponseAsync(getSettingsRequest, listener); // <1>
+        // end::get-index-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     public void testCreateIndex() throws IOException {

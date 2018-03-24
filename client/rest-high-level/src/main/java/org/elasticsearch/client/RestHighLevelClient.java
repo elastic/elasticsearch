@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -725,5 +726,23 @@ public class RestHighLevelClient implements Closeable {
             entries.addAll(service.getNamedXContentParsers());
         }
         return entries;
+    }
+
+    protected final <Req extends GetSettingsRequest, Resp> Resp performRequestAndParseEntity2(Req request,
+                                                                                              CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                                              CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                                              Set<Integer> ignores,
+                                                                                              Header... headers) throws IOException {
+        return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
+    }
+
+    protected final <Req extends GetSettingsRequest, Resp> void performRequestAsyncAndParseEntity2(Req request,
+                                                                                                   CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                                                   CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                                                   ActionListener<Resp> listener,
+                                                                                                   Set<Integer> ignores,
+                                                                                                   Header... headers) {
+        performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser),
+            listener, ignores, headers);
     }
 }

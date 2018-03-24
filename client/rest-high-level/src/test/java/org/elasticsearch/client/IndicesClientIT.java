@@ -45,6 +45,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -550,6 +552,20 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
+        }
+    }
+
+    public void testGetIndexSetting() throws IOException {
+        {
+            String getIndexSetting = "get_index_setting";
+            createIndex(getIndexSetting, Settings.EMPTY);
+
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsResponse getSettingsResponse = execute(getSettingsRequest,
+                highLevelClient().indices()::getSettingsResponse,
+                highLevelClient().indices()::getSettingsResponseAsync);
+
+            assertEquals(getSettingsResponse.getSetting(getIndexSetting, ""), Settings.EMPTY.toString());
         }
     }
 }

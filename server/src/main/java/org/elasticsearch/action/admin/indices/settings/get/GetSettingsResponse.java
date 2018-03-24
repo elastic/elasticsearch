@@ -25,10 +25,17 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class GetSettingsResponse extends ActionResponse {
+public class GetSettingsResponse extends ActionResponse implements ToXContent {
+
+    private static final ConstructingObjectParser<GetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_index_settings", true, args -> new GetSettingsResponse());
 
     private ImmutableOpenMap<String, Settings> indexToSettings = ImmutableOpenMap.of();
 
@@ -71,5 +78,14 @@ public class GetSettingsResponse extends ActionResponse {
             out.writeString(cursor.key);
             Settings.writeSettingsToStream(cursor.value, out);
         }
+    }
+
+    public static GetSettingsResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
     }
 }

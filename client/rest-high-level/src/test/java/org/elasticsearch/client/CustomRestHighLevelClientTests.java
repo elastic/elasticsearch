@@ -121,11 +121,13 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() throws ClassNotFoundException {
         final String[] methodNames = new String[]{"performRequest",
-                                                  "performRequestAsync",
-                                                  "performRequestAndParseEntity",
-                                                  "performRequestAsyncAndParseEntity",
-                                                  "parseEntity",
-                                                  "parseResponseException"};
+            "performRequestAsync",
+            "performRequestAndParseEntity",
+            "performRequestAsyncAndParseEntity",
+            "parseEntity",
+            "parseResponseException",
+            "performRequestAndParseEntity2",
+            "performRequestAsyncAndParseEntity2"};
 
         final List<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
                                                      .filter(method -> Modifier.isProtected(method.getModifiers()))

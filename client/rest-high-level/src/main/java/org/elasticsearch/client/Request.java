@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -648,6 +649,20 @@ public final class Request {
         params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+
+    static Request getIndexSetting(GetSettingsRequest getSettingsRequest) {
+        Params params = Params.builder();
+        params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
+        params.withIndicesOptions(getSettingsRequest.indicesOptions());
+        params.withLocal(getSettingsRequest.local());
+
+        String[] indices =
+            getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
+        String endpoint = endpoint(indices, "_settings");
+
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**

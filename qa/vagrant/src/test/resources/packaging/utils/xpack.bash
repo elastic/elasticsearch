@@ -94,6 +94,7 @@ generate_trial_license() {
     sudo -E -u $ESPLUGIN_COMMAND_USER sh <<"NODE_SETTINGS"
 cat >> $ESCONFIG/elasticsearch.yml <<- EOF
 xpack.license.self_generated.type: trial
+xpack.security.enabled: true
 EOF
 NODE_SETTINGS
 }

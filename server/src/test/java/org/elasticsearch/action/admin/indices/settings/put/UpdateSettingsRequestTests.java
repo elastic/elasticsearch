@@ -61,6 +61,12 @@ public class UpdateSettingsRequestTests extends AbstractStreamableXContentTestCa
         return new UpdateSettingsRequest();
     }
 
+    @Override
+    protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
+        newInstance.indices(expectedInstance.indices());
+        super.assertEqualInstances(expectedInstance, newInstance);
+    }
+
     private static Settings mutateSettings(Settings settings) {
         if (settings.isEmpty()) {
             return randomSettings(1, 5);

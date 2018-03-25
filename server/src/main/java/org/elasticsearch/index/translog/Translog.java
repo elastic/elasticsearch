@@ -274,10 +274,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     TranslogReader openReader(Path path, Checkpoint checkpoint) throws IOException {
-        return openReader(path, checkpoint, translogUUID);
-    }
-
-    private static TranslogReader openReader(Path path, Checkpoint checkpoint, String translogUUID) throws IOException {
         FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
             assert Translog.parseIdFromFileName(path) == checkpoint.generation : "expected generation: " + Translog.parseIdFromFileName(path) + " but got: " + checkpoint.generation;
@@ -1688,10 +1684,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public static long readGlobalCheckpoint(final Path location, final String expectedTranslogUUID) throws IOException {
         final Checkpoint checkpoint = readCheckpoint(location);
-        // We need to open at least translog reader to validate the translogUUID.
+        // We need to open at least one translog header to validate the translogUUID.
         final Path translogFile = location.resolve(getFilename(checkpoint.generation));
-        try (TranslogReader reader = openReader(translogFile, checkpoint, expectedTranslogUUID)) {
-
+        try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+            TranslogHeader.read(expectedTranslogUUID, translogFile, channel);
         } catch (TranslogCorruptedException ex) {
             throw ex; // just bubble up.
         } catch (Exception ex) {

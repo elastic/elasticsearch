@@ -82,6 +82,10 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by Elasticsearch:
 
+* https://github.com/elastic/ansible-elasticsearch[Ansible playbook for Elasticsearch]:
+  Ansible role for 6.x/5.x Elasticsearch. Currently this works on Debian and RedHat based linux systems. 
+  It has been tested Ubuntu 14.04/16.04, Debian 8, Centos 7
+
 * https://github.com/elastic/puppet-elasticsearch[Puppet]:
   Elasticsearch puppet module.
 

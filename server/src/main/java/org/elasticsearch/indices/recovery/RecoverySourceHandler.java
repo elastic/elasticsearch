@@ -379,7 +379,7 @@ public class RecoverySourceHandler {
                     cancellableThreads.executeIO(() ->
                         recoveryTarget.cleanFiles(translogOps.get(), recoverySourceMetadata));
                 } catch (RemoteTransportException | IOException targetException) {
-                    final IOException corruptIndexException;
+                    final Exception corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
                     // the index was corrupted:
                     //   - maybe due to a broken segments file on an empty index (transferred with no checksum)
@@ -668,7 +668,7 @@ public class RecoverySourceHandler {
                     // exceptions during close correctly and doesn't hide the original exception.
                     Streams.copy(new InputStreamIndexInput(indexInput, md.length()), outputStreamFactory.apply(md));
                 } catch (Exception e) {
-                    final IOException corruptIndexException;
+                    final Exception corruptIndexException;
                     if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(e)) != null) {
                         if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
                             logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
@@ -693,7 +693,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    protected void failEngine(IOException cause) {
+    protected void failEngine(Exception cause) {
         shard.failShard("recovery", cause);
     }
 }

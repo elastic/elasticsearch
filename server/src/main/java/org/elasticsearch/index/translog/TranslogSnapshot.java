@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.Channels;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
 final class TranslogSnapshot extends BaseTranslogReader {
 
@@ -34,16 +35,18 @@ final class TranslogSnapshot extends BaseTranslogReader {
     private long position;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
+    private final Consumer<TranslogCorruptedException> onCorrupted;
 
     /**
      * Create a snapshot of translog file channel.
      */
-    TranslogSnapshot(final BaseTranslogReader reader, final long length) {
+    TranslogSnapshot(final BaseTranslogReader reader, final Consumer<TranslogCorruptedException> onCorrupted, final long length) {
         super(reader.generation, reader.channel, reader.path, reader.firstOperationOffset);
         this.length = length;
         this.totalOperations = reader.totalOperations();
         this.checkpoint = reader.getCheckpoint();
         this.reusableBuffer = ByteBuffer.allocate(1024);
+        this.onCorrupted = onCorrupted;
         readOperations = 0;
         position = firstOperationOffset;
         reuse = null;
@@ -68,12 +71,17 @@ final class TranslogSnapshot extends BaseTranslogReader {
     }
 
     protected Translog.Operation readOperation() throws IOException {
-        final int opSize = readSize(reusableBuffer, position);
-        reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
-        Translog.Operation op = read(reuse);
-        position += opSize;
-        readOperations++;
-        return op;
+        try {
+            final int opSize = readSize(reusableBuffer, position);
+            reuse = checksummedStream(reusableBuffer, position, opSize, reuse);
+            Translog.Operation op = read(reuse);
+            position += opSize;
+            readOperations++;
+            return op;
+        } catch (TranslogCorruptedException ex) {
+            onCorrupted.accept(ex);
+            throw ex;
+        }
     }
 
     public long sizeInBytes() {

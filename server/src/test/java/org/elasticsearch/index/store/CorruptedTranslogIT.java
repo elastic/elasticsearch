@@ -59,7 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /**
  * Integration test for corrupted translog files
  */
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CorruptedTranslogIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -101,6 +101,25 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         }
     }
 
+    public void testFailShardIfTranslogCorruptedInPeerRecovery() throws Exception {
+        internalCluster().startNodes(1, Settings.EMPTY);
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+        ));
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < numDocs; i++) {
+            index("test", "type", Integer.toString(i), "{}");
+        }
+        corruptRandomTranslogFiles();
+        // Starts peer-recovery and detects that translog on the primary is corrupted.
+        internalCluster().startDataOnlyNode();
+        assertBusy(() -> {
+            expectThrows(SearchPhaseExecutionException.class, () -> {
+                client().prepareSearch("test").setQuery(matchAllQuery()).get();
+            });
+        });
+    }
 
     private void corruptRandomTranslogFiles() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();

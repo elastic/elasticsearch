@@ -889,7 +889,7 @@ public abstract class Engine implements Closeable {
                     // this must happen first otherwise we might try to reallocate so quickly
                     // on the same node that we don't see the corrupted marker file when
                     // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
+                    if (Lucene.isCorruptionException(failure) || Translog.isCorruptionException(failure)) {
                         try {
                             store.markStoreCorrupted(new IOException("failed engine (reason: [" + reason + "])", ExceptionsHelper.unwrapCorruption(failure)));
                         } catch (IOException e) {
@@ -912,7 +912,7 @@ public abstract class Engine implements Closeable {
 
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Exception e) {
-        if (Lucene.isCorruptionException(e)) {
+        if (Lucene.isCorruptionException(e) || Translog.isCorruptionException(e)) {
             failEngine("corrupt file (source: [" + source + "])", e);
             return true;
         }

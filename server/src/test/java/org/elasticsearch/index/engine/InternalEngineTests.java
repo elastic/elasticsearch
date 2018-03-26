@@ -117,6 +117,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -2596,7 +2597,7 @@ public class InternalEngineTests extends EngineTestCase {
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId);
         Translog translog = new Translog(
             new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
-            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED);
+            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED, ex -> {});
         translog.add(new Translog.Index("test", "SomeBogusId", 0, "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
@@ -2612,13 +2613,12 @@ public class InternalEngineTests extends EngineTestCase {
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
                 new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
-        try {
-            InternalEngine internalEngine = new InternalEngine(brokenConfig);
-            fail("translog belongs to a different engine");
-        } catch (EngineCreationFailureException ex) {
-        }
 
-        engine = createEngine(store, primaryTranslogDir); // and recover again!
+        expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
+        assertThat(store.isMarkedCorrupted(), equalTo(true));
+        // Remove the corruption marker caused by translog then recover again!
+        Store.removeTranslogCorruptionMarker(store.directory());
+        engine = createEngine(store, primaryTranslogDir);
         assertVisibleCount(engine, numDocs, false);
     }
 

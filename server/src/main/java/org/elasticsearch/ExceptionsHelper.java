@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -209,10 +210,10 @@ public final class ExceptionsHelper {
         return first;
     }
 
-    public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class,
-                                       IndexFormatTooOldException.class,
-                                       IndexFormatTooNewException.class);
+    public static Exception unwrapCorruption(Throwable t) {
+        return (Exception) unwrap(t,
+            CorruptIndexException.class, IndexFormatTooOldException.class,
+            IndexFormatTooNewException.class, TranslogCorruptedException.class);
     }
 
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {

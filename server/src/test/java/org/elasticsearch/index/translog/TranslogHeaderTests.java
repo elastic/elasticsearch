@@ -24,11 +24,13 @@ import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -75,7 +77,7 @@ public class TranslogHeaderTests extends ESTestCase {
         final long generation = randomNonNegativeLong();
         final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            writeLegacyTranslogHeader(channel, translogUUID);
+            writeHeaderWithoutTerm(channel, translogUUID);
             assertThat((int)channel.position(), lessThan(TranslogHeader.defaultSizeInBytes(translogUUID)));
         }
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
@@ -91,7 +93,7 @@ public class TranslogHeaderTests extends ESTestCase {
         });
     }
 
-    static void writeLegacyTranslogHeader(FileChannel channel, String translogUUID) throws IOException {
+    static void writeHeaderWithoutTerm(FileChannel channel, String translogUUID) throws IOException {
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(Channels.newOutputStream(channel));
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TranslogHeader.TRANSLOG_CODEC, TranslogHeader.VERSION_CHECKPOINTS);
         final BytesRef uuid = new BytesRef(translogUUID);
@@ -99,5 +101,28 @@ public class TranslogHeaderTests extends ESTestCase {
         out.writeBytes(uuid.bytes, uuid.offset, uuid.length);
         channel.force(true);
         assertThat(channel.position(), equalTo(43L));
+    }
+
+    public void testLegacyTranslogVersions() throws Exception {
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v0.binary", IllegalStateException.class, "pre-1.4 translog");
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1.binary", IllegalStateException.class, "pre-2.0 translog");
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-truncated.binary", IllegalStateException.class, "pre-2.0 translog");
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary",
+            TranslogCorruptedException.class, "translog looks like version 1 or later, but has corrupted header");
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary",
+            IllegalStateException.class, "pre-2.0 translog");
+    }
+
+    private <E extends Exception> void checkFailsToOpen(String file, Class<E> expectedErrorType, String expectedMessage) {
+        final Path translogFile = getDataPath(file);
+        assertThat("test file [" + translogFile + "] should exist", Files.exists(translogFile), equalTo(true));
+        final E error = expectThrows(expectedErrorType, () -> {
+            final Checkpoint checkpoint = new Checkpoint(Files.size(translogFile), 1, 1,
+                SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.UNASSIGNED_SEQ_NO, 1);
+            try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
+                TranslogReader.open(channel, translogFile, checkpoint, null);
+            }
+        });
+        assertThat(error.getMessage(), containsString(expectedMessage));
     }
 }

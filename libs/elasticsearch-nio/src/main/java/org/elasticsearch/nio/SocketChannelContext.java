@@ -191,6 +191,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
         FlushOperation pollFlushOperation();
 
-        default void close() {}
+        default void close() throws IOException {}
     }
 }

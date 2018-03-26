@@ -146,7 +146,15 @@ public class BytesChannelContext extends SocketChannelContext {
                 getSelector().executeFailedListener(currentFlushOperation.getListener(), new ClosedChannelException());
                 currentFlushOperation = null;
             }
-            writeProducer.close();
+            try {
+                writeProducer.close();
+            } catch (IOException e) {
+                if (channelCloseException == null) {
+                    channelCloseException = e;
+                } else {
+                    channelCloseException.addSuppressed(e);
+                }
+            }
 
             if (channelCloseException != null) {
                 throw channelCloseException;

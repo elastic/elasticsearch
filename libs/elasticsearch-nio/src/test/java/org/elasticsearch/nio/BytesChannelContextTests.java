@@ -174,7 +174,16 @@ public class BytesChannelContextTests extends ESTestCase {
         }
     }
 
-    // TODO: Test closing write producer
+    public void testCloseClosesWriteProducer() throws IOException {
+        try (SocketChannel realChannel = SocketChannel.open()) {
+            when(channel.getRawChannel()).thenReturn(realChannel);
+            when(channel.isOpen()).thenReturn(true);
+            InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
+            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, buffer);
+            context.closeFromSelector();
+            verify(writeProducer).close();
+        }
+    }
 
     public void testWriteFailsIfClosing() {
         context.closeChannel();
@@ -228,7 +237,7 @@ public class BytesChannelContextTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWriteOpsClearedOnClose() throws Exception {
+    public void testFlushOpsClearedOnClose() throws Exception {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);

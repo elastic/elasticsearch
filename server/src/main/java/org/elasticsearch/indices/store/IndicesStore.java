@@ -76,7 +76,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS),
             Property.NodeScope);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
-    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
+    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED);
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;

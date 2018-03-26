@@ -1329,8 +1329,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assertMaxUnsafeAutoIdInCommit();
 
-        EngineDiskUtils.trimUnsafeCommits(store.directory(), translogConfig.getTranslogPath(),
-            config.getIndexSettings().getIndexVersionCreated());
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
 
         createNewEngine(config);
         verifyNotClosed();

@@ -37,7 +37,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
@@ -258,11 +258,13 @@ public class RestClientDocumentation {
         }
     }
 
-    public void testHostSelector() throws IOException {
+    @SuppressWarnings("unused")
+    public void testNodeSelector() throws IOException {
+        // TODO link me to docs
         try (RestClient restClient = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"),
                 new HttpHost("localhost", 9201, "http")).build()) {
-            RestClientActions client = restClient.withHostSelector(HostSelector.NOT_MASTER);
+            RestClientActions client = restClient.withNodeSelector(NodeSelector.NOT_MASTER_ONLY);
             client.performRequest("POST", "/test_index/test_type", Collections.<String, String>emptyMap(),
                 new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON));
         }

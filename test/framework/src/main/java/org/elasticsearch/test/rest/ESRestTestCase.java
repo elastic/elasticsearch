@@ -32,8 +32,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -68,13 +67,16 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -542,29 +544,61 @@ public abstract class ESRestTestCase extends ESTestCase {
      * same thing as using the {@link Sniffer} because:
      * <ul>
      * <li>It doesn't replace the hosts that that {@link #client} communicates with
-     * <li>It only runs once
+     * <li>If there is already host metadata it skips running. This behavior isn't
+     *     thread safe but it doesn't have to be for our tests.
      * </ul>
      */
     protected void sniffHostMetadata(RestClient client) throws IOException {
-        if (HostMetadata.EMPTY_RESOLVER != client.getHostMetadataResolver()) {
-            // Already added a resolver
+        Node[] nodes = client.getNodes();
+        boolean allHaveRoles = true;
+        for (Node node : nodes) {
+            if (node.getRoles() == null) {
+                allHaveRoles = false;
+                break;
+            }
+        }
+        if (allHaveRoles) {
+            // We already have resolved metadata.
             return;
         }
         // No resolver, sniff one time and resolve metadata against the results
-        ElasticsearchHostsSniffer.Scheme scheme;
-        switch (getProtocol()) {
-        case "http":
-            scheme = ElasticsearchHostsSniffer.Scheme.HTTP;
-            break;
-        case "https":
-            scheme = ElasticsearchHostsSniffer.Scheme.HTTPS;
-            break;
-        default:
-            throw new UnsupportedOperationException("unknown protocol [" + getProtocol() + "]");
-        }
+        ElasticsearchHostsSniffer.Scheme scheme =
+            ElasticsearchHostsSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        /*
+         * We don't want to change the list of nodes that the client communicates with
+         * because that'd just be rude. So instead we replace the nodes with nodes the
+         * that
+         */
         ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(
-            adminClient, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
-        Map<HttpHost, HostMetadata> meta = sniffer.sniffHosts().hostMetadata();
-        client.setHosts(clusterHosts, meta::get);
+                adminClient, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        attachSniffedMetadataOnClient(client, nodes, sniffer.sniffHosts());
+    }
+
+    static void attachSniffedMetadataOnClient(RestClient client, Node[] originalNodes, List<Node> nodesWithMetadata) {
+        Set<HttpHost> originalHosts = Arrays.stream(originalNodes)
+                .map(Node::getHost)
+                .collect(Collectors.toSet());
+        List<Node> sniffed = new ArrayList<>();
+        for (Node node : nodesWithMetadata) {
+            if (originalHosts.contains(node.getHost())) {
+                sniffed.add(node);
+            } else {
+                for (HttpHost bound : node.getBoundHosts()) {
+                    if (originalHosts.contains(bound)) {
+                        sniffed.add(node.withBoundHostAsHost(bound));
+                        break;
+                    }
+                }
+            }
+        }
+        int missing = originalNodes.length - sniffed.size();
+        if (missing > 0) {
+            List<HttpHost> hosts = Arrays.stream(originalNodes)
+                .map(Node::getHost)
+                .collect(Collectors.toList());
+            throw new IllegalStateException("Didn't sniff metadata for all nodes. Wanted metadata for "
+                + hosts + " but got " + sniffed);
+        }
+        client.setNodes(sniffed.toArray(new Node[0]));
     }
 }

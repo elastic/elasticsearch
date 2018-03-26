@@ -30,7 +30,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 /**
  * Actions that can be taken on a {@link RestClient} or the stateless views
- * returned by {@link RestClientActions#withHostSelector withHostSelector}.
+ * returned by {@link RestClientActions#withNodeSelector withNodeSelector}.
  */
 public interface RestClientActions {
     /**
@@ -188,5 +188,5 @@ public interface RestClientActions {
      * created the view disposes of the underlying connection, making the
      * view useless.
      */
-    RestClientActions withHostSelector(HostSelector hostSelector);
+    RestClientActions withNodeSelector(NodeSelector nodeSelector);
 }

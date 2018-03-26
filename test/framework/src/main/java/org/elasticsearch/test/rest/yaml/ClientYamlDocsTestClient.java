@@ -22,7 +22,7 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -49,7 +49,7 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
 
     @Override
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
-            Map<String, String> headers, HostSelector hostSelector) throws IOException {
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
         if ("raw".equals(apiName)) {
             // Raw requests are bit simpler....
             Map<String, String> queryStringParams = new HashMap<>(params);
@@ -63,6 +63,6 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
                 throw new ClientYamlTestResponseException(e);
             }
         }
-        return super.callApi(apiName, params, entity, headers, hostSelector);
+        return super.callApi(apiName, params, entity, headers, nodeSelector);
     }
 }

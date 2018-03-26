@@ -44,7 +44,6 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -90,10 +89,10 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
     /**
-     * The maximum number of attempts that {@link #nextHost(HostSelector)} makes
+     * The maximum number of attempts that {@link #nextNode(NodeSelector)} makes
      * before giving up and failing the request.
      */
-    private static final int MAX_NEXT_HOSTS_ATTEMPTS = 10;
+    private static final int MAX_NEXT_NODES_ATTEMPTS = 10;
 
     private final CloseableHttpAsyncClient client;
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
@@ -101,73 +100,86 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     final List<Header> defaultHeaders;
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
-    private final AtomicInteger lastHostIndex = new AtomicInteger(0);
+    private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
-    private volatile HostTuple<Set<HttpHost>> hostTuple;
+    private volatile NodeTuple<Set<Node>> nodeTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               HttpHost[] hosts, HostMetadataResolver metaResolver, String pathPrefix, FailureListener failureListener) {
+               Node[] nodes, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
-        setHosts(Arrays.asList(hosts), metaResolver);
+        setNodes(nodes);
     }
 
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
-     * Creates a new builder instance and sets the hosts that the client will send requests to.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     * @see Node#Node(HttpHost)
      */
     public static RestClientBuilder builder(HttpHost... hosts) {
-        return new RestClientBuilder(hosts);
+        return builder(hostsToNodes(hosts));
     }
 
     /**
-     * Replaces the hosts that the client communicates with without
-     * changing any {@link HostMetadata}.
-     * @see HttpHost
+     * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
+     * Creates a new builder instance and sets the nodes that the client will send requests to.
+     */
+    public static RestClientBuilder builder(Node... nodes) {
+        return new RestClientBuilder(nodes);
+    }
+
+    /**
+     * Replaces the nodes that the client communicates without providing any
+     * metadata about any of the nodes.
+     * @see Node#Node(HttpHost)
      */
     public void setHosts(HttpHost... hosts) {
-        if (hosts == null) {
-            throw new IllegalArgumentException("hosts must not be null");
+        setNodes(hostsToNodes(hosts));
+    }
+
+    private static Node[] hostsToNodes(HttpHost[] hosts) {
+        if (hosts == null || hosts.length == 0) {
+            throw new IllegalArgumentException("hosts must not be null or empty");
         }
-        setHosts(Arrays.asList(hosts), hostTuple.metaResolver);
+        Node[] nodes = new Node[hosts.length];
+        for (int i = 0; i < hosts.length; i++) {
+            nodes[i] = new Node(hosts[i]);
+        }
+        return nodes;
     }
 
     /**
-     * Replaces the hosts that the client communicates with and the
-     * {@link HostMetadata} used by any {@link HostSelector}s.
-     * @see HttpHost
+     * Replaces the nodes that the client communicates with. Prefer this to
+     * {@link #setHosts(HttpHost...)} if you have metadata about the hosts
+     * like their Elasticsearch version of which roles they implement.
      */
-    public void setHosts(Iterable<HttpHost> hosts, HostMetadataResolver metaResolver) {
-        if (hosts == null) {
-            throw new IllegalArgumentException("hosts must not be null");
+    public void setNodes(Node... nodes) {
+        if (nodes == null || nodes.length == 0) {
+            throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        if (metaResolver == null) {
-            throw new IllegalArgumentException("metaResolver must not be null");
-        }
-        Set<HttpHost> newHosts = new HashSet<>();
+        Set<Node> newNodes = new HashSet<>();
         AuthCache authCache = new BasicAuthCache();
 
-        for (HttpHost host : hosts) {
-            Objects.requireNonNull(host, "host cannot be null");
-            newHosts.add(host);
-            authCache.put(host, new BasicScheme());
+        for (Node node : nodes) {
+            if (node == null) {
+                throw new IllegalArgumentException("node cannot be null");
+            }
+            newNodes.add(node);
+            authCache.put(node.getHost(), new BasicScheme());
         }
-        if (newHosts.isEmpty()) {
-            throw new IllegalArgumentException("hosts must not be empty");
-        }
-        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(newHosts), authCache, metaResolver);
+        this.nodeTuple = new NodeTuple<>(Collections.unmodifiableSet(newNodes), authCache);
         this.blacklist.clear();
     }
 
     /**
-     * Get the metadata resolver associated with this client.
+     * Copy of the list of nodes that the client knows about.
      */
-    public HostMetadataResolver getHostMetadataResolver() {
-        return hostTuple.metaResolver;
+    public Node[] getNodes() { // TODO is it ok to expose this? It feels excessive but we do use it in tests.
+        return nodeTuple.nodes.toArray(new Node[0]);
     }
 
     @Override
@@ -176,8 +188,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     @Override
-    public RestClientActions withHostSelector(HostSelector hostSelector) {
-        return new RestClientView(this, hostSelector);
+    public RestClientActions withNodeSelector(NodeSelector nodeSelector) {
+        return new RestClientView(this, nodeSelector);
     }
 
     // TODO this exists entirely to so we don't have to change much in the high level rest client tests. We'll remove in a followup.
@@ -198,15 +210,14 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
             HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
             ResponseListener responseListener, Header[] headers) throws IOException {
-        // Requests made directly to the client use the noop HostSelector.
-        HostSelector hostSelector = HostSelector.ANY;
+        // Requests made directly to the client use the noop NodeSelector.
         performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            responseListener, hostSelector, headers);
+            responseListener, NodeSelector.ANY, headers);
     }
 
     void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
                 HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                ResponseListener responseListener, HostSelector hostSelector, Header[] headers) throws IOException {
+                ResponseListener responseListener, NodeSelector nodeSelector, Header[] headers) throws IOException {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
@@ -239,15 +250,15 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(hostSelector), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+        performRequestAsync(startTime, nextNode(nodeSelector), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
                 failureTrackingResponseListener);
     }
 
-    private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
+    private void performRequestAsync(final long startTime, final NodeTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hostTuple.hosts.next();
+        final HttpHost host = hostTuple.nodes.next();
         //we stream the request body if the entity allows for it
         final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
         final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
@@ -293,7 +304,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
             }
 
             private void retryIfPossible(Exception exception) {
-                if (hostTuple.hosts.hasNext()) {
+                if (hostTuple.nodes.hasNext()) {
                     //in case we are retrying, check whether maxRetryTimeout has been reached
                     long timeElapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
@@ -335,20 +346,20 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     /**
-     * Returns a non-empty {@link Iterator} of hosts to be used for a request
-     * that match the {@link HostSelector}.
+     * Returns a non-empty {@link Iterator} of nodes to be used for a request
+     * that match the {@link NodeSelector}.
      * <p>
-     * If there are no living hosts that match the {@link HostSelector}
-     * this will return the dead host that matches the {@link HostSelector}
+     * If there are no living nodes that match the {@link NodeSelector}
+     * this will return the dead node that matches the {@link NodeSelector}
      * that is closest to being revived.
      * <p>
-     * If no living and no dead hosts match the selector we retry a few
-     * times to handle concurrent modifications of the list of dead hosts.
+     * If no living and no dead nodes match the selector we retry a few
+     * times to handle concurrent modifications of the list of dead nodes.
      * We never block the thread or {@link Thread#sleep} or anything like
      * that. If the retries fail this throws a {@link IOException}.
-     * @throws IOException if no hosts are available
+     * @throws IOException if no nodes are available
      */
-    private HostTuple<Iterator<HttpHost>> nextHost(HostSelector hostSelector) throws IOException {
+    private NodeTuple<Iterator<HttpHost>> nextNode(NodeSelector nodeSelector) throws IOException {
         int attempts = 0;
         NextHostsResult result;
         /*
@@ -357,40 +368,40 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
          * blacklist.
          */
         do {
-            final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
-            result = nextHostsOneTime(hostTuple, blacklist, lastHostIndex, System.nanoTime(), hostSelector);
+            final NodeTuple<Set<Node>> nodeTuple = this.nodeTuple;
+            result = nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
             if (result.hosts == null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("No hosts avialable. Will retry. Failure is " + result.describeFailure());
+                    logger.debug("No nodes avialable. Will retry. Failure is " + result.describeFailure());
                 }
             } else {
                 // Success!
-                return new HostTuple<>(result.hosts.iterator(), hostTuple.authCache, hostTuple.metaResolver);
+                return new NodeTuple<>(result.hosts.iterator(), nodeTuple.authCache);
             }
             attempts++;
-        } while (attempts < MAX_NEXT_HOSTS_ATTEMPTS);
-        throw new IOException("No hosts available for request. Last failure was " + result.describeFailure());
+        } while (attempts < MAX_NEXT_NODES_ATTEMPTS);
+        throw new IOException("No nodes available for request. Last failure was " + result.describeFailure());
     }
 
     static class NextHostsResult {
         /**
-         * Number of hosts filtered from the list because they are
+         * Number of nodes filtered from the list because they are
          * dead.
          */
         int blacklisted = 0;
         /**
-         * Number of hosts filtered from the list because the.
-         * {@link HostSelector} didn't approve of them.
+         * Number of nodes filtered from the list because the.
+         * {@link NodeSelector} didn't approve of them.
          */
         int selectorRejected = 0;
         /**
-         * Number of hosts that could not be revived because the
-         * {@link HostSelector} didn't approve of them.
+         * Number of nodes that could not be revived because the
+         * {@link NodeSelector} didn't approve of them.
          */
         int selectorBlockedRevival = 0;
         /**
-         * {@code null} if we failed to find any hosts, a list of
-         * hosts to use if we found any.
+         * {@code null} if we failed to find any nodes, a list of
+         * nodes to use if we found any.
          */
         Collection<HttpHost> hosts = null;
 
@@ -401,40 +412,48 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
                 + ", selectorBlockedRevival=" + selectorBlockedRevival + "]]";
         }
     }
-    static NextHostsResult nextHostsOneTime(HostTuple<Set<HttpHost>> hostTuple,
-            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastHostIndex,
-            long now, HostSelector hostSelector) {
+    static NextHostsResult nextHostsOneTime(NodeTuple<Set<Node>> nodeTuple,
+            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodesIndex,
+            long now, NodeSelector nodeSelector) {
         NextHostsResult result = new NextHostsResult();
-        Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
+        // TODO there has to be a better way!
+        Map<HttpHost, Node> hostToNode = new HashMap<>(nodeTuple.nodes.size());
+        for (Node node : nodeTuple.nodes) {
+            hostToNode.put(node.getHost(), node);
+        }
+        Set<Node> filteredNodes = new HashSet<>(nodeTuple.nodes);
         for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
             if (now - entry.getValue().getDeadUntilNanos() < 0) {
-                filteredHosts.remove(entry.getKey());
+                filteredNodes.remove(hostToNode.get(entry.getKey()));
                 result.blacklisted++;
             }
         }
-        for (Iterator<HttpHost> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
-            final HttpHost host = hostItr.next();
-            if (false == hostSelector.select(host, hostTuple.metaResolver.resolveMetadata(host))) {
-                hostItr.remove();
+        for (Iterator<Node> nodeItr = filteredNodes.iterator(); nodeItr.hasNext();) {
+            final Node node = nodeItr.next();
+            if (false == nodeSelector.select(node)) {
+                nodeItr.remove();
                 result.selectorRejected++;
             }
         }
-        if (false == filteredHosts.isEmpty()) {
+        if (false == filteredNodes.isEmpty()) {
             /*
-             * Normal case: we have at least one non-dead host that the hostSelector
+             * Normal case: we have at least one non-dead node that the nodeSelector
              * is fine with. Rotate the list so repeated requests with the same blacklist
-             * and the same selector round robin. If you use a different HostSelector
-             * or a host goes dark then the round robin won't be perfect but that should
+             * and the same selector round robin. If you use a different NodeSelector
+             * or a node goes dark then the round robin won't be perfect but that should
              * be fine.
              */
-            List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-            int i = lastHostIndex.getAndIncrement();
+            List<HttpHost> rotatedHosts = new ArrayList<>(filteredNodes.size());
+            for (Node node : filteredNodes) {
+                rotatedHosts.add(node.getHost());
+            }
+            int i = lastNodesIndex.getAndIncrement();
             Collections.rotate(rotatedHosts, i);
             result.hosts = rotatedHosts;
             return result;
         }
         /*
-         * Last resort: If there are no good hosts to use, return a single dead one,
+         * Last resort: If there are no good nodes to use, return a single dead one,
          * the one that's closest to being retried *and* matches the selector.
          */
         List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
@@ -451,7 +470,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
         while (nodeItr.hasNext()) {
             final HttpHost deadHost = nodeItr.next().getKey();
-            if (hostSelector.select(deadHost, hostTuple.metaResolver.resolveMetadata(deadHost))) {
+            Node node = hostToNode.get(deadHost);
+            if (node != null && nodeSelector.select(node)) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("resurrecting host [" + deadHost + "]");
                 }
@@ -630,18 +650,16 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     }
 
     /**
-     * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
+     * {@code HostTuple} enables the {@linkplain Node}s and {@linkplain AuthCache} to be set together in a thread
      * safe, volatile way.
      */
-    static class HostTuple<T> {
-        final T hosts;
+    static class NodeTuple<T> {
+        final T nodes;
         final AuthCache authCache;
-        final HostMetadataResolver metaResolver;
 
-        HostTuple(final T hosts, final AuthCache authCache, final HostMetadataResolver metaResolver) {
-            this.hosts = hosts;
+        NodeTuple(final T nodes, final AuthCache authCache) {
+            this.nodes = nodes;
             this.authCache = authCache;
-            this.metaResolver = metaResolver;
         }
     }
 }

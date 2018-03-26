@@ -20,13 +20,12 @@
 package org.elasticsearch.client.sniff.documentation;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.client.sniff.HostsSniffer;
 import org.elasticsearch.client.sniff.SniffOnFailureListener;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.elasticsearch.client.sniff.SnifferResult;
 
 import java.io.IOException;
 import java.util.List;
@@ -122,7 +121,7 @@ public class SnifferDocumentation {
                     .build();
             HostsSniffer hostsSniffer = new HostsSniffer() {
                 @Override
-                public SnifferResult sniffHosts() throws IOException {
+                public List<Node> sniffHosts() throws IOException {
                     return null; // <1>
                 }
             };

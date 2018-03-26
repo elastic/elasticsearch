@@ -35,7 +35,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
+import org.elasticsearch.client.Node.Roles;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
@@ -67,8 +67,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import static java.util.Collections.singletonMap;
-
 /**
  * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, blacklisting etc.
  * Relies on a mock http client to intercept requests and return desired responses based on request path.
@@ -76,9 +74,8 @@ import static java.util.Collections.singletonMap;
 public class RestClientMultipleHostsTests extends RestClientTestCase {
 
     private ExecutorService exec = Executors.newFixedThreadPool(1);
-    private volatile Map<HttpHost, HostMetadata> hostMetadata = Collections.<HttpHost, HostMetadata>emptyMap();
     private RestClient restClient;
-    private HttpHost[] httpHosts;
+    private Node[] nodes;
     private HostsTrackingFailureListener failureListener;
 
     @Before
@@ -115,22 +112,13 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 return null;
             }
         });
-        int numHosts = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
-        httpHosts = new HttpHost[numHosts];
-        for (int i = 0; i < numHosts; i++) {
-            httpHosts[i] = new HttpHost("localhost", 9200 + i);
+        int numNodes = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
+        nodes = new Node[numNodes];
+        for (int i = 0; i < numNodes; i++) {
+            nodes[i] = new Node(new HttpHost("localhost", 9200 + i));
         }
-        /*
-         * Back the metadata to a map that we can manipulate during testing.
-         */
-        HostMetadataResolver metaResolver = new HostMetadataResolver() {
-            @Override
-            public HostMetadata resolveMetadata(HttpHost host) {
-                return hostMetadata.get(host);
-            }
-        };
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, metaResolver, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, new Header[0], nodes, null, failureListener);
     }
 
     /**
@@ -144,9 +132,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testRoundRobinOkStatusCodes() throws IOException {
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
-            Set<HttpHost> hostsSet = new HashSet<>();
-            Collections.addAll(hostsSet, httpHosts);
-            for (int j = 0; j < httpHosts.length; j++) {
+            Set<HttpHost> hostsSet = hostsSet();
+            for (int j = 0; j < nodes.length; j++) {
                 int statusCode = randomOkStatusCode(getRandom());
                 Response response = restClient.performRequest(randomHttpMethod(getRandom()), "/" + statusCode);
                 assertEquals(statusCode, response.getStatusLine().getStatusCode());
@@ -160,9 +147,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testRoundRobinNoRetryErrors() throws IOException {
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 1, 5);
         for (int i = 0; i < numIters; i++) {
-            Set<HttpHost> hostsSet = new HashSet<>();
-            Collections.addAll(hostsSet, httpHosts);
-            for (int j = 0; j < httpHosts.length; j++) {
+            Set<HttpHost> hostsSet = hostsSet();
+            for (int j = 0; j < nodes.length; j++) {
                 String method = randomHttpMethod(getRandom());
                 int statusCode = randomErrorNoRetryStatusCode(getRandom());
                 try {
@@ -201,10 +187,9 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * the caller. It wraps the exception that contains the failed hosts.
              */
             e = (ResponseException) e.getCause();
-            Set<HttpHost> hostsSet = new HashSet<>();
-            Collections.addAll(hostsSet, httpHosts);
+            Set<HttpHost> hostsSet = hostsSet();
             //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
-            failureListener.assertCalled(httpHosts);
+            failureListener.assertCalled(nodes);
             do {
                 Response response = e.getResponse();
                 assertEquals(Integer.parseInt(retryEndpoint.substring(1)), response.getStatusLine().getStatusCode());
@@ -226,10 +211,9 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
              * the caller. It wraps the exception that contains the failed hosts.
              */
             e = (IOException) e.getCause();
-            Set<HttpHost> hostsSet = new HashSet<>();
-            Collections.addAll(hostsSet, httpHosts);
+            Set<HttpHost> hostsSet = hostsSet();
             //first request causes all the hosts to be blacklisted, the returned exception holds one suppressed exception each
-            failureListener.assertCalled(httpHosts);
+            failureListener.assertCalled(nodes);
             do {
                 HttpHost httpHost = HttpHost.create(e.getMessage());
                 assertTrue("host [" + httpHost + "] not found, most likely used multiple times", hostsSet.remove(httpHost));
@@ -248,9 +232,8 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         int numIters = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
         for (int i = 1; i <= numIters; i++) {
             //check that one different host is resurrected at each new attempt
-            Set<HttpHost> hostsSet = new HashSet<>();
-            Collections.addAll(hostsSet, httpHosts);
-            for (int j = 0; j < httpHosts.length; j++) {
+            Set<HttpHost> hostsSet = hostsSet();
+            for (int j = 0; j < nodes.length; j++) {
                 retryEndpoint = randomErrorRetryEndpoint();
                 try  {
                     restClient.performRequest(randomHttpMethod(getRandom()), retryEndpoint);
@@ -324,52 +307,30 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
     }
 
-    /**
-     * Test that calling {@link RestClient#setHosts(Iterable, HostMetadataResolver)}
-     * sets the {@link HostMetadataResolver}.
-     */
-    public void testSetHostsWithMetadataResolver() throws IOException {
-        HostMetadataResolver firstPositionIsClient = new HostMetadataResolver() {
+    public void testWithNodeSelector() throws IOException {
+        NodeSelector firstPositionOnly = new NodeSelector() {
             @Override
-            public HostMetadata resolveMetadata(HttpHost host) {
-                HostMetadata.Roles roles;
-                if (host == httpHosts[0]) {
-                    roles = new HostMetadata.Roles(false, false, false);
-                } else {
-                    roles = new HostMetadata.Roles(true, true, true);
-                }
-                return new HostMetadata("dummy", roles);
+            public boolean select(Node node) {
+                return nodes[0] == node;
             }
         };
-        restClient.setHosts(Arrays.asList(httpHosts), firstPositionIsClient);
-        assertSame(firstPositionIsClient, restClient.getHostMetadataResolver());
-        Response response = restClient.withHostSelector(HostSelector.NOT_MASTER).performRequest("GET", "/200");
-        assertEquals(httpHosts[0], response.getHost());
-    }
-
-    public void testWithHostSelector() throws IOException {
-        HostSelector firstPositionOnly = new HostSelector() {
-            @Override
-            public boolean select(HttpHost host, HostMetadata meta) {
-                return httpHosts[0] == host;
-            }
-        };
-        RestClientActions withHostSelector = restClient.withHostSelector(firstPositionOnly);
-        Response response = withHostSelector.performRequest("GET", "/200");
-        assertEquals(httpHosts[0], response.getHost());
+        RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionOnly);
+        Response response = withNodeSelector.performRequest("GET", "/200");
+        assertEquals(nodes[0].getHost(), response.getHost());
         restClient.close();
     }
 
-    /**
-     * Test that calling {@link RestClient#setHosts(Iterable)} preserves the
-     * {@link HostMetadataResolver}.
-     */
-    public void testSetHostsWithoutMetadataResolver() throws IOException {
-        HttpHost expected = randomFrom(httpHosts);
-        hostMetadata = singletonMap(expected, new HostMetadata("dummy", new HostMetadata.Roles(false, false, false)));
-        restClient.setHosts(httpHosts);
-        Response response = restClient.withHostSelector(HostSelector.NOT_MASTER).performRequest("GET", "/200");
-        assertEquals(expected, response.getHost());
+    public void testSetNodes() throws IOException {
+        Node[] newNodes = new Node[nodes.length];
+        for (int i = 0; i < nodes.length; i++) {
+            Roles roles = i == 0 ? new Roles(false, true, true) : new Roles(true, false, false);
+            newNodes[i] = new Node(nodes[i].getHost(), null, null, roles);
+        }
+        restClient.setNodes(newNodes);
+        Response response = restClient
+                .withNodeSelector(NodeSelector.NOT_MASTER_ONLY)
+                .performRequest("GET", "/200");
+        assertEquals(newNodes[0].getHost(), response.getHost());
     }
 
     private static String randomErrorRetryEndpoint() {
@@ -384,5 +345,17 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 return "/ioe";
         }
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Build a mutable {@link Set} containing all the {@link Node#getHost() hosts}
+     * in use by the test.
+     */
+    private Set<HttpHost> hostsSet() {
+        Set<HttpHost> hosts = new HashSet<>();
+        for (Node node : nodes) {
+            hosts.add(node.getHost());
+        }
+        return hosts;
     }
 }

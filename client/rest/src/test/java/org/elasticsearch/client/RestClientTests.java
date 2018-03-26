@@ -22,9 +22,8 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
-import org.elasticsearch.client.RestClient.HostTuple;
 import org.elasticsearch.client.RestClient.NextHostsResult;
+import org.elasticsearch.client.RestClient.NodeTuple;
 
 import java.io.IOException;
 import java.net.URI;
@@ -51,10 +50,10 @@ import static org.mockito.Mockito.verify;
 public class RestClientTests extends RestClientTestCase {
 
     public void testCloseIsIdempotent() throws IOException {
-        HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
+        Node[] nodes = new Node[] {new Node(new HttpHost("localhost", 9200))};
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
         RestClient restClient = new RestClient(closeableHttpAsyncClient, 1_000, new Header[0],
-                hosts, HostMetadata.EMPTY_RESOLVER, null, null);
+                nodes, null, null);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -165,50 +164,44 @@ public class RestClientTests extends RestClientTestCase {
         HttpHost h1 = new HttpHost("1");
         HttpHost h2 = new HttpHost("2");
         HttpHost h3 = new HttpHost("3");
-        Set<HttpHost> hosts = new HashSet<>();
-        hosts.add(h1);
-        hosts.add(h2);
-        hosts.add(h3);
+        Set<Node> nodes = new HashSet<>();
+        nodes.add(new Node(h1, null, "1", null));
+        nodes.add(new Node(h2, null, "2", null));
+        nodes.add(new Node(h3, null, "3", null));
 
-        HostMetadataResolver versionIsName = new HostMetadataResolver() {
+        NodeSelector not1 = new NodeSelector() {
             @Override
-            public HostMetadata resolveMetadata(HttpHost host) {
-                return new HostMetadata(host.toHostString(), new HostMetadata.Roles(true, true, true));
+            public boolean select(Node node) {
+                return false == "1".equals(node.getVersion());
             }
         };
-        HostSelector not1 = new HostSelector() {
+        NodeSelector noNodes = new NodeSelector() {
             @Override
-            public boolean select(HttpHost host, HostMetadata meta) {
-                return false == "1".equals(meta.version());
-            }
-        };
-        HostSelector noHosts = new HostSelector() {
-            @Override
-            public boolean select(HttpHost host, HostMetadata meta) {
+            public boolean select(Node node) {
                 return false;
             }
         };
 
-        HostTuple<Set<HttpHost>> hostTuple = new HostTuple<>(hosts, null, versionIsName);
+        NodeTuple<Set<Node>> nodeTuple = new NodeTuple<>(nodes, null);
         Map<HttpHost, DeadHostState> blacklist = new HashMap<>();
-        AtomicInteger lastHostIndex = new AtomicInteger(0);
+        AtomicInteger lastNodeIndex = new AtomicInteger(0);
         long now = 0;
 
         // Normal case
-        NextHostsResult result = RestClient.nextHostsOneTime(hostTuple, blacklist,
-                lastHostIndex, now, HostSelector.ANY);
+        NextHostsResult result = RestClient.nextHostsOneTime(nodeTuple, blacklist,
+                lastNodeIndex, now, NodeSelector.ANY);
         assertThat(result.hosts, containsInAnyOrder(h1, h2, h3));
         List<HttpHost> expectedHosts = new ArrayList<>(result.hosts);
         // Calling it again rotates the set of results
         for (int i = 0; i < iterations; i++) {
             Collections.rotate(expectedHosts, 1);
-            assertEquals(expectedHosts, RestClient.nextHostsOneTime(hostTuple, blacklist,
-                    lastHostIndex, now, HostSelector.ANY).hosts);
+            assertEquals(expectedHosts, RestClient.nextHostsOneTime(nodeTuple, blacklist,
+                    lastNodeIndex, now, NodeSelector.ANY).hosts);
         }
 
-        // Exclude some host
-        lastHostIndex.set(0);
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex, now, not1);
+        // Exclude some node
+        lastNodeIndex.set(0);
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex, now, not1);
         assertThat(result.hosts, containsInAnyOrder(h2, h3)); // h1 excluded
         assertEquals(0, result.blacklisted);
         assertEquals(1, result.selectorRejected);
@@ -217,31 +210,31 @@ public class RestClientTests extends RestClientTestCase {
         // Calling it again rotates the set of results
         for (int i = 0; i < iterations; i++) {
             Collections.rotate(expectedHosts, 1);
-            assertEquals(expectedHosts, RestClient.nextHostsOneTime(hostTuple, blacklist,
-                    lastHostIndex, now, not1).hosts);
+            assertEquals(expectedHosts, RestClient.nextHostsOneTime(nodeTuple, blacklist,
+                    lastNodeIndex, now, not1).hosts);
         }
 
         /*
-         * Try a HostSelector that excludes all hosts. This should
+         * Try a NodeSelector that excludes all nodes. This should
          * return a failure.
          */
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex, now, noHosts);
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex, now, noNodes);
         assertNull(result.hosts);
         assertEquals(0, result.blacklisted);
         assertEquals(3, result.selectorRejected);
         assertEquals(0, result.selectorBlockedRevival);
 
         /*
-         * Mark all hosts as dead and look up at a time *after* the
-         * revival time. This should return all hosts.
+         * Mark all nodes as dead and look up at a time *after* the
+         * revival time. This should return all nodes.
          */
         blacklist.put(h1, new DeadHostState(1, 1));
         blacklist.put(h2, new DeadHostState(1, 2));
         blacklist.put(h3, new DeadHostState(1, 3));
-        lastHostIndex.set(0);
+        lastNodeIndex.set(0);
         now = 1000;
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex,
-                now, HostSelector.ANY);
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex,
+                now, NodeSelector.ANY);
         assertThat(result.hosts, containsInAnyOrder(h1, h2, h3));
         assertEquals(0, result.blacklisted);
         assertEquals(0, result.selectorRejected);
@@ -250,28 +243,28 @@ public class RestClientTests extends RestClientTestCase {
         // Calling it again rotates the set of results
         for (int i = 0; i < iterations; i++) {
             Collections.rotate(expectedHosts, 1);
-            assertEquals(expectedHosts, RestClient.nextHostsOneTime(hostTuple, blacklist,
-                    lastHostIndex, now, HostSelector.ANY).hosts);
+            assertEquals(expectedHosts, RestClient.nextHostsOneTime(nodeTuple, blacklist,
+                    lastNodeIndex, now, NodeSelector.ANY).hosts);
         }
 
         /*
-         * Now try with the hosts dead and *not* past their dead time.
-         * Only the host closest to revival should come back.
+         * Now try with the nodes dead and *not* past their dead time.
+         * Only the node closest to revival should come back.
          */
         now = 0;
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex,
-                now, HostSelector.ANY);
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex,
+                now, NodeSelector.ANY);
         assertEquals(Collections.singleton(h1), result.hosts);
         assertEquals(3, result.blacklisted);
         assertEquals(0, result.selectorRejected);
         assertEquals(0, result.selectorBlockedRevival);
 
         /*
-         * Now try with the hosts dead and *not* past their dead time
-         * *and* a host selector that removes the host that is closest
-         * to being revived. The second closest host should come back.
+         * Now try with the nodes dead and *not* past their dead time
+         * *and* a node selector that removes the node that is closest
+         * to being revived. The second closest node should come back.
          */
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex,
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex,
                 now, not1);
         assertEquals(Collections.singleton(h2), result.hosts);
         assertEquals(3, result.blacklisted);
@@ -279,12 +272,12 @@ public class RestClientTests extends RestClientTestCase {
         assertEquals(1, result.selectorBlockedRevival);
 
         /*
-         * Try a HostSelector that excludes all hosts. This should
+         * Try a NodeSelector that excludes all nodes. This should
          * return a failure, but a different failure than normal
          * because it'll block revival rather than outright reject
-         * healthy hosts.
+         * healthy nodes.
          */
-        result = RestClient.nextHostsOneTime(hostTuple, blacklist, lastHostIndex, now, noHosts);
+        result = RestClient.nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex, now, noNodes);
         assertNull(result.hosts);
         assertEquals(3, result.blacklisted);
         assertEquals(0, result.selectorRejected);
@@ -292,8 +285,10 @@ public class RestClientTests extends RestClientTestCase {
     }
 
     private static RestClient createRestClient() {
-        HttpHost[] hosts = new HttpHost[]{new HttpHost("localhost", 9200)};
+        Node[] hosts = new Node[] {
+            new Node(new HttpHost("localhost", 9200))
+        };
         return new RestClient(mock(CloseableHttpAsyncClient.class), randomLongBetween(1_000, 30_000),
-                new Header[] {}, hosts, HostMetadata.EMPTY_RESOLVER, null, null);
+                new Header[] {}, hosts, null, null);
     }
 }

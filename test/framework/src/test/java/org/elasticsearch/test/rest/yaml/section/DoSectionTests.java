@@ -20,8 +20,8 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -508,31 +508,33 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 "just one entry this time")));
     }
 
-    public void testHostSelector() throws IOException {
+    public void testNodeSelector() throws IOException {
         parser = createParser(YamlXContent.yamlXContent,
-                "host_selector:\n" +
+                "node_selector:\n" +
                 "    version: 5.2.0-6.0.0\n" +
                 "indices.get_field_mapping:\n" +
                 "    index: test_index"
         );
 
         DoSection doSection = DoSection.parse(parser);
-        HttpHost host = new HttpHost("dummy");
-        HostMetadata.Roles roles = new HostMetadata.Roles(true, true, true);
-        assertNotSame(HostSelector.ANY, doSection.getApiCallSection().getHostSelector());
-        assertTrue(doSection.getApiCallSection().getHostSelector()
-                .select(host, new HostMetadata("5.2.1", roles)));
-        assertFalse(doSection.getApiCallSection().getHostSelector()
-                .select(host, new HostMetadata("6.1.2", roles)));
-        assertFalse(doSection.getApiCallSection().getHostSelector()
-                .select(host, new HostMetadata("1.7.0", roles)));
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        assertTrue(doSection.getApiCallSection().getNodeSelector()
+                .select(nodeWithVersion("5.2.1")));
+        assertFalse(doSection.getApiCallSection().getNodeSelector()
+                .select(nodeWithVersion("6.1.2")));
+        assertFalse(doSection.getApiCallSection().getNodeSelector()
+                .select(nodeWithVersion("1.7.0")));
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
         ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
         when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
-                emptyList(), emptyMap(), doSection.getApiCallSection().getHostSelector())).thenReturn(mockResponse);
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector())).thenReturn(mockResponse);
         doSection.execute(context);
         verify(context).callApi("indices.get_field_mapping", singletonMap("index", "test_index"),
-                emptyList(), emptyMap(), doSection.getApiCallSection().getHostSelector());
+                emptyList(), emptyMap(), doSection.getApiCallSection().getNodeSelector());
+    }
+
+    private Node nodeWithVersion(String version) {
+        return new Node(new HttpHost("dummy"), null, version, null);
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

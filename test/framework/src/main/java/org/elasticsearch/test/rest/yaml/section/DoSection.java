@@ -22,8 +22,8 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.HostMetadata;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -88,7 +88,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
-        HostSelector hostSelector = HostSelector.ANY;
+        NodeSelector nodeSelector = NodeSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
@@ -125,26 +125,15 @@ public class DoSection implements ExecutableSection {
                             headers.put(headerName, parser.text());
                         }
                     }
-                } else if ("host_selector".equals(currentFieldName)) {
+                } else if ("node_selector".equals(currentFieldName)) {
                     String selectorName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             selectorName = parser.currentName();
                         } else if (token.isValue()) {
-                            final HostSelector original = hostSelector;
-                            final HostSelector newSelector = buildHostSelector(
+                            NodeSelector newSelector = buildNodeSelector(
                                 parser.getTokenLocation(), selectorName, parser.text());
-                            hostSelector = new HostSelector() {
-                                @Override
-                                public boolean select(HttpHost host, HostMetadata meta) {
-                                    return original.select(host, meta) && newSelector.select(host, meta);
-                                }
-
-                                @Override
-                                public String toString() {
-                                    return original + " AND " + newSelector;
-                                }
-                            };
+                            nodeSelector = new NodeSelector.And(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -179,7 +168,7 @@ public class DoSection implements ExecutableSection {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
             apiCallSection.addHeaders(headers);
-            apiCallSection.setHostSelector(hostSelector);
+            apiCallSection.setNodeSelector(nodeSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
@@ -248,7 +237,7 @@ public class DoSection implements ExecutableSection {
 
         try {
             ClientYamlTestResponse response = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
-                    apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getHostSelector());
+                    apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getNodeSelector());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
@@ -365,17 +354,18 @@ public class DoSection implements ExecutableSection {
                 not(equalTo(409)))));
     }
 
-    private static HostSelector buildHostSelector(XContentLocation location, String name, String value) {
+    private static NodeSelector buildNodeSelector(XContentLocation location, String name, String value) {
         switch (name) {
         case "version":
             Version[] range = SkipSection.parseVersionRange(value);
-            return new HostSelector() {
+            return new NodeSelector() {
                 @Override
-                public boolean select(HttpHost host, HostMetadata meta) {
-                    if (meta == null) {
-                        throw new IllegalStateException("expected HostMetadata to be loaded!");
+                public boolean select(Node node) {
+                    if (node.getVersion() == null) {
+                        throw new IllegalStateException("expected [version] metadata to be set but got "
+                                 + node);
                     }
-                    Version version = Version.fromString(meta.version());
+                    Version version = Version.fromString(node.getVersion());
                     return version.onOrAfter(range[0]) && version.onOrBefore(range[1]);
                 }
 
@@ -385,7 +375,7 @@ public class DoSection implements ExecutableSection {
                 }
             };
         default:
-            throw new IllegalArgumentException("unknown host_selector [" + name + "]");
+            throw new IllegalArgumentException("unknown node_selector [" + name + "]");
         }
     }
 }

@@ -47,7 +47,6 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -96,8 +95,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
     private Header[] defaultHeaders;
-    private HttpHost httpHost;
-    private volatile HostMetadata hostMetadata;
+    private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
 
@@ -111,7 +109,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
-                        assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
+                        assertThat(context.getAuthCache().get(node.getHost()), instanceOf(BasicScheme.class));
                         final FutureCallback<HttpResponse> futureCallback =
                             (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
@@ -149,16 +147,10 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 });
 
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
-        httpHost = new HttpHost("localhost", 9200);
+        node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
-        HostMetadataResolver metaResolver = new HostMetadataResolver(){
-            @Override
-            public HostMetadata resolveMetadata(HttpHost host) {
-                return hostMetadata;
-            }
-        };
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost},
-                metaResolver, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, defaultHeaders, new Node[] {node},
+                null, failureListener);
     }
 
     /**
@@ -210,37 +202,55 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             restClient.setHosts((HttpHost[]) null);
             fail("setHosts should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null", e.getMessage());
+            assertEquals("hosts must not be null or empty", e.getMessage());
         }
         try {
             restClient.setHosts();
             fail("setHosts should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be empty", e.getMessage());
+            assertEquals("hosts must not be null or empty", e.getMessage());
         }
         try {
             restClient.setHosts((HttpHost) null);
             fail("setHosts should have failed");
-        } catch (NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
         try {
             restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
             fail("setHosts should have failed");
-        } catch (NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             assertEquals("host cannot be null", e.getMessage());
         }
+    }
+
+    public void testSetNodesFailures() throws IOException {
         try {
-            restClient.setHosts(null, HostMetadata.EMPTY_RESOLVER);
-            fail("setHosts should have failed");
+            restClient.setNodes((Node[]) null);
+            fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null", e.getMessage());
+            assertEquals("nodes must not be null or empty", e.getMessage());
         }
         try {
-            restClient.setHosts(Arrays.asList(new HttpHost("localhost", 9200)), null);
-            fail("setHosts should have failed");
+            restClient.setNodes();
+            fail("setNodes should have failed");
         } catch (IllegalArgumentException e) {
-            assertEquals("metaResolver must not be null", e.getMessage());
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+        try {
+            restClient.setNodes((Node) null);
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
+        }
+        try {
+            restClient.setNodes(
+                    new Node(new HttpHost("localhost", 9200)),
+                    null,
+                    new Node(new HttpHost("localhost", 9201)));
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
         }
     }
 
@@ -304,7 +314,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
-                    failureListener.assertCalled(httpHost);
+                    failureListener.assertCalled(node);
                 }
             }
         }
@@ -319,14 +329,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(node);
             try {
                 performRequest(method, "/soe");
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
             }
-            failureListener.assertCalled(httpHost);
+            failureListener.assertCalled(node);
         }
     }
 

@@ -20,21 +20,20 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.Node;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
+import java.util.List;
 
 /**
  * Mock implementation of {@link HostsSniffer}. Useful to prevent any connection attempt while testing builders etc.
  */
 class MockHostsSniffer implements HostsSniffer {
     @Override
-    public SnifferResult sniffHosts() throws IOException {
-        HttpHost host = new HttpHost("localhost", 9200);
-        return new SnifferResult(Collections.singletonList(host),
-            Collections.singletonMap(new HttpHost("localhost", 9200),
-                new HostMetadata("mock version", new HostMetadata.Roles(false, false, false))));
+    public List<Node> sniffHosts() throws IOException {
+        return Collections.singletonList(new Node(
+                new HttpHost("localhost", 9200), Collections.<HttpHost>emptyList(),
+                    "mock version", new Node.Roles(false, false, false)));
     }
 }

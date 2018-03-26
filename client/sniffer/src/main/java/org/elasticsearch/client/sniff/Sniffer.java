@@ -22,18 +22,16 @@ package org.elasticsearch.client.sniff;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -120,22 +118,19 @@ public class Sniffer implements Closeable {
         void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    final SnifferResult sniffedHosts = hostsSniffer.sniffHosts();
+                    final List<Node> sniffedHosts = hostsSniffer.sniffHosts();
                     logger.debug("sniffed hosts: " + sniffedHosts);
                     if (excludeHost != null) {
-                        sniffedHosts.hosts().remove(excludeHost);
-                        sniffedHosts.hostMetadata().remove(excludeHost);
+                        for (Iterator<Node> itr = sniffedHosts.iterator(); itr.hasNext();) {
+                            if (itr.next().getHost().equals(excludeHost)) {
+                                itr.remove();
+                            }
+                        }
                     }
-                    if (sniffedHosts.hosts().isEmpty()) {
+                    if (sniffedHosts.isEmpty()) {
                         logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
                     } else {
-                        HostMetadataResolver resolver = new HostMetadataResolver() {
-                            @Override
-                            public HostMetadata resolveMetadata(HttpHost host) {
-                                return sniffedHosts.hostMetadata().get(host);
-                            }
-                        };
-                        this.restClient.setHosts(sniffedHosts.hosts(), resolver);
+                        this.restClient.setNodes(sniffedHosts.toArray(new Node[0]));
                     }
                 } catch (Exception e) {
                     logger.error("error while sniffing nodes", e);

@@ -26,10 +26,10 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.HostMetadata.Roles;
+import org.elasticsearch.client.Node.Roles;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -93,19 +93,18 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
      * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
      */
     @Override
-    public SnifferResult sniffHosts() throws IOException {
+    public List<Node> sniffHosts() throws IOException {
         Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
         return readHosts(response.getEntity());
     }
 
-    private SnifferResult readHosts(HttpEntity entity) throws IOException {
+    private List<Node> readHosts(HttpEntity entity) throws IOException {
         try (InputStream inputStream = entity.getContent()) {
             JsonParser parser = jsonFactory.createParser(inputStream);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("expected data to start with an object");
             }
-            List<HttpHost> hosts = new ArrayList<>();
-            Map<HttpHost, HostMetadata> hostMetadata = new HashMap<>();
+            List<Node> nodes = new ArrayList<>();
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                     if ("nodes".equals(parser.getCurrentName())) {
@@ -113,19 +112,18 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
                             String nodeId = parser.getCurrentName();
-                            readHost(nodeId, parser, scheme, hosts, hostMetadata);
+                            readHost(nodeId, parser, scheme, nodes);
                         }
                     } else {
                         parser.skipChildren();
                     }
                 }
             }
-            return new SnifferResult(hosts, hostMetadata);
+            return nodes;
         }
     }
 
-    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<HttpHost> hosts,
-            Map<HttpHost, HostMetadata> hostMetadata) throws IOException {
+    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<Node> nodes) throws IOException {
         HttpHost publishedHost = null;
         List<HttpHost> boundHosts = new ArrayList<>();
         String fieldName = null;
@@ -190,11 +188,9 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
         } else {
             logger.trace("adding node [" + nodeId + "]");
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
-            hosts.add(publishedHost);
-            HostMetadata meta = new HostMetadata(version, new Roles(master, data, ingest));
-            for (HttpHost bound: boundHosts) {
-                hostMetadata.put(bound, meta);
-            }
+            assert boundHosts.contains(publishedHost) :
+                    "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
+            nodes.add(new Node(publishedHost, boundHosts, version, new Roles(master, data, ingest)));
         }
     }
 

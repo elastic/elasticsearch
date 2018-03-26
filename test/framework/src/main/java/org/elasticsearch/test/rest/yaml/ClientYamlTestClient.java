@@ -28,7 +28,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -78,7 +78,7 @@ public class ClientYamlTestClient {
      * Calls an api with the provided parameters and body
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, HttpEntity entity,
-            Map<String, String> headers, HostSelector hostSelector) throws IOException {
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
 
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
@@ -173,7 +173,7 @@ public class ClientYamlTestClient {
         logger.debug("calling api [{}]", apiName);
         try {
             Response response = restClient
-                .withHostSelector(hostSelector)
+                .withNodeSelector(nodeSelector)
                 .performRequest(requestMethod, requestPath, queryStringParams, entity, requestHeaders);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {

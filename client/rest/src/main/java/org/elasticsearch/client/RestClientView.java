@@ -37,11 +37,11 @@ class RestClientView extends AbstractRestClientActions {
     /**
      * Selects which hosts are valid destinations requests.
      */
-    private final HostSelector hostSelector;
+    private final NodeSelector nodeSelector;
 
-    RestClientView(RestClient delegate, HostSelector hostSelector) {
+    RestClientView(RestClient delegate, NodeSelector nodeSelector) {
         this.delegate = delegate;
-        this.hostSelector = hostSelector;
+        this.nodeSelector = nodeSelector;
     }
 
     @Override
@@ -50,15 +50,8 @@ class RestClientView extends AbstractRestClientActions {
     }
 
     @Override
-    public final RestClientView withHostSelector(final HostSelector hostSelector) {
-        final HostSelector inner = this.hostSelector;
-        HostSelector combo = new HostSelector() {
-            @Override
-            public boolean select(HttpHost host, HostMetadata meta) {
-                return inner.select(host, meta) && hostSelector.select(host, meta);
-            }
-        };
-        return new RestClientView(delegate, combo);
+    public final RestClientView withNodeSelector(final NodeSelector newNodeSelector) {
+        return new RestClientView(delegate, new NodeSelector.And(nodeSelector, newNodeSelector));
     }
 
     @Override
@@ -66,6 +59,6 @@ class RestClientView extends AbstractRestClientActions {
             HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
             ResponseListener responseListener, Header[] headers) throws IOException {
         delegate.performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            responseListener, hostSelector, headers);
+            responseListener, nodeSelector, headers);
     }
 }

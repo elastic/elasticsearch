@@ -66,7 +66,8 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     @BeforeClass
     public static void startHttpServer() throws Exception {
         if (randomBoolean()) {
-            pathPrefixWithoutLeadingSlash = "testPathPrefix/" + randomAsciiOfLengthBetween(1, 5);
+            pathPrefixWithoutLeadingSlash = "testPathPrefix/"
+                + randomAsciiLettersOfLengthBetween(1, 5);
             pathPrefix = "/" + pathPrefixWithoutLeadingSlash;
         } else {
             pathPrefix = pathPrefixWithoutLeadingSlash = "";
@@ -206,23 +207,23 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      * Test host selector against a real server <strong>and</strong>
      * test what happens after calling
      */
-    public void testWithHostSelector() throws IOException {
+    public void testWithNodeSelector() throws IOException {
         /*
          * note that this *doesn't* stopRandomHost(); because it might stop
          * the first host which we use for testing the selector.
          */
-        HostSelector firstPositionOnly = new HostSelector() {
+        NodeSelector firstPositionOnly = new NodeSelector() {
             @Override
-            public boolean select(HttpHost host, HostMetadata meta) {
-                return httpHosts[0] == host;
+            public boolean select(Node node) {
+                return httpHosts[0] == node.getHost();
             }
         };
-        RestClientActions withHostSelector = restClient.withHostSelector(firstPositionOnly);
-        Response response = withHostSelector.performRequest("GET", "/firstOnly");
+        RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionOnly);
+        Response response = withNodeSelector.performRequest("GET", "/firstOnly");
         assertEquals(httpHosts[0], response.getHost());
         restClient.close();
         try {
-            withHostSelector.performRequest("GET", "/firstOnly");
+            withNodeSelector.performRequest("GET", "/firstOnly");
             fail("expected a failure");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("status: STOPPED"));

@@ -20,8 +20,10 @@
 package org.elasticsearch.client.sniff;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,5 +34,5 @@ public interface HostsSniffer {
      * Returns a {@link Map} from sniffed {@link HttpHost} to metadata
      * sniffed about the host.
      */
-    SnifferResult sniffHosts() throws IOException;
+    List<Node> sniffHosts() throws IOException;
 }

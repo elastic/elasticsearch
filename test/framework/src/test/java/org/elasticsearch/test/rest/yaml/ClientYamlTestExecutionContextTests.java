@@ -20,7 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             new ClientYamlTestExecutionContext(null, () -> {}, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                            HttpEntity entity, Map<String, String> headers, HostSelector hostSelector) {
+                            HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
                     headersRef.set(headers);
                     return null;
                 }
@@ -62,19 +62,19 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
         assertEquals("baz bar1", headersRef.get().get("foo1"));
     }
 
-    public void testNonDefaultHostSelectorSetsHostMetadata() throws IOException {
+    public void testNonDefaultNodeSelectorSetsNodeMetadata() throws IOException {
         AtomicBoolean setHostMetadata = new AtomicBoolean(false);
         final ClientYamlTestExecutionContext context =
             new ClientYamlTestExecutionContext(null, () -> setHostMetadata.set(true), randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                            HttpEntity entity, Map<String, String> headers, HostSelector hostSelector) {
+                            HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
                     return null;
                 }
             };
-        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), HostSelector.ANY);
+        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), NodeSelector.ANY);
         assertFalse(setHostMetadata.get());
-        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), HostSelector.NOT_MASTER);
+        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), NodeSelector.NOT_MASTER_ONLY);
         assertTrue(setHostMetadata.get());
     }
 }

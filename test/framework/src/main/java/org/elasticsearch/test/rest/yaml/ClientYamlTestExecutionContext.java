@@ -25,7 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.HostSelector;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -59,13 +59,13 @@ public class ClientYamlTestExecutionContext {
 
     private final boolean randomizeContentType;
 
-    private final CheckedRunnable<IOException> setHostMetadata;
+    private final CheckedRunnable<IOException> setNodeMetadata;
 
-    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, CheckedRunnable<IOException> setHostMetadata,
+    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, CheckedRunnable<IOException> setNodeMetadata,
             boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
         this.randomizeContentType = randomizeContentType;
-        this.setHostMetadata = setHostMetadata;
+        this.setNodeMetadata = setNodeMetadata;
     }
 
     /**
@@ -74,7 +74,7 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
-        return callApi(apiName, params, bodies, headers, HostSelector.ANY);
+        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
     }
 
     /**
@@ -82,7 +82,7 @@ public class ClientYamlTestExecutionContext {
      * Saves the obtained response in the execution context.
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers, HostSelector hostSelector) throws IOException {
+                                    Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
@@ -100,13 +100,13 @@ public class ClientYamlTestExecutionContext {
             }
         }
 
-        if (hostSelector != HostSelector.ANY) {
-            setHostMetadata.run();
+        if (nodeSelector != NodeSelector.ANY) {
+            setNodeMetadata.run();
         }
 
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders, hostSelector);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -173,8 +173,8 @@ public class ClientYamlTestExecutionContext {
 
     // pkg-private for testing
     ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-            HttpEntity entity, Map<String, String> headers, HostSelector hostSelector) throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers, hostSelector);
+            HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
     }
 
     /**

@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -37,12 +36,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
@@ -121,7 +121,10 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        EngineDiskUtils.createEmpty(store.directory(), translogConfig.getTranslogPath(), shardId);
+        store.createEmpty();
+        final String translogUUID =
+            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,

@@ -115,12 +115,12 @@ public class AutoDateHistogramAggregationBuilder
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         RoundingInfo[] roundings = new RoundingInfo[6];
-        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE), 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR), 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY), 1, 3, 12);
-        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 1, 7);
-        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 1, 5, 10, 20, 50, 100);
+        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE), 1000L, 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR), 60 * 1000L, 1, 5, 10, 30);
+        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY), 60 * 60 * 1000L, 1, 3, 12);
+        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH), 24 * 60 * 60 * 1000L, 1, 7);
+        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR), 30 * 24 * 60 * 60 * 1000L, 1, 3);
+        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY), 365 * 24 * 60 * 60 * 1000L, 1, 5, 10, 20, 50, 100);
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -153,25 +153,33 @@ public class AutoDateHistogramAggregationBuilder
     public static class RoundingInfo implements Writeable {
         final Rounding rounding;
         final int[] innerIntervals;
+        final long roughEstimateDurationMillis;
 
-        public RoundingInfo(Rounding rounding, int... innerIntervals) {
+        public RoundingInfo(Rounding rounding, long roughEstimateDurationMillis, int... innerIntervals) {
             this.rounding = rounding;
+            this.roughEstimateDurationMillis = roughEstimateDurationMillis;
             this.innerIntervals = innerIntervals;
         }
         
         public RoundingInfo(StreamInput in) throws IOException {
             rounding = Rounding.Streams.read(in);
+            roughEstimateDurationMillis = in.readVLong();
             innerIntervals = in.readIntArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Rounding.Streams.write(rounding, out);
+            out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
         }
         
         public int getMaximumInnerInterval() {
             return innerIntervals[innerIntervals.length - 1];
+        }
+
+        public long getRoughEstimateDurationMillis() {
+            return roughEstimateDurationMillis;
         }
 
         @Override

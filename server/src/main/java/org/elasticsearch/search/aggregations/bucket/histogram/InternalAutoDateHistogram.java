@@ -452,6 +452,23 @@ public final class InternalAutoDateHistogram extends
             return roundingIdx;
         }
         int currentRoundingIdx = roundingIdx;
+
+        // Getting the accurate number of required buckets can be slow for large
+        // ranges at low roundings so get a rough estimate of the rounding first
+        // so we are at most 1 away from the correct rounding and then get the
+        // accurate rounding value
+        for (int i = currentRoundingIdx + 1; i < roundings.length; i++) {
+            long dataDuration = maxKey - minKey;
+            long roughEstimateRequiredBuckets = dataDuration / roundings[i].getRoughEstimateDurationMillis();
+            if (roughEstimateRequiredBuckets < targetBuckets * roundings[i].getMaximumInnerInterval()) {
+                currentRoundingIdx = i - 1;
+                break;
+            } else if (i == roundingIdx - 1) {
+                currentRoundingIdx = i;
+                break;
+            }
+        }
+
         int requiredBuckets = 0;
         do {
             Rounding currentRounding = roundings[currentRoundingIdx].rounding;

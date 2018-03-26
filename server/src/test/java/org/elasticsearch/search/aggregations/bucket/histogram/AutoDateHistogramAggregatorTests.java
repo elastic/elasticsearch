@@ -34,9 +34,15 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.chrono.ISOChronology;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -612,6 +618,346 @@ public class AutoDateHistogramAggregatorTests extends AggregatorTestCase {
                     assertEquals(3, bucket.getDocCount());
                 }
         );
+    }
+
+    public void testAllSecondIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 600; i++) {
+            DateTime date = startDate.plusSeconds(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(600, buckets.size());
+                    for (int i = 0; i < 600; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusSeconds(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(120, buckets.size());
+                    for (int i = 0; i < 120; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusSeconds(i * 5), bucket.getKey());
+                        assertEquals(5, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(60, buckets.size());
+                    for (int i = 0; i < 60; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusSeconds(i * 10), bucket.getKey());
+                        assertEquals(10, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(20, buckets.size());
+                    for (int i = 0; i < 20; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusSeconds(i * 30), bucket.getKey());
+                        assertEquals(30, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(10, buckets.size());
+                    for (int i = 0; i < 10; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMinutes(i), bucket.getKey());
+                        assertEquals(60, bucket.getDocCount());
+                    }
+                });
+    }
+
+    public void testAllMinuteIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 600; i++) {
+            DateTime date = startDate.plusMinutes(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(600, buckets.size());
+                    for (int i = 0; i < 600; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMinutes(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(120, buckets.size());
+                    for (int i = 0; i < 120; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMinutes(i * 5), bucket.getKey());
+                        assertEquals(5, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(60, buckets.size());
+                    for (int i = 0; i < 60; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMinutes(i * 10), bucket.getKey());
+                        assertEquals(10, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(20, buckets.size());
+                    for (int i = 0; i < 20; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMinutes(i * 30), bucket.getKey());
+                        assertEquals(30, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(15).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(10, buckets.size());
+                    for (int i = 0; i < 10; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusHours(i), bucket.getKey());
+                        assertEquals(60, bucket.getDocCount());
+                    }
+                });
+    }
+
+    public void testAllHourIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 600; i++) {
+            DateTime date = startDate.plusHours(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(600, buckets.size());
+                    for (int i = 0; i < 600; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusHours(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(200, buckets.size());
+                    for (int i = 0; i < 200; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusHours(i * 3), bucket.getKey());
+                        assertEquals(3, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(50, buckets.size());
+                    for (int i = 0; i < 50; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusHours(i * 12), bucket.getKey());
+                        assertEquals(12, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(30).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(25, buckets.size());
+                    for (int i = 0; i < 25; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusDays(i), bucket.getKey());
+                        assertEquals(24, bucket.getDocCount());
+                    }
+                });
+    }
+
+    public void testAllDayIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 700; i++) {
+            DateTime date = startDate.plusDays(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(700).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(700, buckets.size());
+                    for (int i = 0; i < 700; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusDays(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(100, buckets.size());
+                    for (int i = 0; i < 100; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusDays(i * 7), bucket.getKey());
+                        assertEquals(7, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(30).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(24, buckets.size());
+                    for (int i = 0; i < 24; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMonths(i), bucket.getKey());
+                        assertThat(bucket.getDocCount(), Matchers.lessThanOrEqualTo(31L));
+                    }
+                });
+    }
+
+    public void testAllMonthIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 600; i++) {
+            DateTime date = startDate.plusMonths(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(600, buckets.size());
+                    for (int i = 0; i < 600; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMonths(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(200, buckets.size());
+                    for (int i = 0; i < 200; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusMonths(i * 3), bucket.getKey());
+                        assertEquals(3, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, 
+                aggregation -> aggregation.setNumBuckets(60).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(50, buckets.size());
+                    for (int i = 0; i < 50; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i), bucket.getKey());
+                        assertEquals(12, bucket.getDocCount());
+                    }
+                });
+    }
+
+    public void testAllYearIntervals() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        List<String> dataset = new ArrayList<>();
+        DateTime startDate = new DateTime(2017, 01, 01, 00, 00, 00, ISOChronology.getInstanceUTC());
+        for (int i = 0; i < 600; i++) {
+            DateTime date = startDate.plusYears(i);
+            dataset.add(format.print(date));
+        }
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(600).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(600, buckets.size());
+                    for (int i = 0; i < 600; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i), bucket.getKey());
+                        assertEquals(1, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(300).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(120, buckets.size());
+                    for (int i = 0; i < 120; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i * 5), bucket.getKey());
+                        assertEquals(5, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(100).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(60, buckets.size());
+                    for (int i = 0; i < 60; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i * 10), bucket.getKey());
+                        assertEquals(10, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(50).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(30, buckets.size());
+                    for (int i = 0; i < 30; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i * 20), bucket.getKey());
+                        assertEquals(20, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(20).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(12, buckets.size());
+                    for (int i = 0; i < 12; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i * 50), bucket.getKey());
+                        assertEquals(50, bucket.getDocCount());
+                    }
+                });
+        testSearchAndReduceCase(new MatchAllDocsQuery(), dataset, aggregation -> aggregation.setNumBuckets(10).field(DATE_FIELD),
+                histogram -> {
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                    assertEquals(6, buckets.size());
+                    for (int i = 0; i < 6; i++) {
+                        Histogram.Bucket bucket = buckets.get(i);
+                        assertEquals(startDate.plusYears(i * 100), bucket.getKey());
+                        assertEquals(100, bucket.getDocCount());
+                    }
+                });
     }
 
     public void testInterval3Hour() throws IOException {

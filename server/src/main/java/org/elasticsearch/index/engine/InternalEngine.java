@@ -80,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1540,15 +1541,41 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
+        /*
+         * We need to deploy two different trimming strategies for GC deletes on primary and replicas. Delete operations on primary
+         * are remembered for at least one GC delete cycle and trimmed periodically. This is, at the moment, the best we can do on
+         * primary for user facing APIs but this arbitrary time limit is problematic for replicas. On replicas however we should
+         * trim only deletes whose seqno at most the local checkpoint. This requirement is explained as follows.
+         *
+         * Suppose o1 and o2 are two operations on the same document with seq#(o1) < seq#(o2), and o2 arrives before o1 on the replica.
+         * o2 is processed normally since it arrives first; when o1 arrives it should be discarded:
+         * - If seq#(o1) <= LCP, then it will be not be added to Lucene, as it was already previously added.
+         * - If seq#(o1)  > LCP, then it depends on the nature of o2:
+         *   *) If o2 is a delete then its seq# is recorded in the VersionMap, since seq#(o2) > seq#(o1) > LCP,
+         *      so a lookup can find it and determine that o1 is stale.
+         *   *) If o2 is an indexing then its seq# is either in Lucene (if refreshed) or the VersionMap (if not refreshed yet),
+         *      so a real-time lookup can find it and determine that o1 is stale.
+         *
+         * Here we prefer to deploy a single trimming strategy, which satisfies two constraints, on both primary and replicas because:
+         * - It's simpler - no need to distinguish if an engine is running at primary mode or replica mode or being promoted.
+         * - If a replica subsequently is promoted, user experience is maintained as that replica remembers deletes for the last GC cycle.
+         *
+         * However, the version map may consume less memory if we deploy two different trimming strategies for primary and replicas.
+         */
         final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-        versionMap.pruneTombstones(timeMSec, engineConfig.getIndexSettings().getGcDeletesInMillis());
+        final long maxTimestampToPrune = timeMSec - engineConfig.getIndexSettings().getGcDeletesInMillis();
+        versionMap.pruneTombstones(maxTimestampToPrune, localCheckpointTracker.getCheckpoint());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     // testing
     void clearDeletedTombstones() {
-        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
-        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
+        versionMap.pruneTombstones(Long.MAX_VALUE, localCheckpointTracker.getMaxSeqNo());
+    }
+
+    // for testing
+    final Collection<DeleteVersionValue> getDeletedTombstones() {
+        return versionMap.getAllTombstones().values();
     }
 
     @Override

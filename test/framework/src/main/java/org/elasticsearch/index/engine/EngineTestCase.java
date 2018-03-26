@@ -485,4 +485,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
     }
 
+    protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
+        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
+            Engine.Operation.Origin.REPLICA, startTime);
+    }
 }

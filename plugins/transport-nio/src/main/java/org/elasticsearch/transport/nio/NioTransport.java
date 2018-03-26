@@ -186,10 +186,9 @@ public class NioTransport extends TcpTransport {
             };
             SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
-            BytesWriteProducer bytesWriteProducer = new BytesWriteProducer(selector);
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, nioReadConsumer,
-                bytesWriteProducer, new InboundChannelBuffer(pageSupplier));
+                new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
             return nioChannel;
         }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.transport.nio.BytesFlushProducer;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -29,13 +31,18 @@ import java.util.function.Consumer;
 public class BytesChannelContext extends SocketChannelContext {
 
     private final ReadConsumer readConsumer;
-    private final WriteProducer writeProducer;
+    private final FlushProducer writeProducer;
     private final InboundChannelBuffer channelBuffer;
     private final AtomicBoolean isClosing = new AtomicBoolean(false);
     private FlushOperation currentFlushOperation;
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, WriteProducer writeProducer, InboundChannelBuffer channelBuffer) {
+                               ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
+        this(channel, selector, exceptionHandler, readConsumer, new BytesFlushProducer(selector), channelBuffer);
+    }
+
+    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
+                               ReadConsumer readConsumer, FlushProducer writeProducer, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler);
         this.readConsumer = readConsumer;
         this.writeProducer = writeProducer;

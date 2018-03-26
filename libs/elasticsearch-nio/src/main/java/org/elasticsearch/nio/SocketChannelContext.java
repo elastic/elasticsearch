@@ -186,7 +186,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         default void close() {}
     }
 
-    public interface WriteProducer extends AutoCloseable {
+    public interface FlushProducer extends AutoCloseable {
         void produceWrites(WriteOperation writeOperation);
 
         FlushOperation pollFlushOperation();

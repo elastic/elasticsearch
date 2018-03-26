@@ -165,7 +165,7 @@ lots of sources in one request. This will copy documents from the `_doc` and
 `post` type in the `twitter` index and the `_doc` type in the `blog` index. For more 
 specific parameters, you can use `query`.
 
-The Reindex API makes no effort handle ID collisions. For such issues, the target index 
+The Reindex API makes no effort to handle ID collisions. For such issues, the target index 
 will remain valid, but it's not easy to predict which document will survive because 
 the iteration order isn't well defined.
 
@@ -206,9 +206,9 @@ POST _reindex
 // TEST[setup:twitter]
 
 If you want a particular set of documents from the `twitter` index you'll
-need to `sort`. Sorting makes the scroll less efficient but in some contexts
+need to use `sort`. Sorting makes the scroll less efficient but in some contexts
 it's worth it. If possible, prefer a more selective query to `size` and `sort`.
-This will copy 10,000 documents from `twitter` into `new_twitter`:
+This will copy 10000 documents from `twitter` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------
@@ -902,7 +902,7 @@ POST _reindex
 // CONSOLE
 // TEST[setup:big_twitter]
 
-You can verify this works with:
+You can verify this works by:
 
 [source,js]
 ----------------------------------------------------------------
@@ -946,7 +946,7 @@ POST _reindex?slices=5&refresh
 // CONSOLE
 // TEST[setup:big_twitter]
 
-You can also verify works with:
+You can also this verify works by:
 
 [source,js]
 ----------------------------------------------------------------

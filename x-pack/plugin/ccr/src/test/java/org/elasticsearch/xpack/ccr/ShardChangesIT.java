@@ -34,15 +34,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -217,6 +217,24 @@ public class ShardChangesIT extends ESIntegTestCase {
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks().size(), equalTo(0));
         });
+    }
+
+    public void testFollowNonExistentIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test-leader").get());
+        assertAcked(client().admin().indices().prepareCreate("test-follower").get());
+        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        // Leader index does not exist.
+        followRequest.setLeaderIndex("non-existent-leader");
+        followRequest.setFollowIndex("test-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        // Follower index does not exist.
+        followRequest.setLeaderIndex("test-leader");
+        followRequest.setFollowIndex("non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
+        // Both indices do not exist.
+        followRequest.setLeaderIndex("non-existent-leader");
+        followRequest.setFollowIndex("non-existent-follower");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(FollowExistingIndexAction.INSTANCE, followRequest).actionGet());
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

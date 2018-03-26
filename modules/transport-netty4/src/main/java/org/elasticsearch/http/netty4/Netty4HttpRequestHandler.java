@@ -82,7 +82,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         try {
             httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
         } catch (final Exception e) {
-            // we use suppliers here because if acquiring these values blows up, we want error handling in handleException to takeover
+            // we use suppliers here because if acquiring these values blows up, we want error handling in handleException to take over
             final Supplier<List<String>> contentTypes = () -> request.headers().getAll("Content-Type");
             final Supplier<String> accept = () -> request.headers().get("Accept");
             handleException(e, ctx, copy, pipelinedRequest, request.uri(), ToXContent.EMPTY_PARAMS, contentTypes, accept);

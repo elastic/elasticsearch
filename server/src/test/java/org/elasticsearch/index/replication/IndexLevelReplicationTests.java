@@ -48,6 +48,8 @@ import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -57,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.hamcrest.Matchers.anyOf;
@@ -379,11 +382,17 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      * This makes sure that that replica still remembers the delete operation and correctly ignores the stale index operation.
      */
     public void testLateDeliveryAfterGCTriggeredOnReplica() throws Exception {
+        ThreadPool.terminate(this.threadPool, 10, TimeUnit.SECONDS);
+        this.threadPool = new TestThreadPool(getClass().getName(),
+            Settings.builder().put(threadPoolSettings()).put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0).build());
+
         try (ReplicationGroup shards = createGroup(1)) {
             shards.startAll();
             final IndexShard primary = shards.getPrimary();
             final IndexShard replica = shards.getReplicas().get(0);
-            final TimeValue gcInterval = TimeValue.timeValueMillis(scaledRandomIntBetween(1, 1000));
+            final TimeValue gcInterval = TimeValue.timeValueMillis(between(1, 10));
+            // I think we can just set this to something very small (10ms?) and also set ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING to 0?
+
             updateGCDeleteCycle(replica, gcInterval);
             final BulkShardRequest indexRequest = indexOnPrimary(
                 new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON), primary);

@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,6 +86,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String TYPE = "type";
     private static final String REASON = "reason";
     private static final String CAUSED_BY = "caused_by";
+    private static final ParseField SUPPRESSED = new ParseField("suppressed");
     private static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
@@ -372,6 +374,17 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) == false) {
             builder.field(STACK_TRACE, ExceptionsHelper.stackTrace(throwable));
         }
+
+        Throwable[] allSuppressed = throwable.getSuppressed();
+        if (allSuppressed.length > 0) {
+            builder.startArray(SUPPRESSED.getPreferredName());
+            for (Throwable suppressed : allSuppressed) {
+                builder.startObject();
+                generateThrowableXContent(builder, params, suppressed);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
     }
 
     private static void headerToXContent(XContentBuilder builder, String key, List<String> values) throws IOException {
@@ -416,6 +429,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Map<String, List<String>> metadata = new HashMap<>();
         Map<String, List<String>> headers = new HashMap<>();
         List<ElasticsearchException> rootCauses = new ArrayList<>();
+        List<ElasticsearchException> suppressed = new ArrayList<>();
 
         for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             String currentFieldName = parser.currentName();
@@ -467,6 +481,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         rootCauses.add(fromXContent(parser));
                     }
+                } else if (SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        suppressed.add(fromXContent(parser));
+                    }
                 } else {
                     // Parse the array and add each item to the corresponding list of metadata.
                     // Arrays of objects are not supported yet and just ignored and skipped.
@@ -506,6 +524,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         // after parsing and can be retrieved using getSuppressed() method.
         for (ElasticsearchException rootCause : rootCauses) {
             e.addSuppressed(rootCause);
+        }
+        for (ElasticsearchException s : suppressed) {
+            e.addSuppressed(s);
         }
         return e;
     }
@@ -827,8 +848,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.indices.IndexTemplateMissingException::new, 57, UNKNOWN_VERSION_ADDED),
         SEND_REQUEST_TRANSPORT_EXCEPTION(org.elasticsearch.transport.SendRequestTransportException.class,
                 org.elasticsearch.transport.SendRequestTransportException::new, 58, UNKNOWN_VERSION_ADDED),
-        ES_REJECTED_EXECUTION_EXCEPTION(org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class,
-                org.elasticsearch.common.util.concurrent.EsRejectedExecutionException::new, 59, UNKNOWN_VERSION_ADDED),
+        // 59 used to be EsRejectedExecutionException
         // 60 used to be for EarlyTerminationException
         // 61 used to be for RoutingValidationException
         NOT_SERIALIZABLE_EXCEPTION_WRAPPER(org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class,

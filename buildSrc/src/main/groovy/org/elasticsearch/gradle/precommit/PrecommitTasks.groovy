@@ -37,6 +37,7 @@ class PrecommitTasks {
             configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+            project.tasks.create('filepermissions', FilePermissionsTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
             project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
 

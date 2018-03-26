@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class Netty4BadRequestTests extends ESTestCase {
@@ -68,9 +69,12 @@ public class Netty4BadRequestTests extends ESTestCase {
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 final Collection<FullHttpResponse> responses =
                         nettyHttpClient.get(transportAddress.address(), "/_cluster/settings?pretty=%");
+                assertThat(responses, hasSize(1));
+                assertThat(responses.iterator().next().status().code(), equalTo(400));
                 final Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
                 assertThat(responseBodies, hasSize(1));
-                assertThat(responseBodies.iterator().next(), containsString("unterminated escape sequence at end of string: %"));
+                assertThat(responseBodies.iterator().next(), containsString("\"type\":\"illegal_argument_exception\""));
+                assertThat(responseBodies.iterator().next(), containsString("\"reason\":\"unterminated escape sequence at end of string: %\""));
             }
         }
     }

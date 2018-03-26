@@ -56,7 +56,7 @@ public interface NodeSelector {
         @Override
         public boolean select(Node node) {
             return node.getRoles() != null
-                && (false == node.getRoles().hasMaster() || node.getRoles().hasData());
+                && (false == node.getRoles().hasMasterEligible() || node.getRoles().hasData());
         }
 
         @Override

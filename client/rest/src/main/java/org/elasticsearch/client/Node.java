@@ -147,12 +147,12 @@ public class Node {
      * Role information about an Elasticsearch process.
      */
     public static final class Roles {
-        private final boolean master;
+        private final boolean masterEligible;
         private final boolean data;
         private final boolean ingest;
 
-        public Roles(boolean master, boolean data, boolean ingest) {
-            this.master = master;
+        public Roles(boolean masterEligible, boolean data, boolean ingest) {
+            this.masterEligible = masterEligible;
             this.data = data;
             this.ingest = ingest;
         }
@@ -160,8 +160,8 @@ public class Node {
         /**
          * The node <strong>could</strong> be elected master.
          */
-        public boolean hasMaster() {
-            return master;
+        public boolean hasMasterEligible() {
+            return masterEligible;
         }
         /**
          * The node stores data.
@@ -179,7 +179,7 @@ public class Node {
         @Override
         public String toString() {
             StringBuilder result = new StringBuilder(3);
-            if (master) result.append('m');
+            if (masterEligible) result.append('m');
             if (data) result.append('d');
             if (ingest) result.append('i');
             return result.toString();
@@ -191,14 +191,14 @@ public class Node {
                 return false;
             }
             Roles other = (Roles) obj;
-            return master == other.master
+            return masterEligible == other.masterEligible
                 && data == other.data
                 && ingest == other.ingest;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(master, data, ingest);
+            return Objects.hash(masterEligible, data, ingest);
         }
     }
 }

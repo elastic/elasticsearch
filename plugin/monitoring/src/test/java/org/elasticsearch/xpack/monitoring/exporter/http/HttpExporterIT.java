@@ -551,7 +551,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private HttpExporter createHttpExporter(final Settings settings) throws Exception {
         final Exporter.Config config =
-                new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState());
+                new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState(Settings.EMPTY));
 
         return new HttpExporter(config, new SSLService(settings, environment), new ThreadContext(settings));
     }

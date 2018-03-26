@@ -41,6 +41,7 @@ configOne.setting('node.name', 'cluster1-node1')
 configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
 configOne.setting('xpack.license.self_generated.type', 'trial')
+configOne.setting('xpack.security.enabled', 'true')
 configOne.plugin(xpackProject('plugin').path)
 configOne.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
@@ -63,6 +64,7 @@ configTwo.setting('node.name', 'cluster2-node1')
 configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
 configTwo.setting('xpack.license.self_generated.type', 'trial')
+configTwo.setting('xpack.security.enabled', 'true')
 configTwo.plugin(xpackProject('plugin').path)
 configTwo.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
@@ -87,15 +89,18 @@ integTestCluster {
     setting 'xpack.monitoring.enabled', false
     setting 'xpack.ml.enabled', false
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
     setting 'node.name', 'tribe-node'
     setting 'tribe.on_conflict', 'prefer_cluster1'
     setting 'tribe.cluster1.cluster.name', 'cluster1'
     setting 'tribe.cluster1.discovery.zen.ping.unicast.hosts', "'${-> cluster1Nodes.get(0).transportUri()}'"
     setting 'tribe.cluster1.http.enabled', 'true'
+    setting 'tribe.cluster1.xpack.security.enabled', 'true'
     setting 'tribe.cluster1.xpack.ml.enabled', 'false'
     setting 'tribe.cluster2.cluster.name', 'cluster2'
     setting 'tribe.cluster2.discovery.zen.ping.unicast.hosts', "'${-> cluster2Nodes.get(0).transportUri()}'"
     setting 'tribe.cluster2.http.enabled', 'true'
+    setting 'tribe.cluster2.xpack.security.enabled', 'true'
     setting 'tribe.cluster2.xpack.ml.enabled', 'false'
     keystoreSetting 'bootstrap.password', 'x-pack-test-password'
     waitCondition = { node, ant ->

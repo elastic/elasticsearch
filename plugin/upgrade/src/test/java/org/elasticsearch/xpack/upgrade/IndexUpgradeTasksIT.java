@@ -25,6 +25,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -119,7 +120,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            return Collections.singletonList(new IndexUpgradeService(settings, Collections.singletonList(
+            return Arrays.asList(new IndexUpgradeService(settings, Collections.singletonList(
                     new IndexUpgradeCheck("test", settings,
                             new Function<IndexMetaData, UpgradeActionRequired>() {
                                 @Override
@@ -137,7 +138,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
                             },
                             client, clusterService, Strings.EMPTY_ARRAY,
                             new Script(ScriptType.INLINE, NAME, "block", Collections.emptyMap()))
-            )));
+            )), new XPackLicenseState(settings));
         }
 
         @Override

@@ -110,6 +110,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
+                .put("xpack.security.enabled", true)
                 .put("xpack.security.audit.enabled", false)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
@@ -146,6 +147,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
+                .put("xpack.security.enabled", true)
                 .put("xpack.security.audit.enabled", false)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)

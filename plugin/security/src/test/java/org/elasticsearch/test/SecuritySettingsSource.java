@@ -128,6 +128,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)

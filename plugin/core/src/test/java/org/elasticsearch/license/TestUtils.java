@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -341,6 +342,10 @@ public class TestUtils {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
 
+        public AssertingLicenseState() {
+            super(Settings.EMPTY);
+        }
+
         @Override
         void update(License.OperationMode mode, boolean active) {
             modeUpdates.add(mode);
@@ -353,6 +358,14 @@ public class TestUtils {
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
+        public UpdatableLicenseState() {
+            this(Settings.EMPTY);
+        }
+
+        public UpdatableLicenseState(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void update(License.OperationMode mode, boolean active) {
             super.update(mode, active);

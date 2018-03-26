@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.user.User;
 
 /**
  * Similar to {@link UpdateRequestInterceptor}, but checks if there are update requests embedded in a bulk request.
@@ -38,7 +37,7 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
 
     @Override
     public void intercept(BulkShardRequest request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
+        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return;
         }
         IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

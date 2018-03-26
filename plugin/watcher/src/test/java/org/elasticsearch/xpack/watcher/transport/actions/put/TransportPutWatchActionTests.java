@@ -80,7 +80,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
 
         action = new TransportPutWatchAction(Settings.EMPTY, transportService, threadPool,
                 new ActionFilters(Collections.emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), new ClockMock(),
-                new XPackLicenseState(), parser, client, clusterService, triggerService);
+                new XPackLicenseState(Settings.EMPTY), parser, client, clusterService, triggerService);
     }
 
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {

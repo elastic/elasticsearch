@@ -63,7 +63,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
-                .build(), new XPackLicenseState());
+                .build(), new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
 
@@ -240,7 +240,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
         Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
-                .build(), new XPackLicenseState());
+                .build(), new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(6));
         assertThat(roles.get("role_fields"), nullValue());
@@ -291,7 +291,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testDefaultRolesFile() throws Exception {
         // TODO we should add the config dir to the resources so we don't copy this stuff around...
         Path path = getDataPath("default_roles.yml");
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState());
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(0));
     }
@@ -317,7 +317,8 @@ public class FileRolesStoreTests extends ESTestCase {
             threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, latch::countDown, new XPackLicenseState());
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, latch::countDown,
+                    new XPackLicenseState(Settings.EMPTY));
 
             Set<RoleDescriptor> descriptors = store.roleDescriptors(Collections.singleton("role1"));
             assertThat(descriptors, notNullValue());
@@ -361,14 +362,14 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY, new XPackLicenseState());
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(file, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles.keySet(), is(empty()));
     }
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState());
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
         RoleDescriptor descriptor = roles.get("valid_role");
@@ -410,7 +411,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
 
         Path path = getDataPath("reserved_roles.yml");
-        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState());
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY, new XPackLicenseState(Settings.EMPTY));
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(1));
 
@@ -442,7 +443,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), flsDlsEnabled)
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class), new XPackLicenseState());
+        FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class), new XPackLicenseState(Settings.EMPTY));
 
         Map<String, Object> usageStats = store.usageStats();
 

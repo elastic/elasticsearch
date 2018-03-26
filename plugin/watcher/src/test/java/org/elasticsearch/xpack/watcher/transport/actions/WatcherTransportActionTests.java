@@ -140,8 +140,8 @@ WatcherTransportActionTests extends ESTestCase {
 
         MyTransportAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
             super(Settings.EMPTY, "my_action_name", transportService, threadPool, new ActionFilters(Collections.emptySet()),
-                    new IndexNameExpressionResolver(Settings.EMPTY), new XPackLicenseState(), clusterService, MyActionRequest::new,
-                    MyActionResponse::new);
+                    new IndexNameExpressionResolver(Settings.EMPTY), new XPackLicenseState(Settings.EMPTY), clusterService,
+                    MyActionRequest::new, MyActionResponse::new);
         }
 
         @Override

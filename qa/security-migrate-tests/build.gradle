@@ -9,6 +9,7 @@ dependencies {
 
 integTestCluster {
   plugin xpackProject('plugin').path
+  setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   [

@@ -137,6 +137,9 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
                     throw new AssertionError("Unknown mode [" + mode + "]");
             }
 
+            if (randomBoolean()) {
+                settings.put(XPackSettings.SECURITY_ENABLED.getKey(), true);
+            }
             settings.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), transportTLSEnabled);
         } else {
             transportTLSEnabled = false;
@@ -234,8 +237,10 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getLicense(), equalTo(license));
         assertThat(document.getStatus(), equalTo(clusterStatus));
 
+        final boolean securitySettingDefined = settings.build().hasValue(XPackSettings.SECURITY_ENABLED.getKey());
         assertThat(document.getClusterNeedsTLSEnabled(),
-                   equalTo(mode == License.OperationMode.TRIAL && securityEnabled && transportTLSEnabled == false));
+                   equalTo(mode == License.OperationMode.TRIAL && securitySettingDefined && securityEnabled
+                           && transportTLSEnabled == false));
 
         assertThat(document.getClusterStats(), notNullValue());
         assertThat(document.getClusterStats().getStatus(), equalTo(clusterStatus));

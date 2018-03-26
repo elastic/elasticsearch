@@ -98,7 +98,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                if (licenseState.isAuthAllowed()) {
+                if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
                     // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                     // ourselves otherwise we wind up using a version newer than what we can actually send
                     final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -261,7 +261,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isAuthAllowed()) {
+                if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

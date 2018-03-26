@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -84,7 +84,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isAuthAllowed()) {
+        final boolean securityEnabled = licenseState.isSecurityEnabled();
+        if (securityEnabled && licenseState.isAuthAllowed()) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             ActionListener<Void> authenticatedListener = ActionListener.wrap(
@@ -116,7 +117,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.SECURITY));
+            if (securityEnabled == false && licenseState.isTrialLicense()) {
+                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+                        "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
+                        "and restart the node."));
+            } else {
+                listener.onFailure(LicenseUtils.newComplianceException(XPackField.SECURITY));
+            }
         } else {
             chain.proceed(task, action, request, listener);
         }

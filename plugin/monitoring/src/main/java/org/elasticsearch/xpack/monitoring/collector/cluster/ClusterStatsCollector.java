@@ -105,6 +105,7 @@ public class ClusterStatsCollector extends Collector {
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
         final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
+                                               settings.hasValue(SECURITY_ENABLED.getKey()) &&
                                                SECURITY_ENABLED.get(settings) &&
                                                TRANSPORT_SSL_ENABLED.get(settings) == false;
 

@@ -10,6 +10,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
@@ -262,8 +263,16 @@ public class XPackLicenseState {
             this.active = active;
         }
     }
+
     private volatile Status status = new Status(OperationMode.TRIAL, true);
     private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
+    private final boolean isSecurityEnabled;
+    private final boolean isSecurityExplicitlyEnabled;
+
+    public XPackLicenseState(Settings settings) {
+        this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
+        this.isSecurityExplicitlyEnabled = settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && isSecurityEnabled;
+    }
 
     /** Updates the current state of the license, which will change what features are available. */
     void update(OperationMode mode, boolean active) {
@@ -306,7 +315,8 @@ public class XPackLicenseState {
      */
     public boolean isIpFilteringAllowed() {
         OperationMode mode = status.mode;
-        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL;
+        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM
+                || mode == OperationMode.TRIAL;
     }
 
     /**
@@ -314,7 +324,8 @@ public class XPackLicenseState {
      */
     public boolean isAuditingAllowed() {
         OperationMode mode = status.mode;
-        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL;
+        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM
+                || mode == OperationMode.TRIAL;
     }
 
     /**
@@ -374,7 +385,8 @@ public class XPackLicenseState {
      */
     public boolean isCustomRoleProvidersAllowed() {
         final Status localStatus = status;
-        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL) && localStatus.active;
+        return (localStatus.mode == OperationMode.PLATINUM || localStatus.mode == OperationMode.TRIAL )
+                && localStatus.active;
     }
 
     /**
@@ -578,4 +590,18 @@ public class XPackLicenseState {
         return licensed && localStatus.active;
     }
 
+    public boolean isTrialLicense() {
+        return status.mode == OperationMode.TRIAL;
+    }
+
+    public boolean isSecurityAvailable() {
+        OperationMode mode = status.mode;
+        return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
+                mode == OperationMode.TRIAL;
+    }
+
+    public boolean isSecurityEnabled() {
+        final OperationMode mode = status.mode;
+        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+    }
 }

@@ -1481,8 +1481,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Marks an existing lucene index with a new history uuid.
      * This is used to make sure no existing shard will recovery from this index using ops based recovery.
      */
-    public void bootstrapNewHistory()
-        throws IOException {
+    public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory)) {
             final Map<String, String> userData = getUserData(writer);
@@ -1501,8 +1500,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * used when recovering from a snapshot or peer file based recovery where a new empty translog is
      * created and the existing lucene index needs should be changed to use it.
      */
-    public void associateIndexWithNewTranslog(final String translogUUID)
-        throws IOException {
+    public void associateIndexWithNewTranslog(final String translogUUID) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory)) {
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {

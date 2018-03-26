@@ -134,7 +134,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
         final MonitoringBulkResponse response = action.execute(request).get();
 
-        assertThat(response.status(), is(RestStatus.ACCEPTED));
+        assertThat(response.status(), is(RestStatus.OK));
         assertThat(response.isIgnored(), is(true));
         assertThat(response.getTookInMillis(), is(0L));
         assertThat(response.getError(), nullValue());

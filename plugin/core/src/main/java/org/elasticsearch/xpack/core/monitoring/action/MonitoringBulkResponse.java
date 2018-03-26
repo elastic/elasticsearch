@@ -60,14 +60,13 @@ public class MonitoringBulkResponse extends ActionResponse {
      * Returns HTTP status
      *
      * <ul>
-     * <li>{@link RestStatus#OK} if monitoring bulk request was successful</li>
-     * <li>{@link RestStatus#ACCEPTED} if monitoring bulk request was ignored because collection is disabled</li>
+     * <li>{@link RestStatus#OK} if monitoring bulk request was successful (or ignored because collection is disabled)</li>
      * <li>{@link RestStatus#INTERNAL_SERVER_ERROR} if monitoring bulk request was partially successful or failed completely</li>
      * </ul>
      */
     public RestStatus status() {
         if (error == null) {
-            return ignored ? RestStatus.ACCEPTED : RestStatus.OK;
+            return RestStatus.OK;
         }
 
         return RestStatus.INTERNAL_SERVER_ERROR;

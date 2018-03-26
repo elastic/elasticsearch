@@ -128,7 +128,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
         final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
 
-        assertThat(restResponse.status(), is(RestStatus.ACCEPTED));
+        assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
                 is("{\"took\":" + response.getTookInMillis() + ",\"ignored\":true,\"errors\":false}"));
     }

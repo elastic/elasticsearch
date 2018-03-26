@@ -156,12 +156,14 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
                             .index(request.leaderIndex);
                     if (leaderIndexMetadata == null) {
                         listener.onFailure(new IllegalArgumentException("leader index [" + request.leaderIndex + "] does not exist"));
+                        return;
                     }
 
                     IndexMetaData followIndexMetadata = clusterStateResponse.getState().getMetaData()
                             .index(request.followIndex);
                     if (followIndexMetadata == null) {
                         listener.onFailure(new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist"));
+                        return;
                     }
 
                     if (leaderIndexMetadata.getNumberOfShards() != followIndexMetadata.getNumberOfShards()) {

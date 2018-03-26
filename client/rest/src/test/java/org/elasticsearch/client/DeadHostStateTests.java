@@ -31,20 +31,37 @@ public class DeadHostStateTests extends RestClientTestCase {
 
     private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[]{60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800};
 
-    public void testInitialDeadHostState() {
-        DeadHostState deadHostState = new DeadHostState();
-        assertThat(deadHostState.getDeadUntilNanos(), greaterThan(System.nanoTime()));
+    public void testInitialDeadHostStateDefaultTimeSupplier() {
+        DeadHostState deadHostState = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
+        long currentTime = System.nanoTime();
+        assertThat(deadHostState.getDeadUntilNanos(), greaterThan(currentTime));
         assertThat(deadHostState.getFailedAttempts(), equalTo(1));
     }
 
-    public void testDeadHostStateFromPrevious() {
-        DeadHostState previous = new DeadHostState();
+    public void testDeadHostStateFromPreviousDefaultTimeSupplier() {
+        DeadHostState previous = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
         int iters = randomIntBetween(5, 30);
         for (int i = 0; i < iters; i++) {
-            DeadHostState deadHostState = new DeadHostState(previous);
+            DeadHostState deadHostState = new DeadHostState(previous, DeadHostState.TimeSupplier.DEFAULT);
             assertThat(deadHostState.getDeadUntilNanos(), greaterThan(previous.getDeadUntilNanos()));
             assertThat(deadHostState.getFailedAttempts(), equalTo(previous.getFailedAttempts() + 1));
             previous = deadHostState;
+        }
+    }
+
+    public void testCompareToDefaultTimeSupplier() {
+        int numObjects = randomIntBetween(5, 30);
+        DeadHostState[] deadHostStates = new DeadHostState[numObjects];
+        for (int i = 0; i < numObjects; i++) {
+            if (i == 0) {
+                deadHostStates[i] = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
+            } else {
+                deadHostStates[i] = new DeadHostState(deadHostStates[i], DeadHostState.TimeSupplier.DEFAULT);
+            }
+        }
+        for (int k = 1; k < deadHostStates.length; k++) {
+            assertThat(deadHostStates[k - 1].getDeadUntilNanos(), lessThan(deadHostStates[k].getDeadUntilNanos()));
+            assertThat(deadHostStates[k - 1], lessThan(deadHostStates[k]));
         }
     }
 
@@ -89,31 +106,12 @@ public class DeadHostStateTests extends RestClientTestCase {
         }
     }
 
-    public void testCompareTo() {
-        int numObjects = randomIntBetween(5, 30);
-        DeadHostState[] deadHostStates = new DeadHostState[numObjects];
-        int failedAttempts = randomIntBetween(1, 5);
-        for (int i = 0; i < failedAttempts; i++) {
-            for (int j = 0; j < numObjects; j++) {
-                if (i == 0) {
-                    deadHostStates[j] = new DeadHostState();
-                } else {
-                    deadHostStates[j] = new DeadHostState(deadHostStates[j]);
-                }
-            }
-            for (int k = 1; k < deadHostStates.length; k++) {
-                assertThat(deadHostStates[k - 1].getDeadUntilNanos(), lessThan(deadHostStates[k].getDeadUntilNanos()));
-                assertThat(deadHostStates[k - 1], lessThan(deadHostStates[k]));
-            }
-        }
-    }
-
-    private static class ConfigurableTimeSupplier extends DeadHostState.TimeSupplier {
+    private static class ConfigurableTimeSupplier implements DeadHostState.TimeSupplier {
 
         long nanoTime;
 
         @Override
-        long getNanoTime() {
+        public long nanoTime() {
             return nanoTime;
         }
     }

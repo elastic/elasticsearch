@@ -501,12 +501,13 @@ public class RestClient implements Closeable {
      */
     private void onFailure(HttpHost host) {
         while(true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, new DeadHostState());
+            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, new DeadHostState(DeadHostState.TimeSupplier.DEFAULT));
             if (previousDeadHostState == null) {
                 logger.debug("added host [" + host + "] to blacklist");
                 break;
             }
-            if (blacklist.replace(host, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+            if (blacklist.replace(host, previousDeadHostState,
+                    new DeadHostState(previousDeadHostState, DeadHostState.TimeSupplier.DEFAULT))) {
                 logger.debug("updated host [" + host + "] already in blacklist");
                 break;
             }

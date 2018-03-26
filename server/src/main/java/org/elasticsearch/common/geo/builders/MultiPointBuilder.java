@@ -80,4 +80,13 @@ public class MultiPointBuilder extends ShapeBuilder<XShapeCollection<Point>, Mul
     public GeoShapeType type() {
         return TYPE;
     }
+
+    @Override
+    public int numDimensions() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "LineString has not yet been initialized");
+        }
+        return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
+    }
 }

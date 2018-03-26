@@ -21,7 +21,6 @@ package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -502,10 +501,10 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
                 operationsInLastGen = 0;
             }
-            assertThat(translog.uncommittedOperations(), equalTo(uncommittedOps));
+            assertThat(translog.stats().getUncommittedOperations(), equalTo(uncommittedOps));
             if (frequently()) {
                 markCurrentGenAsCommitted(translog);
-                assertThat(translog.uncommittedOperations(), equalTo(operationsInLastGen));
+                assertThat(translog.stats().getUncommittedOperations(), equalTo(operationsInLastGen));
                 uncommittedOps = operationsInLastGen;
             }
         }
@@ -921,7 +920,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
                     errors.add(e);
                 }
             }, threadName);
@@ -936,7 +935,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
                     errors.add(e);
                     try {
                         closeRetentionLock();
@@ -2515,7 +2514,7 @@ public class TranslogTests extends ESTestCase {
         long minGenForRecovery = randomLongBetween(generation, generation + rolls);
         commit(translog, minGenForRecovery, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-        assertThat(translog.uncommittedOperations(), equalTo(0));
+        assertThat(translog.stats().getUncommittedOperations(), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
                 assertFileIsPresent(translog, generation + i);

@@ -45,6 +45,9 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     public EnvelopeBuilder(Coordinate topLeft, Coordinate bottomRight) {
         Objects.requireNonNull(topLeft, "topLeft of envelope cannot be null");
         Objects.requireNonNull(bottomRight, "bottomRight of envelope cannot be null");
+        if (Double.isNaN(topLeft.z) != Double.isNaN(bottomRight.z)) {
+            throw new IllegalArgumentException("expected same number of dimensions for topLeft and bottomRight");
+        }
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
     }
@@ -112,6 +115,11 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int numDimensions() {
+        return Double.isNaN(topLeft.z) ? 2 : 3;
     }
 
     @Override

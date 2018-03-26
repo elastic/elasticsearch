@@ -34,14 +34,17 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
+import java.io.IOException;
 import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
@@ -119,6 +122,43 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
+    }
+
+    public void testLatLonStringWithZValue() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("point").field("type", "geo_point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), true);
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type",
+            new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("point", "1.2,1.3,10.0")
+                .endObject()),
+            XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("point"), notNullValue());
+    }
+
+    public void testLatLonStringWithZValueException() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("point").field("type", "geo_point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), false);
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type",
+            new CompressedXContent(mapping));
+
+        SourceToParse source = SourceToParse.source("test", "type", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("point", "1.2,1.3,10.0")
+                .endObject()),
+            XContentType.JSON);
+
+        Exception e = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source));
+        assertThat(e.getCause().getMessage(), containsString("but [ignore_z_value] parameter is [false]"));
     }
 
     public void testLatLonInOneValueStored() throws Exception {
@@ -228,6 +268,41 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));
+    }
+
+    /**
+     * Test that accept_z_value parameter correctly parses
+     */
+    public void testIgnoreZValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        boolean ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(true));
+
+        // explicit false accept_z_value test
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_point")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+
+        ignoreZValue = ((GeoPointFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(false));
     }
 
     public void testMultiField() throws Exception {

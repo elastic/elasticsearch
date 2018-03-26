@@ -93,4 +93,9 @@ public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     public GeoShapeType type() {
         return TYPE;
     }
+
+    @Override
+    public int numDimensions() {
+        return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
+    }
 }

@@ -30,19 +30,22 @@ public class MonitoringBulkResponseTests extends ESTestCase {
 
         assertThat(response.getTookInMillis(), equalTo(took));
         assertThat(response.getError(), is(nullValue()));
+        assertThat(response.isIgnored(), is(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
 
         response = new MonitoringBulkResponse(took, true);
 
         assertThat(response.getTookInMillis(), equalTo(took));
         assertThat(response.getError(), is(nullValue()));
-        assertThat(response.status(), equalTo(RestStatus.ACCEPTED));
+        assertThat(response.isIgnored(), is(true));
+        assertThat(response.status(), equalTo(RestStatus.OK));
 
         ExportException exception = new ExportException(randomAlphaOfLength(10));
         response = new MonitoringBulkResponse(took, new MonitoringBulkResponse.Error(exception));
 
         assertThat(response.getTookInMillis(), equalTo(took));
         assertThat(response.getError(), is(notNullValue()));
+        assertThat(response.isIgnored(), is(false));
         assertThat(response.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
     }
 

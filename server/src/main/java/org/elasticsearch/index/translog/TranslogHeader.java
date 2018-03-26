@@ -150,15 +150,14 @@ final class TranslogHeader {
         // binary: 0011 1111 1101 0111 0110 1100 0001 0111
         // hex   :    3    f    d    7    6    c    1    7
         //
-        // With version 0 of the translog, the first byte is the
-        // Operation.Type, which will always be between 0-4, so we know if
-        // we grab the first byte, it can be:
+        // With version 0 of the translog, the first byte is the Operation.Type, which will always be between 0-4,
+        // so we know if we grab the first byte, it can be:
         // 0x3f => Lucene's magic number, so we can assume it's version 1 or later
         // 0x00 => version 0 of the translog
         final byte b1 = Channels.readFromFileChannel(channel, 0, 1)[0];
-        if (b1 == 0x3f) { //LUCENE_CODEC_HEADER_BYTE
+        if (b1 == 0x3f) { // LUCENE_CODEC_HEADER_BYTE
             throw new TranslogCorruptedException("translog looks like version 1 or later, but has corrupted header. path:" + path);
-        } else if (b1 == 0x00) { //UNVERSIONED_TRANSLOG_HEADER_BYTE
+        } else if (b1 == 0x00) { // UNVERSIONED_TRANSLOG_HEADER_BYTE
             throw new IllegalStateException("pre-1.4 translog found [" + path + "]");
         }
     }

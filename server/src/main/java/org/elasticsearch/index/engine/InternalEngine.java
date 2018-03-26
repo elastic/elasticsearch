@@ -350,9 +350,13 @@ public class InternalEngine extends Engine {
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
             final String key = entry.getKey();
             if (key.equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
-                maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), Long.parseLong(entry.getValue())));
+                assert maxUnsafeAutoIdTimestamp.get() == -1 :
+                    "max unsafe timestamp was assigned already [" + maxUnsafeAutoIdTimestamp.get() + "]";
+                maxUnsafeAutoIdTimestamp.set(Long.parseLong(entry.getValue()));
             }
             if (key.equals(SequenceNumbers.MAX_SEQ_NO)) {
+                assert maxSeqNoOfNonAppendOnlyOperations.get() == -1 :
+                    "max unsafe append-only seq# was assigned already [" + maxSeqNoOfNonAppendOnlyOperations.get() + "]";
                 maxSeqNoOfNonAppendOnlyOperations.set(Long.parseLong(entry.getValue()));
             }
         }

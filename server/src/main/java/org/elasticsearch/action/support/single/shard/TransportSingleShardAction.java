@@ -204,10 +204,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
-            if (logger.isTraceEnabled() && e != null) {
-                logger.trace(
-                    (org.apache.logging.log4j.util.Supplier<?>)
-                        () -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
+            if (e != null) {
+                logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
             }
             perform(e);
         }
@@ -224,11 +222,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 if (failure == null || isShardNotAvailableException(failure)) {
                     failure = new NoShardAvailableActionException(null, LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
                 } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
-                    }
+                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
                 }
                 listener.onFailure(failure);
                 return;

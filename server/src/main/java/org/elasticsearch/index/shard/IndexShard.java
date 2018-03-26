@@ -880,8 +880,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     sizeInBytes += info.sizeInBytes();
                 } catch (IOException e) {
-                    logger.trace((org.apache.logging.log4j.util.Supplier<?>)
-                        () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                    logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
             }
         }

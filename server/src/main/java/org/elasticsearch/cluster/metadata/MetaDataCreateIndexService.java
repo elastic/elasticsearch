@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -558,9 +557,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         @Override
         public void onFailure(String source, Exception e) {
             if (e instanceof ResourceAlreadyExistsException) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             } else {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             }
             super.onFailure(source, e);
         }

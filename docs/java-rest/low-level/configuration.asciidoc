@@ -86,3 +86,16 @@ will be used.
 
 For any other required configuration needed, the Apache HttpAsyncClient docs
 should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .
+
+NOTE: If your application runs under the security manager you might be subject
+to the JVM default policies of caching positive hostname resolutions
+indefinitely and negative hostname resolutions for ten seconds.  If the resolved
+addresses of the hosts to which you are connecting the client to vary with time
+then you might want to modify the default JVM behavior. These can be modified by
+adding
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.ttl=<timeout>`]
+and
+http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html[`networkaddress.cache.negative.ttl=<timeout>`]
+to your
+http://docs.oracle.com/javase/8/docs/technotes/guides/security/PolicyFiles.html[Java
+security policy].

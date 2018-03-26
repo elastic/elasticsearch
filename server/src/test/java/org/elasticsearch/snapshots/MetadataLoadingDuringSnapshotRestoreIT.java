@@ -50,8 +50,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * This class tests that snapshot's global metadata and index metadata are loaded from the
- * {@link Repository} on purpose
+ * This class tests whether global and index metadata are only loaded from the repository when needed.
 */
 public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
@@ -82,23 +81,23 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                                                                                     .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().status(), equalTo(RestStatus.OK));
-        assertGlobalMetadataLoads("snap", null);
-        assertIndexMetadataLoads("snap", "docs", null);
-        assertIndexMetadataLoads("snap", "others", null);
+        assertGlobalMetadataLoads("snap", 0);
+        assertIndexMetadataLoads("snap", "docs", 0);
+        assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting a snapshot does not load any metadata
         GetSnapshotsResponse getSnapshotsResponse =
             client().admin().cluster().prepareGetSnapshots("repository").addSnapshots("snap").setVerbose(randomBoolean()).get();
         assertThat(getSnapshotsResponse.getSnapshots(), hasSize(1));
-        assertGlobalMetadataLoads("snap", null);
-        assertIndexMetadataLoads("snap", "docs", null);
-        assertIndexMetadataLoads("snap", "others", null);
+        assertGlobalMetadataLoads("snap", 0);
+        assertIndexMetadataLoads("snap", "docs", 0);
+        assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting the status of a snapshot loads indices metadata but not global metadata
         SnapshotsStatusResponse snapshotStatusResponse =
             client().admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
         assertThat(snapshotStatusResponse.getSnapshots(), hasSize(1));
-        assertGlobalMetadataLoads("snap", null);
+        assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 1);
         assertIndexMetadataLoads("snap", "others", 1);
 
@@ -110,7 +109,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                                                                                     .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
-        assertGlobalMetadataLoads("snap", null);
+        assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 2);
         assertIndexMetadataLoads("snap", "others", 2);
 
@@ -123,7 +122,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                                                             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
-        assertGlobalMetadataLoads("snap", null);
+        assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 3);
         assertIndexMetadataLoads("snap", "others", 2);
 
@@ -142,19 +141,19 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 3);
     }
 
-    private void assertGlobalMetadataLoads(final String snapshot, final Integer times) {
+    private void assertGlobalMetadataLoads(final String snapshot, final int times) {
         AtomicInteger count = getCountingMockRepository().globalMetadata.get(snapshot);
-        if (times == null) {
+        if (times == 0) {
             assertThat("Global metadata for " + snapshot + " must not have been loaded", count, nullValue());
         } else {
             assertThat("Global metadata for " + snapshot + " must have been loaded " + times + " times", count.get(), equalTo(times));
         }
     }
 
-    private void assertIndexMetadataLoads(final String snapshot, final String index, final Integer times) {
+    private void assertIndexMetadataLoads(final String snapshot, final String index, final int times) {
         final String key = key(snapshot, index);
         AtomicInteger count = getCountingMockRepository().indicesMetadata.get(key);
-        if (times == null) {
+        if (times == 0) {
             assertThat("Index metadata for " + key + " must not have been loaded", count, nullValue());
         } else {
             assertThat("Index metadata for " + key + " must have been loaded " + times + " times", count.get(), equalTo(times));

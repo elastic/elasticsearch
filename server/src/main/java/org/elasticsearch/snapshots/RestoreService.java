@@ -203,10 +203,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             }
 
             final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
-            if (indexIdsInSnapshot != null) {
-                for (IndexId indexId : indexIdsInSnapshot) {
-                    metaDataBuilder.put(repository.getSnapshotIndexMetaData(snapshotId, indexId), false);
-                }
+            for (IndexId indexId : indexIdsInSnapshot) {
+                metaDataBuilder.put(repository.getSnapshotIndexMetaData(snapshotId, indexId), false);
             }
 
             final MetaData metaData = metaDataBuilder.build();

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.rollup.job;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -55,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
 public class IndexerUtilsTests extends AggregatorTestCase {
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats = new RollupJobStats(0, 0, 0, 0);
@@ -71,6 +71,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
+            document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
             indexWriter.addDocument(document);
         }
@@ -123,7 +124,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
@@ -139,6 +139,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
+            document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
             indexWriter.addDocument(document);
         }
@@ -198,7 +199,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
@@ -213,6 +213,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             Document document = new Document();
             document.add(new SortedNumericDocValuesField(valueField, i));
+            document.add(new LongPoint(valueField, i));
             indexWriter.addDocument(document);
         }
 
@@ -262,7 +263,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
@@ -278,6 +278,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             Document document = new Document();
             long timestamp = new DateTime().minusDays(i).getMillis();
             document.add(new SortedNumericDocValuesField(timestampField, timestamp));
+            document.add(new LongPoint(timestampField, timestamp));
             document.add(new SortedNumericDocValuesField(valueField, randomIntBetween(1,100)));
             indexWriter.addDocument(document);
         }

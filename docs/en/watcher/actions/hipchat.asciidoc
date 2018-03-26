@@ -165,7 +165,7 @@ If you configure multiple HipChat accounts, you either need to set a default
 HipChat account or specify which account the notification should be sent with
 in the <<actions-hipchat, hipchat>> action.
 
-deprecated[Storing the `auth_token` in the configuration file or using via updating the settings now is deprecated, as you should use the keystore for this, see <<secure-settings,secure settings>>]
+deprecated[Storing the `auth_token` in the configuration file or using via updating the settings now is deprecated, as you should use the keystore for this, see {ref}/secure-settings.html[secure settings]]
 
 [source,yaml]
 --------------------------------------------------

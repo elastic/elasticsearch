@@ -193,7 +193,7 @@ image::images/slack-add-webhook-integration.jpg[]
 image::images/slack-copy-webhook-url.jpg[]
 
 To configure a Slack account, at a minimum you need to specify the account 
-name and webhook URL in the elasticsearch keystore (<<secure-settings,secure settings>>):
+name and webhook URL in the elasticsearch keystore (se {ref}/secure-settings.html[secure settings]):
 
 [source,shell]
 --------------------------------------------------

@@ -146,7 +146,7 @@ image::images/pagerduty-services.jpg[]
 image::images/pagerduty-integrations.jpg[]
 
 To configure a PagerDuty account in the keystore, you
-must specify an account name and integration key, (see <<secure-settings,secure settings>>):
+must specify an account name and integration key, (see {ref}/secure-settings.html[secure settings]):
 
 [source,yaml]
 --------------------------------------------------

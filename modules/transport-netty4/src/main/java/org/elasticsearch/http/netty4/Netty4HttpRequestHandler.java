@@ -127,17 +127,24 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 }
                 return bytesStreamOutput.get();
             };
-            final XContentType requestContentType;
             XContentType parsedRequestContentType;
             try {
                 parsedRequestContentType = RestRequest.parseContentType(contentType.get());
-            } catch (final IllegalArgumentException inner) {
+            } catch (final Exception inner) {
                 e.addSuppressed(inner);
                 parsedRequestContentType = null;
             }
-            requestContentType = parsedRequestContentType;
+            final XContentType requestContentType = parsedRequestContentType;
+            String parsedAcceptHeader;
+            try {
+                parsedAcceptHeader = accept.get();
+            } catch (final Exception inner) {
+                e.addSuppressed(inner);
+                parsedAcceptHeader = null;
+            }
+            final String acceptHeader = parsedAcceptHeader;
             final CheckedSupplier<XContentBuilder, IOException> supplier =
-                    () -> AbstractRestChannel.newBuilder(requestContentType, false, null, accept.get(), false, false, bytesOutput);
+                    () -> AbstractRestChannel.newBuilder(requestContentType, false, null, acceptHeader, false, false, bytesOutput);
             final BytesRestResponse response = new BytesRestResponse(params, rawPath, supplier, detailedErrorsEnabled, e);
             Netty4HttpChannel.sendResponse(ctx.channel(), serverTransport, copy, pipelinedRequest, response, threadContext, bytesOutput);
             success = true;

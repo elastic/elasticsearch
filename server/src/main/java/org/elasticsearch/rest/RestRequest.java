@@ -62,6 +62,7 @@ public abstract class RestRequest implements ToXContent.Params {
     private final String rawPath;
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
+    private final SetOnce<Exception> exception = new SetOnce<>();
 
     /**
      * Creates a new RestRequest
@@ -74,12 +75,18 @@ public abstract class RestRequest implements ToXContent.Params {
         this.xContentRegistry = xContentRegistry;
         final Map<String, String> params = new HashMap<>();
         int pathEndPos = uri.indexOf('?');
+        Exception parsingQueryStringException= null;
         if (pathEndPos < 0) {
             this.rawPath = uri;
         } else {
             this.rawPath = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
+            try {
+                RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
+            } catch (Exception e) {
+                parsingQueryStringException = e;
+            }
         }
+        this.exception.set(parsingQueryStringException);
         this.params = params;
         this.headers = Collections.unmodifiableMap(headers);
         final List<String> contentType = getAllHeaderValues("Content-Type");
@@ -204,6 +211,10 @@ public abstract class RestRequest implements ToXContent.Params {
     @Nullable
     public SocketAddress getLocalAddress() {
         return null;
+    }
+
+    public Exception getException() {
+        return exception.get();
     }
 
     public final boolean hasParam(String key) {

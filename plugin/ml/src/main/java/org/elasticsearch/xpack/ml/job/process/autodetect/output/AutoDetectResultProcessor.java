@@ -80,7 +80,7 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
-    final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
+    final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
@@ -253,7 +253,7 @@ public class AutoDetectResultProcessor {
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
             persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
-            updateModelSnapshotOnJob(modelSnapshot);
+            updateModelSnapshotIdOnJob(modelSnapshot);
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -317,18 +317,15 @@ public class AutoDetectResultProcessor {
         }
     }
 
-    protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
-        JobUpdate update = new JobUpdate.Builder(jobId)
-                .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                .setModelSnapshotMinVersion(modelSnapshot.getMinVersion())
-                .build();
+    protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
         UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
 
         try {
             // This blocks the main processing thread in the unlikely event
             // there are 2 model snapshots queued up. But it also has the
             // advantage of ensuring order
-            updateModelSnapshotSemaphore.acquire();
+            updateModelSnapshotIdSemaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOGGER.info("[{}] Interrupted acquiring update model snapshot semaphore", jobId);
@@ -338,13 +335,13 @@ public class AutoDetectResultProcessor {
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
-                updateModelSnapshotSemaphore.release();
+                updateModelSnapshotIdSemaphore.release();
                 LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
             }
 
             @Override
             public void onFailure(Exception e) {
-                updateModelSnapshotSemaphore.release();
+                updateModelSnapshotIdSemaphore.release();
                 LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
                         modelSnapshot.getSnapshotId() + "]", e);
             }
@@ -382,9 +379,9 @@ public class AutoDetectResultProcessor {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
             // Input stream has been completely processed at this point.
-            // Wait for any updateModelSnapshotOnJob calls to complete.
-            updateModelSnapshotSemaphore.acquire();
-            updateModelSnapshotSemaphore.release();
+            // Wait for any updateModelSnapshotIdOnJob calls to complete.
+            updateModelSnapshotIdSemaphore.acquire();
+            updateModelSnapshotIdSemaphore.release();
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
             waitUntilRenormalizerIsIdle();

@@ -662,9 +662,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            builder.setModelSnapshotMinVersion(Version.CURRENT);
-        }
-        if (randomBoolean()) {
             builder.setResultsIndexName(randomValidJobId());
         }
         return builder.build();

@@ -88,9 +88,6 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            update.setModelSnapshotMinVersion(Version.CURRENT);
-        }
-        if (randomBoolean()) {
             update.setEstablishedModelMemory(randomNonNegativeLong());
         }
         if (randomBoolean()) {

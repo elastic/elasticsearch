@@ -104,7 +104,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         resultProcessor = new AutoDetectResultProcessor(client(), auditor, JOB_ID, renormalizer,
                 new JobResultsPersister(nodeSettings(), client()), jobProvider, new ModelSizeStats.Builder(JOB_ID).build(), false) {
             @Override
-            protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
+            protected void updateModelSnapshotIdOnJob(ModelSnapshot modelSnapshot) {
                 capturedUpdateModelSnapshotOnJobRequests.add(modelSnapshot);
             }
         };

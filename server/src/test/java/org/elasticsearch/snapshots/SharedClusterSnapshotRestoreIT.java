@@ -85,6 +85,7 @@ import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.script.MockScriptEngine;
@@ -109,6 +110,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -2596,6 +2598,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(ex.getSnapshotName(), equalTo("test-snap-2"));
     }
 
+    /** Tests that a snapshot with a corrupted global state file can still be restored */
     public void testRestoreSnapshotWithCorruptedGlobalState() throws Exception {
         final Path repo = randomRepoPath();
 
@@ -2610,6 +2613,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
                 client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
                 client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+        flushAndRefresh("test-idx-1", "test-idx-2");
 
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setIncludeGlobalState(true)
@@ -2620,8 +2624,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
         // Truncate the global state metadata file
-        Path snapshotPath = repo.resolve("meta-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
-        try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
+        final Path globalStatePath = repo.resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+        try(SeekableByteChannel outChan = Files.newByteChannel(globalStatePath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
 
@@ -2637,14 +2641,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertAcked(client().admin().indices().prepareDelete("test-idx-1", "test-idx-2"));
 
-        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .get();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(snapshotInfo.successfulShards()));
-
-        assertAcked(client().admin().indices().prepareDelete("test-idx-1", "test-idx-2"));
-
         SnapshotException ex = expectThrows(SnapshotException.class, () -> client().admin().cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap")
             .setRestoreGlobalState(true)
@@ -2653,6 +2649,95 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(ex.getRepositoryName(), equalTo("test-repo"));
         assertThat(ex.getSnapshotName(), equalTo("test-snap"));
         assertThat(ex.getMessage(), containsString("failed to read global metadata"));
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(snapshotInfo.successfulShards()));
+
+        ensureGreen("test-idx-1", "test-idx-2");
+        assertHitCount(client().prepareSearch("test-idx-*").setSize(0).get(), 3);
+    }
+
+    /**
+     * Tests that a snapshot of multiple indices including one with a corrupted index metadata
+     * file can still be used to restore the non corrupted indices
+     * */
+    public void testRestoreSnapshotWithCorruptedIndexMetadata() throws Exception {
+        final Client client = client();
+        final Path repo = randomRepoPath();
+        final int nbIndices = randomIntBetween(2, 7);
+
+        final Map<String, Integer> nbDocsPerIndex = new HashMap<>();
+        for (int i = 0; i < nbIndices; i++) {
+            String indexName = "test-idx-" + i;
+
+            int nbDocs = randomIntBetween(1, 50);
+            nbDocsPerIndex.put(indexName, nbDocs);
+
+            IndexRequestBuilder[] documents = new IndexRequestBuilder[nbDocs];
+            for (int j = 0; j < nbDocs; j++) {
+                documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
+            }
+            indexRandom(true, documents);
+        }
+        flushAndRefresh();
+
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("fs")
+            .setSettings(Settings.builder()
+                .put("location", repo)));
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .get();
+
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.indices(), hasSize(nbIndices));
+
+        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        Repository repository = service.repository("test-repo");
+
+        final Map<String, IndexId> indexIds = repository.getRepositoryData().getIndices();
+        assertThat(indexIds.size(), equalTo(nbIndices));
+
+        // Choose a random index from the snapshot
+        final IndexId corruptedIndex = randomFrom(indexIds.values());
+        final Path indexMetadataPath = repo.resolve("indices")
+            .resolve(corruptedIndex.getId())
+            .resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+
+        // Truncate the index metadata file
+        try(SeekableByteChannel outChan = Files.newByteChannel(indexMetadataPath, StandardOpenOption.WRITE)) {
+            outChan.truncate(randomInt(10));
+        }
+
+        List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots();
+        assertThat(snapshotInfos.size(), equalTo(1));
+        assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap"));
+
+        assertAcked(client().admin().indices().prepareDelete(nbDocsPerIndex.keySet().toArray(new String[nbDocsPerIndex.size()])));
+
+        Predicate<String> isRestorableIndex = index -> corruptedIndex.getName().equals(index) == false;
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+            .setIndices(nbDocsPerIndex.keySet().stream().filter(isRestorableIndex).toArray(String[]::new))
+            .setRestoreGlobalState(randomBoolean())
+            .setWaitForCompletion(true)
+            .get();
+
+        ensureGreen();
+        for (Map.Entry<String, Integer> entry : nbDocsPerIndex.entrySet()) {
+            if (isRestorableIndex.test(entry.getKey())) {
+                assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().longValue());
+            }
+        }
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", snapshotInfo.snapshotId().getName()).get());
     }
 
     public void testCannotCreateSnapshotsWithSameName() throws Exception {

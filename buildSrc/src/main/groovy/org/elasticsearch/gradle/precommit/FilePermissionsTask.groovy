@@ -49,6 +49,7 @@ public class FilePermissionsTask extends DefaultTask {
     File outputMarker = new File(project.buildDir, 'markers/filePermissions')
 
     FilePermissionsTask() {
+        onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
         description = "Checks java source files for correct file permissions"
         // we always include all source files, and exclude what should not be checked
         filesFilter.include('**')
@@ -68,19 +69,17 @@ public class FilePermissionsTask extends DefaultTask {
 
     @TaskAction
     void checkInvalidPermissions() {
-        if (Os.isFamily(Os.FAMILY_WINDOWS) == false) {
-            List<String> failures = new ArrayList<>()
-            for (File f : files()) {
-                PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class)
-                Set<PosixFilePermission> permissions = fileAttributeView.readAttributes().permissions()
-                if (permissions.contains(OTHERS_EXECUTE) || permissions.contains(OWNER_EXECUTE) ||
-                    permissions.contains(GROUP_EXECUTE)) {
-                    failures.add("Source file is executable: " + f)
-                }
+        List<String> failures = new ArrayList<>()
+        for (File f : files()) {
+            PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class)
+            Set<PosixFilePermission> permissions = fileAttributeView.readAttributes().permissions()
+            if (permissions.contains(OTHERS_EXECUTE) || permissions.contains(OWNER_EXECUTE) ||
+                permissions.contains(GROUP_EXECUTE)) {
+                failures.add("Source file is executable: " + f)
             }
-            if (failures.isEmpty() == false) {
-                throw new GradleException('Found invalid file permissions:\n' + failures.join('\n'))
-            }
+        }
+        if (failures.isEmpty() == false) {
+            throw new GradleException('Found invalid file permissions:\n' + failures.join('\n'))
         }
         outputMarker.setText('done', 'UTF-8')
     }

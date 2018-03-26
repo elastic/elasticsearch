@@ -136,7 +136,7 @@ POST _reindex
 // TEST[setup:twitter]
 
 You can limit the documents by adding a type to the `source` or by adding a
-query. This will only copy ++tweet++s made by `kimchy` into `new_twitter`:
+query. This will only copy tweets made by `kimchy` into `new_twitter`:
 
 [source,js]
 --------------------------------------------------

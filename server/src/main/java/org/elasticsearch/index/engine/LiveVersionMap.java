@@ -375,21 +375,25 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    private boolean canRemoveTombstone(long currentTime, long pruneInterval, DeleteVersionValue versionValue) {
-        // check if the value is old enough to be removed
-        final boolean isTooOld = currentTime - versionValue.time > pruneInterval;
+    private boolean canRemoveTombstone(long maxTimestampToPrune, long maxSeqNoToPrune, DeleteVersionValue versionValue) {
+        // check if the value is old enough and safe to be removed
+        final boolean isTooOld = versionValue.time < maxTimestampToPrune;
+        final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
         // version value can't be removed it's
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
-        return isTooOld && isNotTrackedByCurrentMaps;
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps;
     }
 
-    void pruneTombstones(long currentTime, long pruneInterval) {
+    /**
+     * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
+     */
+    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
         for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
             // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
             // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
             // we won't collect the tombstone below since it must be newer than this one.
-            if (canRemoveTombstone(currentTime, pruneInterval, entry.getValue())) {
+            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, entry.getValue())) {
                 final BytesRef uid = entry.getKey();
                 try (Releasable lock = keyedLock.tryAcquire(uid)) {
                     // we use tryAcquire here since this is a best effort and we try to be least disruptive
@@ -399,7 +403,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
                         // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
                         final DeleteVersionValue versionValue = tombstones.get(uid);
                         if (versionValue != null) {
-                            if (canRemoveTombstone(currentTime, pruneInterval, versionValue)) {
+                            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, versionValue)) {
                                 removeTombstoneUnderLock(uid);
                             }
                         }

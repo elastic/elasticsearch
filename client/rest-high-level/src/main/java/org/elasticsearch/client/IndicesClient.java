@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -43,6 +44,8 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
@@ -405,5 +408,40 @@ public final class IndicesClient {
     public void rolloverAsync(RolloverRequest rolloverRequest, ActionListener<RolloverResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, Request::rollover, RolloverResponse::fromXContent,
                 listener, emptySet(), headers);
+    }
+
+
+    /**
+     * Retrieves setting of index/indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html#indices-get-settings">
+     * Get Settings API on elastic.co</a>
+     */
+    public GetSettingsResponse getSettingsResponse(GetSettingsRequest getSettingsRequest,
+                                                   Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity2(
+            getSettingsRequest,
+            Request::getIndexSetting,
+            GetSettingsResponse::fromXContent,
+            emptySet(),
+            headers);
+    }
+
+    /**
+     * Asynchronously retrieves setting of index/indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html#indices-get-settings">
+     * Get Settings API on elastic.co</a>
+     */
+    public void getSettingsResponseAsync(GetSettingsRequest getSettingsRequest,
+                                         ActionListener<GetSettingsResponse> listener,
+                                         Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity2(
+            getSettingsRequest,
+            Request::getIndexSetting,
+            GetSettingsResponse::fromXContent,
+            listener,
+            emptySet(),
+            headers);
     }
 }

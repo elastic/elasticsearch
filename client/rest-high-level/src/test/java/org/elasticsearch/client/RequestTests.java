@@ -46,6 +46,8 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -352,6 +354,28 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());
+    }
+
+    public void testGetIndexSetting() throws IOException {
+        String[] indices = randomIndicesNames(0, 2);
+        GetSettingsRequest settingsRequest = new GetSettingsRequest();
+        settingsRequest = settingsRequest.names(indices);
+        settingsRequest = settingsRequest.indices(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(settingsRequest, expectedParams);
+        setRandomIndicesOptions(settingsRequest::indicesOptions, settingsRequest::indicesOptions, expectedParams);
+        setRandomLocal(settingsRequest, expectedParams);
+
+        Request request = Request.getIndexSetting(settingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_settings");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedParams, request.getParameters());
     }
 
     public void testCreateIndex() throws IOException {

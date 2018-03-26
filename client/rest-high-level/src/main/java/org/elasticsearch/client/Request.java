@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -656,6 +657,31 @@ public final class Request {
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    static Request indicesExist(GetIndexRequest request) {
+        String endpoint = endpoint(request.indices(), Strings.EMPTY_ARRAY, "");
+        Params params = Params.builder();
+        params.withLocal(request.local());
+        params.withHuman(request.humanReadable());
+        params.withIndicesOptions(request.indicesOptions());
+        params.withFlatSettings(request.flatSettings());
+        params.withIncludeDefaults(request.includeDefaults());
+        return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+
+    static Request getIndexSetting(GetSettingsRequest getSettingsRequest) {
+        Params params = Params.builder();
+        params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
+        params.withIndicesOptions(getSettingsRequest.indicesOptions());
+        params.withLocal(getSettingsRequest.local());
+
+        String[] indices =
+            getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
+        String endpoint = endpoint(indices, "_settings");
+
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
     /**

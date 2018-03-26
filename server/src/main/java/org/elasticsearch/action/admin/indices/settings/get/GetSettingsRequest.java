@@ -27,11 +27,12 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
-
+public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable, ToXContent {
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
@@ -49,6 +50,13 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     }
 
     public GetSettingsRequest() {
+    }
+
+    /**
+     * Constructs a new request to update settings for one or more indices
+     */
+    public GetSettingsRequest(String... indices) {
+        this.indices = indices;
     }
 
     public GetSettingsRequest(StreamInput in) throws IOException {
@@ -108,5 +116,10 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
     }
 }

@@ -25,6 +25,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -92,13 +93,32 @@ public class BytesRestResponse extends RestResponse {
     }
 
     public BytesRestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        this(channel.request(), channel.request().rawPath(), channel::newErrorBuilder, channel.detailedErrorsEnabled(), status, e);
+    }
+
+    public BytesRestResponse(
+            final ToXContent.Params params,
+            final String rawPath,
+            final CheckedSupplier<XContentBuilder, IOException> supplier,
+            final boolean detailedErrorsEnabled,
+            final Exception e) throws IOException {
+        this(params, rawPath, supplier, detailedErrorsEnabled, ExceptionsHelper.status(e), e);
+    }
+
+    private BytesRestResponse(
+            final ToXContent.Params params,
+            final String rawPath,
+            final CheckedSupplier<XContentBuilder, IOException> supplier,
+            final boolean detailedErrorsEnabled,
+            final RestStatus status,
+            final Exception e) throws IOException {
         this.status = status;
-        try (XContentBuilder builder = build(channel, status, e)) {
+        try (XContentBuilder builder = build(params, rawPath, supplier, detailedErrorsEnabled, status, e)) {
             this.content = BytesReference.bytes(builder);
             this.contentType = builder.contentType().mediaType();
         }
         if (e instanceof ElasticsearchException) {
-            copyHeaders(((ElasticsearchException) e));
+            copyHeaders((ElasticsearchException) e);
         }
     }
 
@@ -119,13 +139,22 @@ public class BytesRestResponse extends RestResponse {
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
 
-    private static XContentBuilder build(RestChannel channel, RestStatus status, Exception e) throws IOException {
-        ToXContent.Params params = channel.request();
+    private static XContentBuilder build(
+            final ToXContent.Params params,
+            final String rawPath,
+            final CheckedSupplier<XContentBuilder, IOException> supplier,
+            final boolean detailedErrorsEnabled,
+            final RestStatus status,
+            final Exception e) throws IOException {
+        final ToXContent.Params actualParams;
         if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
-            params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
-        } else if (e != null) {
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
-                    channel.request().rawPath(), channel.request().params());
+            actualParams = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        } else {
+            actualParams = params;
+        }
+
+        if (e != null) {
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}", rawPath, actualParams.toMap());
 
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
@@ -134,9 +163,12 @@ public class BytesRestResponse extends RestResponse {
             }
         }
 
-        XContentBuilder builder = channel.newErrorBuilder().startObject();
-        ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
-        builder.field(STATUS, status.getStatus());
+        final XContentBuilder builder = supplier.get();
+        builder.startObject();
+        {
+            ElasticsearchException.generateFailureXContent(builder, actualParams, e, detailedErrorsEnabled);
+            builder.field(STATUS, status.getStatus());
+        }
         builder.endObject();
         return builder;
     }

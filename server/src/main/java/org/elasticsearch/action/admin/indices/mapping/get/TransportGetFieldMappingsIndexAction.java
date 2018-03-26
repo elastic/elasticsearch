@@ -166,6 +166,11 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             }
             return defaultValue;
         }
+
+        @Override
+        public Map<String, String> toMap() {
+            return Collections.singletonMap("include_defaults", "true");
+        }
     };
 
     private static Map<String, FieldMappingMetaData> findFieldMappingsByType(Predicate<String> fieldPredicate,

@@ -306,6 +306,11 @@ public abstract class RestRequest implements ToXContent.Params {
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
+    @Override
+    public Map<String, String> toMap() {
+        return Collections.unmodifiableMap(params);
+    }
+
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue, key);
     }
@@ -423,7 +428,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * Parses the given content type string for the media type. This method currently ignores parameters.
      */
     // TODO stop ignoring parameters such as charset...
-    private static XContentType parseContentType(List<String> header) {
+    public static XContentType parseContentType(List<String> header) {
         if (header == null || header.isEmpty()) {
             return null;
         } else if (header.size() > 1) {

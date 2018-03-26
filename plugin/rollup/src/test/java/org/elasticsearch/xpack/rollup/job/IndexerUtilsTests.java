@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
 public class IndexerUtilsTests extends AggregatorTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testMissingFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats = new RollupJobStats(0, 0, 0, 0);
@@ -122,6 +123,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testCorrectFields() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
@@ -196,6 +198,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testNumericTerms() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);
@@ -259,6 +262,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4223")
     public void testEmptyCounts() throws IOException {
         String indexName = randomAlphaOfLengthBetween(1, 10);
         RollupJobStats stats= new RollupJobStats(0, 0, 0, 0);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.transport.nio;
+package org.elasticsearch.nio;
 
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.SocketChannelContext;

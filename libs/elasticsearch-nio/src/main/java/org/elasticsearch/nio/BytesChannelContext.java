@@ -19,8 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.transport.nio.BytesFlushProducer;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;

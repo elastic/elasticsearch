@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -107,7 +106,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
+                    logger.debug(() -> new ParameterizedMessage("{} sync flush on inactive shard failed", indexShard.shardId()), e);
                 }
             });
         }
@@ -397,7 +396,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
+                            logger.trace(() -> new ParameterizedMessage("{} error while performing synced flush on [{}], skipping", shardId, shard), exp);
                             results.put(shard, new ShardSyncedFlushResponse(exp.getMessage()));
                             countDownAndSendResponseIfDone(syncId, shards, shardId, totalShards, listener, countDown, results);
                         }
@@ -453,7 +452,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
 
                 @Override
                 public void handleException(TransportException exp) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
+                    logger.trace(() -> new ParameterizedMessage("{} error while performing pre synced flush on [{}], skipping", shardId, shard), exp);
                     if (countDown.countDown()) {
                         listener.onResponse(presyncResponses);
                     }

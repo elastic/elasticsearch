@@ -19,11 +19,6 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketSelector;
-import org.elasticsearch.nio.WriteOperation;
-
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.util.LinkedList;

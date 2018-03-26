@@ -490,15 +490,17 @@ public final class InternalAutoDateHistogram extends
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         BucketReduceResult reducedBucketsResult = reduceBuckets(aggregations, reduceContext);
 
-        // adding empty buckets if needed
-        reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
-
-        // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
-        reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
-                reducedBucketsResult.roundingInfo, reduceContext);
-        
-        // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
-        reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            // adding empty buckets if needed
+            reducedBucketsResult = addEmptyBuckets(reducedBucketsResult, reduceContext);
+    
+            // Adding empty buckets may have tipped us over the target so merge the buckets again if needed
+            reducedBucketsResult = mergeBucketsIfNeeded(reducedBucketsResult.buckets, reducedBucketsResult.roundingIdx,
+                    reducedBucketsResult.roundingInfo, reduceContext);
+            
+            // Now finally see if we need to merge consecutive buckets together to make a coarser interval at the same rounding
+            reducedBucketsResult = maybeMergeConsecutiveBuckets(reducedBucketsResult, reduceContext);
+        }
 
         BucketInfo bucketInfo = new BucketInfo(this.bucketInfo.roundingInfos, reducedBucketsResult.roundingIdx,
                 this.bucketInfo.emptySubAggregations);

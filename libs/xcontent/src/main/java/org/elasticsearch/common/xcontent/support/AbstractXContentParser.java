@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -178,6 +179,34 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
+    /** Return the long that {@code stringValue} stores or throws an exception if the
+     *  stored value cannot be converted to a long that stores the exact same
+     *  value and {@code coerce} is false. */
+    private static long toLong(String stringValue, boolean coerce) {
+        try {
+            return Long.parseLong(stringValue);
+        } catch (NumberFormatException e) {
+            // we will try again with BigDecimal
+        }
+
+        final BigInteger bigIntegerValue;
+        try {
+            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+        }
+
+        if (bigIntegerValue.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ||
+                bigIntegerValue.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+        }
+
+        return bigIntegerValue.longValue();
+    }
+
     @Override
     public long longValue() throws IOException {
         return longValue(DEFAULT_NUMBER_COERCE_POLICY);
@@ -188,7 +217,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return Numbers.toLong(text(), coerce);
+            return toLong(text(), coerce);
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);
@@ -369,7 +398,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         if (token == XContentParser.Token.START_ARRAY) {
             token = parser.nextToken();
         } else {
-            throw new ElasticsearchParseException("Failed to parse list:  expecting "
+            throw new XContentParseException(parser.getTokenLocation(), "Failed to parse list:  expecting "
                     + XContentParser.Token.START_ARRAY + " but got " + token);
         }
 

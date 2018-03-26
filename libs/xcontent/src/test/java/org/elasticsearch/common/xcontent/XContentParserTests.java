@@ -123,7 +123,7 @@ public class XContentParserTests extends ESTestCase {
             readList(source);
             fail("should have thrown a parse exception");
         } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchParseException.class));
+            assertThat(e, instanceOf(XContentParseException.class));
             assertThat(e.getMessage(), containsString("Failed to parse list"));
         }
     }

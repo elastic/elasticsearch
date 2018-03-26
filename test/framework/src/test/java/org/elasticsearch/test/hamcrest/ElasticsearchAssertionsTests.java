@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -86,7 +86,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             try (XContentBuilder copy = JsonXContent.contentBuilder();
                     XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
                 parser.nextToken();
-                XContentHelper.copyCurrentStructure(copy.generator(), parser);
+                XContent.copyCurrentStructure(copy.generator(), parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }

@@ -349,7 +349,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                         LoggingDeprecationHandler.INSTANCE, document)) {
                     parser.nextToken();
-                    XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                    XContent.copyCurrentStructure(builder.generator(), parser);
                 }
             }
             builder.endArray();

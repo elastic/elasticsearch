@@ -23,12 +23,12 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -70,7 +70,7 @@ public class CborXContent implements XContent {
 
     @Override
     public byte streamSeparator() {
-        throw new ElasticsearchParseException("cbor does not support stream parsing...");
+        throw new XContentParseException("cbor does not support stream parsing...");
     }
 
     @Override

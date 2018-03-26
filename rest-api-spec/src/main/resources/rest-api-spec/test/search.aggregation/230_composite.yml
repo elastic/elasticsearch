@@ -99,6 +99,7 @@ setup:
   - do:
       search:
         index: test
+        allow_partial_search_results: false
         body:
           aggregations:
             test:

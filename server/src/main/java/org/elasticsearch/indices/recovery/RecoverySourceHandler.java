@@ -29,7 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -407,12 +407,9 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                        logger.warn(() -> new ParameterizedMessage(
                                 "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                shard.shardId(),
-                                request.targetNode()),
-                            corruptIndexException);
+                                shard.shardId(), request.targetNode()), corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -681,13 +678,9 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                            logger.warn(() -> new ParameterizedMessage(
                                     "{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    shardId,
-                                    request.targetNode(),
-                                    md),
-                                corruptIndexException);
+                                    shardId, request.targetNode(), md), corruptIndexException);
                             throw exception;
                         }
                     } else {

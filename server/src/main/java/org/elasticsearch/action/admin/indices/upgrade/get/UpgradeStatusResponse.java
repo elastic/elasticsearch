@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class UpgradeStatusResponse extends BroadcastResponse implements ToXContentFragment {
+public class UpgradeStatusResponse extends BroadcastResponse {
     private ShardUpgradeStatus[] shards;
 
     private Map<String, IndexUpgradeStatus> indicesUpgradeStatus;
@@ -116,6 +115,7 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, getTotalBytes());
         builder.byteSizeField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE, getToUpgradeBytes());
         builder.byteSizeField(Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, Fields.SIZE_TO_UPGRADE_ANCIENT, getToUpgradeBytesAncient());
@@ -161,6 +161,7 @@ public class UpgradeStatusResponse extends BroadcastResponse implements ToXConte
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

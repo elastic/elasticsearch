@@ -213,7 +213,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> isolated replica " + replica1.routingEntry());
             BulkShardRequest replicationRequest = indexOnPrimary(indexRequest, shards.getPrimary());
             for (int i = 1; i < replicas.size(); i++) {
-                indexOnReplica(replicationRequest, replicas.get(i));
+                indexOnReplica(replicationRequest, shards, replicas.get(i));
             }
 
             logger.info("--> promoting replica to primary " + replica1.routingEntry());
@@ -322,7 +322,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             logger.info("--> Isolate replica1");
             IndexRequest indexDoc1 = new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON);
             BulkShardRequest replicationRequest = indexOnPrimary(indexDoc1, shards.getPrimary());
-            indexOnReplica(replicationRequest, replica2);
+            indexOnReplica(replicationRequest, shards, replica2);
 
             final Translog.Operation op1;
             final List<Translog.Operation> initOperations = new ArrayList<>(initDocs);
@@ -388,14 +388,14 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             final BulkShardRequest indexRequest = indexOnPrimary(
                 new IndexRequest(index.getName(), "type", "d1").source("{}", XContentType.JSON), primary);
             final BulkShardRequest deleteRequest = deleteOnPrimary(new DeleteRequest(index.getName(), "type", "d1"), primary);
-            deleteOnReplica(deleteRequest, replica); // delete arrives on replica first.
+            deleteOnReplica(deleteRequest, shards, replica); // delete arrives on replica first.
             final long deleteTimestamp = threadPool.relativeTimeInMillis();
             replica.refresh("test");
             assertBusy(() ->
                 assertThat(threadPool.relativeTimeInMillis() - deleteTimestamp, greaterThan(gcInterval.millis()))
             );
             getEngine(replica).maybePruneDeletes();
-            indexOnReplica(indexRequest, replica);  // index arrives on replica lately.
+            indexOnReplica(indexRequest, shards, replica);  // index arrives on replica lately.
             shards.assertAllEqual(0);
         }
     }

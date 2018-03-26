@@ -20,6 +20,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-basic]
 <3> Add a `match_all` query to the `SearchSourceBuilder`.
 <4> Add the `SearchSourceBuilder` to the `SeachRequest`.
 
+[[java-rest-high-search-request-optional]]
 ===== Optional arguments
 
 Let's first look at some of the optional arguments of a `SearchRequest`:
@@ -140,7 +141,7 @@ The `SearchSourceBuilder` allows to add one or more `SortBuilder` instances. The
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-source-sorting]
 --------------------------------------------------
 <1> Sort descending by `_score` (the default)
-<2> Also sort ascending by `_id` field 
+<2> Also sort ascending by `_id` field
 
 ===== Source filtering
 
@@ -268,6 +269,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-listener]
 <1> Called when the execution is successfully completed.
 <2> Called when the whole `SearchRequest` fails.
 
+[[java-rest-high-search-response]]
 ==== SearchResponse
 
 The `SearchResponse` that is returned by executing the search provides details

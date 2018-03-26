@@ -110,8 +110,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error((org.apache.logging.log4j.util.Supplier<?>) () ->
-                        new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(() -> new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
                     throw error;
                 }
             }
@@ -125,7 +124,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 try {
                     indicesClusterStateService.applyClusterState(event);
                 } catch (AssertionError error) {
-                    logger.error((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                    logger.error(new ParameterizedMessage(
                             "failed to apply change on [{}].\n ***  Previous state ***\n{}\n ***  New state ***\n{}",
                             node, event.previousState(), event.state()), error);
                     throw error;

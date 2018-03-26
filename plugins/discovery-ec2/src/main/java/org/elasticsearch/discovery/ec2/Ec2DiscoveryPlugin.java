@@ -21,7 +21,7 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;

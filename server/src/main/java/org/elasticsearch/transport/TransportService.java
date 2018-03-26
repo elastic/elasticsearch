@@ -21,7 +21,7 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.ClusterName;
@@ -812,9 +812,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     protected void traceResponseSent(long requestId, String action, Exception e) {
-        tracerLog.trace(
-            (org.apache.logging.log4j.util.Supplier<?>)
-                () -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+        tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
     }
 
     /**

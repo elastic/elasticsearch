@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -208,7 +207,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
             e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()),
-            (e, ex) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
+            (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving", indexMetaData.getIndex(), e.getKey(), e.getValue()), ex));
         if (upgrade != settings) {
             return IndexMetaData.builder(indexMetaData).settings(upgrade).build();
         } else {

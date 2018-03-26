@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -161,10 +162,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         String aliasName = "foo_name";
         String typeName = "bar";
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate(indexName).addMapping(typeName, mapping, XContentType.JSON).get();
         client().admin().indices().prepareAliases().addAlias(indexName, aliasName).get();
 
@@ -183,10 +184,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testMoreLikeThisIssue2197() throws Exception {
         Client client = client();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         client().prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject().endObject())
@@ -206,10 +207,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         client().admin().indices().prepareCreate("foo").addMapping("bar", mapping, XContentType.JSON).execute().actionGet();
         ensureGreen();
 
@@ -227,10 +228,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
                 .endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
         assertAcked(prepareCreate("foo", 2,
                 Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("bar", mapping, XContentType.JSON));

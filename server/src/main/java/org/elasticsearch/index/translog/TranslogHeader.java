@@ -168,6 +168,7 @@ final class TranslogHeader {
      */
     void write(final FileChannel channel) throws IOException {
         // This output is intentionally not closed because closing it will close the FileChannel.
+        @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
         final BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(
             new OutputStreamStreamOutput(java.nio.channels.Channels.newOutputStream(channel)));
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), TRANSLOG_CODEC, CURRENT_VERSION);

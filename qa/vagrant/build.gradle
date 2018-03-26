@@ -12,10 +12,10 @@ esvagrant {
 
 dependencies {
     // Packaging tests use the x-pack meta plugin
-    bats project(path: xpackProject('plugin').path, configuration: 'zip')
+    packaging project(path: xpackProject('plugin').path, configuration: 'zip')
 
     // Inherit Bats test utils from :qa:vagrant project
-    bats project(path: ':qa:vagrant', configuration: 'bats')
+    packaging project(path: ':qa:vagrant', configuration: 'packaging')
 }
 
 Map<String, List<String>> metaPlugins = [:]
@@ -40,7 +40,7 @@ for (Project metaPlugin : project.rootProject.subprojects) {
     }
 }
 
-setupBats {
+setupPackagingTest {
     doLast {
         metaPlugins.each{ name, plugins ->
             File expectedMetaPlugins = file("build/plugins/${name}.expected")

@@ -109,7 +109,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
         Map<Class<?>, Function<Object, Object>> dateTransformers = new HashMap<>();
 
-        // treat strings as already conerted
+        // treat strings as already converted
         dateTransformers.put(String.class, Function.identity());
 
         // Load pluggable extensions

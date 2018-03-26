@@ -200,8 +200,7 @@ name and webhook URL in the elasticsearch keystore (<<secure-settings,secure set
 bin/elasticsearch-keystore add xpack.notification.slack.account.monitoring.secure_url
 --------------------------------------------------
 
-deprecated[You can also configure this via settings in the `elasticsearch.yml` file,
-using the keystore is the preferred and secure way of doign this]
+deprecated[You can also configure this via settings in the `elasticsearch.yml` file, using the keystore is the preferred and secure way of doing this]
 
 You can also specify defaults for the {ref}/notification-settings.html#slack-account-attributes[Slack
 notification attributes]:

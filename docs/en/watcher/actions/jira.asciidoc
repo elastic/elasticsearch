@@ -115,8 +115,7 @@ bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_use
 bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_password
 --------------------------------------------------
 
-deprecated[The insecure way of storing sensitive data (`url`, `user` and `password`) 
-in the configuration file or the cluster settings is deprecated]
+deprecated[The insecure way of storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is deprecated]
 
 To avoid credentials that transit in clear text over the network, {watcher} will
 reject `url` settings like `http://internal-jira.elastic.co` that are based on

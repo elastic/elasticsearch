@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
@@ -99,28 +97,9 @@ public interface XContentGenerator extends Closeable, Flushable {
     void writeRawField(String name, InputStream value, XContentType xContentType) throws IOException;
 
     /**
-     * Writes a raw field with the given bytes as the value
-     * @deprecated use {@link #writeRawField(String, BytesReference, XContentType)} to avoid content type auto-detection
+     * Writes a raw value taken from the bytes in the stream
      */
-    @Deprecated
-    void writeRawField(String name, BytesReference value) throws IOException;
-
-    /**
-     * Writes a raw field with the given bytes as the value
-     */
-    void writeRawField(String name, BytesReference value, XContentType xContentType) throws IOException;
-
-    /**
-     * Writes a value with the source coming directly from the bytes
-     * @deprecated use {@link #writeRawValue(BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    void writeRawValue(BytesReference value) throws IOException;
-
-    /**
-     * Writes a value with the source coming directly from the bytes
-     */
-    void writeRawValue(BytesReference value, XContentType xContentType) throws IOException;
+    void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

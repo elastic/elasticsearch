@@ -283,6 +283,15 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return TYPE;
     }
 
+    @Override
+    public int numDimensions() {
+        if (shell == null) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "Polygon has not yet been initialized");
+        }
+        return shell.numDimensions();
+    }
+
     protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;

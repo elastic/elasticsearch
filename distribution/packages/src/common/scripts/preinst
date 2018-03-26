@@ -9,14 +9,6 @@
 #       $1=1       : indicates an new install
 #       $1=2       : indicates an upgrade
 
-
-
-# Source the default env file
-ES_ENV_FILE="${path.env}"
-if [ -f "$ES_ENV_FILE" ]; then
-    . "$ES_ENV_FILE"
-fi
-
 case "$1" in
 
     # Debian ####################################################

@@ -49,6 +49,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -832,9 +833,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("_doc",
+                Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                     "foo", "type=text",
-                    "_field_names", "enabled=false").string()),
+                    "_field_names", "enabled=false"))),
             MapperService.MergeReason.MAPPING_UPDATE);
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -845,9 +846,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // restore mappings as they were before
             context.getMapperService().merge("_doc",
                 new CompressedXContent(
-                    PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
                         "foo", "type=text",
-                        "_field_names", "enabled=true").string()),
+                        "_field_names", "enabled=true"))),
                 MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
@@ -1049,6 +1050,33 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .fuzzyTranspositions(false)
             .toQuery(createShardContext());
         FuzzyQuery expected = new FuzzyQuery(new Term(STRING_FIELD_NAME, "text"), 2, 2, 5, false);
+        assertEquals(expected, query);
+    }
+
+    public void testWithStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+    }
+
+    public void testWithPrefixStopWords() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        Query query = new QueryStringQueryBuilder("the* quick fox")
+            .field(STRING_FIELD_NAME)
+            .analyzer("english")
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new PrefixQuery(new Term(STRING_FIELD_NAME, "the")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
         assertEquals(expected, query);
     }
 

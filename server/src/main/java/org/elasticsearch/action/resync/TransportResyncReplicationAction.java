@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
@@ -83,8 +85,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
     @Override
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        // We treat the resync as best-effort for now and don't mark unavailable shard copies as stale.
-        return new ReplicasProxy(primaryTerm);
+        return new ResyncActionReplicasProxy(primaryTerm);
     }
 
     @Override
@@ -184,4 +185,22 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             });
     }
 
+    /**
+     * A proxy for primary-replica resync operations which are performed on replicas when a new primary is promoted.
+     * Replica shards fail to execute resync operations will be failed but won't be marked as stale.
+     * This avoids marking shards as stale during cluster restart but enforces primary-replica resync mandatory.
+     */
+    class ResyncActionReplicasProxy extends ReplicasProxy {
+
+        ResyncActionReplicasProxy(long primaryTerm) {
+            super(primaryTerm);
+        }
+
+        @Override
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
+                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception,
+                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
+    }
 }

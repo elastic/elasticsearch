@@ -96,6 +96,9 @@ Closure commonPackageConfig(String type) {
     postInstall file("${scripts}/postinst")
     preUninstall file("${scripts}/prerm")
     postUninstall file("${scripts}/postrm")
+    if (type == 'rpm') {
+      postTrans file("${scripts}/posttrans")
+    }
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
@@ -160,7 +163,7 @@ Closure commonPackageConfig(String type) {
     Closure copyEmptyDir = { path, u, g, mode ->
       File file = new File(path)
       into(file.parent) {
-        from "${packagingFiles}/${path}"
+        from "${packagingFiles}/${file.parent}"
         include file.name
         includeEmptyDirs true
         createDirectoryEntry true

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Booleans;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -132,4 +130,5 @@ public interface ToXContent {
     default boolean isFragment() {
         return true;
     }
+
 }

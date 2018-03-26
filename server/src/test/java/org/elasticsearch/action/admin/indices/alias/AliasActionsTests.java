@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -153,7 +154,7 @@ public class AliasActionsTests extends ESTestCase {
             if (filter == null || filter.isEmpty()) {
                 assertNull(action.filter());
             } else {
-                assertEquals(XContentFactory.contentBuilder(XContentType.JSON).map(filter).string(), action.filter());
+                assertEquals(Strings.toString(XContentFactory.contentBuilder(XContentType.JSON).map(filter)), action.filter());
             }
             assertEquals(Objects.toString(searchRouting, null), action.searchRouting());
             assertEquals(Objects.toString(indexRouting, null), action.indexRouting());

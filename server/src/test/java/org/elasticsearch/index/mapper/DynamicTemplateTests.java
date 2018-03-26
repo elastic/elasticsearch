@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -61,6 +62,19 @@ public class DynamicTemplateTests extends ESTestCase {
                 e.getMessage());
     }
 
+    public void testParseInvalidRegex() {
+        for (String param : new String[] { "path_match", "match", "path_unmatch", "unmatch" }) {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match", "foo");
+            templateDef.put(param, "*a");
+            templateDef.put("match_pattern", "regex");
+            templateDef.put("mapping", Collections.singletonMap("store", true));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> DynamicTemplate.parse("my_template", templateDef, Version.V_6_3_0));
+            assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
+        }
+    }
+
     public void testMatchAllTemplate() {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "*");
@@ -86,7 +100,7 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha1);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", builder.string());
+        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
 
         // name-based template
         templateDef = new HashMap<>();
@@ -96,7 +110,7 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha1);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", builder.string());
+        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
 
         // path-based template
         templateDef = new HashMap<>();
@@ -107,7 +121,7 @@ public class DynamicTemplateTests extends ESTestCase {
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}",
-                builder.string());
+                Strings.toString(builder));
 
         // regex matching
         templateDef = new HashMap<>();
@@ -117,6 +131,6 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha1);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", builder.string());
+        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
     }
 }

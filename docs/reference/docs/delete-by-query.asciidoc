@@ -71,8 +71,7 @@ these documents. In case a search or bulk request got rejected, `_delete_by_quer
 If you'd like to count version conflicts rather than cause them to abort then
 set `conflicts=proceed` on the url or `"conflicts": "proceed"` in the request body.
 
-Back to the API format, you can limit `_delete_by_query` to a single type. This
-will only delete `tweet` documents from the `twitter` index:
+Back to the API format, this will delete tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
@@ -91,7 +90,7 @@ types at once, just like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/tweet,post/_delete_by_query
+POST twitter,blog/_docs,post/_delete_by_query
 {
   "query": {
     "match_all": {}

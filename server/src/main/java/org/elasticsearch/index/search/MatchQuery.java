@@ -102,7 +102,10 @@ public class MatchQuery {
 
     public enum ZeroTermsQuery implements Writeable {
         NONE(0),
-        ALL(1);
+        ALL(1),
+        // this is used internally to make sure that query_string and simple_query_string
+        // ignores query part that removes all tokens.
+        NULL(2);
 
         private final int ordinal;
 
@@ -312,10 +315,16 @@ public class MatchQuery {
     }
 
     protected Query zeroTermsQuery() {
-        if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
-            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
+        switch (zeroTermsQuery) {
+            case NULL:
+                return null;
+            case NONE:
+                return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
+            case ALL:
+                return Queries.newMatchAllQuery();
+            default:
+                throw new IllegalStateException("unknown zeroTermsQuery " + zeroTermsQuery);
         }
-        return Queries.newMatchAllQuery();
     }
 
     private class MatchQueryBuilder extends QueryBuilder {

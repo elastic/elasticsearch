@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +36,7 @@ import java.util.Map;
  *          NamedXContentRegistry.EMPTY, ParserField."{\"key\" : \"value\"}");
  * </pre>
  */
-public interface XContentParser extends Releasable {
+public interface XContentParser extends Closeable {
 
     enum Token {
         START_OBJECT {
@@ -144,17 +143,13 @@ public interface XContentParser extends Releasable {
 
     String textOrNull() throws IOException;
 
-    /**
-     * Returns a BytesRef holding UTF-8 bytes or null if a null value is {@link Token#VALUE_NULL}.
-     * This method should be used to read text only binary content should be read through {@link #binaryValue()}
-     */
-    BytesRef utf8BytesOrNull() throws IOException;
+    CharBuffer charBufferOrNull() throws IOException;
 
     /**
-     * Returns a BytesRef holding UTF-8 bytes.
+     * Returns a {@link CharBuffer} holding UTF-8 bytes.
      * This method should be used to read text only binary content should be read through {@link #binaryValue()}
      */
-    BytesRef utf8Bytes() throws IOException;
+    CharBuffer charBuffer() throws IOException;
 
     Object objectText() throws IOException;
 
@@ -233,8 +228,6 @@ public interface XContentParser extends Releasable {
      * Reads a plain binary value that was written via one of the following methods:
      *
      * <ul>
-     *     <li>{@link XContentBuilder#field(String, org.apache.lucene.util.BytesRef)}</li>
-     *     <li>{@link XContentBuilder#field(String, org.elasticsearch.common.bytes.BytesReference)}</li>
      *     <li>{@link XContentBuilder#field(String, byte[], int, int)}}</li>
      *     <li>{@link XContentBuilder#field(String, byte[])}}</li>
      * </ul>
@@ -242,14 +235,11 @@ public interface XContentParser extends Releasable {
      * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
-     *     <li>{@link XContentBuilder#utf8Field(String, org.apache.lucene.util.BytesRef)}</li>
+     *     <li>{@link XContentBuilder#utf8Field(String, byte[], int, int)}</li>
      * </ul>
      *
      * these methods write UTF-8 encoded strings and must be read through:
      * <ul>
-     *     <li>{@link XContentParser#utf8Bytes()}</li>
-     *     <li>{@link XContentParser#utf8BytesOrNull()}}</li>
      *     <li>{@link XContentParser#text()} ()}</li>
      *     <li>{@link XContentParser#textOrNull()} ()}</li>
      *     <li>{@link XContentParser#textCharacters()} ()}}</li>

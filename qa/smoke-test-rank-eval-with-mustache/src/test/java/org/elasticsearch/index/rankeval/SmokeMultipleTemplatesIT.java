@@ -72,7 +72,6 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
     }
 
     public void testPrecisionAtRequest() throws IOException {
-        List<String> indices = Arrays.asList(new String[] { "test" });
 
         List<RatedRequest> specifications = new ArrayList<>();
         Map<String, Object> ams_params = new HashMap<>();
@@ -100,11 +99,10 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         Set<ScriptWithId> templates = new HashSet<>();
         templates.add(template);
         RankEvalSpec task = new RankEvalSpec(specifications, metric, templates);
-        task.addIndices(indices);
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices("test")).actionGet();
         assertEquals(0.9, response.getEvaluationResult(), Double.MIN_VALUE);
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,11 +84,11 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             original.endObject();
 
             try (XContentBuilder copy = JsonXContent.contentBuilder();
-                    XContentParser parser = createParser(original.contentType().xContent(), original.bytes())) {
+                    XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
                 parser.nextToken();
                 XContentHelper.copyCurrentStructure(copy.generator(), parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
-                    assertToXContentEquivalent(original.bytes(), copyShuffled.bytes(), original.contentType());
+                    assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }
             }
         }
@@ -118,7 +119,8 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             }
             otherBuilder.endObject();
             AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
+                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
+                            builder.contentType()));
             assertThat(error.getMessage(), containsString("f2: expected [value2] but not found"));
         }
         {
@@ -146,7 +148,8 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             }
             otherBuilder.endObject();
             AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
+                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
+                            builder.contentType()));
             assertThat(error.getMessage(), containsString("f2: expected [value2] but was [differentValue2]"));
         }
         {
@@ -178,7 +181,8 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             otherBuilder.field("f1", "value");
             otherBuilder.endObject();
             AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
+                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
+                            builder.contentType()));
             assertThat(error.getMessage(), containsString("2: expected [three] but was [four]"));
         }
         {
@@ -207,7 +211,8 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             }
             otherBuilder.endObject();
             AssertionError error = expectThrows(AssertionError.class,
-                    () -> assertToXContentEquivalent(builder.bytes(), otherBuilder.bytes(), builder.contentType()));
+                    () -> assertToXContentEquivalent(BytesReference.bytes(builder), BytesReference.bytes(otherBuilder),
+                            builder.contentType()));
             assertThat(error.getMessage(), containsString("expected [1] more entries"));
         }
     }

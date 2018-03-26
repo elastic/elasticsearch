@@ -179,18 +179,18 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
-    @FunctionalInterface
-    public interface ReadConsumer {
+    public interface ReadConsumer extends AutoCloseable {
         int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
+
+        @Override
+        default void close() {}
     }
 
-    public interface WriteProducer {
+    public interface WriteProducer extends AutoCloseable {
         void produceWrites(WriteOperation writeOperation);
 
         FlushOperation pollFlushOperation();
 
-        default void close() {
-
-        }
+        default void close() {}
     }
 }

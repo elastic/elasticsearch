@@ -26,7 +26,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.elasticsearch.nio.BytesProducer;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.SocketChannelContext;
@@ -42,7 +41,8 @@ import java.util.Queue;
  * This class adapts a netty channel for our usage. In particular, it captures writes at the end of the
  * pipeline and places them in a queue that can be accessed by our code.
  */
-class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, SocketChannelContext.ReadConsumer {
+class NettyChannelAdaptor extends EmbeddedChannel {
+//    SocketChannelContext.ReadConsumer {
 //    SocketChannelContext.WriteProducer {
 
     // TODO: Explore if this can be made more efficient by generating less garbage
@@ -84,7 +84,7 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
         close();
     }
 
-    @Override
+//    @Override
     public void writeMessage(WriteOperation writeOperation) throws IOException {
         writeAndFlush(null, (NettyListener) writeOperation.getListener());
     }
@@ -99,12 +99,12 @@ class NettyChannelAdaptor extends EmbeddedChannel implements BytesProducer, Sock
         return null;
     }
 
-    @Override
+//    @Override
     public FlushOperation pollBytes() {
         return byteOps.pollFirst();
     }
 
-    @Override
+//    @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
         ByteBuf inboundBytes = toByteBuf(channelBuffer);
 

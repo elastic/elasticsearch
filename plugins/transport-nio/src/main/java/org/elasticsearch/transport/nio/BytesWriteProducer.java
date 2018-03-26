@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.nio.ESSelector;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
@@ -41,7 +40,6 @@ public class BytesWriteProducer implements SocketChannelContext.WriteProducer {
     @Override
     public void produceWrites(WriteOperation writeOperation) {
         flushOperations.addLast(new FlushOperation((ByteBuffer[]) writeOperation.getObject(), writeOperation.getListener()));
-
     }
 
     @Override

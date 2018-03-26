@@ -414,16 +414,16 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-./gradlew setupBats
+./gradlew setupPackagingTest
 cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 

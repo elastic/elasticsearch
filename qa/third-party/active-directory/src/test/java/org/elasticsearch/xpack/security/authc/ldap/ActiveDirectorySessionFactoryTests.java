@@ -108,25 +108,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
-    public void testTcpReadTimeout() throws Exception {
-        Settings settings = Settings.builder()
-                .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false))
-                .put("group_search.filter", "(objectClass=*)")
-                .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
-                .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "1ms")
-                .build();
-        RealmConfig config = new RealmConfig("ad-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
-        try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
-
-            PlainActionFuture<List<String>> groups = new PlainActionFuture<>();
-            session(sessionFactory, "ironman", SECURED_PASSWORD).groups(groups);
-            LDAPException expected = expectThrows(LDAPException.class, groups::actionGet);
-            assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
-        }
-    }
-
     public void testAdAuthAvengers() throws Exception {
         RealmConfig config = new RealmConfig("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false), globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));

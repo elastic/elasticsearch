@@ -8,6 +8,10 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -45,6 +49,10 @@ public class JiraAccount {
     static final String ISSUE_DEFAULTS_SETTING = "issue_defaults";
     static final String ALLOW_HTTP_SETTING = "allow_http";
 
+    private static final Setting<SecureString> SECURE_USER_SETTING = SecureSetting.secureString("secure_" + USER_SETTING, null);
+    private static final Setting<SecureString> SECURE_PASSWORD_SETTING = SecureSetting.secureString("secure_" + PASSWORD_SETTING, null);
+    private static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_" + URL_SETTING, null);
+
     private final HttpClient httpClient;
     private final String name;
     private final String user;
@@ -55,10 +63,8 @@ public class JiraAccount {
     public JiraAccount(String name, Settings settings, HttpClient httpClient) {
         this.httpClient = httpClient;
         this.name = name;
-        String url = settings.get(URL_SETTING);
-        if (url == null) {
-            throw requiredSettingException(name, URL_SETTING);
-        }
+        String url = getSetting(name, URL_SETTING, settings, SECURE_URL_SETTING);
+        ESLoggerFactory.getLogger(getClass()).error("THE URL WAS [{}]", url);
         try {
             URI uri = new URI(url);
             Scheme protocol = Scheme.parse(uri.getScheme());
@@ -69,11 +75,11 @@ public class JiraAccount {
         } catch (URISyntaxException | IllegalArgumentException e) {
             throw new SettingsException("invalid jira [" + name + "] account settings. invalid [" + URL_SETTING + "] setting", e);
         }
-        this.user = settings.get(USER_SETTING);
+        this.user = getSetting(name, USER_SETTING, settings, SECURE_USER_SETTING);
         if (Strings.isEmpty(this.user)) {
             throw requiredSettingException(name, USER_SETTING);
         }
-        this.password = settings.get(PASSWORD_SETTING);
+        this.password = getSetting(name, PASSWORD_SETTING, settings, SECURE_PASSWORD_SETTING);
         if (Strings.isEmpty(this.password)) {
             throw requiredSettingException(name, PASSWORD_SETTING);
         }
@@ -89,6 +95,19 @@ public class JiraAccount {
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
+    }
+
+    private static String getSetting(String accountName, String settingName, Settings settings, Setting<SecureString> secureSetting) {
+        String value = settings.get(settingName);
+        if (value == null) {
+            SecureString secureString = secureSetting.get(settings);
+            if (secureString == null || secureString.length() < 1) {
+                throw requiredSettingException(accountName, settingName);
+            }
+            value = secureString.toString();
+        }
+
+        return value;
     }
 
     public String getName() {

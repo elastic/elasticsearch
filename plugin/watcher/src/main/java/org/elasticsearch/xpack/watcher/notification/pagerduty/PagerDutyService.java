@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +26,11 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_SERVICE_API_KEY =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "service_api_key",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
+
+    private static final Setting.AffixSetting<String> SETTING_SECURE_SERVICE_API_KEY =
+            Setting.affixKeySetting("xpack.notification.pagerduty.account.", "secure_service_api_key",
+                    (key) -> SecureSetting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.pagerduty.account.", "event_defaults",
@@ -38,6 +43,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
         this.httpClient = httpClient;
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_SERVICE_API_KEY, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         setAccountSetting(settings);
     }
@@ -48,6 +54,6 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
     }
 
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_SERVICE_API_KEY, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
+        return Arrays.asList(SETTING_SERVICE_API_KEY, SETTING_SECURE_SERVICE_API_KEY, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
     }
 }

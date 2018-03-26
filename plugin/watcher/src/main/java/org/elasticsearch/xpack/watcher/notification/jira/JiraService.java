@@ -31,7 +31,7 @@ public class JiraService extends NotificationService<JiraAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_URL =
             Setting.affixKeySetting("xpack.notification.jira.account.", "url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
     private static final Setting.AffixSetting<String> SETTING_USER =
             Setting.affixKeySetting("xpack.notification.jira.account.", "user",
@@ -39,6 +39,18 @@ public class JiraService extends NotificationService<JiraAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_PASSWORD =
             Setting.affixKeySetting("xpack.notification.jira.account.", "password",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
+
+    private static final Setting.AffixSetting<String> SETTING_SECURE_USER =
+            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_user",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+
+    private static final Setting.AffixSetting<String> SETTING_SECURE_URL =
+            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_url",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+
+    private static final Setting.AffixSetting<String> SETTING_SECURE_PASSWORD =
+            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_password",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
@@ -57,6 +69,9 @@ public class JiraService extends NotificationService<JiraAccount> {
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_USER, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_PASSWORD, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_USER, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_URL, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SECURE_PASSWORD, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         // do an initial load
         setAccountSetting(settings);
@@ -68,6 +83,7 @@ public class JiraService extends NotificationService<JiraAccount> {
     }
 
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_ALLOW_HTTP, SETTING_URL, SETTING_USER, SETTING_PASSWORD, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
+        return Arrays.asList(SETTING_ALLOW_HTTP, SETTING_URL, SETTING_USER, SETTING_PASSWORD, SETTING_SECURE_USER,
+                SETTING_SECURE_PASSWORD, SETTING_SECURE_URL, SETTING_DEFAULTS, SETTING_DEFAULT_ACCOUNT);
     }
 }

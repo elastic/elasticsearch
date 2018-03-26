@@ -145,16 +145,16 @@ image::images/pagerduty-services.jpg[]
 +
 image::images/pagerduty-integrations.jpg[]
 
-To configure a PagerDuty account in `elasticsearch.yml`, at a minimum you
-must specify an account name and integration key:
+To configure a PagerDuty account in the keystore, you
+must specify an account name and integration key, (see <<secure-settings,secure settings>>):
 
 [source,yaml]
 --------------------------------------------------
-xpack.notification.pagerduty:
-  account:
-    my_pagerduty_account:
-      service_api_key: d3b07384d113edec49eaa6238ad5ff0 
+bin/elasticsearch-keystore add xpack.notification.pagerduty.account.my_pagerduty_account.secure_service_api_key
 --------------------------------------------------
+
+deprecated[Storing the service api key in the YAML file or via cluster
+update settings is still supported, but the keystore setting should be used]
 
 You can also specify defaults for the <<pagerduty-event-trigger-incident-attributes, 
 PagerDuty event attributes>>:
@@ -165,7 +165,6 @@ PagerDuty event attributes>>:
 xpack.notification.pagerduty:
   account:
     my_pagerduty_account:
-      service_api_key: d3b07384d113edec49eaa6238ad5ff0 
       event_defaults:
         description: "Watch notification"
         incident_key: "my_incident_key"

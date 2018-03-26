@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.test.NodeInfo
+import org.elasticsearch.gradle.LoggedExec
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -6,8 +9,7 @@ dependencies {
   testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
 }
 
-String slackPropertyName = 'xpack.notification.slack.url'
-System.setProperty(slackPropertyName, 'https://hooks.slack.com/services/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')
+String slackUrl = System.getenv('slack_url')
 
 integTestCluster {
   plugin xpackProject('plugin').path
@@ -16,11 +18,9 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-
-  setting 'xpack.notification.slack.account.test_account.url', System.getProperty(slackPropertyName)
+  keystoreSetting 'xpack.notification.slack.account.test_account.secure_url', slackUrl
 }
 
-// require network access for this one, exit early instead of starting up the cluster if we dont have network
-if (!System.getProperty(slackPropertyName) || !System.getProperty('tests.network')) {
-    integTest.enabled = false
+if (!slackUrl) {
+  integTest.enabled = false
 }

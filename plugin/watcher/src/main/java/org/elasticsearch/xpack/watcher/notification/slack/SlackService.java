@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.notification.slack;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +26,11 @@ public class SlackService extends NotificationService<SlackAccount> {
 
     private static final Setting.AffixSetting<String> SETTING_URL =
             Setting.affixKeySetting("xpack.notification.slack.account.", "url",
-                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered, Property.Deprecated));
+
+    private static final Setting.AffixSetting<String> SETTING_URL_SECURE =
+            Setting.affixKeySetting("xpack.notification.slack.account.", "secure_url",
+                    (key) -> SecureSetting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
     private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
             Setting.affixKeySetting("xpack.notification.slack.account.", "message_defaults",
@@ -39,6 +44,7 @@ public class SlackService extends NotificationService<SlackAccount> {
         clusterSettings.addSettingsUpdateConsumer(this::setAccountSetting, getSettings());
         clusterSettings.addSettingsUpdateConsumer(SETTING_DEFAULT_ACCOUNT, (s) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_URL, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_URL_SECURE, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         setAccountSetting(settings);
     }
@@ -49,6 +55,6 @@ public class SlackService extends NotificationService<SlackAccount> {
     }
 
     public static List<Setting<?>> getSettings() {
-        return Arrays.asList(SETTING_URL, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
+        return Arrays.asList(SETTING_URL, SETTING_URL_SECURE, SETTING_DEFAULT_ACCOUNT, SETTING_DEFAULTS);
     }
 }

@@ -106,22 +106,22 @@ You configure the accounts {watcher} can use to communicate with Jira in the
 `xpack.notification.jira` namespace in `elasticsearch.yml`.
 
 {watcher} supports Basic Authentication for Jira Software. To configure a
-Jira account you need to specify:
+Jira account you need to specify (see <<secure-settings,secure settings>>):
 
 [source,yaml]
 --------------------------------------------------
-xpack.notification.jira:
-  account:
-    monitoring:
-      url: https://internal-jira.elastic.co:443
-      user: B0A6D1PRD
-      password: mslNSCnJR
+bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_url
+bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_user
+bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_password
 --------------------------------------------------
+
+deprecated[The insecure way of storing sensitive data (`url`, `user` and `password`) 
+in the configuration file or the cluster settings is deprecated]
 
 To avoid credentials that transit in clear text over the network, {watcher} will
 reject `url` settings like `http://internal-jira.elastic.co` that are based on
 plain text HTTP protocol. This default behavior can be disabled with the explicit
- `allow_http setting`:
+ `allow_http` setting:
 
 NOTE: The `url` field can also contain a path, that is used to create an issue. By
 default this is `/rest/api/2/issue`. If you set this as well, make sure that this
@@ -132,10 +132,7 @@ path is the full path to the endpoint to create an issue.
 xpack.notification.jira:
   account:
     monitoring:
-      url: http://unsecure-jira.elastic.co/
       allow_http: true
-      user: B0A6D1PRD
-      password: mslNSCnJR
 --------------------------------------------------
 
 WARNING: It is strongly advised to use Basic Authentication with secured HTTPS
@@ -149,9 +146,6 @@ You can also specify defaults for the
 xpack.notification.jira:
   account:
     monitoring:
-      url: https://internal-jira.elastic.co:443
-      user: B0A6D1PRD
-      password: mslNSCnJR
       issue_defaults:
         project:
           key: proj

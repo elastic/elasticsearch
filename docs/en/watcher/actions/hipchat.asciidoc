@@ -165,6 +165,10 @@ If you configure multiple HipChat accounts, you either need to set a default
 HipChat account or specify which account the notification should be sent with
 in the <<actions-hipchat, hipchat>> action.
 
+deprecated[Storing the `auth_token` in the configuration file or using via updating the
+settings now is deprecated, as you should use the keystore for this, see 
+<<secure-settings,secure settings>>]
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
@@ -222,13 +226,17 @@ To configure a HipChat account that uses the `integration` profile:
 For example, the following snippet configures an account called
 `notify-monitoring` that sends messages to the `monitoring` room:
 
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore add xpack.notification.hipchat.account.notify-monitoring.secure_auth_token
+--------------------------------------------------
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: integration
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
       room: monitoring
 --------------------------------------------------
 
@@ -241,7 +249,6 @@ xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: integration
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
       room: monitoring
       message:
         format: text
@@ -285,25 +292,33 @@ To configure a HipChat account that uses the `user` profile:
 For example, the following configuration creates an account called
 `notify-monitoring` that sends messages to the `monitoring` room:
 
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore add xpack.notification.hipchat.account.notify-monitoring.secure_auth_token
+--------------------------------------------------
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: user
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
 You can also specify defaults for the <{ref}/notification-settings.html#hipchat-account-attributes[
 message attributes]:
 
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore add xpack.notification.hipchat.account.notify-monitoring.secure_auth_token
+--------------------------------------------------
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: user
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
       message:
         format: text
         color: blue
@@ -349,13 +364,17 @@ To configure a HipChat account that uses the `v1` profile:
 For example, the following configuration creates an account called
 `notify-monitoring`:
 
+[source,shell]
+--------------------------------------------------
+bin/elasticsearch-keystore add xpack.notification.hipchat.account.notify-monitoring.secure_auth_token
+--------------------------------------------------
+
 [source,yaml]
 --------------------------------------------------
 xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: v1
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
 You can also specify defaults for the {ref}/notification-settings.html#hipchat-account-attributes[
@@ -367,7 +386,6 @@ xpack.notification.hipchat:
   account:
     notify-monitoring:
       profile: v1
-      auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
       message:
         format: text
         color: blue

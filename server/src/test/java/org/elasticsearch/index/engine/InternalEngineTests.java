@@ -4530,12 +4530,11 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-
     public void testTrackMaxSeqNoOfNonAppendOnlyOperations() throws Exception {
         IOUtils.close(engine, store);
         store = createStore();
         final Path translogPath = createTempDir();
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.UNASSIGNED_SEQ_NO);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
             final CountDownLatch latch = new CountDownLatch(1);
             final Thread appendOnlyIndexer = new Thread(() -> {

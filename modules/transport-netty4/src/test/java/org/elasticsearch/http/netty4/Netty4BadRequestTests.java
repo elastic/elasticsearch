@@ -74,7 +74,9 @@ public class Netty4BadRequestTests extends ESTestCase {
                 final Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
                 assertThat(responseBodies, hasSize(1));
                 assertThat(responseBodies.iterator().next(), containsString("\"type\":\"illegal_argument_exception\""));
-                assertThat(responseBodies.iterator().next(), containsString("\"reason\":\"unterminated escape sequence at end of string: %\""));
+                assertThat(
+                        responseBodies.iterator().next(),
+                        containsString("\"reason\":\"unterminated escape sequence at end of string: %\""));
             }
         }
     }

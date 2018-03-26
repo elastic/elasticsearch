@@ -76,16 +76,6 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
     }
 
-    public void testBadParameterEncoding() throws IOException {
-        final Response response = client().performRequest("GET", "/_cluster/settings?pretty%", Collections.emptyMap());
-        // final Response response = client().performRequest("GET", "/_cluster/settings", Collections.singletonMap("pretty%", ""));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
-        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        final Map<String, Object> map = objectPath.evaluate("error");
-        assertThat(map.get("type"), equalTo("illegal_argument_exception"));
-        assertThat(map.get("reason"), equalTo("unterminated escape sequence at end of string: pretty%"));
-    }
-
     public void testInvalidParameterValue() throws IOException {
         final ResponseException e = expectThrows(
                 ResponseException.class,

@@ -636,6 +636,11 @@ public final class XContentBuilder implements Closeable, Flushable {
         return field(name).timeValue(timeValue);
     }
 
+    /**
+     * If the {@code humanReadable} flag is set, writes both a formatted and
+     * unformatted version of the time value using the date transformer for the
+     * {@link Long} class.
+     */
     public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
         if (humanReadable) {
             Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);

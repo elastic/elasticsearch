@@ -234,7 +234,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // only update entries if needed
             updatedEntries = internalMerge(indexMetaData, MergeReason.MAPPING_RECOVERY, true, true);
         } catch (Exception e) {
-            logger.warn((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
         }
 

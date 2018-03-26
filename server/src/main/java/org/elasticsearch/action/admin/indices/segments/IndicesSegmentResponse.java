@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.Segment;
 
@@ -43,7 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-public class IndicesSegmentResponse extends BroadcastResponse implements ToXContentFragment {
+public class IndicesSegmentResponse extends BroadcastResponse {
 
     private ShardSegments[] shards;
 
@@ -103,7 +102,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
@@ -173,10 +172,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         }
 
         builder.endObject();
-        return builder;
     }
 
-    static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
+    private static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
         builder.startArray("sort");
         for (SortField field : sort.getSort()) {
             builder.startObject();
@@ -195,7 +193,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         builder.endArray();
     }
 
-    static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
+    private static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
         builder.startObject();
         builder.field(Fields.DESCRIPTION, tree.toString());
         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(tree.ramBytesUsed()));

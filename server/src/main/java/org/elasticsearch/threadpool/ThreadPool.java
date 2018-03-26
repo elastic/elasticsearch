@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
@@ -58,7 +57,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -139,9 +137,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
-    private final Map<String, ExecutorHolder> executors;
-
-    private final ThreadPoolInfo threadPoolInfo;
+    private Map<String, ExecutorHolder> executors = new HashMap<>();
 
     private final CachedTimeThread cachedTimeThread;
 
@@ -210,15 +206,6 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
 
         executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = unmodifiableMap(executors);
-
-        final List<Info> infos =
-                executors
-                        .values()
-                        .stream()
-                        .filter(holder -> holder.info.getName().equals("same") == false)
-                        .map(holder -> holder.info)
-                        .collect(Collectors.toList());
-        this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings);
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
@@ -251,7 +238,16 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
     }
 
     public ThreadPoolInfo info() {
-        return threadPoolInfo;
+        List<Info> infos = new ArrayList<>();
+        for (ExecutorHolder holder : executors.values()) {
+            String name = holder.info.getName();
+            // no need to have info on "same" thread pool
+            if ("same".equals(name)) {
+                continue;
+            }
+            infos.add(holder.info);
+        }
+        return new ThreadPoolInfo(infos);
     }
 
     public Info info(String name) {
@@ -351,11 +347,11 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return new ReschedulingRunnable(command, interval, executor, this,
                 (e) -> {
                     if (logger.isDebugEnabled()) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
+                        logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
                                 command, executor), e);
                     }
                 },
-                (e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
+                (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
     }
 
@@ -443,7 +439,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
+                logger.warn(() -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }
@@ -658,29 +654,32 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
-            builder.field("type", type.getType());
-
-            if (type == ThreadPoolType.SCALING) {
-                assert min != -1;
-                builder.field("core", min);
-                assert max != -1;
-                builder.field("max", max);
-            } else {
-                assert max != -1;
-                builder.field("size", max);
+            builder.field(Fields.TYPE, type.getType());
+            if (min != -1) {
+                builder.field(Fields.MIN, min);
+            }
+            if (max != -1) {
+                builder.field(Fields.MAX, max);
             }
             if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
+                builder.field(Fields.KEEP_ALIVE, keepAlive.toString());
             }
             if (queueSize == null) {
-                builder.field("queue_size", -1);
+                builder.field(Fields.QUEUE_SIZE, -1);
             } else {
-                builder.field("queue_size", queueSize.singles());
+                builder.field(Fields.QUEUE_SIZE, queueSize.singles());
             }
             builder.endObject();
             return builder;
         }
 
+        static final class Fields {
+            static final String TYPE = "type";
+            static final String MIN = "min";
+            static final String MAX = "max";
+            static final String KEEP_ALIVE = "keep_alive";
+            static final String QUEUE_SIZE = "queue_size";
+        }
     }
 
     /**

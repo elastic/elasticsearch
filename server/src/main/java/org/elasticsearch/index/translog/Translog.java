@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -262,7 +261,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
+                    logger.warn(() -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
                 }
             }
         }
@@ -356,26 +355,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
-    /**
-     * Returns the number of operations in the translog files that aren't committed to lucene.
-     */
-    public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
-    /**
-     * Returns the size in bytes of the translog files that aren't committed to lucene.
-     */
-    public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
     /**
      * Returns the number of operations in the translog files
      */
     public int totalOperations() {
-        return totalOperations(-1);
+        return totalOperationsByMinGen(-1);
     }
 
     /**
@@ -406,9 +390,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Returns the number of operations in the translog files at least the given generation
      */
-    private int totalOperations(long minGeneration) {
+    public int totalOperationsByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
@@ -431,25 +415,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the size in bytes of the translog files above the given generation
+     * Returns the size in bytes of the translog files at least the given generation
      */
-    private long sizeInBytesByMinGen(long minGeneration) {
+    public long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                 .filter(r -> r.getGeneration() >= minGeneration)
                 .mapToLong(BaseTranslogReader::sizeInBytes)
                 .sum();
-        }
-    }
-
-    /**
-     * Returns the size in bytes of the translog files with ops above the given seqNo
-     */
-    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            return readersBetweenMinAndMaxSeqNo(minSeqNo, Long.MAX_VALUE).mapToLong(BaseTranslogReader::sizeInBytes).sum();
         }
     }
 
@@ -772,7 +746,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes(), earliestLastModifiedAge());
+            final long uncommittedGen = deletionPolicy.getTranslogGenerationOfLastCommit();
+            return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen), sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
         }
     }
 

@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -555,9 +554,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         @Override
         public void onFailure(String source, Exception e) {
             if (e instanceof ResourceAlreadyExistsException) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             } else {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
+                logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
             }
             super.onFailure(source, e);
         }
@@ -695,9 +694,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.") || s.equals("index.mapping.single_type");
         indexSettingsBuilder
-            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
+            // now copy all similarity / analysis / sort / single_type settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
             .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())

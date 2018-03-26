@@ -430,6 +430,20 @@ public class FullClusterRestartIT extends ESRestTestCase {
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
+            // single type was added in 5.5.0 (see #24317)
+            if (oldClusterVersion.onOrAfter(Version.V_5_5_0) &&
+                oldClusterVersion.before(Version.V_6_0_0_beta1) &&
+                randomBoolean()) {
+                {
+                    // test that mapping.single_type is correctly propagated on the shrinked index,
+                    // if not, search will fail.
+                    mappingsAndSettings.startObject("settings");
+                    mappingsAndSettings.startObject("mapping");
+                    mappingsAndSettings.field("single_type", true);
+                    mappingsAndSettings.endObject();
+                    mappingsAndSettings.endObject();
+                }
+            }
             {
                 mappingsAndSettings.startObject("mappings");
                 mappingsAndSettings.startObject("doc");

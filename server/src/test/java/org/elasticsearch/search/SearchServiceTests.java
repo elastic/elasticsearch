@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -343,6 +344,43 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+
+    /**
+     * test that creating more than the allowed number of search contexts throws an exception
+     */
+    public void testMaxSearchContexts() throws IOException {
+        createIndex("index");
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        for (int i = 0; i < Node.MAX_SEARCH_CONTEXT_SETTING.get(Settings.EMPTY); i++) {
+            SearchContext context = service.createAndPutContext(
+                new ShardSearchLocalRequest(
+                    indexShard.shardId(),
+                    1,
+                    SearchType.DEFAULT,
+                    new SearchSourceBuilder(),
+                    new String[0],
+                    false,
+                    new AliasFilter(null, Strings.EMPTY_ARRAY),
+                    1.0f, true)
+            );
+        }
+
+        try (SearchContext context = service.createAndPutContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true))) {
+            assertNotNull(context);
+        } catch (IllegalStateException ex) {
+            assertEquals(
+                "Trying to create too many search contexts. Must be less than or equal to: [100]. " +
+                    "This limit can be set by changing the [node.max_search_context] node level setting.",
+                ex.getMessage());
+        }
+    }
+
+
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
@@ -409,7 +447,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults)));
 
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
-            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, 
+            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f,
             allowPartialSearchResults)));
 
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,

@@ -55,6 +55,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -161,7 +163,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
-    
+
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -198,10 +200,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
 
         defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, 
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
                 this::setDefaultAllowPartialSearchResults);
-        
-        
+
+
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
     }
@@ -227,10 +229,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void setDefaultAllowPartialSearchResults(boolean defaultAllowPartialSearchResults) {
         this.defaultAllowPartialSearchResults = defaultAllowPartialSearchResults;
     }
-    
+
     public boolean defaultAllowPartialSearchResults() {
         return defaultAllowPartialSearchResults;
-    }    
+    }
     
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
@@ -566,6 +568,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final SearchContext createContext(ShardSearchRequest request) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);
+        System.out.println("----activecontexts----" + activeContexts.size());
+        if (activeContexts.size() >= Node.MAX_SEARCH_CONTEXT_SETTING.get(settings)) {
+            throw new IllegalStateException(
+                "Trying to create too many search contexts. Must be less than or equal to: [" +
+                    Node.MAX_SEARCH_CONTEXT_SETTING.get(settings) + "]. This limit can be set by changing the ["
+                    + Node.MAX_SEARCH_CONTEXT_SETTING.getKey() + "] node level setting.");
+        }
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());

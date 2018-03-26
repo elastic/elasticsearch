@@ -77,6 +77,13 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertTrue(configDir, configDir.startsWith(home));
     }
 
+    public void testMaxSearchContexts() {
+        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
+        assertEquals(100, settings.get("node.max_search_context"));
+        settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.max_search_context", "20").build());
+        assertEquals(20, settings.get("node.max_search_context"));
+    }
+
     public void testDefaultClusterName() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
         assertEquals("elasticsearch", settings.get("cluster.name"));

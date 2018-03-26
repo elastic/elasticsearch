@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -417,6 +418,27 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         );
         shard.indexSettings().updateIndexMetaData(builder.build());
         shard.onSettingsChanged();
+    }
+
+    /**
+     * This test ensures the consistency between primary and replica when non-append-only (eg. index request with id or delete) operation
+     * of the same document is processed before the original append-only request on replicas. The append-only document can be exposed and
+     * deleted on the primary before it is added to replica. Replicas should treat a late append-only request as a regular index request.
+     */
+    public void testOutOfOrderDeliveryForAppendOnlyOperations() throws Exception {
+        try (ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+            // Append-only request - without id
+            final BulkShardRequest indexRequest = indexOnPrimary(
+                new IndexRequest(index.getName(), "type", null).source("{}", XContentType.JSON), primary);
+            final String docId = Iterables.get(getShardDocUIDs(primary), 0);
+            final BulkShardRequest deleteRequest = deleteOnPrimary(new DeleteRequest(index.getName(), "type", docId), primary);
+            deleteOnReplica(deleteRequest, shards, replica);
+            indexOnReplica(indexRequest, shards, replica);
+            shards.assertAllEqual(0);
+        }
     }
 
     /** Throws <code>documentFailure</code> on every indexing operation */

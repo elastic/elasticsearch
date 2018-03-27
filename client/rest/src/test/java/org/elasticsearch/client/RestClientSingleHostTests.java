@@ -96,7 +96,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     @Before
     @SuppressWarnings("unchecked")
-    public void createRestClient() throws IOException {
+    public void createRestClient() {
         httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
                 any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
@@ -140,17 +140,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
     }
 
-    public void testNullPath() throws IOException {
-        for (String method : getHttpMethods()) {
-            try {
-                restClient.performRequest(method, null);
-                fail("path set to null should fail!");
-            } catch (NullPointerException e) {
-                assertEquals("path must not be null", e.getMessage());
-            }
-        }
-    }
-
     /**
      * Verifies the content of the {@link HttpRequest} that's internally created and passed through to the http client
      */
@@ -173,33 +162,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     assertEquals(EntityUtils.toString(expectedEntity), EntityUtils.toString(actualEntity));
                 }
             }
-        }
-    }
-
-    public void testSetHosts() throws IOException {
-        try {
-            restClient.setHosts((HttpHost[]) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts();
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts((HttpHost) null);
-            fail("setHosts should have failed");
-        } catch (NullPointerException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-        try {
-            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-            fail("setHosts should have failed");
-        } catch (NullPointerException e) {
-            assertEquals("host cannot be null", e.getMessage());
         }
     }
 
@@ -268,7 +230,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testIOExceptions() throws IOException {
+    public void testIOExceptions() {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {

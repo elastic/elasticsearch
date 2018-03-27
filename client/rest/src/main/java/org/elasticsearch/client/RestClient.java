@@ -45,6 +45,7 @@ import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
+import javax.net.ssl.SSLHandshakeException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
@@ -437,18 +438,18 @@ public class RestClient implements Closeable {
         do {
             Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
             for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-                if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
+                if (entry.getValue().shallBeRetried() == false) {
                     filteredHosts.remove(entry.getKey());
                 }
             }
             if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good host to use, return a single dead one, the one that's closest to being retried
+                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
                 List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
                 if (sortedHosts.size() > 0) {
                     Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
                         @Override
                         public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                            return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
+                            return o1.getValue().compareTo(o2.getValue());
                         }
                     });
                     HttpHost deadHost = sortedHosts.get(0).getKey();
@@ -479,14 +480,15 @@ public class RestClient implements Closeable {
      * Called after each failed attempt.
      * Receives as an argument the host that was used for the failed attempt.
      */
-    private void onFailure(HttpHost host) throws IOException {
+    private void onFailure(HttpHost host) {
         while(true) {
-            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, DeadHostState.INITIAL_DEAD_STATE);
+            DeadHostState previousDeadHostState = blacklist.putIfAbsent(host, new DeadHostState(DeadHostState.TimeSupplier.DEFAULT));
             if (previousDeadHostState == null) {
                 logger.debug("added host [" + host + "] to blacklist");
                 break;
             }
-            if (blacklist.replace(host, previousDeadHostState, new DeadHostState(previousDeadHostState))) {
+            if (blacklist.replace(host, previousDeadHostState,
+                    new DeadHostState(previousDeadHostState, DeadHostState.TimeSupplier.DEFAULT))) {
                 logger.debug("updated host [" + host + "] already in blacklist");
                 break;
             }

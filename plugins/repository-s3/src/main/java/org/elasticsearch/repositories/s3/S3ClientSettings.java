@@ -39,7 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 /**
  * A container for settings used to create an S3 client.
  */
-class S3ClientSettings {
+final class S3ClientSettings {
 
     // prefix for s3 client settings
     private static final String PREFIX = "s3.client.";

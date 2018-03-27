@@ -1149,7 +1149,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
 
         Message start() throws IOException {
             builder.startObject();
-            builder.field(Field.TIMESTAMP, timestamp);
+            builder.timeField(Field.TIMESTAMP, timestamp);
             return this;
         }
 

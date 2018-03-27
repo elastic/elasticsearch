@@ -244,7 +244,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(timestamp, dateTimeFormatter.printer())
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
                     .field(Field.ACK_STATUS_STATE.getPreferredName(), state.name().toLowerCase(Locale.ROOT))
                     .endObject();
         }
@@ -342,7 +342,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Field.TIMESTAMP.getPreferredName()).value(timestamp, dateTimeFormatter.printer());
+            builder.field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp));
             builder.field(Field.EXECUTION_SUCCESSFUL.getPreferredName(), successful);
             if (reason != null) {
                 builder.field(Field.REASON.getPreferredName(), reason);
@@ -442,7 +442,7 @@ public class ActionStatus implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(Field.TIMESTAMP.getPreferredName()).value(timestamp, dateTimeFormatter.printer())
+                    .field(Field.TIMESTAMP.getPreferredName()).value(dateTimeFormatter.printer().print(timestamp))
                     .field(Field.REASON.getPreferredName(), reason)
                     .endObject();
         }

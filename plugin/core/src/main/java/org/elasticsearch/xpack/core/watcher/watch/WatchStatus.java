@@ -250,10 +250,10 @@ public class WatchStatus implements ToXContentObject, Streamable {
             builder.field(Field.STATE.getPreferredName(), state, params);
         }
         if (lastChecked != null) {
-            builder.field(Field.LAST_CHECKED.getPreferredName(), lastChecked);
+            builder.timeField(Field.LAST_CHECKED.getPreferredName(), lastChecked);
         }
         if (lastMetCondition != null) {
-            builder.field(Field.LAST_MET_CONDITION.getPreferredName(), lastMetCondition);
+            builder.timeField(Field.LAST_MET_CONDITION.getPreferredName(), lastMetCondition);
         }
         if (actions != null) {
             builder.startObject(Field.ACTIONS.getPreferredName());

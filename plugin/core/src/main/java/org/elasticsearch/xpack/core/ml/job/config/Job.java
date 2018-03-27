@@ -556,13 +556,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        builder.dateField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
         if (finishedTime != null) {
-            builder.dateField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+            builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
                     finishedTime.getTime());
         }
         if (lastDataTime != null) {
-            builder.dateField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + humanReadableSuffix,
+            builder.timeField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + humanReadableSuffix,
                     lastDataTime.getTime());
         }
         if (establishedModelMemory != null) {

@@ -1421,6 +1421,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             if (origin == Engine.Operation.Origin.PRIMARY) {
                 verifyPrimary();
+            } else {
+                assert origin == Engine.Operation.Origin.REPLICA;
+                verifyReplicationTarget();
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " + writeAllowedStates + ", origin [" + origin + "]");

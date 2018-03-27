@@ -1,208 +1,179 @@
-Contributing to elasticsearch
-=============================
+# Contributing to Elasticsearch
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is an open source project and we love receiving contributions from our community — you! There are many ways to contribute:
 
-Bug reports
------------
+ 1. Writing tutorials and blog posts
+ 2. Improving the documentation
+ 3. Submitting bug reports and feature requests
+ 4. Writing code that can be incorporated into Elasticsearch
+ 5. And more!
 
-If you think you have found a bug in Elasticsearch, first make sure that you are testing against the [latest version of Elasticsearch](https://www.elastic.co/downloads/elasticsearch) - your issue may already have been fixed. If not, search our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub in case a similar issue has already been opened.
 
-It is very helpful if you can prepare a reproduction of the bug. In other words, provide a small test case which we can run to confirm your bug. It makes it easier to find the problem and to fix it. Test cases should be provided as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+## Writing Bug Reports
 
-```sh
-# delete the index
-curl -XDELETE localhost:9200/test
+There are two _very important_ tasks that you should complete before creating a bug report:
 
-# insert a document
-curl -XPUT localhost:9200/test/test/1 -d '{
- "title": "test document"
-}'
+ 1. Make sure you are using the latest version of Elasticsearch available. The latest public release is available [here](https://www.elastic.co/downloads/elasticsearch) and the latest GitHub release is available [here](https://github.com/elastic/elasticsearch). It’s possible that the newest version has already fixed the bug you found.
+ 2. If you tried replicating your bug on the latest version of Elasticsearch, and it still appears, try searching for your bug on Elasticsearch’s GitHub [issues list](https://github.com/elastic/elasticsearch/issues). If a similar issue has already been opened, try to build off of that one by commenting rather than creating a new issue.
 
-# this should return XXXX but instead returns YYY
-curl ....
-```
+If you tried the above tasks and still want to report a bug, please follow these guidelines:
 
-Provide as much information as you can. You may think that the problem lies with your query, when actually it depends on how your data is indexed. The easier it is for us to recreate your problem, the faster it is likely to be fixed.
+ - At the beginning of your bug report, provide the following:
+	 1. The version of Elasticsearch you are using (run `elasticsearch --version`)
+	 2. Any plugins installed
+	 3. The version of Java Virtual Machine (JVM) you are using (this can also be obtained by running `elasticsearch --version`)
+	 4. The OS you are running Elasticsearch on (Windows 10, macOS 10.13, etc.)			 
+		 - For a Unix-like system, run `uname -a`
+- Prepare a reproduction of the bug. For example, include the code you input into Elasticsearch and the output Elasticsearch gives you back. These commands should be `curl` commands. Some `curl` examples can be found in the [README](https://github.com/elastic/elasticsearch/blob/master/README.textile) and in the Elasticsearch [getting started documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/_modifying_your_data.html).
+- Provide as much information as you can. While you might think the bug lies in one area, it could be in another. The more information we have, the easier it is for us to fix it!
 
-Feature requests
-----------------
+## Writing Feature Requests
 
-If you find yourself wishing for a feature that doesn't exist in Elasticsearch, you are probably not alone. There are bound to be others out there with similar needs. Many of the features that Elasticsearch has today have been added because our users saw the need.
-Open an issue on our [issues list](https://github.com/elastic/elasticsearch/issues) on GitHub which describes the feature you would like to see, why you need it, and how it should work.
+Chances are you are not the only one who wants a certain feature to be implemented into Elasticsearch! The reason Elasticsearch offers so many features today is because of the needs of our users! You can easily open an issue [here](https://github.com/elastic/elasticsearch/issues/new) (just be sure to mention that it is a feature request). There are three important pieces to writing a feature request for Elasticsearch:
+ 1. Describe, in detail, the feature that you would like to see
+ 2. Explain the use case for this feature (why you want or need it)
+ 3. How the feature should work
 
-Contributing code and documentation changes
--------------------------------------------
+By following the above guidelines, you are more likely to get your feature implemented in a future release!
 
-If you have a bugfix or new feature that you would like to contribute to Elasticsearch, please find or open an issue about it first. Talk about what you would like to do. It may be that somebody is already working on it, or that there are particular issues that you should know about before implementing the change.
+## Contributing Code and Documentation Changes
 
-We enjoy working with contributors to get their code accepted. There are many approaches to fixing a problem and it is important to find the best approach before writing too much code.
+If you would like to fix a bug or implement a feature, please open an [issue](https://github.com/elastic/elasticsearch/issues/new) first. Here, you can talk about how you want to go about the task. This allows others to have a conversation with you and make sure everyone is happy with the way it will be implemented. It is also possible that someone else is working on the same bug fix or feature request. By creating an issue, it is more likely that you, or someone else, will catch the duplicate.
 
-Note that it is unlikely the project will merge refactors for the sake of refactoring. These
-types of pull requests have a high cost to maintainers in reviewing and testing with little
-to no tangible benefit. This especially includes changes generated by tools. For example,
-converting all generic interface instances to use the diamond operator. 
+We enjoy working with our open-source contributors and want to make sure that the code changes you make can be accepted into our codebase in a seamless manner. Since there are so many ways to fix a problem or implement a feature, it is important to find the best approach before writing too much code.
 
-The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar. Details for individual projects can be found below.
+If you are considering refactoring code just for the sake of refactoring it, please take a look at our issues list instead! Code refactors are not likely to be accepted because there is a high cost to maintainers to review and test the code. This is especially true regarding changes generated by tools. For example, converting all generic interfaces to use the diamond operator is not likely to be accepted.
 
-### Fork and clone the repository
+The process for contributing to any of the [Elastic repositories](https://github.com/elastic/) is similar.
 
-You will need to fork the main Elasticsearch code or documentation repository and clone it to your local machine. See
-[github help page](https://help.github.com/articles/fork-a-repo) for help.
+## Running Elasticsearch on your Machine
 
-Further instructions for specific projects are given below.
+Elasticsearch is very easy to get up and running! In order to get things set up, follow these instructions:
 
-### Submitting your changes
+**Fork and clone the repository**
 
-Once your changes and tests are ready to submit for review:
+In order to get Elasticsearch onto your machine, you will need to fork the main Elasticsearch code or documentation repository and clone it to your machine. If you need help, check out the [GitHub help page](https://help.github.com/articles/fork-a-repo/).
+
+
+**Running Elasticsearch**
+
+JDK 9 is required to build Elasticsearch. You can download the latest version of the JDK [here](http://www.oracle.com/technetwork/java/javase/downloads/index.html). The environment variable `JAVA_HOME` needs to reference the path to Java home for your JDK 9 installation. By default, tests use the same runtime as `JAVA_HOME`. However, since Elasticsearch supports JDK 8 and the build supports compiling with JDK 9 and testing on a JDK 8 runtime, you can set `RUNTIME_JAVA_HOME` pointing to the Java home of a JDK 8 installation. This mechanism can is not limited to just JDK 8 and can be used to test against other JDKs as well.
+
+In order to run Elasticsearch right out of the box, make sure you have Elasticsearch on your machine. Use your favorite command line interface (Terminal, etc) to `cd` into the location of the elasticsearch folder. Here you can enter `./gradlew run`. Elasticsearch is runing when your command line interface shows the green progress bar holding steady right around 97%. To check that Elasticsearch is running properly, go to `localhost:9200` on your favorite browser. If Elasticsearch is running, you will see a some `JSON` appear with your Elasticsearch build information and the Elasticsearch tagline, `“You Know, for Search”`. If your run into problems running Elasticsearch, make sure you set your `JAVA_HOME` environment variable correctly and that you `cd`’d all the way into the elasticsearch folder in command line. Although the Elasticsearch [issues](https://github.com/elastic/elasticsearch/issues) list is reserved for bug reports, feature requests, and documentation changes, there is a general discussion available [here](https://discuss.elastic.co) if you need more help.
+
+## Contributing to the Elasticsearch Codebase
+
+The Elasticsearch repository can be found [here](https://github.com/elastic/elasticsearch).
+
+**Accessing Elasticsearch Code**
+
+Elasticsearch uses the Gradle wrapper for its build. You can access the Gradle wrapper via the `gradlew` script in the root repository. More information on Gradle can be found [here](https://docs.gradle.org/current/userguide/userguide.html). There are two Integrated Development Envirenments (IDEs) that we support:
+
+ 1. Eclipse Oxygen (minimum version is 4.7)
+ 2. IntelliJ (minimum version is 2017.2)
+
+**Set up Elasticsearch in Eclipse**
+
+In order for Elasticsearch code to display properly in Eclipse, you must configure Eclipse to use Gradle. Follow these steps to get it up and running:
+
+ 1. Using your favorite Command Line Interface (CLI), `cd` into the Elasticsearch folder you cloned from GitHub
+ 2. Run `./gradlew eclipse` in order to set up Eclipse with Gradle
+ 3. Open Eclipse and select the file path that leads into your Elasticsearch folder. For example, /Users/myname/Documents/GitHub/Elasticsearch
+ 4. Select `File -> Import -> General (drop-down) -> Existing Projects into Workspace`
+ 5. Under `Options`, Select `Search for nested projects`
+ 6. Click `Select root directory -> Browse ->` select your cloned Elasticsearch folder
+ 7. Under `Projects`, click `Select All`
+ 8. Click Finish
+
+Elasticsearch will now import into your workspace through Gradle. This may take a few minutes. To check the progress, click on the progress bar on the bottom right of the Eclipse workspace (next to the orange RSS logo).
+
+The Elasticsearch codebase makes heavy use of Java `assert`s and the test runner requires that assertions be enabled within the `JVM`. This can be accomplished by passing the flag `-ea` to the `JVM` on startup. In order to do this in Eclipse, follow these steps:
+
+ 1. Select `Preferences -> Java -> Installed JREs`
+ 2. Add `-ea` to `VM Arguments`
+
+Wildcard imports (`import java.util.*`) are forbidden and will cause the build to fail. In Eclipse, follow these steps to tame your `IDE` so it does not make create wildcard imports:
+
+ 1. Select `Preferences -> Java -> Code Style -> Organize Imports`
+ 2. There are two boxes labeled `Number of (static)? imports needed for a .*`. Set their values to `99999` or some other absurdly high value.
+
+**Set up Elasticsearch in IntelliJ**
+
+In order for Elasticsearch code to display properly in IntelliJ, you must configure IntelliJ to use Gradle. Follow these steps to get it up and running:
+
+ 1. Using your favorite Command Line Interface (CLI), `cd` into the Elasticsearch folder you cloned from GitHub
+ 2. Run `./gradlew idea` in order to set up IntelliJ with Gradle
+ 3. Select `File -> New Project from Existing Sources`
+ 4. Select your cloned Elasticsearch folder
+ 5. Select `Import project from external model -> Gradle`
+ 6. Enable `Use auto-import`
+ 7. In order to run tests directly from IDEA 2017.2 and above, it is required to disable the IDEA launcher in order to avoid `idea_rt.jar` (causing jar hell). This can be achieved by following one of the options below:
+		 1.  Add `-Didea.no.launcher=true` JVM option
+		 2. Select `Help -> Edit Custom Properties -> Set idea.no.launcher=true` in idea.properties. Restart IDEA for this to take effect.
+ 8. For IDEA 2017.3 and above, select `Run -> Edit Configurations -> … -> Defaults -> Junit`. Verify that the `Shorten command line setting` is set to `user-local default: none`. You may also need to remove `ant-javafx.jar` from your classpath if that is reported as a source of jar hell.
+
+Elasticsearch will now import into your workspace through Gradle. This may take a few minutes.
+
+The Elasticsearch codebase makes heavy use of Java `assert`s and the test runner requires that assertions be enabled within the `JVM`. This can be accomplished by passing the flag `-ea` to the `JVM` on startup. In order to do this in IntelliJ, follow these steps:
+
+ 1. Select `Run -> Edit Configurations -> … -> Defaults -> Junit -> VM Options`
+ 2. Input `-ea`
+
+Wildcard imports (`import java.util.*`) are forbidden and will cause the build to fail. In IntelliJ, follow these steps to tame your `IDE` so it does not make create wildcard imports:
+
+ - Select `Preferences/Settings -> Editor -> Code Style -> Java -> Imports`
+ - There are two configuration options: `Class count to use import with *` and `Names count to use static import with *`. Set their values to `99999` or some other absurdly high value.
+
+**Formatting Guidelines**
+
+ - Java indent is 4 spaces
+ - Line width is 140 characters
+ - The rest is left to Java coding standards
+ - Disable “auto-format on save” to prevent unnecessary format changes. Doing this makes reviews much easier as it gets rid of unnecessary formatting changes. If your IDE supports formatting only modified chunks, that is fine to do.
+ - Do not worry too much about import order. Try not to change it but there is no need to fight your `IDE` to stop it from doing so.
+
+**Preparing to Submit Changes**
+
+ - To create a distribution from the source, follow these steps:
+	1. Using your favorite Command Line Interface (CLI), `cd` into your cloned Elasticsearch folder
+	2. Run `./gradlew assemble`
+ - The package distribution (Debian and RPM) can be found under ./distribution/packages/(deb|rpm)/build/distributions/
+ - The archive distributions (tar and zip) can be found under ./distribution/archives/(tar|zip)/build/distributions/
+ - Before submitting changes, run the test suite to make sure that nothing is broken: `./gradlew check`
+
+**Submitting Changes**
+
+Please follow these steps in order to make sure your code has a chance to make it into the Elasticsearch codebase:
 
 1. Test your changes
-
-    Run the test suite to make sure that nothing is broken. See the
-[TESTING](TESTING.asciidoc) file for help running tests.
-
-2. Sign the Contributor License Agreement
-
-    Please make sure you have signed our [Contributor License Agreement](https://www.elastic.co/contributor-agreement/). We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction. We ask this of all contributors in order to assure our users of the origin and continuing existence of the code. You only need to sign the CLA once.
-
+		 - Run the test suite to make sure nothing is broken. See the [TESTING](https://github.com/elastic/elasticsearch/blob/master/TESTING.asciidoc) file for help running tests
+2.  Sign the [Contributor License Agreement](https://www.elastic.co/contributor-agreement/) (CLA)
+	- We are not asking you to assign copyright to us, but to give us the right to distribute your code without restriction
+	 - The CLA is used to assure our users of the origin and continuing existence of the code
+	- You only need to sign the CLA once
 3. Rebase your changes
-
-    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
-
-
+	- Update your local repository with the most recent code from the main Elasticsearch repository and rebase your branch on top of the latest master branch
+	- We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits. This makes them easier to review.
+	- As a final step before merging, we will either ask you to squash all commits yourself or we will do it for you
 4. Submit a pull request
+	- Push your local changes to your forked copy of the repository and submit a [pull request](https://help.github.com/articles/using-pull-requests) 
+	- In the pull request, please follow these guidelines:
+		1. **Title**: Sum up the changes that you have made
+		2. **Body**: Provide more details about what your changes do and mention the number of the issue where discussion has taken place, eg "Closes #123."
 
-    Push your local changes to your forked copy of the repository and [submit a pull request](https://help.github.com/articles/using-pull-requests). In the pull request, choose a title which sums up the changes that you have made, and in the body provide more details about what your changes do. Also mention the number of the issue where discussion has taken place, eg "Closes #123".
+Once you have completed the above steps, sit back and wait. A discussion about the pull request will most likely be created. If any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch!
 
-Then sit back and wait. There will probably be discussion about the pull request and, if any changes are needed, we would love to work with you to get your pull request merged into Elasticsearch.
+Please adhere to the general guideline that you should **never** force push to a **publicly shared** branch. Once you have opened your pull request, you should consider your branch publicly shared. Instead of force pushing, just add incremental commits. This is generally easier on your reviewers. If you need to pick up changes from master, you can merge master into your branch. A reviewer might ask you to rebase a long-running pull request in which case force pushing **is okay** for that request. Note that **squashing** at the end of the review process should also **not** be done. That can be done when the pull request is [integrated via GitHub](https://github.com/blog/2141-squash-your-commits).
 
-Please adhere to the general guideline that you should never force push
-to a publicly shared branch. Once you have opened your pull request, you
-should consider your branch publicly shared. Instead of force pushing
-you can just add incremental commits; this is generally easier on your
-reviewers. If you need to pick up changes from master, you can merge
-master into your branch. A reviewer might ask you to rebase a
-long-running pull request in which case force pushing is okay for that
-request. Note that squashing at the end of the review process should
-also not be done, that can be done when the pull request is [integrated
-via GitHub](https://github.com/blog/2141-squash-your-commits).
+## Contributing as Part of a Class
 
-Contributing to the Elasticsearch codebase
-------------------------------------------
+In general, Elasticsearch is happy to accept contributions that were created as part of a class. However, we strongly advise against making the contribution as part of the class. If you have written code for a class, feel free to submit it.
 
-**Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
+We ask (_very strongly_) that you do not assign contributing to Elasticsearch as part of a class. If you really want to assign writing code for Elasticsearch as an assignment, please have students contribute to a private clone of Elasticsearch. Opening PRs against the primary Elasticsearch clone must be optional, fully voluntary, not for a grade, and without any deadlines. This is because:
 
-JDK 9 is required to build Elasticsearch. You must have a JDK 9 installation
-with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 9 installation. By default, tests use the same runtime as `JAVA_HOME`.
-However, since Elasticsearch, supports JDK 8 the build supports compiling with
-JDK 9 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
-pointing to the Java home of a JDK 8 installation. Note that this mechanism can
-be used to test against other JDKs as well, this is not only limited to JDK 8.
+- While the code review process is likely very educations, it can take wildly varying amounts of time depending on who is available, where the change is, and how deep the change is. There is no way to predict how long it will take unless we rush.
+- We do not rush reviews without a very, very good reason. A class deadline is _not_ a good reason.
+- We deeply discourage opening a PR if you do not intend working through the entire code review process because it wastes our time.
+- We do not have the capacity to absorb an entire class full of new contributors, especially when they are unlikely to become long-time contributors.
 
-Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
-using the wrapper via the `gradlew` script in the root of the repository.
-
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
-
-Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
-
-IntelliJ users can automatically configure their IDE: `./gradlew idea`
-then `File->New Project From Existing Sources`. Point to the root of
-the source directory, select
-`Import project from external model->Gradle`, enable
-`Use auto-import`. In order to run tests directly from
-IDEA 2017.2 and above, it is required to disable the IDEA run launcher in order to avoid
-`idea_rt.jar` causing "jar hell". This can be achieved by adding the
-`-Didea.no.launcher=true` [JVM
-option](https://intellij-support.jetbrains.com/hc/en-us/articles/206544869-Configuring-JVM-options-and-platform-properties).
-Alternatively, `idea.no.launcher=true` can be set in the
-[`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
-file which can be accessed under Help > Edit Custom Properties (this will require a
-restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
-`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
-classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
-reported as a source of jar hell.
-
-To run an instance of elasticsearch from the source code run `./gradlew run`
-
-The Elasticsearch codebase makes heavy use of Java `assert`s and the
-test runner requires that assertions be enabled within the JVM. This
-can be accomplished by passing the flag `-ea` to the JVM on startup.
-
-For IntelliJ, go to
-`Run->Edit Configurations...->Defaults->JUnit->VM options` and input
-`-ea`.
-
-For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
-`VM Arguments`.
-
-Please follow these formatting guidelines:
-
-* Java indent is 4 spaces
-* Line width is 140 characters
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. Please attempt to tame your IDE so it doesn't make them and please send a PR against this document with instructions for your IDE if it doesn't contain them.
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
-
-To create a distribution from the source, simply run:
-
-```sh
-cd elasticsearch/
-./gradlew assemble
-```
-
-The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm)/build/distributions/`
-
-The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(tar|zip)/build/distributions/`
-
-
-Before submitting your changes, run the test suite to make sure that nothing is broken, with:
-
-```sh
-./gradlew check
-```
-
-Contributing as part of a class
--------------------------------
-In general Elasticsearch is happy to accept contributions that were created as
-part of a class but strongly advise against making the contribution as part of
-the class. So if you have code you wrote for a class feel free to submit it.
-
-Please, please, please do not assign contributing to Elasticsearch as part of a
-class. If you really want to assign writing code for Elasticsearch as an
-assignment then the code contributions should be made to your private clone and
-opening PRs against the primary Elasticsearch clone must be optional, fully
-voluntary, not for a grade, and without any deadlines.
-
-Because:
-
-* While the code review process is likely very educational, it can take wildly
-varying amounts of time depending on who is available, where the change is, and
-how deep the change is. There is no way to predict how long it will take unless
-we rush.
-* We do not rush reviews without a very, very good reason. Class deadlines
-aren't a good enough reason for us to rush reviews.
-* We deeply discourage opening a PR you don't intend to work through the entire
-code review process because it wastes our time.
-* We don't have the capacity to absorb an entire class full of new contributors,
-especially when they are unlikely to become long time contributors.
-
-Finally, we require that you run `./gradlew check` before submitting a
-non-documentation contribution. This is mentioned above, but it is worth
-repeating in this section because it has come up in this context.
-
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
-[intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
+It is very important that you run `./gradlew check` before submitting a non-documentation contribution. Although this is mentioned above, it is worth repeating here because it have come up in this context.

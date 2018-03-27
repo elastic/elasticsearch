@@ -22,27 +22,25 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.stats.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
-import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -66,7 +64,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
     }
 
     public void testBasicDateHisto() {
-        // TODO grab some of the logic from DateHistogramTests to build more robust tests
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
         histo.dateHistogramInterval(new DateHistogramInterval("1d"))
                 .field("foo")
@@ -75,24 +72,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry, caps);
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -107,8 +87,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("the_max"), Matchers.instanceOf(MaxAggregationBuilder.class));
         assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
 
-        assertThat(subAggs.get("the_avg"), Matchers.instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
+        assertThat(subAggs.get("the_avg.value"), Matchers.instanceOf(SumAggregationBuilder.class));
+        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg.value");
         assertThat(avg.field(), equalTo("avg_field.avg.value"));
 
         assertThat(subAggs.get("the_avg._count"), Matchers.instanceOf(SumAggregationBuilder.class));
@@ -119,21 +99,15 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(4));
+        assertThat(filterConditions.size(), equalTo(2));
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                 switch (((TermQueryBuilder) q).fieldName()) {
-                    case "foo.date_histogram.interval":
-                        assertThat(((TermQueryBuilder) q).value().toString(), equalTo(new DateHistogramInterval("1d").toString()));
-                        break;
                     case "foo.date_histogram.time_zone":
                         assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
                         break;
                     case "_rollup.computed":
                         assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
-                        break;
-                    case "_rollup.id":
-                        assertThat(((TermQueryBuilder) q).value(), equalTo("foo"));
                         break;
                     default:
                         fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
@@ -155,24 +129,19 @@ public class RollupRequestTranslationTests extends ESTestCase {
         String fieldName = null;
         int numAggs = 1;
 
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(ConfigTestHelpers
-                .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                        .setField("foo")
-                        .setMetrics(Arrays.asList("avg", "max", "min", "sum")).build()))
-                .build()));
         if (i == 0) {
             translated = translateAggregation(new MaxAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry, caps);
+                    .field("foo"), filterConditions, namedWriteableRegistry);
             clazz = MaxAggregationBuilder.class;
             fieldName =  "foo.max.value";
         } else if (i == 1) {
             translated = translateAggregation(new MinAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry, caps);
+                    .field("foo"), filterConditions, namedWriteableRegistry);
             clazz = MinAggregationBuilder.class;
             fieldName =  "foo.min.value";
         } else if (i == 2) {
             translated = translateAggregation(new SumAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry, caps);
+                    .field("foo"), filterConditions, namedWriteableRegistry);
             clazz = SumAggregationBuilder.class;
             fieldName =  "foo.sum.value";
         }
@@ -185,72 +154,21 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(filterConditions.size(), equalTo(0));
     }
 
-    public void testMissingMetric() {
-        int i = ESTestCase.randomIntBetween(0, 3);
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(ConfigTestHelpers
+    public void testUnsupportedMetric() {
+        Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(ConfigTestHelpers
                 .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
                         .setField("foo")
                         .setMetrics(Arrays.asList("avg", "max", "min", "sum")).build()))
                 .build()));
 
-        String aggType;
-        Exception e;
-        if (i == 0) {
-            e = expectThrows(IllegalArgumentException.class, () -> translateAggregation(new MaxAggregationBuilder("test_metric")
-                    .field("other_field"), filterConditions, namedWriteableRegistry, caps));
-            aggType = "max";
-        } else if (i == 1) {
-            e = expectThrows(IllegalArgumentException.class, () -> translateAggregation(new MinAggregationBuilder("test_metric")
-                    .field("other_field"), filterConditions, namedWriteableRegistry, caps));
-            aggType = "min";
-        } else if (i == 2) {
-            e = expectThrows(IllegalArgumentException.class, () -> translateAggregation(new SumAggregationBuilder("test_metric")
-                    .field("other_field"), filterConditions, namedWriteableRegistry, caps));
-            aggType = "sum";
-        } else {
-            e = expectThrows(IllegalArgumentException.class, () -> translateAggregation(new AvgAggregationBuilder("test_metric")
-                    .field("other_field"), filterConditions, namedWriteableRegistry, caps));
-            aggType = "avg";
-        }
-        assertThat(e.getMessage(), equalTo("There is not a [" + aggType + "] agg with name " +
-                "[other_field] configured in selected rollup indices, cannot translate aggregation."));
-
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> translateAggregation(new StatsAggregationBuilder("test_metric")
+                        .field("foo"), Collections.emptyList(), namedWriteableRegistry));
+        assertThat(e.getMessage(), equalTo("Unable to translate aggregation tree into Rollup.  Aggregation [test_metric] is of type " +
+                "[StatsAggregationBuilder] which is currently unsupported."));
     }
 
-    public void testMissingDateHisto() {
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
-                .field("other_field")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("There is not a [date_histogram] agg with name " +
-                "[other_field] configured in selected rollup indices, cannot translate aggregation."));
-    }
-
-    public void testSelectLowerGranularityDateInterval() {
+    public void testDateHistoIntervalWithMinMax() {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
         histo.dateHistogramInterval(new DateHistogramInterval("1d"))
                 .field("foo")
@@ -258,48 +176,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job1 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1h"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-
-        RollupJobConfig job2 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-        List<RollupJobCaps> caps = new ArrayList<>(2);
-        caps.add(new RollupJobCaps(job1));
-        caps.add(new RollupJobCaps(job2));
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry, caps);
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -314,8 +191,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("the_max"), instanceOf(MaxAggregationBuilder.class));
         assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
 
-        assertThat(subAggs.get("the_avg"), instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
+        assertThat(subAggs.get("the_avg.value"), instanceOf(SumAggregationBuilder.class));
+        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg.value");
         assertThat(avg.field(), equalTo("avg_field.avg.value"));
 
         assertThat(subAggs.get("the_avg._count"), instanceOf(SumAggregationBuilder.class));
@@ -326,18 +203,14 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(4));
+        assertThat(filterConditions.size(), equalTo(2));
 
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
-                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.interval")) {
-                    assertThat(((TermQueryBuilder) q).value().toString(), equalTo("1h"));  // <---- should be instead of 1d
-                } else if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
+               if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
                 } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.computed")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.id")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("foo"));
                 } else {
                     fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                 }
@@ -347,61 +220,20 @@ public class RollupRequestTranslationTests extends ESTestCase {
         }
     }
 
-    public void testSelectLowerGranularityInteravl() {
+    public void testDateHistoLongIntervalWithMinMax() {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.interval(3600000)
+        histo.interval(86400000)
                 .field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job1 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1h"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-
-        RollupJobConfig job2 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-        List<RollupJobCaps> caps = new ArrayList<>(2);
-        caps.add(new RollupJobCaps(job1));
-        caps.add(new RollupJobCaps(job2));
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry, caps);
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
 
-        assertThat(translatedHisto.interval(), equalTo(3600000L));
+        assertThat(translatedHisto.interval(), equalTo(86400000L));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
         assertThat(translatedHisto.getSubAggregations().size(), equalTo(4));
 
@@ -411,8 +243,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("the_max"), instanceOf(MaxAggregationBuilder.class));
         assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
 
-        assertThat(subAggs.get("the_avg"), instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
+        assertThat(subAggs.get("the_avg.value"), instanceOf(SumAggregationBuilder.class));
+        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg.value");
         assertThat(avg.field(), equalTo("avg_field.avg.value"));
 
         assertThat(subAggs.get("the_avg._count"), instanceOf(SumAggregationBuilder.class));
@@ -423,18 +255,14 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(4));
+        assertThat(filterConditions.size(), equalTo(2));
 
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
-                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.interval")) {
-                    assertThat(((TermQueryBuilder) q).value().toString(), equalTo("1h"));  // <---- should be instead of 1d
-                } else if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
+                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
                 } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.computed")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.id")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("foo"));
                 } else {
                     fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                 }
@@ -444,70 +272,17 @@ public class RollupRequestTranslationTests extends ESTestCase {
         }
     }
 
-    public void testNoMatchingDateInterval() {
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
-                .field("foo")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("100d")) // <- interval in job is much higher than agg interval above
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        Exception e = expectThrows(RuntimeException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("Could not find a rolled date_histogram configuration that satisfies the interval [1d]"));
-    }
-
-    public void testNoMatchingInterval() {
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.interval(1)
-                .field("foo")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("100d")) // <- interval in job is much higher than agg interval above
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        Exception e = expectThrows(RuntimeException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("Could not find a rolled date_histogram configuration that satisfies the interval [1]"));
-    }
-
     public void testAvgMetric() {
         List<QueryBuilder> filterConditions = new ArrayList<>();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(ConfigTestHelpers
-                .getRollupJob("foo").setMetricsConfig(Collections.singletonList(new MetricConfig.Builder()
-                        .setField("foo")
-                        .setMetrics(Collections.singletonList("avg")).build()))
-                .build()));
         List<AggregationBuilder> translated = translateAggregation(new AvgAggregationBuilder("test_metric")
-                .field("foo"), filterConditions, namedWriteableRegistry, caps);
+                .field("foo"), filterConditions, namedWriteableRegistry);
 
         assertThat(translated.size(), equalTo(2));
         Map<String, AggregationBuilder> metrics = translated.stream()
                 .collect(Collectors.toMap(AggregationBuilder::getName, Function.identity()));
 
-        assertThat(metrics.get("test_metric"), Matchers.instanceOf(SumAggregationBuilder.class));
-        assertThat(((SumAggregationBuilder)metrics.get("test_metric")).field(),
+        assertThat(metrics.get("test_metric.value"), Matchers.instanceOf(SumAggregationBuilder.class));
+        assertThat(((SumAggregationBuilder)metrics.get("test_metric.value")).field(),
                 equalTo("foo.avg.value"));
 
         assertThat(metrics.get("test_metric._count"), Matchers.instanceOf(SumAggregationBuilder.class));
@@ -525,22 +300,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setTerms(new TermsGroupConfig.Builder()
-                                .setFields(Collections.singletonList("foo"))
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                            .setField("max_field")
-                            .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                            .setField("avg_field")
-                            .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        List<AggregationBuilder> translated = translateAggregation(terms, filterConditions, namedWriteableRegistry, caps);
+        List<AggregationBuilder> translated = translateAggregation(terms, filterConditions, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(TermsAggregationBuilder.class));
         TermsAggregationBuilder translatedHisto = (TermsAggregationBuilder)translated.get(0);
@@ -554,8 +314,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("the_max"), Matchers.instanceOf(MaxAggregationBuilder.class));
         assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
 
-        assertThat(subAggs.get("the_avg"), Matchers.instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
+        assertThat(subAggs.get("the_avg.value"), Matchers.instanceOf(SumAggregationBuilder.class));
+        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg.value");
         assertThat(avg.field(), equalTo("avg_field.avg.value"));
 
         assertThat(subAggs.get("the_avg._count"), Matchers.instanceOf(SumAggregationBuilder.class));
@@ -583,23 +343,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("foo"))
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry, caps);
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(HistogramAggregationBuilder.class));
         HistogramAggregationBuilder translatedHisto = (HistogramAggregationBuilder)translated.get(0);
@@ -613,8 +357,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("the_max"), Matchers.instanceOf(MaxAggregationBuilder.class));
         assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
 
-        assertThat(subAggs.get("the_avg"), Matchers.instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
+        assertThat(subAggs.get("the_avg.value"), Matchers.instanceOf(SumAggregationBuilder.class));
+        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg.value");
         assertThat(avg.field(), equalTo("avg_field.avg.value"));
 
         assertThat(subAggs.get("the_avg._count"), Matchers.instanceOf(SumAggregationBuilder.class));
@@ -625,18 +369,12 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(3));
+        assertThat(filterConditions.size(), equalTo(1));
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                 switch (((TermQueryBuilder) q).fieldName()) {
-                    case "foo.histogram.interval":
-                        assertThat(((TermQueryBuilder) q).value().toString(), equalTo("1"));
-                        break;
                     case "_rollup.computed":
                         assertThat(((TermQueryBuilder) q).value(), equalTo("foo.histogram"));
-                        break;
-                    case "_rollup.id":
-                        assertThat(((TermQueryBuilder) q).value(), equalTo("foo"));
                         break;
                     default:
                         fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
@@ -655,252 +393,15 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
         List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("100d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
         Exception e = expectThrows(RuntimeException.class,
-                () -> translateAggregation(geo, filterConditions, namedWriteableRegistry, caps));
+                () -> translateAggregation(geo, filterConditions, namedWriteableRegistry));
         assertThat(e.getMessage(), equalTo("Unable to translate aggregation tree into Rollup.  Aggregation [test_geo] is of type " +
                 "[GeoDistanceAggregationBuilder] which is currently unsupported."));
     }
-
-    public void testDateHistoMissingFieldInCaps() {
-        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
-                .field("foo")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("bar") // <-- NOTE different field from the one in the query
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("There is not a [date_histogram] agg with name [foo] configured in selected rollup " +
-                "indices, cannot translate aggregation."));
-    }
-
-    public void testHistoMissingFieldInCaps() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
-        histo.interval(1)
-                .field("foo")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("bar")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("baz")) // <-- NOTE note different field from one used in query
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("There is not a [histogram] agg with name [foo] configured in selected rollup " +
-                "indices, cannot translate aggregation."));
-    }
-
-    public void testHistoSameNameWrongTypeInCaps() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
-        histo.field("foo")
-                .interval(1L)
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo") // <-- NOTE same name but wrong type
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("baz")) // <-- NOTE right type but wrong name
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max")).build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg")).build()))
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("There is not a [histogram] agg with name [foo] configured in selected rollup " +
-                "indices, cannot translate aggregation."));
-    }
-
-    public void testSelectLowerHistoGranularityInterval() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
-        histo.interval(3600000)
-                .field("bar")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job1 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("bar"))
-                                .setInterval(1L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-
-        RollupJobConfig job2 = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("bar"))
-                                .setInterval(100L)
-                                .build())
-                        .build())
-                .setMetricsConfig(Arrays.asList(new MetricConfig.Builder()
-                                .setField("max_field")
-                                .setMetrics(Collections.singletonList("max"))
-                                .build(),
-                        new MetricConfig.Builder()
-                                .setField("avg_field")
-                                .setMetrics(Collections.singletonList("avg"))
-                                .build())
-                )
-                .build();
-        List<RollupJobCaps> caps = new ArrayList<>(2);
-        caps.add(new RollupJobCaps(job1));
-        caps.add(new RollupJobCaps(job2));
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry, caps);
-        assertThat(translated.size(), equalTo(1));
-        assertThat(translated.get(0), instanceOf(HistogramAggregationBuilder.class));
-        HistogramAggregationBuilder translatedHisto = (HistogramAggregationBuilder)translated.get(0);
-
-        assertThat(translatedHisto.interval(), equalTo(3600000.0));
-        assertThat(translatedHisto.field(), equalTo("bar.histogram.value"));
-        assertThat(translatedHisto.getSubAggregations().size(), equalTo(4));
-
-        Map<String, AggregationBuilder> subAggs = translatedHisto.getSubAggregations()
-                .stream().collect(Collectors.toMap(AggregationBuilder::getName, Function.identity()));
-
-        assertThat(subAggs.get("the_max"), instanceOf(MaxAggregationBuilder.class));
-        assertThat(((MaxAggregationBuilder)subAggs.get("the_max")).field(), equalTo("max_field.max.value"));
-
-        assertThat(subAggs.get("the_avg"), instanceOf(SumAggregationBuilder.class));
-        SumAggregationBuilder avg = (SumAggregationBuilder)subAggs.get("the_avg");
-        assertThat(avg.field(), equalTo("avg_field.avg.value"));
-
-        assertThat(subAggs.get("the_avg._count"), instanceOf(SumAggregationBuilder.class));
-        assertThat(((SumAggregationBuilder)subAggs.get("the_avg._count")).field(),
-                equalTo("avg_field.avg._count"));
-
-        assertThat(subAggs.get("test_histo._count"), instanceOf(SumAggregationBuilder.class));
-        assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
-                equalTo("bar.histogram._count"));
-
-        assertThat(filterConditions.size(), equalTo(3));
-
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-                if (((TermQueryBuilder) q).fieldName().equals("bar.histogram.interval")) {
-                    assertThat(((TermQueryBuilder) q).value().toString(), equalTo("1"));  // <---- should be instead of 100
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.computed")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("bar.histogram"));
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.id")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("foo"));
-                } else {
-                    fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
-    }
-
-    public void testNoMatchingHistoInterval() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
-        histo.interval(1)
-                .field("bar")
-                .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
-                .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
-                .setGroupConfig(ConfigTestHelpers.getGroupConfig()
-                        .setDateHisto(new DateHistoGroupConfig.Builder()
-                                .setInterval(new DateHistogramInterval("1d"))
-                                .setField("foo")
-                                .setTimeZone(DateTimeZone.UTC)
-                                .build())
-                        .setHisto(new HistoGroupConfig.Builder()
-                                .setFields(Collections.singletonList("bar"))
-                                .setInterval(100L) // <--- interval in job is much higher than agg interval above
-                                .build())
-                        .build())
-                .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
-
-        Exception e = expectThrows(RuntimeException.class,
-                () -> translateAggregation(histo, filterConditions, namedWriteableRegistry, caps));
-        assertThat(e.getMessage(), equalTo("Could not find a rolled histogram configuration that satisfies the interval [1.0]"));
+    
+    private Set<RollupJobCaps> singletonSet(RollupJobCaps cap) {
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        return caps;
     }
 }

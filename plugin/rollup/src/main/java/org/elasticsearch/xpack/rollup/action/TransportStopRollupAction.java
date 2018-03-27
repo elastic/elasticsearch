@@ -91,7 +91,7 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
             throw new ResourceNotFoundException("Task for Rollup Job [" + request.getId() + "] not found");
         }
 
-        assert(tasks.size() == 1);
+        assert tasks.size() == 1;
 
         boolean allStopped = tasks.stream().allMatch(StopRollupJobAction.Response::isStopped);
         return new StopRollupJobAction.Response(allStopped);

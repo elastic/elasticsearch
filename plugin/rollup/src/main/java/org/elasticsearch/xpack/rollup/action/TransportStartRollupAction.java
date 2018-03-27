@@ -93,7 +93,7 @@ public class TransportStartRollupAction extends TransportTasksAction<RollupJobTa
             throw new ResourceNotFoundException("Task for Rollup Job [" + request.getId() + "] not found");
         }
 
-        assert(tasks.size() == 1);
+        assert tasks.size() == 1;
 
         boolean allStarted = tasks.stream().allMatch(StartRollupJobAction.Response::isStarted);
         return new StartRollupJobAction.Response(allStarted);

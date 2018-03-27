@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -21,13 +20,12 @@ import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 
@@ -52,7 +50,7 @@ import java.util.function.Supplier;
  * }</pre>
  *
  *
- * The only publicly "consumable" API is {@link #translateAggregation(AggregationBuilder, List, NamedWriteableRegistry, List)}.
+ * The only publicly "consumable" API is {@link #translateAggregation(AggregationBuilder, List, NamedWriteableRegistry)}.
  */
 public class RollupRequestTranslator {
 
@@ -133,22 +131,18 @@ public class RollupRequestTranslator {
      */
     public static List<AggregationBuilder> translateAggregation(AggregationBuilder source,
                                                                 List<QueryBuilder> filterConditions,
-                                                                NamedWriteableRegistry registry,
-                                                                List<RollupJobCaps> jobCaps) {
+                                                                NamedWriteableRegistry registry) {
+
         if (source.getWriteableName().equals(DateHistogramAggregationBuilder.NAME)) {
-            validateAgg(((DateHistogramAggregationBuilder)source).field(), jobCaps, source.getWriteableName());
-            return translateDateHistogram((DateHistogramAggregationBuilder) source, filterConditions, registry, jobCaps);
+            return translateDateHistogram((DateHistogramAggregationBuilder) source, filterConditions, registry);
         } else if (source.getWriteableName().equals(HistogramAggregationBuilder.NAME)) {
-            validateAgg(((HistogramAggregationBuilder)source).field(), jobCaps, source.getWriteableName());
-            return translateHistogram((HistogramAggregationBuilder) source, filterConditions, registry, jobCaps);
-        } else if (source instanceof ValuesSourceAggregationBuilder.LeafOnly) {
-            validateAgg(((ValuesSourceAggregationBuilder.LeafOnly)source).field(), jobCaps, source.getWriteableName());
+            return translateHistogram((HistogramAggregationBuilder) source, filterConditions, registry);
+        } else if (Rollup.SUPPORTED_METRICS.contains(source.getWriteableName())) {
             return translateVSLeaf((ValuesSourceAggregationBuilder.LeafOnly)source, registry);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
-            validateAgg(((TermsAggregationBuilder)source).field(), jobCaps, source.getWriteableName());
-            return translateTerms((TermsAggregationBuilder)source, filterConditions, registry, jobCaps);
+            return translateTerms((TermsAggregationBuilder)source, filterConditions, registry);
         } else {
-            throw new RuntimeException("Unable to translate aggregation tree into Rollup.  Aggregation ["
+            throw new IllegalArgumentException("Unable to translate aggregation tree into Rollup.  Aggregation ["
                     + source.getName() + "] is of type [" + source.getClass().getSimpleName() + "] which is " +
                     "currently unsupported.");
         }
@@ -227,10 +221,9 @@ public class RollupRequestTranslator {
      */
     private static List<AggregationBuilder> translateDateHistogram(DateHistogramAggregationBuilder source,
                                                                    List<QueryBuilder> filterConditions,
-                                                                   NamedWriteableRegistry registry,
-                                                                   List<RollupJobCaps> jobCaps) {
+                                                                   NamedWriteableRegistry registry) {
         
-        return translateVSAggBuilder(source, filterConditions, registry, jobCaps, () -> {
+        return translateVSAggBuilder(source, filterConditions, registry, () -> {
             DateHistogramAggregationBuilder rolledDateHisto
                     = new DateHistogramAggregationBuilder(source.getName());
 
@@ -240,46 +233,9 @@ public class RollupRequestTranslator {
                 rolledDateHisto.interval(source.interval());
             }
 
-            TimeValue bestInterval = null;
-            String bestJob = null;
-            String bestTZ = null;
-            for (RollupJobCaps cap : jobCaps) {
-                RollupJobCaps.RollupFieldCaps fieldCaps = cap.getFieldCaps().get(source.field());
-                if (fieldCaps != null) {
-                    for (Map<String, Object> agg : fieldCaps.getAggs()) {
-                        if (agg.get("agg").equals(DateHistogramAggregationBuilder.NAME)) {
-                            TimeValue interval = TimeValue.parseTimeValue((String)agg.get(RollupField.INTERVAL), "date_histogram.interval");
-                            if (bestInterval == null || interval.compareTo(bestInterval) < 0) {
-                                bestInterval = interval;
-                                bestJob = cap.getJobID();
-                                bestTZ = (String)agg.get(DateHistoGroupConfig.TIME_ZONE.getPreferredName());
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Even though rollups only use TimeValue, the user can still pass millis as the interval in a query, so we
-            // need to check to see what we're dealing with here.
-            if (source.dateHistogramInterval() != null) {
-                TimeValue sourceInterval = TimeValue.parseTimeValue(source.dateHistogramInterval().toString(),
-                        "source.date_histogram.interval");
-                if (bestInterval == null || bestInterval.compareTo(sourceInterval) > 0) {
-                    throw new IllegalArgumentException("Could not find a rolled date_histogram configuration that satisfies the interval ["
-                            + source.dateHistogramInterval() + "]");
-                }
-            } else {
-                if (bestInterval == null || bestInterval.getMillis() > source.interval()) {
-                    throw new IllegalArgumentException("Could not find a rolled date_histogram configuration that satisfies the interval ["
-                            + source.interval() + "]");
-                }
-            }
-
-            filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source, RollupField.INTERVAL), bestInterval.toString()));
+            String timezone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
             filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source,
-                    DateHistoGroupConfig.TIME_ZONE.getPreferredName()), bestTZ));
-            filterConditions.add(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), bestJob));
+                    DateHistoGroupConfig.TIME_ZONE.getPreferredName()), timezone));
 
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {
@@ -299,42 +255,16 @@ public class RollupRequestTranslator {
      * Notably, it adds a Sum metric to calculate the doc_count in each bucket.
      *
      * Conventions are identical to a date_histogram (excepting date-specific details), so see
-     * {@link #translateDateHistogram(DateHistogramAggregationBuilder, List, NamedWriteableRegistry, List)} for
+     * {@link #translateDateHistogram(DateHistogramAggregationBuilder, List, NamedWriteableRegistry)} for
      * a complete list of conventions, examples, etc
      */
     private static List<AggregationBuilder> translateHistogram(HistogramAggregationBuilder source,
                                                                List<QueryBuilder> filterConditions,
-                                                               NamedWriteableRegistry registry,
-                                                               List<RollupJobCaps> jobCaps) {
+                                                               NamedWriteableRegistry registry) {
 
-        return translateVSAggBuilder(source, filterConditions, registry, jobCaps, () -> {
+        return translateVSAggBuilder(source, filterConditions, registry, () -> {
             HistogramAggregationBuilder rolledHisto
                     = new HistogramAggregationBuilder(source.getName());
-
-            long bestInterval = Long.MAX_VALUE;
-            String bestJob = null;
-            for (RollupJobCaps cap : jobCaps) {
-                RollupJobCaps.RollupFieldCaps fieldCaps = cap.getFieldCaps().get(source.field());
-                if (fieldCaps != null) {
-                    for (Map<String, Object> agg : fieldCaps.getAggs()) {
-                        if (agg.get("agg").equals(HistogramAggregationBuilder.NAME)) {
-                            if ((long)agg.get(RollupField.INTERVAL) < bestInterval) {
-                                bestInterval = (long)agg.get(RollupField.INTERVAL);
-                                bestJob = cap.getJobID();
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (bestInterval == Long.MAX_VALUE || bestInterval > source.interval()) {
-                throw new IllegalArgumentException("Could not find a rolled histogram configuration that satisfies the interval ["
-                        + source.interval() + "]");
-            }
-
-            filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source, RollupField.INTERVAL), bestInterval));
-            filterConditions.add(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), bestJob));
 
             rolledHisto.interval(source.interval());
             rolledHisto.offset(source.offset());
@@ -414,10 +344,9 @@ public class RollupRequestTranslator {
      */
     private static List<AggregationBuilder> translateTerms(TermsAggregationBuilder source,
                                                            List<QueryBuilder> filterConditions,
-                                                           NamedWriteableRegistry registry,
-                                                           List<RollupJobCaps> jobCaps) {
+                                                           NamedWriteableRegistry registry) {
 
-        return translateVSAggBuilder(source, filterConditions, registry, jobCaps, () -> {
+        return translateVSAggBuilder(source, filterConditions, registry, () -> {
             TermsAggregationBuilder rolledTerms
                     = new TermsAggregationBuilder(source.getName(), source.valueType());
             rolledTerms.field(RollupField.formatFieldName(source, RollupField.VALUE));
@@ -435,7 +364,7 @@ public class RollupRequestTranslator {
                 rolledTerms.shardSize(source.shardSize());
             }
             rolledTerms.showTermDocCountError(source.showTermDocCountError());
-            //rolledTerms.size(termsAgg.size()); // TODO fix in core
+            rolledTerms.size(source.size());
             return rolledTerms;
         });
     }
@@ -458,7 +387,7 @@ public class RollupRequestTranslator {
      */
     private static <T extends ValuesSourceAggregationBuilder> List<AggregationBuilder>
         translateVSAggBuilder(ValuesSourceAggregationBuilder source, List<QueryBuilder> filterConditions,
-                          NamedWriteableRegistry registry, List<RollupJobCaps> jobCaps, Supplier<T> factory) {
+                          NamedWriteableRegistry registry, Supplier<T> factory) {
 
         T rolled = factory.get();
 
@@ -470,7 +399,7 @@ public class RollupRequestTranslator {
         // Translate all subaggs and add to the newly translated agg
         // NOTE: using for loop instead of stream because compiler explodes with a bug :/
         for (AggregationBuilder subAgg : source.getSubAggregations()) {
-            List<AggregationBuilder> translated = translateAggregation(subAgg, filterConditions, registry, jobCaps);
+            List<AggregationBuilder> translated = translateAggregation(subAgg, filterConditions, registry);
             for (AggregationBuilder t : translated) {
                 rolled.subAggregation(t);
             }
@@ -505,7 +434,8 @@ public class RollupRequestTranslator {
      *
      * However, for `avg` metrics (and potentially others in the future), the agg is translated into
      * a sum + sum aggs; one for count and one for sum.  When unrolling these will be combined back into
-     * a single avg.  E.g. for an `avg` agg:
+     * a single avg.  Note that we also have to rename the avg agg name to distinguish it from empty
+     * buckets.  E.g. for an `avg` agg:
      *
      * <pre>{@code
      * {
@@ -518,7 +448,7 @@ public class RollupRequestTranslator {
      * <pre>{@code
      * [
      *   {
-     *    "the_avg": {
+     *    "the_avg.value": {
      *      "sum" : { "field" : "some_field.avg.value" }}
      *   },
      *   {
@@ -545,6 +475,7 @@ public class RollupRequestTranslator {
      * IF the agg is an AvgAgg, the following additional conventions are added:
      * <ul>
      *     <li>Agg type: becomes SumAgg, instead of AvgAgg</li>
+     *     <li>Named: {source name}.value</li>
      *     <li>Additionally, an extra SumAgg is added:</li>
      *     <li>
      *         <ul>
@@ -569,9 +500,10 @@ public class RollupRequestTranslator {
         if (metric instanceof AvgAggregationBuilder) {
             rolledMetrics = new ArrayList<>(2);
 
-            // Avg metric is translated into a MaxAgg, e.g.
-            // "the_avg" : { "field" : "some_field.avg.value" }}
-            SumAggregationBuilder value = new SumAggregationBuilder(metric.getName());
+            // Avg metric is translated into a SumAgg, e.g.
+            // Note: we change the agg name to prevent conflicts with empty buckets
+            // "the_avg.value" : { "field" : "some_field.avg.value" }}
+            SumAggregationBuilder value = new SumAggregationBuilder(RollupField.formatValueAggName(metric.getName()));
             value.field(RollupField.formatFieldName(metric, RollupField.VALUE));
             rolledMetrics.add(value);
 
@@ -604,27 +536,4 @@ public class RollupRequestTranslator {
             }
         }
     }
-
-    /**
-     * Validate the aggregation to ensure that a corresponding agg was configured in the
-     * rollup configuration for the index.  Throws an exception if a matching config is not found
-     *
-     * @param field     The field name of the agg we are validating
-     * @param jobCaps   The list of rollup caps for the indices in the request
-     * @param targetAgg The type of aggregation that this field needs to match
-     */
-    private static void validateAgg(String field, List<RollupJobCaps> jobCaps, String targetAgg) {
-        for (RollupJobCaps cap : jobCaps) {
-            if (cap.getFieldCaps().keySet().contains(field)) {
-                for (Map<String, Object> aggs : cap.getFieldCaps().get(field).getAggs()) {
-                    if (aggs.get("agg").equals(targetAgg)) {
-                        return;
-                    }
-                }
-            }
-        }
-        throw new IllegalArgumentException("There is not a [" + targetAgg + "] agg with name [" + field
-                + "] configured in selected rollup indices, cannot translate aggregation.");
-    }
-
 }

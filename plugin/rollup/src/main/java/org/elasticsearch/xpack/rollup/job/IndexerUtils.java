@@ -50,7 +50,7 @@ class IndexerUtils {
     static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats, 
                                              GroupConfig groupConfig, String jobId) {
 
-        logger.debug("Buckets: [" + agg.getBuckets().size() + "]");
+        logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");
         return agg.getBuckets().stream().map(b ->{
             stats.incrementNumDocuments(b.getDocCount());
 
@@ -61,6 +61,8 @@ class IndexerUtils {
 
             Map<String, Object> doc = new HashMap<>(keys.size() + metrics.size());
             CRC32 docId = processKeys(keys, doc, b.getDocCount(), groupConfig);
+            byte[] vs = jobId.getBytes(StandardCharsets.UTF_8);
+            docId.update(vs, 0, vs.length);
             processMetrics(metrics, doc);
 
             Set<String> computed = new HashSet<>(keys.size() + metrics.size());

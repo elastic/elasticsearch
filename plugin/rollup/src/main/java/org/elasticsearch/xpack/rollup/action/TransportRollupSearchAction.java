@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -22,7 +23,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -48,17 +53,22 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.rollup.Rollup;
-import org.elasticsearch.xpack.core.rollup.RollupField;
+import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
 import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
@@ -88,73 +98,73 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
-        Triple<String[], String[], List<RollupJobCaps>> indices = separateIndices(request.indices(),
+        RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
                 clusterService.state().getMetaData().indices());
 
-        MultiSearchRequest msearch = createMSearchRequest(request, registry, indices.v1(), indices.v2(), indices.v3());
+        MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
             InternalAggregation.ReduceContext context
                     = new InternalAggregation.ReduceContext(bigArrays, scriptService, false);
-            listener.onResponse(processResponses(indices, msearchResponse, context));
+            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
         }, listener::onFailure));
     }
 
-    static SearchResponse processResponses(Triple<String[], String[], List<RollupJobCaps>> indices, MultiSearchResponse msearchResponse,
-                                           InternalAggregation.ReduceContext context) {
-        if (indices.v1.length > 0 && indices.v2.length > 0) {
+    static SearchResponse processResponses(RollupSearchContext rollupContext, MultiSearchResponse msearchResponse,
+                                           InternalAggregation.ReduceContext reduceContext) {
+        if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            assert(msearchResponse.getResponses().length == 2);
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses()[0], msearchResponse.getResponses()[1], context);
-        } else if (indices.v1.length > 0) {
+            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);
+        } else if (rollupContext.hasLiveIndices()) {
             // Only live
-            assert(msearchResponse.getResponses().length == 1);
+            assert msearchResponse.getResponses().length == 1;
             return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
-        } else {
+        } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            assert(msearchResponse.getResponses().length == 1);
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses()[0], context);
+            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContext);
         }
+        throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }
 
-    static MultiSearchRequest createMSearchRequest(SearchRequest request, NamedWriteableRegistry registry,
-                                                   String[] normalIndices, String[] rollupIndices,
-                                                   List<RollupJobCaps> jobCaps) {
+    static MultiSearchRequest createMSearchRequest(SearchRequest request, NamedWriteableRegistry registry, RollupSearchContext context) {
 
-        if (normalIndices.length == 0 && rollupIndices.length == 0) {
+        if (context.hasLiveIndices() == false && context.hasRollupIndices() == false) {
             // Don't support _all on everything right now, for code simplicity
             throw new IllegalArgumentException("Must specify at least one rollup index in _rollup_search API");
-        } else if (rollupIndices.length == 0) {
+        } else if (context.hasLiveIndices() && context.hasRollupIndices() == false) {
             // not best practice, but if the user accidentally only sends "normal" indices we can support that
             logger.debug("Creating msearch with only normal request");
-            final SearchRequest originalRequest = new SearchRequest(normalIndices, request.source());
+            final SearchRequest originalRequest = new SearchRequest(context.getLiveIndices(), request.source());
             return new MultiSearchRequest().add(originalRequest);
         }
 
         // Rollup only supports a limited subset of the search API, validate and make sure
         // nothing is set that we can't support
         validateSearchRequest(request);
-        QueryBuilder rewritten = rewriteQuery(request.source().query(), jobCaps);
 
         // The original request is added as-is (if normal indices exist), minus the rollup indices
-        final SearchRequest originalRequest = new SearchRequest(normalIndices, request.source());
+        final SearchRequest originalRequest = new SearchRequest(context.getLiveIndices(), request.source());
         MultiSearchRequest msearch = new MultiSearchRequest();
-        if (normalIndices.length != 0) {
+        if (context.hasLiveIndices()) {
             msearch.add(originalRequest);
         }
 
         SearchSourceBuilder rolledSearchSource = new SearchSourceBuilder();
-        rolledSearchSource.query(rewritten);
         rolledSearchSource.size(0);
         AggregatorFactories.Builder sourceAgg = request.source().aggregations();
+
+        // Find our list of "best" job caps
+        Set<RollupJobCaps> validatedCaps = new HashSet<>();
+        sourceAgg.getAggregatorFactories()
+                .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
+        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
             List<QueryBuilder> filterConditions = new ArrayList<>(5);
-            filterConditions.addAll(mandatoryFilterConditions());
 
             // Translate the agg tree, and collect any potential filtering clauses
-            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, filterConditions, registry, jobCaps);
+            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, filterConditions, registry);
 
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             filterConditions.forEach(boolQuery::must);
@@ -163,13 +173,49 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             translatedAgg.forEach(filterAgg::subAggregation);
             rolledSearchSource.aggregation(filterAgg);
         }
-        SearchRequest rolledSearch = new SearchRequest(rollupIndices, rolledSearchSource)
-                .types(request.types());
-        msearch.add(rolledSearch);
 
-        logger.debug("Original query\n" + request.toString());
-        logger.debug("Translated rollup query:\n" + rolledSearch.toString());
+        // Rewrite the user's query to our internal conventions, checking against the validated job caps
+        QueryBuilder rewritten = rewriteQuery(request.source().query(), validatedCaps);
+
+        for (String id : jobIds) {
+            SearchSourceBuilder copiedSource;
+            try {
+                copiedSource = copyWriteable(rolledSearchSource, registry, SearchSourceBuilder::new);
+            } catch (IOException e) {
+                throw new RuntimeException("Encountered IO exception while trying to build rollup request.", e);
+            }
+
+            // filter the rewritten query by JobID
+            copiedSource.query(new BoolQueryBuilder()
+                    .must(rewritten)
+                    .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), id))
+                    .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION)));
+
+            // And add a new msearch per JobID
+            msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));
+        }
+
         return msearch;
+    }
+
+    /**
+     * Lifted from ESTestCase :s  Don't reuse this anywhere!
+     *
+     * Create a copy of an original {@link SearchSourceBuilder} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
+     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too
+     */
+    private static SearchSourceBuilder copyWriteable(SearchSourceBuilder original, NamedWriteableRegistry namedWriteableRegistry,
+                                                        Writeable.Reader<SearchSourceBuilder> reader) throws IOException {
+        Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.CURRENT);
+            writer.write(output, original);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setVersion(Version.CURRENT);
+                return reader.read(in);
+            }
+        }
     }
 
     static void validateSearchRequest(SearchRequest request) {
@@ -205,9 +251,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static QueryBuilder rewriteQuery(QueryBuilder builder, List<RollupJobCaps> jobCaps) {
+    static QueryBuilder rewriteQuery(QueryBuilder builder, Set<RollupJobCaps> jobCaps) {
         if (builder == null) {
-            return null;
+            return new MatchAllQueryBuilder();
         }
         if (builder.getWriteableName().equals(BoolQueryBuilder.NAME)) {
             BoolQueryBuilder rewrittenBool = new BoolQueryBuilder();
@@ -239,15 +285,23 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         return fieldCaps.getAggs().stream()
                             // For now, we only allow filtering on grouping fields
                             .filter(agg -> {
-                                String type = (String)agg.get("agg");
+                                String type = (String)agg.get(RollupField.AGG);
                                 return type.equals(TermsAggregationBuilder.NAME)
                                         || type.equals(DateHistogramAggregationBuilder.NAME)
                                         || type.equals(HistogramAggregationBuilder.NAME);
                             })
-                            // Rewrite the field name to our convention (e.g. "foo" -> "date_histogram.foo.value")
-                            .map(agg -> RollupField.formatFieldName(fieldName, (String)agg.get("agg"), RollupField.VALUE))
+                            // Rewrite the field name to our convention (e.g. "foo" -> "date_histogram.foo.timestamp")
+                            .map(agg -> {
+                                if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
+                                    return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.TIMESTAMP);
+                                } else {
+                                    return RollupField.formatFieldName(fieldName, (String)agg.get(RollupField.AGG), RollupField.VALUE);
+                                }
+                            })
                             .collect(Collectors.toList());
-                    }).collect(ArrayList::new, List::addAll, List::addAll);
+                    })
+                    .distinct()
+                    .collect(ArrayList::new, List::addAll, List::addAll);
 
             if (rewrittenFieldName.isEmpty()) {
                 throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builder.getWriteableName()
@@ -283,8 +337,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static Triple<String[], String[], List<RollupJobCaps>> separateIndices(String[] indices,
-                                                                                   ImmutableOpenMap<String, IndexMetaData> indexMetaData) {
+    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetaData> indexMetaData) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");
@@ -292,7 +345,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         List<String> rollup = new ArrayList<>();
         List<String> normal = new ArrayList<>();
-        List<RollupJobCaps>  jobCaps = new ArrayList<>();
+        Set<RollupJobCaps>  jobCaps = new HashSet<>();
         Arrays.stream(indices).forEach(i -> {
             if (i.equals(MetaData.ALL)) {
                 throw new IllegalArgumentException("Searching _all via RollupSearch endpoint is not supported at this time.");
@@ -305,8 +358,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                 normal.add(i);
             }
         });
-        assert(normal.size() + rollup.size() > 0);
-        return new Triple<>(normal.toArray(new String[normal.size()]), rollup.toArray(new String[rollup.size()]), jobCaps);
+        assert normal.size() + rollup.size() > 0;
+        if (rollup.size() > 1) {
+            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time.");
+        }
+        return new RollupSearchContext(normal.toArray(new String[normal.size()]), rollup.toArray(new String[rollup.size()]), jobCaps);
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {
@@ -347,69 +403,37 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    /**
-     * Adds various filter conditions that apply to the entire rollup query, such
-     * as the rollup hash and rollup version
-     */
-    private static List<QueryBuilder> mandatoryFilterConditions() {
-        List<QueryBuilder> conditions = new ArrayList<>(1);
-        conditions.add(new TermQueryBuilder(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD, Rollup.ROLLUP_VERSION));
-        return conditions;
-    }
+    static class RollupSearchContext {
+        private final String[] liveIndices;
+        private final String[] rollupIndices;
+        private final Set<RollupJobCaps> jobCaps;
 
-
-    static class Triple<V1, V2, V3> {
-
-        public static <V1, V2, V3> Triple<V1, V2, V3> triple(V1 v1, V2 v2, V3 v3) {
-            return new Triple<>(v1, v2, v3);
+        RollupSearchContext(String[] liveIndices, String[] rollupIndices, Set<RollupJobCaps> jobCaps) {
+            this.liveIndices = Objects.requireNonNull(liveIndices);
+            this.rollupIndices = Objects.requireNonNull(rollupIndices);
+            this.jobCaps = Objects.requireNonNull(jobCaps);
         }
 
-        private final V1 v1;
-        private final V2 v2;
-        private final V3 v3;
-
-        Triple(V1 v1, V2 v2, V3 v3) {
-            this.v1 = v1;
-            this.v2 = v2;
-            this.v3 = v3;
+        boolean hasLiveIndices() {
+            return liveIndices.length != 0;
         }
 
-        public V1 v1() {
-            return v1;
+        boolean hasRollupIndices() {
+            return rollupIndices.length != 0;
         }
 
-        public V2 v2() {
-            return v2;
+        String[] getLiveIndices() {
+            return liveIndices;
         }
 
-        public V3 v3() {
-            return v3;
+        String[] getRollupIndices() {
+            return rollupIndices;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            Triple<?,?,?> triple = (Triple) o;
-
-            if (v1 != null ? !v1.equals(triple.v1) : triple.v1 != null) return false;
-            if (v2 != null ? !v2.equals(triple.v2) : triple.v2 != null) return false;
-            if (v3 != null ? !v3.equals(triple.v3) : triple.v3 != null) return false;
-            return true;
+        Set<RollupJobCaps> getJobCaps() {
+            return jobCaps;
         }
 
-        @Override
-        public int hashCode() {
-            int result = v1 != null ? v1.hashCode() : 0;
-            result = 31 * result + (v2 != null ? v2.hashCode() : 0) + (v3 != null ? v3.hashCode() : 0);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "Tuple [v1=" + v1 + ", v2=" + v2 + ", v3=" + v3 + "]";
-        }
     }
 }
 

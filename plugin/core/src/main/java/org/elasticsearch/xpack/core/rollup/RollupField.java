@@ -20,6 +20,7 @@ public class RollupField {
     public static final String TIMESTAMP = "timestamp";
     public static final String FILTER = "filter";
     public static final String NAME = "rollup";
+    public static final String AGG = "agg";
 
     /**
      * Format to the appropriate Rollup field name convention
@@ -57,6 +58,15 @@ public class RollupField {
      */
     public static String formatCountAggName(String field) {
         return field + "." + RollupField.COUNT_FIELD;
+    }
+
+    /**
+     * Format to the appropriate Rollup convention for agg names that
+     * might conflict with empty buckets.  `value` is appended to agg name.
+     * E.g. used for averages
+     */
+    public static String formatValueAggName(String field) {
+        return field + "." + RollupField.VALUE;
     }
 
     /**

@@ -381,7 +381,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
 
         List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupJobStats(), groupConfig.build(), "foo");
         assertThat(docs.size(), equalTo(1));
-        assertThat(docs.get(0).id(), equalTo("2233159223"));
+        assertThat(docs.get(0).id(), equalTo("1237859798"));
     }
 
     interface Mock {

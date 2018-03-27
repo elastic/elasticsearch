@@ -28,9 +28,11 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistoGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
 import org.joda.time.DateTimeZone;
 import org.mockito.Mockito;
@@ -60,20 +63,35 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.COUNT_FIELD;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
 public class SearchActionTests extends ESTestCase {
 
+    private NamedWriteableRegistry namedWriteableRegistry;
+    public void setUp() throws Exception {
+        super.setUp();
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        namedWriteableRegistry = new NamedWriteableRegistry(entries);
+    }
+
     public void testNonZeroSize() {
         String[] normalIndices = new String[]{randomAlphaOfLength(10)};
         String[] rollupIndices = new String[]{randomAlphaOfLength(10)};
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(new MatchAllQueryBuilder());
         source.size(100);
@@ -81,37 +99,28 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(normalIndices, source);
         NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.createMSearchRequest(request, registry,
-                        normalIndices, rollupIndices, Collections.emptyList()));
+                () -> TransportRollupSearchAction.createMSearchRequest(request, registry, ctx));
         assertThat(e.getMessage(), equalTo("Rollup does not support returning search hits, please try again with [size: 0]."));
     }
 
     public void testBadQuery() {
-        String[] normalIndices = new String[]{randomAlphaOfLength(10)};
-        String[] rollupIndices = new String[]{randomAlphaOfLength(10)};
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(new MatchPhraseQueryBuilder("foo", "bar"));
         source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo").interval(123));
         source.size(0);
-        SearchRequest request = new SearchRequest(normalIndices, source);
-        NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.createMSearchRequest(request, registry,
-                        normalIndices, rollupIndices, Collections.emptyList()));
-        assertThat(e.getMessage(), equalTo("Unsupported Query in search request: [match_phrase]"));
-
-        e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.rewriteQuery(new MatchPhraseQueryBuilder("foo", "bar"), Collections.emptyList()));
+                () -> TransportRollupSearchAction.rewriteQuery(new MatchPhraseQueryBuilder("foo", "bar"), Collections.emptySet()));
         assertThat(e.getMessage(), equalTo("Unsupported Query in search request: [match_phrase]"));
     }
 
     public void testRange() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(ConfigTestHelpers.getDateHisto().setField("foo").build());
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
         QueryBuilder rewritten = null;
         try {
             rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
@@ -119,7 +128,7 @@ public class SearchActionTests extends ESTestCase {
             fail("Should not have thrown exception when parsing query.");
         }
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.value"));
+        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
 
     public void testTerms() {
@@ -128,7 +137,8 @@ public class SearchActionTests extends ESTestCase {
         group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build());
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
         QueryBuilder rewritten = null;
         try {
             rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
@@ -142,10 +152,11 @@ public class SearchActionTests extends ESTestCase {
     public void testCompounds() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(ConfigTestHelpers.getDateHisto().setField("foo").build());
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
 
         BoolQueryBuilder builder = new BoolQueryBuilder();
         builder.must(getQueryBuilder(2));
@@ -162,10 +173,11 @@ public class SearchActionTests extends ESTestCase {
     public void testMatchAll() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(ConfigTestHelpers.getDateHisto().setField("foo").build());
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
         try {
             QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new MatchAllQueryBuilder(), caps);
             assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
@@ -177,18 +189,19 @@ public class SearchActionTests extends ESTestCase {
     public void testAmbiguousResolution() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(ConfigTestHelpers.getDateHisto().setField("foo").build());
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         group.setTerms(ConfigTestHelpers.getTerms().setFields(Collections.singletonList("foo")).build()).build();
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps));
         assertThat(e.getMessage(), equalTo("Ambiguous field name resolution when mapping to rolled fields.  " +
-                "Field name [foo] was mapped to: [foo.date_histogram.value,foo.terms.value]."));
+                "Field name [foo] was mapped to: [foo.date_histogram.timestamp,foo.terms.value]."));
     }
 
-    private QueryBuilder getQueryBuilder(int levels) {
+    public static QueryBuilder getQueryBuilder(int levels) {
         if (levels == 0) {
             return ESTestCase.randomBoolean() ? new MatchAllQueryBuilder() : new RangeQueryBuilder("foo").gt(1);
         }
@@ -222,6 +235,8 @@ public class SearchActionTests extends ESTestCase {
     public void testPostFilter() {
         String[] normalIndices = new String[]{randomAlphaOfLength(10)};
         String[] rollupIndices = new String[]{randomAlphaOfLength(10)};
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo").interval(123));
         source.postFilter(new TermQueryBuilder("foo", "bar"));
@@ -229,8 +244,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(normalIndices, source);
         NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.createMSearchRequest(request, registry,
-                        normalIndices, rollupIndices, Collections.emptyList()));
+                () -> TransportRollupSearchAction.createMSearchRequest(request, registry, ctx));
         assertThat(e.getMessage(), equalTo("Rollup search does not support post filtering."));
     }
 
@@ -281,28 +295,62 @@ public class SearchActionTests extends ESTestCase {
     public void testNoAgg() {
         String[] normalIndices = new String[]{randomAlphaOfLength(10)};
         String[] rollupIndices = new String[]{randomAlphaOfLength(10)};
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(new MatchAllQueryBuilder());
         source.size(0);
         SearchRequest request = new SearchRequest(normalIndices, source);
         NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TransportRollupSearchAction.createMSearchRequest(request, registry,
-                        normalIndices, rollupIndices, Collections.emptyList()));
+                () -> TransportRollupSearchAction.createMSearchRequest(request, registry, ctx));
         assertThat(e.getMessage(), equalTo("Rollup requires at least one aggregation to be set."));
+    }
+
+    public void testNoLiveNoRollup() {
+        String[] normalIndices = new String[0];
+        String[] rollupIndices = new String[0];
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(new MatchAllQueryBuilder());
+        source.size(0);
+        SearchRequest request = new SearchRequest(normalIndices, source);
+        NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
+        Exception e = expectThrows(IllegalArgumentException.class,
+                () -> TransportRollupSearchAction.createMSearchRequest(request, registry, ctx));
+        assertThat(e.getMessage(), equalTo("Must specify at least one rollup index in _rollup_search API"));
+    }
+
+    public void testLiveOnlyCreateMSearch() {
+        String[] normalIndices = new String[]{randomAlphaOfLength(10)};
+        String[] rollupIndices = new String[0];
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, Collections.emptySet());
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(new MatchAllQueryBuilder());
+        source.size(0);
+        SearchRequest request = new SearchRequest(normalIndices, source);
+        NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, registry, ctx);
+        assertThat(msearch.requests().size(), equalTo(1));
+        assertThat(msearch.requests().get(0), equalTo(request));
     }
 
     public void testGood() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
         GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
-        group.setDateHisto(ConfigTestHelpers.getDateHisto().setField("foo").build());
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build());
         job.setGroupConfig(group.build());
         RollupJobCaps cap = new RollupJobCaps(job.build());
-        List<RollupJobCaps> caps = Collections.singletonList(cap);
+        Set<RollupJobCaps> caps = singletonSet(cap);
 
         String[] normalIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
         String[] rollupIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
         String[] combinedIndices = new String[]{normalIndices[0], rollupIndices[0]};
+
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, caps);
 
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(getQueryBuilder(1));
@@ -310,10 +358,8 @@ public class SearchActionTests extends ESTestCase {
         source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(job.getGroupConfig().getDateHisto().getInterval()));
         SearchRequest request = new SearchRequest(combinedIndices, source);
-        NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
 
-        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, registry,
-                normalIndices, rollupIndices, caps);
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, namedWriteableRegistry, ctx);
         assertThat(msearch.requests().size(), equalTo(2));
         assertThat(msearch.requests().get(0), equalTo(new SearchRequest(normalIndices, request.source())));
 
@@ -337,7 +383,6 @@ public class SearchActionTests extends ESTestCase {
         source.size(0);
         source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo").dateHistogramInterval(new DateHistogramInterval("1d")));
         SearchRequest request = new SearchRequest(combinedIndices, source);
-        NamedWriteableRegistry registry = mock(NamedWriteableRegistry.class);
 
         RollupJobConfig job = ConfigTestHelpers.getRollupJob("foo")
                 .setGroupConfig(ConfigTestHelpers.getGroupConfig()
@@ -348,10 +393,12 @@ public class SearchActionTests extends ESTestCase {
                                 .build())
                         .build())
                 .build();
-        List<RollupJobCaps> caps = Collections.singletonList(new RollupJobCaps(job));
+        Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
 
-        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, registry,
-                normalIndices, rollupIndices, caps);
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, caps);
+
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, namedWriteableRegistry, ctx);
         assertThat(msearch.requests().size(), equalTo(2));
         assertThat(msearch.requests().get(0), equalTo(new SearchRequest(normalIndices, request.source())));
 
@@ -363,6 +410,114 @@ public class SearchActionTests extends ESTestCase {
         assertThat(rollup.indices().length, equalTo(1));
         assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
         assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+    }
+
+    public void testTwoMatchingJobs() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
+                .setHisto(null)
+                .setTerms(null);
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+
+        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
+        job2.setGroupConfig(group.build());
+
+        // so that the jobs aren't exactly equal
+        job2.setMetricsConfig(Collections.singletonList(ConfigTestHelpers.getMetricConfig().build()));
+        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+
+        Set<RollupJobCaps> caps = new HashSet<>(2);
+        caps.add(cap);
+        caps.add(cap2);
+
+        String[] normalIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
+        String[] rollupIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
+        String[] combinedIndices = new String[]{normalIndices[0], rollupIndices[0]};
+
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, caps);
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(getQueryBuilder(1));
+        source.size(0);
+        source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo")
+                .dateHistogramInterval(job.getGroupConfig().getDateHisto().getInterval()));
+        SearchRequest request = new SearchRequest(combinedIndices, source);
+
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, namedWriteableRegistry, ctx);
+        assertThat(msearch.requests().size(), equalTo(2));
+
+        assertThat(msearch.requests().get(0), equalTo(new SearchRequest(normalIndices, request.source())));
+        SearchRequest normal = msearch.requests().get(0);
+        assertThat(normal.indices().length, equalTo(1));
+        assertThat(normal.indices()[0], equalTo(normalIndices[0]));
+
+        SearchRequest rollup = msearch.requests().get(1);
+        assertThat(rollup.indices().length, equalTo(1));
+        assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
+        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+
+        assertThat(msearch.requests().size(), equalTo(2));
+    }
+
+    public void testTwoMatchingJobsOneBetter() {
+        RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
+        GroupConfig.Builder group = ConfigTestHelpers.getGroupConfig();
+        group.setDateHisto(new DateHistoGroupConfig.Builder().setField("foo").setInterval(new DateHistogramInterval("1h")).build())
+            .setHisto(null)
+            .setTerms(null);
+        job.setGroupConfig(group.build());
+        RollupJobCaps cap = new RollupJobCaps(job.build());
+
+        RollupJobConfig.Builder job2 = ConfigTestHelpers.getRollupJob("foo2").setRollupIndex(job.getRollupIndex());
+        GroupConfig.Builder group2 = ConfigTestHelpers.getGroupConfig();
+        group2.setDateHisto(group.getDateHisto())
+                .setHisto(ConfigTestHelpers.getHisto().build())
+                .setTerms(null);
+        job2.setGroupConfig(group2.build());
+        RollupJobCaps cap2 = new RollupJobCaps(job2.build());
+
+        Set<RollupJobCaps> caps = new HashSet<>(2);
+        caps.add(cap);
+        caps.add(cap2);
+
+        String[] normalIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
+        String[] rollupIndices = new String[]{ESTestCase.randomAlphaOfLength(10)};
+        String[] combinedIndices = new String[]{normalIndices[0], rollupIndices[0]};
+
+        TransportRollupSearchAction.RollupSearchContext ctx
+                = new TransportRollupSearchAction.RollupSearchContext(normalIndices, rollupIndices, caps);
+
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.query(getQueryBuilder(1));
+        source.size(0);
+        source.aggregation(new DateHistogramAggregationBuilder("foo").field("foo")
+                .dateHistogramInterval(job.getGroupConfig().getDateHisto().getInterval()));
+        SearchRequest request = new SearchRequest(combinedIndices, source);
+
+        MultiSearchRequest msearch = TransportRollupSearchAction.createMSearchRequest(request, namedWriteableRegistry, ctx);
+        assertThat(msearch.requests().size(), equalTo(2));
+
+        assertThat(msearch.requests().get(0), equalTo(new SearchRequest(normalIndices, request.source())));
+        SearchRequest normal = msearch.requests().get(0);
+        assertThat(normal.indices().length, equalTo(1));
+        assertThat(normal.indices()[0], equalTo(normalIndices[0]));
+
+        SearchRequest rollup = msearch.requests().get(1);
+        assertThat(rollup.indices().length, equalTo(1));
+        assertThat(rollup.indices()[0], equalTo(rollupIndices[0]));
+        assert(rollup.source().aggregations().getAggregatorFactories().get(0) instanceof FilterAggregationBuilder);
+
+
+        // The executed query should match the first job ("foo") because the second job contained a histo and the first didn't,
+        // so the first job will be "better"
+        BoolQueryBuilder bool1 = new BoolQueryBuilder()
+                .must(TransportRollupSearchAction.rewriteQuery(request.source().query(), caps))
+                .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.ID.getPreferredName()), "foo"))
+                .filter(new TermQueryBuilder(RollupField.formatMetaField(RollupField.VERSION_FIELD), Rollup.ROLLUP_VERSION));
+        assertThat(msearch.requests().get(1).source().query(), equalTo(bool1));
     }
 
     public void testNoIndicesToSeparate() {
@@ -383,11 +538,11 @@ public class SearchActionTests extends ESTestCase {
     public void testEmptyMetadata() {
         String[] indices = new String[]{"foo", "bar"};
         ImmutableOpenMap<String, IndexMetaData> meta = ImmutableOpenMap.<String, IndexMetaData>builder().build();
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> result
+        TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta);
-        assertThat(result.v1().length, equalTo(2));
-        assertThat(result.v2().length, equalTo(0));
-        assertThat(result.v3().size(), equalTo(0));
+        assertThat(result.getLiveIndices().length, equalTo(2));
+        assertThat(result.getRollupIndices().length, equalTo(0));
+        assertThat(result.getJobCaps().size(), equalTo(0));
     }
 
     public void testNoMatchingIndexInMetadata() {
@@ -395,11 +550,11 @@ public class SearchActionTests extends ESTestCase {
         IndexMetaData indexMetaData = mock(IndexMetaData.class);
         ImmutableOpenMap.Builder<String, IndexMetaData> meta = ImmutableOpenMap.builder(1);
         meta.put("bar", indexMetaData);
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> result
+        TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta.build());
-        assertThat(result.v1().length, equalTo(1));
-        assertThat(result.v2().length, equalTo(0));
-        assertThat(result.v3().size(), equalTo(0));
+        assertThat(result.getLiveIndices().length, equalTo(1));
+        assertThat(result.getRollupIndices().length, equalTo(0));
+        assertThat(result.getJobCaps().size(), equalTo(0));
     }
 
     public void testMatchingIndexInMetadata() throws IOException {
@@ -421,20 +576,20 @@ public class SearchActionTests extends ESTestCase {
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", meta);
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> result
+        TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
-        assertThat(result.v1().length, equalTo(0));
-        assertThat(result.v2().length, equalTo(1));
-        assertThat(result.v2()[0], equalTo("foo"));
-        assertThat(result.v3().size(), equalTo(1));
+        assertThat(result.getLiveIndices().length, equalTo(0));
+        assertThat(result.getRollupIndices().length, equalTo(1));
+        assertThat(result.getRollupIndices()[0], equalTo("foo"));
+        assertThat(result.getJobCaps().size(), equalTo(1));
     }
 
-    public void testLiveOnly() {
+    public void testLiveOnlyProcess() {
         String[] indices = new String[]{"foo"};
         IndexMetaData indexMetaData = mock(IndexMetaData.class);
         ImmutableOpenMap.Builder<String, IndexMetaData> meta = ImmutableOpenMap.builder(1);
         meta.put("bar", indexMetaData);
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> result
+        TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, meta.build());
 
         SearchResponse response = mock(SearchResponse.class);
@@ -465,7 +620,7 @@ public class SearchActionTests extends ESTestCase {
 
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(1);
         metaMap.put("foo", indexMeta);
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> result
+        TransportRollupSearchAction.RollupSearchContext result
                 = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
 
         SearchResponse response = mock(SearchResponse.class);
@@ -510,6 +665,41 @@ public class SearchActionTests extends ESTestCase {
         assertThat(avg.getValue(), IsEqual.equalTo(5.0));
     }
 
+    public void testTooManyRollups() throws IOException {
+        String[] indices = new String[]{"foo", "bar"};
+
+        String jobName = randomAlphaOfLength(5);
+        RollupJobConfig job = ConfigTestHelpers.getRollupJob(jobName).build();
+
+        MappingMetaData mappingMeta = new MappingMetaData(RollupField.NAME,
+                Collections.singletonMap(RollupField.NAME,
+                        Collections.singletonMap("_meta",
+                                Collections.singletonMap(RollupField.ROLLUP_META,
+                                        Collections.singletonMap(jobName, job)))));
+
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
+        mappings.put(RollupField.NAME, mappingMeta);
+        IndexMetaData indexMeta = Mockito.mock(IndexMetaData.class);
+        when(indexMeta.getMappings()).thenReturn(mappings.build());
+
+        ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
+        metaMap.put("foo", indexMeta);
+        metaMap.put("bar", indexMeta);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TransportRollupSearchAction.separateIndices(indices, metaMap.build()));
+        assertThat(e.getMessage(), equalTo("RollupSearch currently only supports searching one rollup index at a time."));
+    }
+
+    public void testEmptyMsearch() {
+        TransportRollupSearchAction.RollupSearchContext result
+                = new TransportRollupSearchAction.RollupSearchContext(new String[0], new String[0], Collections.emptySet());
+        MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[0], 1);
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> TransportRollupSearchAction.processResponses(result,
+                msearchResponse, mock(InternalAggregation.ReduceContext.class)));
+        assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
+    }
+
     public void testBoth() throws IOException {
         String[] indices = new String[]{"foo", "bar"};
 
@@ -537,7 +727,7 @@ public class SearchActionTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, IndexMetaData> metaMap = ImmutableOpenMap.builder(2);
         metaMap.put("foo", indexMeta);
         metaMap.put("bar", liveIndexMeta);
-        TransportRollupSearchAction.Triple<String[], String[], List<RollupJobCaps>> separateIndices
+        TransportRollupSearchAction.RollupSearchContext separateIndices
                 = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
 
 
@@ -598,5 +788,11 @@ public class SearchActionTests extends ESTestCase {
         Avg avg = responseAggs.get("foo");
         assertThat(avg.getValue(), IsEqual.equalTo(5.0));
 
+    }
+
+    private Set<RollupJobCaps> singletonSet(RollupJobCaps cap) {
+        Set<RollupJobCaps> caps = new HashSet<>();
+        caps.add(cap);
+        return caps;
     }
 }

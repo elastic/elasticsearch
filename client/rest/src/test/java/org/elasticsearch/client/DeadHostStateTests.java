@@ -50,13 +50,13 @@ public class DeadHostStateTests extends RestClientTestCase {
     }
 
     public void testCompareToDefaultTimeSupplier() {
-        int numObjects = randomIntBetween(5, 30);
+        int numObjects = randomIntBetween(EXPECTED_TIMEOUTS_SECONDS.length, 30);
         DeadHostState[] deadHostStates = new DeadHostState[numObjects];
         for (int i = 0; i < numObjects; i++) {
             if (i == 0) {
                 deadHostStates[i] = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
             } else {
-                deadHostStates[i] = new DeadHostState(deadHostStates[i], DeadHostState.TimeSupplier.DEFAULT);
+                deadHostStates[i] = new DeadHostState(deadHostStates[i - 1], DeadHostState.TimeSupplier.DEFAULT);
             }
         }
         for (int k = 1; k < deadHostStates.length; k++) {

@@ -64,8 +64,6 @@ public class PolicyStepsRegistry {
         }
     }
 
-    public Lifecycle
-
     /**
      * returns the {@link Step} that matches the name and
      * policy specified. This is used by {@link ClusterState}

@@ -407,12 +407,9 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                        logger.warn(() -> new ParameterizedMessage(
                                 "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                shard.shardId(),
-                                request.targetNode()),
-                            corruptIndexException);
+                                shard.shardId(), request.targetNode()), corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -681,13 +678,9 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                            logger.warn(() -> new ParameterizedMessage(
                                     "{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    shardId,
-                                    request.targetNode(),
-                                    md),
-                                corruptIndexException);
+                                    shardId, request.targetNode(), md), corruptIndexException);
                             throw exception;
                         }
                     } else {

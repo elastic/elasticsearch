@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,8 +39,15 @@ import static org.elasticsearch.action.admin.indices.validate.query.QueryExplana
  */
 public class ValidateQueryResponse extends BroadcastResponse {
 
+    public static final String INDEX_FIELD = "index";
+    public static final String SHARD_FIELD = "shard";
+    public static final String VALID_FIELD = "valid";
+    public static final String EXPLANATIONS_FIELD = "explanations";
+    public static final String ERROR_FIELD = "error";
+    public static final String EXPLANATION_FIELD = "explanation";
+
     private boolean valid;
-    
+
     private List<QueryExplanation> queryExplanations;
 
     ValidateQueryResponse() {
@@ -95,5 +103,31 @@ public class ValidateQueryResponse extends BroadcastResponse {
             exp.writeTo(out);
         }
 
+    }
+
+    @Override
+    protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(VALID_FIELD, isValid());
+        if (getQueryExplanation() != null && !getQueryExplanation().isEmpty()) {
+            builder.startArray(EXPLANATIONS_FIELD);
+            for (QueryExplanation explanation : getQueryExplanation()) {
+                builder.startObject();
+                if (explanation.getIndex() != null) {
+                    builder.field(INDEX_FIELD, explanation.getIndex());
+                }
+                if(explanation.getShard() >= 0) {
+                    builder.field(SHARD_FIELD, explanation.getShard());
+                }
+                builder.field(VALID_FIELD, explanation.isValid());
+                if (explanation.getError() != null) {
+                    builder.field(ERROR_FIELD, explanation.getError());
+                }
+                if (explanation.getExplanation() != null) {
+                    builder.field(EXPLANATION_FIELD, explanation.getExplanation());
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+        }
     }
 }

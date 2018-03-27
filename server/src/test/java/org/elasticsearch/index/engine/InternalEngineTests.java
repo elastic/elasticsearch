@@ -4474,21 +4474,14 @@ public class InternalEngineTests extends EngineTestCase {
         final AtomicLong clock = new AtomicLong(0);
         threadPool = spy(threadPool);
         when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
-        final EngineConfig config = engine.config();
         final long gcInterval = randomIntBetween(0, 10);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder().put(indexSettings.getSettings())
                 .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(gcInterval).getStringRep())).build();
         indexSettings.updateIndexMetaData(indexMetaData);
-
         try (Store store = createStore();
-             InternalEngine engine = createEngine(new EngineConfig(config.getShardId(), config.getAllocationId(), threadPool,
-                 indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
-                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-                 config.getTranslogConfig(), config.getFlushMergesAfter(), config.getExternalRefreshListener(), Collections.emptyList(),
-                 config.getIndexSort(), config.getTranslogRecoveryRunner(), config.getCircuitBreakerService(),
-                 config.getGlobalCheckpointSupplier()))) {
+             InternalEngine engine = createEngine(store, createTempDir())) {
             engine.config().setEnableGcDeletes(false);
             for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
                 index(engine, i);

@@ -132,8 +132,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAlphaOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC))
-                    .setIgnoreUnmapped(hqb.ignoreUnmapped()));
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
         }
         return hqb;
     }
@@ -254,10 +253,10 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final HasParentQueryBuilder failingQueryBuilder = new HasParentQueryBuilder("unmapped", new MatchAllQueryBuilder(), false);
-        queryBuilder.innerHit(new InnerHitBuilder());
-        assertFalse(queryBuilder.innerHit().isIgnoreUnmapped());
+        failingQueryBuilder.innerHit(new InnerHitBuilder());
+        assertFalse(failingQueryBuilder.innerHit().isIgnoreUnmapped());
         failingQueryBuilder.ignoreUnmapped(false);
-        assertFalse(queryBuilder.innerHit().isIgnoreUnmapped());
+        assertFalse(failingQueryBuilder.innerHit().isIgnoreUnmapped());
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(),
                     containsString("[has_parent] join field [join_field] doesn't hold [unmapped] as a parent"));

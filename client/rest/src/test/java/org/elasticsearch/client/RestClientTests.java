@@ -239,7 +239,7 @@ public class RestClientTests extends RestClientTestCase {
             RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, now, noNodes);
             fail("expected selectHosts to fail");
         } catch (IOException e) {
-            String message = "NodeSelector [NONE] rejcted all nodes, living ["
+            String message = "NodeSelector [NONE] rejected all nodes, living ["
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]] and dead []";
             assertEquals(message, e.getMessage());
@@ -291,7 +291,7 @@ public class RestClientTests extends RestClientTestCase {
             RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex, now, noNodes);
             fail("expected selectHosts to fail");
         } catch (IOException e) {
-            String message = "NodeSelector [NONE] rejcted all nodes, living [] and dead ["
+            String message = "NodeSelector [NONE] rejected all nodes, living [] and dead ["
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]]";
             assertEquals(message, e.getMessage());

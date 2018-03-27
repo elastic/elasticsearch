@@ -29,7 +29,16 @@ import java.util.Objects;
  */
 public interface NodeSelector {
     /**
-     * Select the {@link Node}s to which to send requests.
+     * Select the {@link Node}s to which to send requests. This may be called
+     * twice per request, once for "living" nodes that have not had been
+     * blacklisted by previous errors if there are any. If it returns an
+     * empty list when sent the living nodes or if there aren't any living
+     * nodes left then this will be called with a list of "dead" nodes that
+     * have been blacklisted by previous failures. In both cases it should
+     * return a list of nodes sorted by its preference for which node is used.
+     * If it is operating on "living" nodes that it returns function as
+     * fallbacks in case of request failures. If it is operating on dead nodes
+     * then the dead node that it returns is attempted but no others.
      *
      * @param nodes an unmodifiable list of {@linkplain Node}s in the order
      *      that the {@link RestClient} would prefer to use them

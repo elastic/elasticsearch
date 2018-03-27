@@ -451,7 +451,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
                 return singletonList(selectedDeadNodes.get(0).getHost());
             }
         }
-        throw new IOException("NodeSelector [" + nodeSelector + "] rejcted all nodes, "
+        throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
                 + "living " + livingNodes + " and dead " + deadNodes);
     }
 

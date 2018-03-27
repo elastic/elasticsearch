@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -34,7 +36,10 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.LongSupplier;
@@ -49,6 +54,7 @@ public class IndexLifecycleService extends AbstractComponent
 
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final Clock clock;
+    private final PolicyStepsRegistry policyRegistry;
     private Client client;
     private ClusterService clusterService;
     private ThreadPool threadPool;
@@ -64,6 +70,7 @@ public class IndexLifecycleService extends AbstractComponent
         this.threadPool = threadPool;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
+        this.policyRegistry = new PolicyStepsRegistry();
         clusterService.addListener(this);
     }
 
@@ -76,16 +83,21 @@ public class IndexLifecycleService extends AbstractComponent
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise keep idle until elected
             IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-
             TimeValue pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
                 .get(event.state().getMetaData().settings());
             TimeValue previousPollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING
                 .get(event.previousState().getMetaData().settings());
 
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
+
+            if (lifecycleMetadata != null) {
+                // update policy steps registry
+                policyRegistry.update(event.state());
+            }
 
             if (lifecycleMetadata == null) { // no lifecycle metadata, install initial empty metadata state
                 lifecycleMetadata = new IndexLifecycleMetadata(Collections.emptySortedMap());
@@ -116,9 +128,7 @@ public class IndexLifecycleService extends AbstractComponent
         scheduler.get().add(scheduledJob);
     }
 
-    public synchronized void triggerPolicies() {
-        IndexLifecycleMetadata indexLifecycleMetadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
-        SortedMap<String, LifecyclePolicy> policies = indexLifecycleMetadata.getPolicies();
+    public void triggerPolicies() {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
@@ -126,10 +136,6 @@ public class IndexLifecycleService extends AbstractComponent
         clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                LifecyclePolicy policy = policies.get(policyName);
-                // fetch step
-                // check whether complete
-                // if complete, launch next task
                 clusterService.submitStateUpdateTask("index-lifecycle-" + policyName, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
@@ -137,12 +143,15 @@ public class IndexLifecycleService extends AbstractComponent
                         currentState = putLifecycleDate(currentState, idxMeta);
                         long lifecycleDate = currentState.metaData().settings()
                             .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
-                        // TODO(talevy): make real
-                        List<Step> steps = policy.getPhases().values().stream()
-                            .flatMap(p -> p.toSteps(idxMeta.getIndex(), lifecycleDate, client, threadPool, nowSupplier).stream())
-                            .collect(Collectors.toList());
-                        StepResult result = policy.execute(steps, currentState, idxMeta, client, nowSupplier);
-                        return result.getClusterState();
+                        // get current phase, action, step
+                        String phase = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_PHASE);
+                        String action = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_ACTION);
+                        String stepName = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_STEP);
+                        // returns current step to execute. If settings are null, then the first step to be executed in
+                        // this policy is returned.
+                        Step currentStep = policyRegistry.getStep(policyName, phase, action, stepName);
+                        ClusterState newClusterState = executeStepUntilAsync(currentStep, clusterState, client, nowSupplier, idxMeta.getIndex());
+                        return currentState;
                     }
 
                     @Override
@@ -152,6 +161,28 @@ public class IndexLifecycleService extends AbstractComponent
                 });
             }
         });
+    }
+
+    /**
+     * executes the given step, and then all proceeding steps, until it is necessary to exit the
+     * cluster-state thread and let any wait-condition or asynchronous action progress externally
+     *
+     * TODO(colin): should steps execute themselves and execute `nextStep` internally?
+     *
+     * @param startStep The current step that has either not been executed, or not completed before
+     * @return the new ClusterState
+     */
+    private ClusterState executeStepUntilAsync(Step startStep, ClusterState currentState, Client client, LongSupplier nowSupplier, Index index) {
+        StepResult result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
+        while (result.isComplete() && result.indexSurvived() && startStep.hasNextStep()) {
+            currentState = result.getClusterState();
+            startStep = startStep.getNextStep();
+            result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
+        }
+        if (result.isComplete()) {
+            currentState = result.getClusterState();
+        }
+        return currentState;
     }
 
     @Override

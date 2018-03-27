@@ -153,7 +153,7 @@ public class ShrinkAction implements LifecycleAction {
             currentState -> {
                 // check that shrunken index was already created, if so, no need to both client
                 IndexMetaData shrunkMetaData = currentState.metaData().index(shrunkenIndexName);
-                boolean isSuccessful = shrunkMetaData != null && shrunkenIndexName.equals(IndexMetaData.INDEX_SHRINK_SOURCE_NAME
+                return shrunkMetaData != null && shrunkenIndexName.equals(IndexMetaData.INDEX_SHRINK_SOURCE_NAME
                     .get(shrunkMetaData.getSettings()));
 
             }, ResizeResponse::isAcknowledged);

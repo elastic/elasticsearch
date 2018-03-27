@@ -23,36 +23,13 @@ public class ClientStep<RequestBuilder extends ActionRequestBuilder, Response ex
     private Exception returnedException;
     private boolean returnedSuccess;
 
-    public ClientStep(String name, String action, String phase, String index, RequestBuilder requestBuilder,
+    public ClientStep(String name, String action, String phase, String index, Step nextStep, RequestBuilder requestBuilder,
                       Function<ClusterState, Boolean> checkComplete, Function<Response, Boolean> checkSuccess) {
-        super(name, action, phase, index);
+        super(name, action, phase, nextStep);
         this.requestBuilder = requestBuilder;
         this.checkComplete = checkComplete;
         this.checkSuccess = checkSuccess;
         this.returnedException = null;
         this.returnedSuccess = false;
-    }
-
-    @Override
-    public StepResult execute(ClusterState currentState) {
-        if (checkComplete.apply(currentState)) {
-            return new StepResult("client-complete", null, currentState, true, true);
-        } else {
-            requestBuilder.execute(new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response r) {
-                    if (checkSuccess.apply(r)) {
-                        returnedSuccess = true;
-                    }
-                    // IndexLifecycleService.triggerPolicies()
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    returnedException = e;
-                }
-            });
-            return new StepResult("client-in-progress", null, currentState, true, false);
-        }
     }
 }

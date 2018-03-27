@@ -241,7 +241,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public boolean equals(Object o) {
         if (super.equals(o)) {
             UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-            // do not include the indices as they are not part of the serialized request
             return Objects.equals(settings, that.settings) && Arrays.equals(indices, that.indices);
         }
         return false;

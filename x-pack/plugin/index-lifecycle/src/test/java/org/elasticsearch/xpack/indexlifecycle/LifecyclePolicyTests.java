@@ -127,35 +127,35 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     }
 
     public void testSteps() throws Exception {
-        ThreadPool threadPool = new TestThreadPool("test");
-        LongSupplier nowSupplier = () -> 0L;
-        Client client = mock(Client.class);
-        Step phaseAfterStep = new PhaseAfterStep(threadPool, 0L, nowSupplier,
-            TimeValue.timeValueSeconds(0L), "name-0", "index", "phase", "mock_action");
-        Step updateStep = new ClusterStateUpdateStep("name-1", "index", "phase", "mock_action",
-            (state) -> state);
-        Step waitStep = new ConditionalWaitStep("name-2", "index", "phase", "mock_action",
-            (state) -> true);
-        indexName = randomAlphaOfLengthBetween(1, 20);
-        lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        Map<String, Phase> phases = new LinkedHashMap<>();
-        firstAction = new MockAction(Arrays.asList(phaseAfterStep, updateStep, waitStep));
-        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
-        firstPhase = new Phase("phase", null, actions);
-        phases.put(firstPhase.getName(), firstPhase);
-        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, null);
-
-        List<Step> phaseSteps = firstPhase.toSteps(new Index(indexName, indexName), 0L,
-            client, threadPool, nowSupplier);
-
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metaData(MetaData.builder().put(
-                IndexMetaData.builder("index")
-                    .settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1))).build();
-
-        StepResult result = policy.execute(phaseSteps, clusterState, clusterState.metaData().index("index"), client, nowSupplier);
-
-        threadPool.shutdown();
+//        ThreadPool threadPool = new TestThreadPool("test");
+//        LongSupplier nowSupplier = () -> 0L;
+//        Client client = mock(Client.class);
+//        Step phaseAfterStep = new PhaseAfterStep(threadPool, 0L, nowSupplier,
+//            TimeValue.timeValueSeconds(0L), "name-0", "index", "phase", "mock_action");
+//        Step updateStep = new ClusterStateUpdateStep("name-1", "index", "phase", "mock_action",
+//            (state) -> state);
+//        Step waitStep = new ConditionalWaitStep("name-2", "index", "phase", "mock_action",
+//            (state) -> true);
+//        indexName = randomAlphaOfLengthBetween(1, 20);
+//        lifecycleName = randomAlphaOfLengthBetween(1, 20);
+//        Map<String, Phase> phases = new LinkedHashMap<>();
+//        firstAction = new MockAction(Arrays.asList(phaseAfterStep, updateStep, waitStep));
+//        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
+//        firstPhase = new Phase("phase", null, actions);
+//        phases.put(firstPhase.getName(), firstPhase);
+//        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, null);
+//
+//        List<Step> phaseSteps = firstPhase.toSteps(new Index(indexName, indexName), 0L,
+//            client, threadPool, nowSupplier);
+//
+//        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+//            .metaData(MetaData.builder().put(
+//                IndexMetaData.builder("index")
+//                    .settings(settings(Version.CURRENT))
+//                .numberOfShards(1).numberOfReplicas(1))).build();
+//
+//        StepResult result = policy.execute(phaseSteps, clusterState, clusterState.metaData().index("index"), client, nowSupplier);
+//
+//        threadPool.shutdown();
     }
 }

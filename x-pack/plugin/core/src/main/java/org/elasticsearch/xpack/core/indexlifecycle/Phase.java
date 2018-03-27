@@ -138,8 +138,8 @@ public class Phase implements ToXContentObject, Writeable {
 
     public List<Step> toSteps(Index index, long indexLifecycleCreationDate, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
         // TODO(talevy) phase needs to know indexLifecycleStartTime
-        PhaseAfterStep phaseAfterStep = new PhaseAfterStep(threadPool, indexLifecycleCreationDate, nowSupplier, after,
-            "phase_start", index.getName(), getName(), null);
+        PhaseAfterStep phaseAfterStep = new PhaseAfterStep(
+            "phase_start", index.getName(), getName(),after, null);
         return Stream.concat(Stream.of(phaseAfterStep), actions.values().stream()
             .flatMap(a -> a.toSteps(name, index, client, threadPool, nowSupplier).stream())).collect(Collectors.toList());
     }

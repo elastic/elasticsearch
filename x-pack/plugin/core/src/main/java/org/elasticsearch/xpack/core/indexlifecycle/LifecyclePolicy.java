@@ -144,49 +144,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return builder;
     }
 
-    public StepResult execute(List<Step> steps, ClusterState currentState, IndexMetaData indexMetaData, Client client, LongSupplier nowSupplier) {
-        StepResult lastStepResult = null;
-        ClusterState updatedState = currentState;
-        for (int i = getNextStepIdx(steps, indexMetaData); i < steps.size(); i++) {
-            lastStepResult = steps.get(i).execute(updatedState);
-            if (lastStepResult.isComplete() && lastStepResult.indexSurvived()) {
-                if (i < steps.size() - 1) {
-                    Step nextStep = steps.get(i + 1);
-                    long now = nowSupplier.getAsLong();
-                    // fetch details about next step to run and update the cluster state with this information
-                    Settings newLifecyclePhaseSettings = Settings.builder()
-                        .put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP_TIME, now)
-                        .put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
-                        .build();
-                    updatedState = ClusterState.builder(lastStepResult.getClusterState())
-                        .metaData(MetaData.builder(lastStepResult.getClusterState().metaData())
-                            .updateSettings(newLifecyclePhaseSettings)).build();
-                    lastStepResult = new StepResult(lastStepResult, updatedState);
-                }
-            } else {
-                break;
-            }
-        }
-
-        return lastStepResult;
-    }
-
-    private int getNextStepIdx(List<Step> steps, IndexMetaData indexMetaData) {
-        String step = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_STEP);
-        if (step == null) {
-            return 0;
-        }
-        for (int i = 0; i < steps.size(); i++) {
-            if (steps.get(i).getName().equals(step)) {
-                return i;
-            }
-        }
-
-        return steps.size();
+    public List<Step> toSteps() {
+        // TODO(talevy): make real with types
+        return Collections.emptyList();
     }
 
     @Override
@@ -229,7 +189,5 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
          * @return the action following {@code current} to execute
          */
         LifecycleAction next(LifecycleAction current);
-
     }
-
 }

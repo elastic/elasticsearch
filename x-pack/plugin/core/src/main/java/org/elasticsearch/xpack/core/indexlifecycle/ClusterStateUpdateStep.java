@@ -5,32 +5,29 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.StepResult;
 
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class ClusterStateUpdateStep extends Step {
-    private final String name;
-    private final String index;
-    private final String phase;
-    private final String action;
     private final Function<ClusterState, ClusterState> updateTask;
 
-    public ClusterStateUpdateStep(String name, String index, String phase, String action, Function<ClusterState, ClusterState> updateTask) {
-        super(name, action, phase, index);
-        this.name = name;
-        this.index = index;
-        this.phase = phase;
-        this.action = action;
+    public ClusterStateUpdateStep(String name, String index, String phase, String action, Step nextStep, Function<ClusterState, ClusterState> updateTask) {
+        super(name, action, phase, nextStep);
         this.updateTask = updateTask;
     }
 
-    public StepResult execute(ClusterState clusterState) {
+    public StepResult execute(ClusterService clusterService, ClusterState currentState, Index index, Client client, LongSupplier nowSupplier) {
         ClusterState updated = null;
         try {
-            updated = updateTask.apply(clusterState);
+            updated = updateTask.apply(currentState);
+            updated = updateStateWithNextStep(updated, nowSupplier, index);
             return new StepResult("done!", null, updated, true, true);
         } catch (Exception e) {
             return new StepResult("something went wrong", e, updated, true, true);

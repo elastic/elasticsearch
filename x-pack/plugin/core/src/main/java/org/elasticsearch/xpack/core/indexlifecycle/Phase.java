@@ -76,7 +76,7 @@ public class Phase implements ToXContentObject, Writeable {
      *            a {@link Map} of the {@link LifecycleAction}s to run when
      *            during his {@link Phase}. The keys in this map are the associated
      *            action names. The order of these actions is defined
-     *            by the {@link LifecyclePolicy.NextActionProvider}.
+     *            by the {@link LifecycleType}
      */
     public Phase(String name, TimeValue after, Map<String, LifecycleAction> actions) {
         this.name = name;
@@ -134,14 +134,6 @@ public class Phase implements ToXContentObject, Writeable {
      */
     public Map<String, LifecycleAction> getActions() {
         return actions;
-    }
-
-    public List<Step> toSteps(Index index, long indexLifecycleCreationDate, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
-        // TODO(talevy) phase needs to know indexLifecycleStartTime
-        PhaseAfterStep phaseAfterStep = new PhaseAfterStep(
-            "phase_start", index.getName(), getName(),after, null);
-        return Stream.concat(Stream.of(phaseAfterStep), actions.values().stream()
-            .flatMap(a -> a.toSteps(name, index, client, threadPool, nowSupplier).stream())).collect(Collectors.toList());
     }
 
     @Override

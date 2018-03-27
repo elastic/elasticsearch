@@ -5,22 +5,26 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.StepResult;
 
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 public class ConditionalWaitStep extends Step {
     private final Function<ClusterState, Boolean> condition;
 
-    public ConditionalWaitStep(String name, String index, String phase, String action, Function<ClusterState, Boolean> condition) {
-        super(name, action, phase, index);
+    public ConditionalWaitStep(String name, String phase, String action, Step nextStep, Function<ClusterState, Boolean> condition) {
+        super(name, action, phase, nextStep);
         this.condition = condition;
     }
 
     @Override
-    public StepResult execute(ClusterState currentState) {
+    public StepResult execute(ClusterService clusterService, ClusterState currentState, Index index, Client client, LongSupplier nowSupplier) {
         boolean isComplete = condition.apply(currentState);
         return new StepResult(String.valueOf(isComplete), null, currentState, true, isComplete);
     }

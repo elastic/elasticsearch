@@ -19,12 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -38,12 +33,14 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A utility to build XContent (ie json).
@@ -81,16 +78,15 @@ public final class XContentBuilder implements Closeable, Flushable {
         return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
     }
 
-    public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
-
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
+    private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
-        writers.put(Date.class, (b, v) -> b.value((Date) v));
+        writers.put(Date.class, XContentBuilder::timeValue);
         writers.put(Double.class, (b, v) -> b.value((Double) v));
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
@@ -106,26 +102,37 @@ public final class XContentBuilder implements Closeable, Flushable {
         writers.put(Locale.class, (b, v) -> b.value(v.toString()));
         writers.put(Class.class, (b, v) -> b.value(v.toString()));
         writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
+        writers.put(Calendar.class, XContentBuilder::timeValue);
+        writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
 
 
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
+        Map<Class<?>, Function<Object, Object>> dateTransformers = new HashMap<>();
+
+        // treat strings as already converted
+        dateTransformers.put(String.class, Function.identity());
 
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
             Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
             Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
+            Map<Class<?>, Function<Object, Object>> addlDateTransformers = service.getDateTransformers();
 
             addlWriters.forEach((key, value) -> Objects.requireNonNull(value,
                 "invalid null xcontent writer for class " + key));
             addlTransformers.forEach((key, value) -> Objects.requireNonNull(value,
                 "invalid null xcontent transformer for human readable class " + key));
+            dateTransformers.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent date transformer for class " + key));
 
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
+            dateTransformers.putAll(addlDateTransformers);
         }
 
         WRITERS = Collections.unmodifiableMap(writers);
         HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
+        DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
     }
 
     @FunctionalInterface
@@ -615,15 +622,6 @@ public final class XContentBuilder implements Closeable, Flushable {
      *
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
-    public XContentBuilder utf8Field(String name, byte[] bytes, int offset, int length) throws IOException {
-        return field(name).utf8Value(bytes, offset, length);
-    }
-
-    /**
-     * Writes the binary content of the given byte array as UTF-8 bytes.
-     *
-     * Use {@link XContentParser#charBuffer()} to read the value back
-     */
     public XContentBuilder utf8Value(byte[] bytes, int offset, int length) throws IOException {
         generator.writeUTF8String(bytes, offset, length);
         return this;
@@ -634,63 +632,49 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Date
     //////////////////////////////////
 
-    public XContentBuilder field(String name, ReadableInstant value) throws IOException {
-        return field(name).value(value);
+    /**
+     * Write a time-based field and value, if the passed timeValue is null a
+     * null value is written, otherwise a date transformers lookup is performed.
+
+     * @throws IllegalArgumentException if there is no transformers for the type of object
+     */
+    public XContentBuilder timeField(String name, Object timeValue) throws IOException {
+        return field(name).timeValue(timeValue);
     }
 
-    public XContentBuilder field(String name, ReadableInstant value, DateTimeFormatter formatter) throws IOException {
-        return field(name).value(value, formatter);
-    }
-
-    public XContentBuilder value(ReadableInstant value) throws IOException {
-        return value(value, DEFAULT_DATE_PRINTER);
-    }
-
-    public XContentBuilder value(ReadableInstant value, DateTimeFormatter formatter) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
-    }
-
-    public XContentBuilder field(String name, Date value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder field(String name, Date value, DateTimeFormatter formatter) throws IOException {
-        return field(name).value(value, formatter);
-    }
-
-    public XContentBuilder value(Date value) throws IOException {
-        return value(value, DEFAULT_DATE_PRINTER);
-    }
-
-    public XContentBuilder value(Date value, DateTimeFormatter formatter) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return value(formatter, value.getTime());
-    }
-
-    public XContentBuilder dateField(String name, String readableName, long value) throws IOException {
+    /**
+     * If the {@code humanReadable} flag is set, writes both a formatted and
+     * unformatted version of the time value using the date transformer for the
+     * {@link Long} class.
+     */
+    public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
         if (humanReadable) {
-            field(readableName).value(DEFAULT_DATE_PRINTER, value);
+            Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
+            if (longTransformer == null) {
+                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type Long");
+            }
+            field(readableName).value(longTransformer.apply(value));
         }
         field(name, value);
         return this;
     }
 
-    XContentBuilder value(Calendar value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return value(DEFAULT_DATE_PRINTER, value.getTimeInMillis());
-    }
+    /**
+     * Write a time-based value, if the value is null a null value is written,
+     * otherwise a date transformers lookup is performed.
 
-    XContentBuilder value(DateTimeFormatter formatter, long value) throws IOException {
-        ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
+     * @throws IllegalArgumentException if there is no transformers for the type of object
+     */
+    public XContentBuilder timeValue(Object timeValue) throws IOException {
+        if (timeValue == null) {
+            return nullValue();
+        } else {
+            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
+            if (transformer == null) {
+                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type " + timeValue.getClass());
+            }
+            return value(transformer.apply(timeValue));
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -761,10 +745,6 @@ public final class XContentBuilder implements Closeable, Flushable {
             value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
             values((Object[]) value, ensureNoSelfReferences);
-        } else if (value instanceof Calendar) {
-            value((Calendar) value);
-        } else if (value instanceof ReadableInstant) {
-            value((ReadableInstant) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
         } else if (value instanceof Enum<?>) {
@@ -895,14 +875,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, long rawSize) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, new ByteSizeValue(rawSize).toString());
-        }
-        field(rawFieldName, rawSize);
-        return this;
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     // Raw fields
     //////////////////////////////////
@@ -958,10 +930,6 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     static void ensureNameNotNull(String name) {
         ensureNotNull(name, "Field name cannot be null");
-    }
-
-    static void ensureFormatterNotNull(DateTimeFormatter formatter) {
-        ensureNotNull(formatter, "DateTimeFormatter cannot be null");
     }
 
     static void ensureNotNull(Object value, String message) {

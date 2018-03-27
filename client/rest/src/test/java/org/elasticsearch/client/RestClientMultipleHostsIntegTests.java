@@ -34,11 +34,13 @@ import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
@@ -280,8 +282,13 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     private NodeSelector firstPositionNodeSelector() {
         return new NodeSelector() {
             @Override
-            public boolean select(Node node) {
-                return httpHosts[0] == node.getHost();
+            public List<Node> select(List<Node> nodes) {
+                for (Node node : nodes) {
+                    if (httpHosts[0] == node.getHost()) {
+                        return singletonList(node);
+                    }
+                }
+                return Collections.<Node>emptyList();
             }
         };
     }

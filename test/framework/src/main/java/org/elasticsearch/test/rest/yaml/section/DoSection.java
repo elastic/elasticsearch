@@ -133,7 +133,7 @@ public class DoSection implements ExecutableSection {
                         } else if (token.isValue()) {
                             NodeSelector newSelector = buildNodeSelector(
                                 parser.getTokenLocation(), selectorName, parser.text());
-                            nodeSelector = new NodeSelector.And(nodeSelector, newSelector);
+                            nodeSelector = new NodeSelector.Compose(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -360,13 +360,19 @@ public class DoSection implements ExecutableSection {
             Version[] range = SkipSection.parseVersionRange(value);
             return new NodeSelector() {
                 @Override
-                public boolean select(Node node) {
-                    if (node.getVersion() == null) {
-                        throw new IllegalStateException("expected [version] metadata to be set but got "
-                                 + node);
+                public List<Node> select(List<Node> nodes) {
+                    List<Node> result = new ArrayList<>(nodes.size());
+                    for (Node node : nodes) {
+                        if (node.getVersion() == null) {
+                            throw new IllegalStateException("expected [version] metadata to be set but got "
+                                    + node);
+                        }
+                        Version version = Version.fromString(node.getVersion());
+                        if (version.onOrAfter(range[0]) && version.onOrBefore(range[1])) {
+                            result.add(node);
+                        }
                     }
-                    Version version = Version.fromString(node.getVersion());
-                    return version.onOrAfter(range[0]) && version.onOrBefore(range[1]);
+                    return result;
                 }
 
                 @Override

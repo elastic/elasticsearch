@@ -51,7 +51,7 @@ class RestClientView extends AbstractRestClientActions {
 
     @Override
     public final RestClientView withNodeSelector(final NodeSelector newNodeSelector) {
-        return new RestClientView(delegate, new NodeSelector.And(nodeSelector, newNodeSelector));
+        return new RestClientView(delegate, new NodeSelector.Compose(nodeSelector, newNodeSelector));
     }
 
     @Override

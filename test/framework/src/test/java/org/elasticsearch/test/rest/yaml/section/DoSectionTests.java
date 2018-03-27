@@ -33,6 +33,7 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -518,12 +519,12 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
         DoSection doSection = DoSection.parse(parser);
         assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
-        assertTrue(doSection.getApiCallSection().getNodeSelector()
-                .select(nodeWithVersion("5.2.1")));
-        assertFalse(doSection.getApiCallSection().getNodeSelector()
-                .select(nodeWithVersion("6.1.2")));
-        assertFalse(doSection.getApiCallSection().getNodeSelector()
-                .select(nodeWithVersion("1.7.0")));
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node v612 = nodeWithVersion("6.1.2");
+        assertEquals(Arrays.asList(v521, v550), doSection.getApiCallSection().getNodeSelector()
+                .select(Arrays.asList(v170, v521, v550, v612)));
         ClientYamlTestExecutionContext context = mock(ClientYamlTestExecutionContext.class);
         ClientYamlTestResponse mockResponse = mock(ClientYamlTestResponse.class);
         when(context.callApi("indices.get_field_mapping", singletonMap("index", "test_index"),

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -27,18 +29,23 @@ import java.util.Objects;
  */
 public interface NodeSelector {
     /**
-     * Return {@code true} if the provided node should be used for requests,
-     * {@code false} otherwise.
+     * Select the {@link Node}s to which to send requests.
+     *
+     * @param nodes an unmodifiable list of {@linkplain Node}s in the order
+     *      that the {@link RestClient} would prefer to use them
+     * @return a subset of the provided list of {@linkplain Node}s that the
+     *      selector approves of, in the order that the selector would prefer
+     *      to use them.
      */
-    boolean select(Node node);
+    List<Node> select(List<Node> nodes);
 
     /**
      * Selector that matches any node.
      */
     NodeSelector ANY = new NodeSelector() {
         @Override
-        public boolean select(Node node) {
-            return true;
+        public List<Node> select(List<Node> nodes) {
+            return nodes;
         }
 
         @Override
@@ -50,13 +57,19 @@ public interface NodeSelector {
     /**
      * Selector that matches any node that has metadata and doesn't
      * have the {@code master} role OR it has the data {@code data}
-     * role.
+     * role. It does not reorder the nodes sent to it.
      */
     NodeSelector NOT_MASTER_ONLY = new NodeSelector() {
         @Override
-        public boolean select(Node node) {
-            return node.getRoles() != null
-                && (false == node.getRoles().hasMasterEligible() || node.getRoles().hasData());
+        public List<Node> select(List<Node> nodes) {
+            List<Node> subset = new ArrayList<>(nodes.size());
+            for (Node node : nodes) {
+                if (node.getRoles() == null) continue;
+                if (false == node.getRoles().hasMasterEligible() || node.getRoles().hasData()) {
+                    subset.add(node);
+                }
+            }
+            return subset;
         }
 
         @Override
@@ -66,26 +79,28 @@ public interface NodeSelector {
     };
 
     /**
-     * Selector that returns {@code true} of both of its provided
-     * selectors return {@code true}, otherwise {@code false}.
+     * Selector that composes two selectors, running the "right" most selector
+     * first and then running the "left" selector on the results of the "right"
+     * selector.
      */
-    class And implements NodeSelector {
+    class Compose implements NodeSelector {
         private final NodeSelector lhs;
         private final NodeSelector rhs;
 
-        public And(NodeSelector lhs, NodeSelector rhs) {
+        public Compose(NodeSelector lhs, NodeSelector rhs) {
             this.lhs = Objects.requireNonNull(lhs, "lhs is required");
             this.rhs = Objects.requireNonNull(rhs, "rhs is required");
         }
 
         @Override
-        public boolean select(Node node) {
-            return lhs.select(node) && rhs.select(node);
+        public List<Node> select(List<Node> nodes) {
+            return lhs.select(rhs.select(nodes));
         }
 
         @Override
         public String toString() {
-            return lhs + " AND " + rhs;
+            // . as in haskell's "compose" operator
+            return lhs + "." + rhs;
         }
     }
 }

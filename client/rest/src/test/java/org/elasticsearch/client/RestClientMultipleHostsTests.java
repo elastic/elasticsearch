@@ -44,17 +44,21 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorNoRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomErrorRetryStatusCode;
 import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -306,8 +310,9 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     public void testWithNodeSelector() throws IOException {
         NodeSelector firstPositionOnly = new NodeSelector() {
             @Override
-            public boolean select(Node node) {
-                return nodes[0] == node;
+            public List<Node> select(List<Node> restClientNodes) {
+                assertThat(restClientNodes, hasItem(nodes[0]));
+                return singletonList(nodes[0]);
             }
         };
         RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionOnly);

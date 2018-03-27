@@ -22,14 +22,21 @@ package org.elasticsearch.client;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 
 public class NodeSelectorTests extends RestClientTestCase {
     public void testAny() {
-        assertTrue(NodeSelector.ANY.select(dummyNode(randomBoolean(), randomBoolean(), randomBoolean())));
+        List<Node> nodes = new ArrayList<>();
+        int size = between(2, 5);
+        for (int i = 0; i < size; i++) {
+            nodes.add(dummyNode(randomBoolean(), randomBoolean(), randomBoolean()));
+        }
+        assertEquals(nodes, NodeSelector.ANY.select(nodes));
     }
 
     public void testNotMasterOnly() {
@@ -37,10 +44,11 @@ public class NodeSelectorTests extends RestClientTestCase {
         Node masterAndData = dummyNode(true, true, randomBoolean());
         Node client = dummyNode(false, false, randomBoolean());
         Node data = dummyNode(false, true, randomBoolean());
-        assertFalse(NodeSelector.NOT_MASTER_ONLY.select(masterOnly));
-        assertTrue(NodeSelector.NOT_MASTER_ONLY.select(masterAndData));
-        assertTrue(NodeSelector.NOT_MASTER_ONLY.select(client));
-        assertTrue(NodeSelector.NOT_MASTER_ONLY.select(data));
+        List<Node> nodes = Arrays.asList(masterOnly, masterAndData, client, data);
+        Collections.shuffle(nodes, getRandom());
+        List<Node> expected = new ArrayList<>(nodes);
+        expected.remove(masterOnly);
+        assertEquals(expected, NodeSelector.NOT_MASTER_ONLY.select(nodes));
     }
 
     private Node dummyNode(boolean master, boolean data, boolean ingest) {

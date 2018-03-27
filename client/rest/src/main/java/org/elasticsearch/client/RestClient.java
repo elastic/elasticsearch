@@ -45,6 +45,8 @@ import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
+import static java.util.Collections.singletonList;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
@@ -103,7 +105,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     private final AtomicInteger lastNodeIndex = new AtomicInteger(0);
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
-    private volatile NodeTuple<Set<Node>> nodeTuple;
+    private volatile NodeTuple<List<Node>> nodeTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
                Node[] nodes, String pathPrefix, FailureListener failureListener) {
@@ -161,17 +163,16 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         if (nodes == null || nodes.length == 0) {
             throw new IllegalArgumentException("nodes must not be null or empty");
         }
-        Set<Node> newNodes = new HashSet<>();
         AuthCache authCache = new BasicAuthCache();
 
         for (Node node : nodes) {
             if (node == null) {
                 throw new IllegalArgumentException("node cannot be null");
             }
-            newNodes.add(node);
             authCache.put(node.getHost(), new BasicScheme());
         }
-        this.nodeTuple = new NodeTuple<>(Collections.unmodifiableSet(newNodes), authCache);
+        this.nodeTuple = new NodeTuple<>(Collections.unmodifiableList(
+            Arrays.asList(nodes)), authCache);
         this.blacklist.clear();
     }
 
@@ -360,128 +361,98 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * @throws IOException if no nodes are available
      */
     private NodeTuple<Iterator<HttpHost>> nextNode(NodeSelector nodeSelector) throws IOException {
-        int attempts = 0;
-        NextHostsResult result;
-        /*
-         * Try to fetch the hosts to which we can send the request. It is possible that
-         * this returns an empty collection because of concurrent modification to the
-         * blacklist.
-         */
-        do {
-            final NodeTuple<Set<Node>> nodeTuple = this.nodeTuple;
-            result = nextHostsOneTime(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
-            if (result.hosts == null) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("No nodes avialable. Will retry. Failure is " + result.describeFailure());
-                }
-            } else {
-                // Success!
-                return new NodeTuple<>(result.hosts.iterator(), nodeTuple.authCache);
-            }
-            attempts++;
-        } while (attempts < MAX_NEXT_NODES_ATTEMPTS);
-        throw new IOException("No nodes available for request. Last failure was " + result.describeFailure());
+        NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
+        List<HttpHost> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
+        return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
-    static class NextHostsResult {
-        /**
-         * Number of nodes filtered from the list because they are
-         * dead.
-         */
-        int blacklisted = 0;
-        /**
-         * Number of nodes filtered from the list because the.
-         * {@link NodeSelector} didn't approve of them.
-         */
-        int selectorRejected = 0;
-        /**
-         * Number of nodes that could not be revived because the
-         * {@link NodeSelector} didn't approve of them.
-         */
-        int selectorBlockedRevival = 0;
-        /**
-         * {@code null} if we failed to find any nodes, a list of
-         * nodes to use if we found any.
-         */
-        Collection<HttpHost> hosts = null;
+    static List<HttpHost> selectHosts(NodeTuple<List<Node>> nodeTuple,
+            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodeIndex,
+            long now, NodeSelector nodeSelector) throws IOException {
+        class DeadNodeAndRevival {
+            final Node node;
+            final long nanosUntilRevival;
 
-        public String describeFailure() {
-            assert hosts == null : "describeFailure shouldn't be called with successful request";
-            return "[blacklisted=" + blacklisted
-                + ", selectorRejected=" + selectorRejected
-                + ", selectorBlockedRevival=" + selectorBlockedRevival + "]]";
-        }
-    }
-    static NextHostsResult nextHostsOneTime(NodeTuple<Set<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodesIndex,
-            long now, NodeSelector nodeSelector) {
-        NextHostsResult result = new NextHostsResult();
-        // TODO there has to be a better way!
-        Map<HttpHost, Node> hostToNode = new HashMap<>(nodeTuple.nodes.size());
-        for (Node node : nodeTuple.nodes) {
-            hostToNode.put(node.getHost(), node);
-        }
-        Set<Node> filteredNodes = new HashSet<>(nodeTuple.nodes);
-        for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-            if (now - entry.getValue().getDeadUntilNanos() < 0) {
-                filteredNodes.remove(hostToNode.get(entry.getKey()));
-                result.blacklisted++;
+            DeadNodeAndRevival(Node node, long nanosUntilRevival) {
+                this.node = node;
+                this.nanosUntilRevival = nanosUntilRevival;
             }
-        }
-        for (Iterator<Node> nodeItr = filteredNodes.iterator(); nodeItr.hasNext();) {
-            final Node node = nodeItr.next();
-            if (false == nodeSelector.select(node)) {
-                nodeItr.remove();
-                result.selectorRejected++;
-            }
-        }
-        if (false == filteredNodes.isEmpty()) {
-            /*
-             * Normal case: we have at least one non-dead node that the nodeSelector
-             * is fine with. Rotate the list so repeated requests with the same blacklist
-             * and the same selector round robin. If you use a different NodeSelector
-             * or a node goes dark then the round robin won't be perfect but that should
-             * be fine.
-             */
-            List<HttpHost> rotatedHosts = new ArrayList<>(filteredNodes.size());
-            for (Node node : filteredNodes) {
-                rotatedHosts.add(node.getHost());
-            }
-            int i = lastNodesIndex.getAndIncrement();
-            Collections.rotate(rotatedHosts, i);
-            result.hosts = rotatedHosts;
-            return result;
-        }
-        /*
-         * Last resort: If there are no good nodes to use, return a single dead one,
-         * the one that's closest to being retried *and* matches the selector.
-         */
-        List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
-        if (sortedHosts.isEmpty()) {
-            // There are no dead hosts to revive. Return a failed result and we'll retry.
-            return result;
-        }
-        Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
+
             @Override
-            public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
-            }
-        });
-        Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
-        while (nodeItr.hasNext()) {
-            final HttpHost deadHost = nodeItr.next().getKey();
-            Node node = hostToNode.get(deadHost);
-            if (node != null && nodeSelector.select(node)) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("resurrecting host [" + deadHost + "]");
-                }
-                result.hosts = Collections.singleton(deadHost);
-                return result;
-            } else {
-                result.selectorBlockedRevival++;
+            public String toString() {
+                return node.toString();
             }
         }
-        return result;
+
+        /*
+         * Sort the nodes into living and dead lists.
+         */
+        List<Node> livingNodes = new ArrayList<>(nodeTuple.nodes.size() - blacklist.size());
+        List<DeadNodeAndRevival> deadNodes = new ArrayList<>(blacklist.size());
+        for (Node node : nodeTuple.nodes) {
+            DeadHostState deadness = blacklist.get(node.getHost());
+            if (deadness == null) {
+                livingNodes.add(node);
+                continue;
+            }
+            long nanosUntilRevival = now - deadness.getDeadUntilNanos();
+            if (nanosUntilRevival > 0) {
+                livingNodes.add(node);
+                continue;
+            }
+            deadNodes.add(new DeadNodeAndRevival(node, nanosUntilRevival));
+        }
+
+        if (false == livingNodes.isEmpty()) {
+            /*
+             * Normal state: there is at least one living node. Rotate the
+             * list so subsequent requests to will see prefer the nodes in
+             * a different order then run them through the NodeSelector so
+             * it can have its say in which nodes are ok and their ordering.
+             * If the selector is ok with any over the living nodes then use
+             * them for the request.
+             */
+            Collections.rotate(livingNodes, lastNodeIndex.getAndIncrement());
+            List<Node> selectedLivingNodes = nodeSelector.select(livingNodes);
+            if (false == selectedLivingNodes.isEmpty()) {
+                List<HttpHost> hosts = new ArrayList<>(selectedLivingNodes.size());
+                for (Node node : selectedLivingNodes) {
+                    hosts.add(node.getHost());
+                }
+                return hosts;
+            }
+        }
+
+        /*
+         * Last resort: If there are no good nodes to use, either because
+         * the selector rejected all the living nodes or because there aren't
+         * any living ones. Either way, we want to revive a single dead node
+         * that the NodeSelectors are OK with. We do this by sorting the dead
+         * nodes by their revival time and passing them through the
+         * NodeSelector so it can have its say in which nodes are ok and their
+         * ordering. If the selector is ok with any of the nodes then use just
+         * the first one in the list because we only want to revive a single
+         * node.
+         */
+        if (false == deadNodes.isEmpty()) {
+            Collections.sort(deadNodes, new Comparator<DeadNodeAndRevival>() {
+                @Override
+                public int compare(DeadNodeAndRevival lhs, DeadNodeAndRevival rhs) {
+                    return Long.compare(rhs.nanosUntilRevival, lhs.nanosUntilRevival);
+                }
+            });
+
+            List<Node> selectedDeadNodes = new ArrayList<>(deadNodes.size());
+            for (DeadNodeAndRevival n : deadNodes) {
+                selectedDeadNodes.add(n.node);
+            }
+            selectedDeadNodes = nodeSelector.select(selectedDeadNodes);
+            if (false == selectedDeadNodes.isEmpty()) {
+                return singletonList(selectedDeadNodes.get(0).getHost());
+            }
+        }
+        throw new IOException("NodeSelector [" + nodeSelector + "] rejcted all nodes, "
+                + "living " + livingNodes + " and dead " + deadNodes);
     }
 
     /**

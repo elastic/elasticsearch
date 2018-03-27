@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /**
@@ -106,5 +107,47 @@ public class Step {
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())
                 .updateSettings(newLifecyclePhaseSettings, index.getName())).build();
+    }
+
+    public static class StepKey {
+        private final String phase;
+
+        private final String action;
+        private final String name;
+
+        public StepKey(String phase, String action, String name) {
+            this.phase = phase;
+            this.action = action;
+            this.name = name;
+        }
+
+        public String getPhase() {
+            return phase;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(phase, action, name);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            StepKey other = (StepKey) obj;
+            return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
+        }
     }
 }

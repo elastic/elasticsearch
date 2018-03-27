@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -115,19 +115,21 @@ public class TransportNodesListGatewayStartedShards extends
         return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
-    private AutoCloseable shardStoreReference(ShardId shardId) {
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService != null) {
-            final IndexShard indexShard = indexService.getShardOrNull(shardId.getId());
-            if (indexShard != null) {
-                final Store store = indexShard.store();
-                if (store.tryIncRef()) {
-                    return store::decRef;
-                }
+    private ShardStateMetaData safelyLoadLatestState(ShardId shardId) throws Exception {
+        final IndexShard indexShard = indicesService.getShardOrNull(shardId);
+        if (indexShard != null) {
+            try {
+                return indexShard.loadShardStateMetaDataIfOpen(NamedXContentRegistry.EMPTY, nodeEnv.availableShardPaths(shardId));
+            }
+            catch (AlreadyClosedException ignored) {
+                // Ok, fall through to trying to get the shard lock ourselves.
             }
         }
 
-        return nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+        try (ShardLock ignored = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5))) {
+            return ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                nodeEnv.availableShardPaths(shardId));
+        }
     }
 
     @Override
@@ -136,11 +138,7 @@ public class TransportNodesListGatewayStartedShards extends
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
 
-            ShardStateMetaData shardStateMetaData;
-            try (AutoCloseable ignored = shardStoreReference(shardId)) {
-                shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
-                    nodeEnv.availableShardPaths(request.shardId));
-            }
+            ShardStateMetaData shardStateMetaData = safelyLoadLatestState(shardId);
             if (shardStateMetaData != null) {
                 IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
                 if (metaData == null) {

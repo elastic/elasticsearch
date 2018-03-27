@@ -64,6 +64,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -139,6 +140,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -2064,6 +2066,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 break;
             default:
                 throw new IllegalArgumentException("Unknown recovery source " + recoveryState.getRecoverySource());
+        }
+    }
+
+    public ShardStateMetaData loadShardStateMetaDataIfOpen(NamedXContentRegistry namedXContentRegistry, Path[] dataLocations)
+        throws IOException {
+        synchronized (mutex) {
+            if (state == IndexShardState.CLOSED) {
+                throw new AlreadyClosedException(shardId + " can't load shard state metadata - shard is closed");
+            }
+
+            return ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, dataLocations);
         }
     }
 

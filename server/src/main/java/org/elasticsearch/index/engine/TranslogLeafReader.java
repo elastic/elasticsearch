@@ -35,11 +35,15 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -58,9 +62,17 @@ final class TranslogLeafReader extends LeafReader {
     private static final FieldInfo FAKE_ROUTING_FIELD
         = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
         0,0);
+    private static final FieldInfo FAKE_ID_FIELD
+        = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
+        0,0);
+    private static final FieldInfo FAKE_UID_FIELD
+        = new FieldInfo(UidFieldMapper.NAME, 4, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
+        0,0);
+    private final Version indexVersionCreated;
 
-    TranslogLeafReader(Translog.Index operation) {
+    TranslogLeafReader(Translog.Index operation, Version indexVersionCreated) {
         this.operation = operation;
+        this.indexVersionCreated = indexVersionCreated;
     }
     @Override
     public CacheHelper getCoreCacheHelper() {
@@ -122,6 +134,10 @@ final class TranslogLeafReader extends LeafReader {
                 }
             };
         }
+        if (operation.parent() == null) {
+            return null;
+        }
+        assert false : "unexpected field: " + field;
         return null;
     }
 
@@ -192,6 +208,20 @@ final class TranslogLeafReader extends LeafReader {
         }
         if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
             visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
+        }
+        if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
+            final byte[] id;
+            if (indexVersionCreated.onOrAfter(Version.V_6_0_0)) {
+                BytesRef bytesRef = Uid.encodeId(operation.id());
+                id = new byte[bytesRef.length];
+                System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
+            } else { // TODO this can go away in 7.0 after backport
+                id = operation.id().getBytes(StandardCharsets.UTF_8);
+            }
+            visitor.stringField(FAKE_ID_FIELD, id);
+        }
+        if (visitor.needsField(FAKE_UID_FIELD) == StoredFieldVisitor.Status.YES) {
+            visitor.stringField(FAKE_UID_FIELD,  Uid.createUid(operation.type(), operation.id()).getBytes(StandardCharsets.UTF_8));
         }
     }
 

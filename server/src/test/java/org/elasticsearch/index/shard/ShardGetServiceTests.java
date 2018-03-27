@@ -31,7 +31,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class IndexShardGetServiceTests extends IndexShardTestCase {
+public class ShardGetServiceTests extends IndexShardTestCase {
 
     public void testGetForUpdate() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

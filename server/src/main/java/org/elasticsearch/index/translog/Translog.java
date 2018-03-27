@@ -571,6 +571,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Reads and returns the operation from the given location if the generation it references is still available. Otherwise
+     * this method will return <code>null</code>.
+     */
     public Operation readOperation(Location location) throws IOException {
         BaseTranslogReader reader = null;
         Closeable onClose = null;

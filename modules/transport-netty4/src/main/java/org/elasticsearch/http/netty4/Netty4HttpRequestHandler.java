@@ -20,35 +20,18 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
-import org.elasticsearch.rest.AbstractRestChannel;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {

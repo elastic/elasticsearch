@@ -33,7 +33,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -376,7 +375,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() throws IllegalArgumentException {
+    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {

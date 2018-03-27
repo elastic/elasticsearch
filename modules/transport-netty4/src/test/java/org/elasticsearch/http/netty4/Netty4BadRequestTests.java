@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;

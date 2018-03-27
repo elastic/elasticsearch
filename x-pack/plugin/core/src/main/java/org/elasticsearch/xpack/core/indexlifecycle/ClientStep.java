@@ -23,9 +23,9 @@ public class ClientStep<RequestBuilder extends ActionRequestBuilder, Response ex
     private Exception returnedException;
     private boolean returnedSuccess;
 
-    public ClientStep(String name, String action, String phase, String index, Step nextStep, RequestBuilder requestBuilder,
+    public ClientStep(String name, String action, String phase, String index, StepKey nextStepKey, RequestBuilder requestBuilder,
                       Function<ClusterState, Boolean> checkComplete, Function<Response, Boolean> checkSuccess) {
-        super(name, action, phase, nextStep);
+        super(name, action, phase, nextStepKey);
         this.requestBuilder = requestBuilder;
         this.checkComplete = checkComplete;
         this.checkSuccess = checkSuccess;

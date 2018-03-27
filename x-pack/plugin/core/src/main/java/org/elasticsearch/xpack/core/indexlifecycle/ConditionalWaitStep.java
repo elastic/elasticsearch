@@ -18,8 +18,8 @@ import java.util.function.LongSupplier;
 public class ConditionalWaitStep extends Step {
     private final Function<ClusterState, Boolean> condition;
 
-    public ConditionalWaitStep(String name, String phase, String action, Step nextStep, Function<ClusterState, Boolean> condition) {
-        super(name, action, phase, nextStep);
+    public ConditionalWaitStep(String name, String phase, String action, StepKey nextStepKey, Function<ClusterState, Boolean> condition) {
+        super(name, action, phase, nextStepKey);
         this.condition = condition;
     }
 

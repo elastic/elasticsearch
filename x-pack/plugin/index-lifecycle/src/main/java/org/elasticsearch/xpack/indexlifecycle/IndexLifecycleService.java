@@ -138,7 +138,7 @@ public class IndexLifecycleService extends AbstractComponent
                         // returns current step to execute. If settings are null, then the first step to be executed in
                         // this policy is returned.
                         Step currentStep = policyRegistry.getStep(policyName, new Step.StepKey(phase, action, stepName));
-                        return executeStepUntilAsync(currentStep, clusterState, client, nowSupplier, idxMeta.getIndex());
+                        return executeStepUntilAsync(policyName, currentStep, clusterState, client, nowSupplier, idxMeta.getIndex());
                     }
 
                     @Override
@@ -159,11 +159,11 @@ public class IndexLifecycleService extends AbstractComponent
      * @param startStep The current step that has either not been executed, or not completed before
      * @return the new ClusterState
      */
-    private ClusterState executeStepUntilAsync(Step startStep, ClusterState currentState, Client client, LongSupplier nowSupplier, Index index) {
+    private ClusterState executeStepUntilAsync(String policyName, Step startStep, ClusterState currentState, Client client, LongSupplier nowSupplier, Index index) {
         StepResult result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
         while (result.isComplete() && result.indexSurvived() && startStep.hasNextStep()) {
             currentState = result.getClusterState();
-            startStep = startStep.getNextStep();
+            startStep = policyRegistry.getStep(policyName, startStep.getNextStepKey());
             result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
         }
         if (result.isComplete()) {

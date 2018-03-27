@@ -10,8 +10,8 @@ import org.elasticsearch.common.unit.TimeValue;
 public class PhaseAfterStep extends Step {
     private final TimeValue after;
 
-    public PhaseAfterStep(String phase, String action, String name, TimeValue after, Step nextStep) {
-        super(name, action, phase, nextStep);
+    public PhaseAfterStep(String phase, String action, String name, TimeValue after, StepKey nextStepKey) {
+        super(name, action, phase, nextStepKey);
         this.after = after;
     }
 }

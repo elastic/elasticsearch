@@ -653,4 +653,49 @@ public class ShapeBuilderTests extends ESTestCase {
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().build());
         assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
     }
+
+    public void testPolygon3D() {
+        String expected = "{\n" +
+            "  \"type\" : \"polygon\",\n" +
+            "  \"orientation\" : \"right\",\n" +
+            "  \"coordinates\" : [\n" +
+            "    [\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        30.0,\n" +
+            "        100.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        45.0,\n" +
+            "        30.0,\n" +
+            "        75.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        45.0,\n" +
+            "        -30.0,\n" +
+            "        77.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        -30.0,\n" +
+            "        101.0\n" +
+            "      ],\n" +
+            "      [\n" +
+            "        -45.0,\n" +
+            "        30.0,\n" +
+            "        110.0\n" +
+            "      ]\n" +
+            "    ]\n" +
+            "  ]\n" +
+            "}";
+
+        PolygonBuilder pb =  new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(new Coordinate(-45, 30, 100))
+            .coordinate(new Coordinate(45, 30, 75))
+            .coordinate(new Coordinate(45, -30, 77))
+            .coordinate(new Coordinate(-45, -30, 101))
+            .coordinate(new Coordinate(-45, 30, 110)));
+
+        assertEquals(expected, pb.toString());
+    }
 }

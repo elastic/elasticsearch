@@ -38,9 +38,6 @@ class VagrantPropertiesExtension {
     Boolean inheritTests
 
     @Input
-    Boolean inheritTestArchives
-
-    @Input
     Boolean inheritTestUtils
 
     VagrantPropertiesExtension(List<String> availableBoxes) {
@@ -58,10 +55,6 @@ class VagrantPropertiesExtension {
 
     void setInheritTests(Boolean inheritTests) {
         this.inheritTests = inheritTests
-    }
-
-    void setInheritTestArchives(Boolean inheritTestArchives) {
-        this.inheritTestArchives = inheritTestArchives
     }
 
     void setInheritTestUtils(Boolean inheritTestUtils) {

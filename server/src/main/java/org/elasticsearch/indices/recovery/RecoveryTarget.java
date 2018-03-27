@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -331,8 +329,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 try {
                     entry.getValue().close();
                 } catch (Exception e) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                    logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
                 }
                 iterator.remove();
             }
@@ -441,11 +438,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                EngineDiskUtils.ensureIndexHasHistoryUUID(store.directory());
+                store.ensureIndexHasHistoryUUID();
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            final String translogUUID =
+                Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

@@ -31,7 +31,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import java.util.Locale;
 
-public class Ec2ClientSettings {
+/**
+ * A container for settings used to create an EC2 client.
+ */
+final class Ec2ClientSettings {
 
     /** The access key (ie login id) for connecting to ec2. */
     static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.secureString("discovery.ec2.access_key", null);

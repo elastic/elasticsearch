@@ -1399,7 +1399,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-settings-request
 
         // tag::put-settings-create-settings
-        String settingKey = IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+        String settingKey = "index.number_of_replicas";
         int settingValue = 0;
         Settings settings =
                 Settings.builder()

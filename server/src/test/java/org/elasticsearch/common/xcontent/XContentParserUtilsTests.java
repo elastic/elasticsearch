@@ -188,7 +188,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            XContentParseException e = expectThrows(XContentParseException.class,
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> parseTypedKeysObject(parser, delimiter, Boolean.class, a -> {}));
             assertThat(e.getMessage(), endsWith("unable to parse Boolean with name [type]: parser not found"));
         }

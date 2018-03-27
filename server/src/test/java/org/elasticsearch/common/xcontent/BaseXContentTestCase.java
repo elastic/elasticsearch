@@ -1008,18 +1008,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            XContentParseException e = expectThrows(XContentParseException.class,
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
             assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
         }
         {
-            Exception e = expectThrows(XContentParseException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
             assertEquals("unknown named object category [java.lang.String]", e.getMessage());
         }
         {
             XContentParser emptyRegistryParser = xcontentType().xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {});
-            Exception e = expectThrows(XContentParseException.class,
+            Exception e = expectThrows(NamedObjectNotFoundException.class,
                     () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
             assertEquals("named objects are not supported for this parser", e.getMessage());
         }

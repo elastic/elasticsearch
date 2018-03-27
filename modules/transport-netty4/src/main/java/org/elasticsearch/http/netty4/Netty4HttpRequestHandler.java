@@ -76,6 +76,13 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
 
             Exception badRequestCause = null;
 
+            /*
+             * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
+             * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
+             * attempt to create a REST request again without the input that caused the exception (e.g., we remove the Content-Type header,
+             * or skip decoding the parameters). Once we have a request in hand, we then dispatch the request as a bad request with the
+             * underlying exception that caused us to treat the request as bad.
+             */
             final Netty4HttpRequest httpRequest;
             {
                 Netty4HttpRequest innerHttpRequest;
@@ -91,6 +98,12 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                 httpRequest = innerHttpRequest;
             }
 
+            /*
+             * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
+             * parameter values for any of the filter_path, human, or pretty parameters. We detect these specific failures via an
+             * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of these
+             * parameter values.
+             */
             final Netty4HttpChannel channel;
             {
                 Netty4HttpChannel innerChannel;
@@ -106,7 +119,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                     final Netty4HttpRequest innerRequest =
                             new Netty4HttpRequest(
                                     serverTransport.xContentRegistry,
-                                    Collections.emptyMap(),
+                                    Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                                     copy.uri(),
                                     copy,
                                     ctx.channel());
@@ -125,6 +138,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             }
             success = true;
         } finally {
+            // the request is otherwise released in case of dispatch
             if (success == false && pipelinedRequest != null) {
                 pipelinedRequest.release();
             }
@@ -142,7 +156,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         request.method(),
                         request.uri(),
                         request.content(),
-                        headersWithoutContentTypeHeader,
+                        headersWithoutContentTypeHeader, // remove the Content-Type header so as to not parse it again
                         request.trailingHeaders()); // Content-Type can not be a trailing header
         try {
             return new Netty4HttpRequest(serverTransport.xContentRegistry, requestWithoutContentTypeHeader, channel);
@@ -153,6 +167,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     private Netty4HttpRequest requestWithoutParameters(final FullHttpRequest request, final Channel channel) {
+        // remove all parameters as at least one is incorrectly encoded
         return new Netty4HttpRequest(serverTransport.xContentRegistry, Collections.emptyMap(), request.uri(), request, channel);
     }
 

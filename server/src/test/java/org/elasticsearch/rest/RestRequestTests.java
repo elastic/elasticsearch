@@ -173,7 +173,12 @@ public class RestRequestTests extends ESTestCase {
         }
 
         ContentRestRequest(String content, Map<String, String> params, Map<String, List<String>> headers) {
-            super(XContentType.JSON, NamedXContentRegistry.EMPTY, params, "not used by this test", headers);
+            super(
+                    RestRequest.parseContentType(headers.get("Content-Type")),
+                    NamedXContentRegistry.EMPTY,
+                    params,
+                    "not used by this test",
+                    headers);
             this.content = new BytesArray(content);
         }
 

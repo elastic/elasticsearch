@@ -326,14 +326,14 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testBinaryUTF8() throws Exception {
-        assertResult("{'utf8':null}", () -> builder().startObject().utf8Field("utf8", null).endObject());
+        assertResult("{'utf8':null}", () -> builder().startObject().nullField("utf8").endObject());
 
         final BytesRef randomBytesRef = new BytesRef(randomBytes());
         XContentBuilder builder = builder().startObject();
         if (randomBoolean()) {
-            builder.utf8Field("utf8", randomBytesRef);
+            builder.utf8Field("utf8", randomBytesRef.bytes, randomBytesRef.offset, randomBytesRef.length);
         } else {
-            builder.field("utf8").utf8Value(randomBytesRef);
+            builder.field("utf8").utf8Value(randomBytesRef.bytes, randomBytesRef.offset, randomBytesRef.length);
         }
         builder.endObject();
 

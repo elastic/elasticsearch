@@ -108,7 +108,7 @@ public class RestRankEvalAction extends BaseRestHandler {
     }
 
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
-        rankEvalRequest.setIndices(Strings.splitStringByCommaToArray(request.param("index")));
+        rankEvalRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         RankEvalSpec spec = RankEvalSpec.parse(parser);
         rankEvalRequest.setRankEvalSpec(spec);
     }

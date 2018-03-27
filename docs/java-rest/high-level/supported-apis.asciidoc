@@ -31,9 +31,11 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-search>>
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
+* <<java-rest-high-multi-search>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
+include::search/multi-search.asciidoc[]
 
 == Miscellaneous APIs
 
@@ -60,6 +62,7 @@ Index Management::
 * <<java-rest-high-refresh>>
 * <<java-rest-high-flush>>
 * <<java-rest-high-clear-cache>>
+* <<java-rest-high-force-merge>>
 * <<java-rest-high-rollover-index>>
 
 Mapping Management::
@@ -79,6 +82,7 @@ include::indices/split_index.asciidoc[]
 include::indices/refresh.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/clear_cache.asciidoc[]
+include::indices/force_merge.asciidoc[]
 include::indices/rollover.asciidoc[]
 include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]

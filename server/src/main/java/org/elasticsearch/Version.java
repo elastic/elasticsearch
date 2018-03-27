@@ -25,6 +25,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -34,7 +36,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class Version implements Comparable<Version> {
+public class Version implements Comparable<Version>, ToXContentFragment {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
@@ -149,8 +151,6 @@ public class Version implements Comparable<Version> {
     public static final Version V_6_1_3 = new Version(V_6_1_3_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_1_4_ID = 6010499;
     public static final Version V_6_1_4 = new Version(V_6_1_4_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
-    public static final int V_6_1_5_ID = 6010599;
-    public static final Version V_6_1_5 = new Version(V_6_1_5_ID, org.apache.lucene.util.Version.LUCENE_7_1_0);
     public static final int V_6_2_0_ID = 6020099;
     public static final Version V_6_2_0 = new Version(V_6_2_0_ID, org.apache.lucene.util.Version.LUCENE_7_2_1);
     public static final int V_6_2_1_ID = 6020199;
@@ -193,8 +193,6 @@ public class Version implements Comparable<Version> {
                 return V_6_2_1;
             case V_6_2_0_ID:
                 return V_6_2_0;
-            case V_6_1_5_ID:
-                return V_6_1_5;
             case V_6_1_4_ID:
                 return V_6_1_4;
             case V_6_1_3_ID:
@@ -420,6 +418,11 @@ public class Version implements Comparable<Version> {
     @Override
     public int compareTo(Version other) {
         return Integer.compare(this.id, other.id);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 
     /*

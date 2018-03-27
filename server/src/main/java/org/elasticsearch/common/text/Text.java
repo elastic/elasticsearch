@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.text;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -125,7 +126,8 @@ public final class Text implements Comparable<Text>, ToXContentFragment {
         } else {
             // TODO: TextBytesOptimization we can use a buffer here to convert it? maybe add a
             // request to jackson to support InputStream as well?
-            return builder.utf8Value(this.bytes().toBytesRef());
+            BytesRef br = this.bytes().toBytesRef();
+            return builder.utf8Value(br.bytes, br.offset, br.length);
         }
     }
 }

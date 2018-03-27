@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public interface ShapeParser {
         } if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return GeoJsonParser.parse(parser, shapeMapper);
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return GeoWKTParser.parse(parser);
+            return GeoWKTParser.parse(parser, shapeMapper);
         }
         throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
     }

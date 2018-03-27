@@ -246,7 +246,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
